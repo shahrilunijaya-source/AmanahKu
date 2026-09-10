@@ -90,10 +90,7 @@
                 </div>
                 <div style="flex:1;min-width:220px;" x-show="ownerKind === 'person'" x-cloak>
                     <label style="{{ $labelStyle }}"><span x-text="$store.ui.lang==='en' ? 'Person' : 'Orang'">Person</span></label>
-                    <select name="owner_employee_id" style="{{ $inputStyle }}" :disabled="ownerKind !== 'person'">
-                        <option value=""></option>
-                        @foreach ($schedulePeople as $p)<option value="{{ $p->id }}" @selected((int) old('owner_employee_id') === $p->id)>{{ $p->name }}</option>@endforeach
-                    </select>
+                    @include('partials.person-select', ['name' => 'owner_employee_id', 'people' => $schedulePeople, 'selected' => old('owner_employee_id'), 'style' => $inputStyle, 'attrs' => ':disabled="ownerKind !== \'person\'"'])
                 </div>
                 <div style="width:170px;">
                     <label style="{{ $labelStyle }}"><span x-text="$store.ui.lang==='en' ? 'Project' : 'Projek'">Project</span></label>

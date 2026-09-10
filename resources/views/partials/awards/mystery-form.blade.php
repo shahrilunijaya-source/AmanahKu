@@ -10,11 +10,7 @@
     @csrf
     <div>
         <label>Colleague</label>
-        <select name="employee_id" required>
-            @foreach ($colleagues ?? [] as $c)
-                <option value="{{ $c->id }}" @if (($mysteryLastWinnerId ?? null) === $c->id) disabled @endif>{{ $c->display_name }}@if (($mysteryLastWinnerId ?? null) === $c->id) (won last month)@endif</option>
-            @endforeach
-        </select>
+        @include('partials.person-select', ['name' => 'employee_id', 'people' => $colleagues ?? [], 'required' => true, 'disabledId' => $mysteryLastWinnerId ?? null, 'disabledNote' => 'Won last month'])
     </div>
     <div>
         <label>Category (make one up)</label>

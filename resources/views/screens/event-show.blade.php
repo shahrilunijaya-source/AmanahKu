@@ -29,6 +29,8 @@
             @csrf
             @method('POST')
             <input type="hidden" name="attendees[]" value="">
+            <input type="search" placeholder="Type to filter names" autocomplete="off" style="display:block;min-width:280px;margin-bottom:6px;"
+                   oninput="const q = this.value.toLowerCase(); [...this.nextElementSibling.options].forEach(o => { o.hidden = q && !o.text.toLowerCase().includes(q); });" />
             <select name="attendees[]" multiple size="8" style="min-width:280px;">
                 @foreach ($assignableEmployees as $person)
                     <option value="{{ $person->id }}" @selected($attendees->firstWhere('employee.id', $person->id))>

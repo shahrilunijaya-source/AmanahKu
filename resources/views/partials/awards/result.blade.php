@@ -37,11 +37,7 @@
             <summary style="cursor:pointer;color:var(--muted);">Adjust result</summary>
             <form method="post" action="{{ url('/app/awards/'.$group->primaryResultId.'/adjust') }}" style="display:flex;flex-direction:column;gap:8px;max-width:420px;margin-top:8px;">
                 @csrf
-                <select name="employee_id" style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
-                    @foreach ($colleagues ?? [] as $c)
-                        <option value="{{ $c->id }}">{{ $c->display_name }}</option>
-                    @endforeach
-                </select>
+                @include('partials.person-select', ['name' => 'employee_id', 'people' => $colleagues ?? [], 'required' => true, 'style' => 'height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;'])
                 <input name="reason" required maxlength="2000" placeholder="Reason (required, shown on the page)" style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;" />
                 <button type="submit" class="uj-btn-ghost" style="height:34px;font-size:12.5px;">Adjust</button>
             </form>

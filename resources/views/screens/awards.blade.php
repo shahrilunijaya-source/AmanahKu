@@ -80,11 +80,7 @@
             </div>
             <div>
                 <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Colleague</label>
-                <select name="employee_id" style="height:38px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
-                    @foreach ($colleagues ?? [] as $c)
-                        <option value="{{ $c->id }}">{{ $c->display_name }}</option>
-                    @endforeach
-                </select>
+                @include('partials.person-select', ['name' => 'employee_id', 'people' => $colleagues ?? [], 'required' => true, 'style' => 'height:38px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;'])
             </div>
             <div>
                 <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Why</label>
@@ -107,11 +103,7 @@
                     </div>
                     <div>
                         <label>Colleague</label>
-                        <select name="employee_id">
-                            @foreach ($colleagues ?? [] as $c)
-                                <option value="{{ $c->id }}">{{ $c->display_name }}</option>
-                            @endforeach
-                        </select>
+                        @include('partials.person-select', ['name' => 'employee_id', 'people' => $colleagues ?? [], 'required' => true])
                     </div>
                     <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;" data-tip-end data-tip="Names the winner for this cycle">Pick</button>
                 </form>
@@ -126,11 +118,7 @@
                     </div>
                     <div>
                         <label>Colleague</label>
-                        <select name="employee_id">
-                            @foreach ($colleagues ?? [] as $c)
-                                <option value="{{ $c->id }}">{{ $c->display_name }}</option>
-                            @endforeach
-                        </select>
+                        @include('partials.person-select', ['name' => 'employee_id', 'people' => $colleagues ?? [], 'required' => true])
                     </div>
                     <div>
                         <label>Reason (required)</label>
@@ -176,11 +164,7 @@
                                 <form method="post" action="{{ url('/app/awards/mystery/committee') }}" style="display:flex;flex-direction:column;gap:8px;max-width:420px;margin-top:8px;">
                                     @csrf
                                     @for ($i = 0; $i < 3; $i++)
-                                        <select name="employee_ids[]" required style="height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
-                                            @foreach ($colleagues ?? [] as $c)
-                                                <option value="{{ $c->id }}">{{ $c->display_name }}</option>
-                                            @endforeach
-                                        </select>
+                                        @include('partials.person-select', ['name' => 'employee_ids[]', 'people' => $colleagues ?? [], 'required' => true, 'placeholder' => 'Committee member '.($i + 1), 'style' => 'height:36px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;'])
                                     @endfor
                                     <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;" data-tip-end data-tip="These people pick the winners">Save committee</button>
                                 </form>

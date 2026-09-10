@@ -159,12 +159,7 @@
                     </select>
                 </label>
                 <label>Named person (Who only)
-                    <select name="named_employee_id">
-                        <option value="">—</option>
-                        @foreach ($people as $person)
-                            <option value="{{ $person->id }}">{{ $person->name }}</option>
-                        @endforeach
-                    </select>
+                    @include('partials.person-select', ['name' => 'named_employee_id', 'people' => $people, 'placeholder' => 'Type a name (optional)'])
                 </label>
                 <label>Opens on (a Monday) <input type="date" name="opens_on" required></label>
                 @for ($i = 0; $i < 6; $i++)

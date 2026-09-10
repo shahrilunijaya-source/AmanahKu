@@ -185,9 +185,9 @@ class PlotTwistTest extends TestCase
         $gone->update(['archived_at' => now()]);
 
         $body = $this->actingInTenantAs($hr)->get('/app/plot-twist')->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('/<select name="named_employee_id">/', $body);
-        $this->assertStringContainsString('<option value="'.$shazwan->id.'">Shazwan Dev</option>', $body);
-        $this->assertStringNotContainsString('Gone Person</option>', $body);
+        $this->assertStringContainsString('<input type="hidden" name="named_employee_id"', $body);
+        $this->assertStringContainsString('<option value="Shazwan Dev" data-id="'.$shazwan->id.'"', $body);
+        $this->assertStringNotContainsString('<option value="Gone Person"', $body);
         $this->assertStringNotContainsString('type="number" name="named_employee_id"', $body);
     }
 

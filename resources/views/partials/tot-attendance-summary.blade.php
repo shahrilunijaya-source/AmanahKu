@@ -40,12 +40,7 @@
                 <input type="hidden" name="month" value="{{ $session->month }}">
                 <input type="hidden" name="next_agenda" value="{{ $session->next_agenda }}">
                 <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Pengerusi' : 'Pengerusi'">Pengerusi</label>
-                <select class="tot-field" name="chair_employee_id">
-                    <option value="">—</option>
-                    @foreach ($assignableEmployees as $e)
-                        <option value="{{ $e->id }}" @selected($session->chair_employee_id === $e->id)>{{ $e->name }}</option>
-                    @endforeach
-                </select>
+                @include('partials.person-select', ['name' => 'chair_employee_id', 'people' => $assignableEmployees, 'selected' => $session->chair_employee_id, 'class' => 'tot-field', 'placeholder' => 'Type a name'])
                 {{-- QA F1: the nota link had no visible input anywhere on the screen. --}}
                 <label class="tot-lbl" style="margin-top:8px;">Nota Perbincangan (PDF / link)</label>
                 <input type="url" class="tot-field" name="nota_url" placeholder="https://..." value="{{ old('nota_url', $session->nota_url) }}">
