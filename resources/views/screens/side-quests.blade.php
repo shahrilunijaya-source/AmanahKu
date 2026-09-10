@@ -24,9 +24,9 @@
 ])
 
 <div class="uj-sq-wrap">
-    <div>
+    <div class="uj-sq-head">
         <span class="uj-sq-k">{{ $plain ? 'Optional challenges' : 'NOT A KPI. NEVER WILL BE.' }}</span>
-        <p style="font-size:13px;color:var(--muted);margin:4px 0 0;">Two to three small quests, live until HR swaps them. Finish one, post the proof, wear the badge for 30 days. No points, nothing counts.</p>
+        <span class="uj-sq-sub">Finish one, post the proof, wear the badge for 30 days. HR swaps the quests now and then. Nothing counts.</span>
     </div>
 
     <div class="uj-sq-quests">
@@ -37,12 +37,6 @@
             @endphp
             <div class="uj-card uj-sq-quest @if ($myPost) is-done @endif" data-quest="{{ $quest->id }}"
                  @unless ($myPost) x-data="{ open: false }" @endunless>
-                @if ($canCurate)
-                    <form method="POST" action="{{ route('side-quests.retire', $quest) }}">
-                        @csrf
-                        <button type="submit" class="retire">Retire</button>
-                    </form>
-                @endif
                 @unless ($plain)
                     <span class="uj-sq-art" aria-hidden="true">🎯</span>
                 @endunless
@@ -50,10 +44,20 @@
                 @if ($quest->blurb)
                     <span class="b">{{ $quest->blurb }}</span>
                 @endif
+                <div class="uj-sq-quest-foot">
                 @if ($myPost)
                     <span class="done">{{ $plain ? 'Done' : '✓ Done' }}@if ($expiry) · badge until {{ \Illuminate\Support\Carbon::parse($expiry)->format('j M') }}@endif</span>
                 @else
-                    <button type="button" class="uj-btn-primary" @click="open = !open">I did this</button>
+                    <button type="button" class="uj-btn-primary" :aria-expanded="open" @click="open = !open">I did this</button>
+                @endif
+                @if ($canCurate)
+                    <form method="POST" action="{{ route('side-quests.retire', $quest) }}" onsubmit="return confirm('Retire this quest? It leaves the board; posts and badges stay.')">
+                        @csrf
+                        <button type="submit" class="retire" data-tip-end data-tip="Take it off the board">Retire</button>
+                    </form>
+                @endif
+                </div>
+                @unless ($myPost)
                     <div class="uj-card uj-sq-form" data-quest-complete="{{ $quest->id }}" x-show="open" x-cloak>
                         <form method="POST" action="{{ route('side-quests.complete', $quest) }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:10px;">
                             @csrf
@@ -66,41 +70,50 @@
                             </div>
                         </form>
                     </div>
-                @endif
+                @endunless
             </div>
         @endforeach
     </div>
 
     @if ($canCurate)
-        <div class="uj-card uj-sq-sugg">
-            <span class="uj-sq-k" style="color:var(--muted)">Suggested by staff</span>
-            @forelse ($suggestions as $suggestion)
-                <div class="row" data-quest-suggestion="{{ $suggestion->id }}">
-                    <span>{{ $suggestion->title }}</span>
-                    <small>{{ $suggestion->suggestedBy?->name }}</small>
-                    <form method="POST" action="{{ route('side-quests.approve', $suggestion) }}">
-                        @csrf
-                        <button type="submit" class="uj-btn-ghost">Make it live</button>
-                    </form>
-                </div>
-            @empty
-                <span style="font-size:12.5px;color:var(--muted);">Nothing suggested yet.</span>
-            @endforelse
-            <form method="POST" action="{{ route('side-quests.store') }}" class="row">
+        <div class="uj-sq-curate">
+            <div class="uj-card uj-sq-sugg">
+                <span class="uj-sq-k uj-sq-k--muted">Suggested by staff <span class="uj-doc-n">{{ $suggestions->count() }}</span></span>
+                @forelse ($suggestions as $suggestion)
+                    <div class="row" data-quest-suggestion="{{ $suggestion->id }}">
+                        <span>{{ $suggestion->title }}</span>
+                        <small>{{ $suggestion->suggestedBy?->name }}</small>
+                        <form method="POST" action="{{ route('side-quests.approve', $suggestion) }}">
+                            @csrf
+                            <button type="submit" class="uj-btn-ghost">Make it live</button>
+                        </form>
+                    </div>
+                @empty
+                    <span class="uj-sq-empty">Nothing suggested yet. Staff can suggest one from this screen.</span>
+                @endforelse
+            </div>
+            <form method="POST" action="{{ route('side-quests.store') }}" class="uj-card uj-sq-sugg">
                 @csrf
-                <input type="text" name="title" placeholder="New quest title" maxlength="255" required style="flex:1;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;">
-                <button type="submit" class="uj-btn-ghost">Publish</button>
+                <span class="uj-sq-k uj-sq-k--muted">Publish a new quest</span>
+                <div class="row">
+                    <input type="text" name="title" placeholder="e.g. Teach someone a keyboard shortcut" maxlength="255" required class="uj-sq-in">
+                    <button type="submit" class="uj-btn-primary">Publish</button>
+                </div>
+                <small>Goes live straight away, next to the quests above.</small>
             </form>
         </div>
     @else
-        <form method="POST" action="{{ route('side-quests.suggest') }}" class="uj-card uj-sq-form" style="flex-direction:row;align-items:center;gap:10px;">
+        <form method="POST" action="{{ route('side-quests.suggest') }}" class="uj-card uj-sq-sugg">
             @csrf
-            <input type="text" name="title" placeholder="Suggest a quest for HR to pick up" maxlength="255" required style="flex:1;height:36px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;">
-            <button type="submit" class="uj-btn-ghost">Suggest</button>
+            <span class="uj-sq-k uj-sq-k--muted">Got a quest idea?</span>
+            <div class="row">
+                <input type="text" name="title" placeholder="Suggest one for HR to pick up" maxlength="255" required class="uj-sq-in">
+                <button type="submit" class="uj-btn-ghost">Suggest</button>
+            </div>
         </form>
     @endif
 
-    <span class="uj-sq-k" style="color:var(--muted)">Side Quest feed</span>
+    <span class="uj-sq-k uj-sq-k--muted" style="margin-top:6px;">Side Quest feed <span class="uj-doc-n">{{ $posts->count() }}</span></span>
     <div class="uj-sq-feed">
         @forelse ($posts as $row)
             @php $post = $row['post']; @endphp
@@ -120,7 +133,7 @@
                 {!! $row['reactHtml'] !!}
             </div>
         @empty
-            <span style="font-size:12.5px;color:var(--muted);">Nobody has posted a Side Quest yet.</span>
+            <div class="uj-card uj-sq-empty-card">Nobody has posted a Side Quest yet. Finish one above and be first.</div>
         @endforelse
     </div>
 </div>
