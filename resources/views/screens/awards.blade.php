@@ -96,14 +96,18 @@
 
     {{-- Select (PM and above): New but Dangerous, Director-only: The Chosen One --}}
     @if ($canSelect)
-        <div x-show="tab === 'select'" class="uj-card" style="padding:20px;display:flex;flex-direction:column;gap:20px;">
+        <div x-show="tab === 'select'" class="uj-aw-sel">
             @if ($canSelectNewButDangerous ?? false)
-                <form method="post" action="{{ url('/app/awards/select') }}" style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
+                <form method="post" action="{{ url('/app/awards/select') }}" class="uj-aw-panel uj-ma-form">
                     @csrf
                     <input type="hidden" name="award_key" value="new_but_dangerous" />
+                    <div class="uj-aw-panel-h">
+                        <div class="uj-ma-h">&#127793; New but Dangerous</div>
+                        <p class="uj-ma-hint">Someone who joined within the last 6 months and already made a dent.</p>
+                    </div>
                     <div>
-                        <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">New but Dangerous — colleague (joined within the last 6 months)</label>
-                        <select name="employee_id" style="height:38px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
+                        <label>Colleague</label>
+                        <select name="employee_id">
                             @foreach ($colleagues ?? [] as $c)
                                 <option value="{{ $c->id }}">{{ $c->display_name }}</option>
                             @endforeach
@@ -113,20 +117,24 @@
                 </form>
             @endif
             @if ($canSelectChosenOne ?? false)
-                <form method="post" action="{{ url('/app/awards/select') }}" style="display:flex;flex-direction:column;gap:10px;max-width:420px;">
+                <form method="post" action="{{ url('/app/awards/select') }}" class="uj-aw-panel uj-ma-form">
                     @csrf
                     <input type="hidden" name="award_key" value="chosen_one" />
+                    <div class="uj-aw-panel-h">
+                        <div class="uj-ma-h">&#127942; The Chosen One</div>
+                        <p class="uj-ma-hint">Director's pick for the month. The reason is shown with the award.</p>
+                    </div>
                     <div>
-                        <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">The Chosen One — colleague</label>
-                        <select name="employee_id" style="height:38px;width:100%;border:1px solid var(--hairline);border-radius:8px;padding:0 10px;font-size:13px;">
+                        <label>Colleague</label>
+                        <select name="employee_id">
                             @foreach ($colleagues ?? [] as $c)
                                 <option value="{{ $c->id }}">{{ $c->display_name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div>
-                        <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Reason (required)</label>
-                        <textarea name="reason" rows="3" maxlength="2000" required style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:13px;"></textarea>
+                        <label>Reason (required)</label>
+                        <textarea name="reason" rows="3" maxlength="2000" required placeholder="One or two lines on why this month is theirs"></textarea>
                     </div>
                     <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;" data-tip-end data-tip="Names the winner for this cycle">Pick</button>
                 </form>
@@ -134,7 +142,7 @@
 
             {{-- CR-27: director or that month's rotating mystery committee only. --}}
             @if (($isDirector ?? false) || ($isMysteryCommitteeMember ?? false))
-                <div style="border-top:1px solid var(--hairline);padding-top:16px;">
+                <div class="uj-aw-panel uj-aw-panel--wide">
                     <div class="uj-ma-h">&#9993;&#65039; Mystery Award</div>
                     <p class="uj-ma-hint" style="margin:2px 0 10px;">One surprise a month. No rubric, no points, never counts. Category unknown to everyone until the 1st.</p>
 

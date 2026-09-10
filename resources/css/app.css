@@ -5506,3 +5506,12 @@ form.uj-or-fields { padding: 20px; }
 .uj-db-band[data-kind="wrapped"] { flex-wrap:wrap; row-gap:10px; }
 .uj-db-band[data-kind="wrapped"] .uj-db-s { flex-basis:100%; margin-top:-6px; }
 @media (max-width:600px){ .uj-wr-card { padding:22px; min-height:200px; } .uj-wr-card .big { font-size:42px; } }
+
+/* Awards · Select tab: one panel per award, mystery spans the row */
+.uj-aw-sel { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; align-items:start; }
+.uj-aw-panel { background:#fff; border:1px solid var(--hairline); border-radius:12px; padding:18px; max-width:none; }
+.uj-aw-panel--wide { grid-column:1 / -1; }
+.uj-aw-panel-h { margin-bottom:4px; }
+.uj-aw-panel .uj-ma-form { max-width:none; }
+.uj-ma-form .uj-btn-primary { align-self:flex-start; }
+.uj-ma-form textarea { min-height:78px; resize:vertical; }
