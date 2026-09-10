@@ -802,4 +802,22 @@ class AttendanceScreenTest extends TestCase
         $response->assertDontSee('site_visit_in');
         $response->assertDontSee('site_visit_out');
     }
+
+    public function test_reopened_sheet_gets_an_empty_reason_when_old_input_flashed_null(): void
+    {
+        // A needs_justification refusal calls withInput(), which flashes justification as
+        // null (validation's nullable turns the empty textarea into null). old()'s default
+        // only fires when the key is absent, so the screen used to boot with reason: null
+        // and every reason.trim() in the sheet threw.
+        $response = $this->actingAs($this->user)
+            ->withSession([
+                'current_tenant' => $this->tenant->id,
+                '_old_input' => ['justification' => null],
+            ])
+            ->get('/app/attendance');
+
+        $response->assertOk();
+        $response->assertSee("reason: ''", false);
+        $response->assertDontSee('reason: null', false);
+    }
 }

@@ -17,6 +17,16 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "2.0"
+  date: "2026-09-10"
+  entries:
+    - tag: fixed
+      text: "The clock in / clock out window could freeze after the server asked for a reason: the Confirm button stayed greyed out and nothing happened when tapped. It works again."
+      text_ms: "Tetingkap masuk / keluar kerja boleh terhenti selepas pelayan meminta sebab: butang Sahkan kekal kelabu dan tiada apa berlaku apabila ditekan. Ia berfungsi semula."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
+
 - version: "1.7.4"
   date: "2026-09-03"
   entries:
