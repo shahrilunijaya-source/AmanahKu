@@ -4706,6 +4706,15 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-rw-t { flex: 1; min-width: 0; }
 .uj-lv-rw-1 { font-size: var(--t-base); color: var(--ink); font-weight: 500; }
 .uj-lv-rw-2 { font-size: var(--t-sm); color: var(--muted); margin-top: 1px; }
+/* Document vault: filter row, foldable category headers, title over meta. */
+.uj-doc-tools { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:12px 20px; border-top:1px solid var(--hairline-soft); background:var(--shelf, #fbfbf9); }
+.uj-doc-tools .uj-mgmt-search { flex:1 1 220px; max-width:360px; height:34px; }
+.uj-doc-tools .uj-seg { flex-wrap:wrap; }
+.uj-doc-n { font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+.uj-doc-cat { display:flex; align-items:center; gap:8px; width:100%; padding:12px 20px 8px; background:none; border:0; border-top:1px solid var(--hairline-soft); text-align:left; cursor:pointer; font:700 var(--t-micro) var(--font-sans); letter-spacing:.13em; text-transform:uppercase; }
+.uj-doc-cat .uj-doc-n { letter-spacing:normal; }
+.uj-doc-list .uj-lv-rw-1, .uj-doc-list .uj-lv-rw-2 { display:block; }
+.uj-doc-list .uj-lv-rw-1 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .uj-lv-chev { flex: 0 0 10px; color: var(--muted-soft); transition: transform .26s cubic-bezier(.23, 1, .32, 1); }
 .uj-lv-rw[data-open] .uj-lv-chev { transform: rotate(90deg); }
 .uj-lv-rw-in { padding: 0 20px 15px 64px; }
