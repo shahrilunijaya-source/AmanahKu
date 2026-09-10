@@ -89,7 +89,7 @@
     </div>
     <div class="uj-mgmt-panel" data-panel="overdue">
         <button type="button" class="uj-mgmt-head" @click="overdueOpen = ! overdueOpen">
-            <span><span x-text="$store.ui.lang==='en' ? 'Overdue by Primary Owner' : 'Tertunggak mengikut Pemilik Utama'">Overdue by Primary Owner</span> <span class="uj-mgmt-n">{{ array_sum(array_map(fn ($g) => count($g['cards']), $overdue)) }}</span></span>
+            <span><span x-text="$store.ui.lang==='en' ? 'Overdue tasks' : 'Tugasan tertunggak'">Overdue tasks</span> <span class="uj-mgmt-n">{{ array_sum(array_map(fn ($g) => count($g['cards']), $overdue)) }}</span></span>
             <span aria-hidden="true" x-text="overdueOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="overdueOpen">

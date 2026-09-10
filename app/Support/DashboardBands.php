@@ -354,7 +354,7 @@ final class DashboardBands
     {
         return [
             'kicker' => ['en' => 'Management', 'ms' => 'Pengurusan'],
-            'title' => ['en' => 'Lateness today and overdue by Primary Owner', 'ms' => 'Lewat hari ini dan tertunggak mengikut Pemilik Utama'],
+            'title' => ['en' => 'Lateness today and overdue tasks', 'ms' => 'Lewat hari ini dan tugasan tertunggak'],
             'sub' => ['en' => 'Excludes leave, WFH and client-site staff. No grace applied.', 'ms' => 'Tidak termasuk cuti, WFH dan lapangan pelanggan. Tiada tempoh bertolak ansur.'],
             'lateness' => $lateness,
             'overdue' => $overdue,

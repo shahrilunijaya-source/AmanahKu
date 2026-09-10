@@ -362,8 +362,8 @@ class AppController extends Controller
         $page = [
             'title' => 'Management Exceptions',
             'title_ms' => 'Pengecualian Pengurusan',
-            'sub' => 'Lateness today and overdue by Primary Owner.',
-            'sub_ms' => 'Lewat hari ini dan tertunggak mengikut Pemilik Utama.',
+            'sub' => 'Lateness today and overdue tasks, grouped by owner.',
+            'sub_ms' => 'Lewat hari ini dan tugasan tertunggak, mengikut pemilik.',
             'crumb' => ['Management Exceptions'],
         ];
 
