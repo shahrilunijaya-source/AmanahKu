@@ -4784,6 +4784,20 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 [data-tip][data-tip-start]:is(:hover, :focus-visible)::after { translate: 0 0; }
 @media (hover: none) { [data-tip]::after { display: none; } }
 .uj-tip-i { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; border: 1px solid var(--muted-soft); color: var(--muted); font: 600 10px var(--font-sans); vertical-align: -2px; cursor: help; }
+/* TOT drawer panes. Narrow: .tot-panes is the one scroller and the two panes stack.
+   Wide: the drawer becomes a grid, record left, room right, composer under the room. */
+.tot-panes { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.tot-panes .wd-body { flex: none; overflow: visible; }
+.tot-pane--room { border-top: 1px solid var(--hairline); background: #fbfaf7; }
+@media (min-width: 1200px) {
+    .wd.tot-wd { width: 1040px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; grid-template-rows: auto minmax(0, 1fr) auto; }
+    .tot-wd > .wd-head { grid-column: 1 / -1; }
+    .tot-wd > .tot-panes { display: contents; }
+    .tot-wd .tot-pane { grid-column: 1; grid-row: 2 / 4; overflow-y: auto; min-height: 0; }
+    .tot-wd .tot-pane--room { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--hairline); }
+    .tot-wd > .wd-foot { grid-column: 2; grid-row: 3; border-left: 1px solid var(--hairline); }
+    .tot-wd .tot-pane--room + .wd-foot { border-top: 1px solid var(--hairline); }
+}
 /* Office Requests raise form (screens/office-requests) */
 .uj-or-form { padding: 0; margin-top: 4px; overflow: hidden; }
 .uj-or-form-head { padding: 16px 20px; border-bottom: 1px solid var(--hairline-soft); background: #fbfbf9; }

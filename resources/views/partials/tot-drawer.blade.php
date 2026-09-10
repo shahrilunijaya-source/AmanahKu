@@ -4,7 +4,7 @@
 <template x-teleport="body">
     <div x-show="drawerOpen" x-cloak>
         <div class="wd-scrim" :data-open="drawerOpen ? '' : null" @click="drawerOpen = false"></div>
-        <aside class="wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
+        <aside class="wd tot-wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
                @keydown.escape.window="flyout ? (flyout = null) : (drawerOpen = false)"
                :aria-label="$store.ui.lang==='en' ? @js($session->session_date->format('F Y')) : @js($session->session_date->format('F Y'))">
 
@@ -16,7 +16,11 @@
                 </button>
             </div>
 
-            <div class="wd-body">
+            {{-- Two panes from 1200px up: the record (what gets filled in) on the left,
+                 the room (rate, rater notes, discussion, composer) on the right. Narrower
+                 than that .tot-panes is the single scroller and the panes stack. --}}
+            <div class="tot-panes">
+            <div class="wd-body tot-pane">
                 @if ($session->exists)
                     @php
                         $presenterName = $session->presenterLabel();
@@ -98,8 +102,6 @@
                         @endif
                     @endif
 
-                    @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
-
                     @if ($canEditSlot)
                         <hr class="wd-rule">
                         @include('partials.tot-edit-form', [
@@ -111,6 +113,9 @@
                         ])
                     @endif
 
+                </div>
+                <div class="wd-body tot-pane tot-pane--room">
+                    @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
                     <hr class="wd-rule">
 
                     {{-- Anonymous rater notes. Present only for a viewer the server decided may
@@ -153,6 +158,7 @@
                             </div>
                         </template>
                     </div>
+                </div>
                 @else
                     {{-- Unsaved month --}}
                     @if ($canManage || $canAssignPresenter)
@@ -181,6 +187,7 @@
                     @else
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Nobody has been assigned to this session yet.' : 'Belum ada sesiapa ditugaskan untuk sesi ini.'">Nobody has been assigned to this session yet.</div>
                     @endif
+                </div>
                 @endif
             </div>
 
