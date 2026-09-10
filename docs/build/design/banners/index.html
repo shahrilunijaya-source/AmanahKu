@@ -52,13 +52,10 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 .band[data-tone=head]{--fill:var(--head);--deep:var(--head-deep);--pale:var(--head-pale)}
 .band[data-tone=need]{--fill:var(--need);--deep:var(--need-deep);--pale:var(--need-pale)}
 .band[data-tone=alrm]{--fill:var(--alrm);--deep:var(--alrm-deep);--pale:var(--alrm-pale)}
-.copy{padding:30px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
+.copy{padding:20px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
 .fold{width:34px;height:26px;position:relative;margin-bottom:auto;opacity:.55}
 .fold::before{content:"";position:absolute;left:0;top:0;width:14px;height:8px;border-radius:3px 3px 0 0;background:#fff}
 .fold::after{content:"";position:absolute;left:0;top:5px;right:0;bottom:0;border-radius:3px;background:#fff}
-.lines{position:absolute;left:22px;top:14px;display:flex;gap:8px;opacity:.55}
-.lines i{display:block;height:2px;border-radius:2px;background:#fff}
-.lines i:nth-child(1){width:70px}.lines i:nth-child(2){width:120px}.lines i:nth-child(3){width:38px}
 .k{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
 .t{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
 .s{font-size:13.5px;opacity:.95;max-width:56ch}
@@ -106,7 +103,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 
 /* plain */
 .plain .band{background:#fff;color:var(--ink);grid-template-columns:1fr}
-.plain .band .art,.plain .band .lines,.plain .band .fold{display:none}
+.plain .band .art,.plain .band .fold{display:none}
 .plain .band .k{color:var(--fill);opacity:1}
 .plain .band .s,.plain .band .meta{color:var(--body);opacity:1}
 .plain .band .cta{background:var(--fill)}
@@ -125,7 +122,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 <body>
 <div class="page">
   <h1>Dashboard bands, flat and friendly</h1>
-  <p class="lede">One card shape for every strip. Solid flat colour, white type, a small faded folder mark, two speed lines, and a flat illustration on the right that says what the band is about before you read it. Four families, four fills. Brand red is used by one family only.</p>
+  <p class="lede">One card shape for every strip. Solid flat colour, white type, a small faded folder mark and a flat illustration on the right that says what the band is about before you read it. Four families, four fills. Brand red is used by one family only.</p>
 
   <div class="fam">
     <div class="c"><span class="fold"></span><b>Celebration</b><span>Good news about people or work.</span><small>coral, with mint and plum for range</small></div>
@@ -134,12 +131,13 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
     <div class="a"><span class="fold"></span><b>Alarm</b><span>Something is wrong.</span><small>brand red, only here</small></div>
   </div>
 
+  <p class="rule"><b>Rotation:</b> nothing auto rotates. When several cards share a slot, each page load starts on a different one, and the arrows or a swipe flip through now. Speed lines dropped for that reason: nothing moves on its own, so nothing should look like it does.</p>
+
   <h2>Celebration</h2>
   <p class="rule">Birthday, Big Deal, Victory Bell, Wrapped, Awards. Coral is the family fill. Mint and plum are allowed inside the family so a stack of three celebrations does not read as one long coral wall. <b>Never brand red.</b></p>
   <div class="stack">
 
     <section class="band" data-tone="cele">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Today</span>
@@ -164,7 +162,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
     </section>
 
     <section class="band" data-tone="plum">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Big deal alert</span>
@@ -191,7 +188,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
     </section>
 
     <section class="band" data-tone="mint">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">We have movement</span>
@@ -215,7 +211,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
     </section>
 
     <section class="band" data-tone="cele">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">September, wrapped</span>
@@ -240,7 +235,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
     </section>
 
     <section class="band" data-tone="plum">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Awards</span>
@@ -264,7 +258,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   <p class="rule">Holiday eve, weekend birthdays, any "for your information" strip. Bright sky blue. Calm by design, the illustration does the talking.</p>
   <div class="stack">
     <section class="band" data-tone="head">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Holiday eve</span>
@@ -284,7 +277,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
       </div>
     </section>
     <section class="band" data-tone="head">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">This weekend</span>
@@ -311,7 +303,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   <div class="two">
     <div class="stack">
       <section class="band wide" data-tone="need">
-        <div class="lines"><i></i><i></i><i></i></div>
         <div class="copy">
           <span class="fold"></span>
           <span class="k">Management</span>
@@ -350,7 +341,6 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   <p class="rule">Nothing lives here today. Reserved for "something is wrong": a failed payroll run, a locked account, a sync that stopped. Brand red. Because no celebration uses red any more, this one gets read the moment it appears.</p>
   <div class="stack">
     <section class="band" data-tone="alrm">
-      <div class="lines"><i></i><i></i><i></i></div>
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Payroll</span>
@@ -376,7 +366,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   </div>
 
   <h2>Keep it plain</h2>
-  <p class="rule">Same families on a white card, no illustration, no lines. The kicker and the button keep the family colour, so a plain user still knows a celebration from an alarm at a glance.</p>
+  <p class="rule">Same families on a white card, no illustration. The kicker and the button keep the family colour, so a plain user still knows a celebration from an alarm at a glance.</p>
   <div class="stack plain">
     <section class="band" data-tone="cele"><div class="copy"><span class="k">September, wrapped</span><span class="t">Unijaya's September in one breath</span><span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span><div class="row"><span class="cta">My Wrapped</span></div></div></section>
     <section class="band" data-tone="need"><div class="copy"><span class="k">Management</span><span class="t">Three things need a director today</span><span class="s">Two verified claims waiting for final approval, one overdue milestone.</span><div class="row"><span class="cta">Review now</span></div></div></section>
