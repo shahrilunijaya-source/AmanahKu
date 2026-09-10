@@ -5068,7 +5068,10 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 @media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
 
 /* --- CR-24: Big Deal Alert banner (moments band) and Wins page card --- */
-.uj-db-band[data-kind="big-deal"] { flex-wrap:wrap; row-gap:10px; }
+/* Shazwan 2026-09-10: a Big Deal is good news, red reads as an alarm. Calm green instead. */
+.uj-db-band[data-kind="big-deal"] { flex-wrap:wrap; row-gap:10px; background:#e9f5ee; border-color:#bfe3cc; }
+.uj-db-band[data-kind="big-deal"] .uj-db-k { color:#1f6b4a; }
+.uj-db-band[data-kind="big-deal"] .uj-db-cta { background:#1f6b4a; color:#fff; }
 .uj-db-band[data-kind="big-deal"] .uj-db-s { flex-basis:100%; margin-top:-6px; }
 .uj-bd-team { display:flex; align-items:center; }
 .uj-bd-team .uj-db-avatar { margin-left:-7px; border:2px solid #fff; box-shadow:0 0 0 1px var(--hairline); }
