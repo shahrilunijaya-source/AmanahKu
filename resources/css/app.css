@@ -1785,7 +1785,9 @@ select.wd-inline {
 .tot-fly-e[data-mine] { filter:none; }
 /* CR-30 reaction picker + tally. The flyout wraps because eight labelled picks do not fit one row. */
 .tot-fly-react { flex-wrap:wrap; white-space:normal; width:max-content; max-width:min(400px, calc(100vw - 48px)); gap:4px 6px;
-  bottom:auto; top:100%; margin-bottom:0; margin-top:8px; border-radius:14px; padding:8px 10px; }
+  bottom:auto; top:100%; margin-bottom:0; margin-top:12px; border-radius:14px; padding:8px 10px; }
+/* Invisible bridge over the gap, so the pointer can travel heart to picker without leaving. */
+.tot-fly-react::before { content:''; position:absolute; left:-16px; right:-16px; bottom:100%; height:18px; }
 .uj-react-pick { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--hairline); border-radius:999px; background:var(--card); padding:3px 9px 3px 6px; font:500 12px var(--font-sans); color:var(--ink); cursor:pointer; animation:tot-e-in 260ms var(--d) both; }
 .uj-react-pick:hover { border-color:var(--red); background:var(--red-tint); }
 .uj-react-pick[data-mine] { border-color:var(--red); background:var(--red-tint); color:var(--red); }
