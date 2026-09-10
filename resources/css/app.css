@@ -1662,7 +1662,7 @@ select.wd-inline {
 }
 .wd-foot textarea:focus { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
 .wd-post { height: 38px; padding: 0 15px; font-size: var(--t-sm); flex-shrink: 0; border: 0; cursor: pointer; }
-/* Board drawer only: Post stays out of the way until the box is focused or holds text. */
+/* Board and TOT drawers: Post stays out of the way until the box is focused or holds text. */
 .wd-foot--reveal .wd-post {
     max-width: 0; padding: 0; margin-left: -8px; opacity: 0; overflow: hidden; white-space: nowrap;
     transform: translateX(6px); pointer-events: none;
@@ -4792,6 +4792,8 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .tot-panes .wd-body { flex: none; overflow: visible; }
 .tot-pane--room { border-top: 1px solid var(--hairline); background: #fbfaf7; }
 .tot-pillbtn[data-on] { border-color: var(--red); color: var(--red); }
+.tot-action-tags { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.tot-presenter-tag--clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: bottom; }
 @media (min-width: 1200px) {
     .wd.tot-wd { width: 1040px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; grid-template-rows: auto minmax(0, 1fr) auto; }
     .tot-wd > .wd-head { grid-column: 1 / -1; }

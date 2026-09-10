@@ -44,10 +44,13 @@
                     <template x-if="dueAt">
                         <span x-text="dueText"></span>
                     </template>
+                </div>
+                {{-- Chips on their own line so a long slot title never splits the meta text. --}}
+                <div class="tot-action-tags">
                     @if ($action->slot)
-                        · <span class="tot-presenter-tag">{{ $action->slot->title }}</span>
+                        <span class="tot-presenter-tag tot-presenter-tag--clip" title="{{ $action->slot->title }}">{{ $action->slot->title }}</span>
                     @endif
-                    · <span class="tot-presenter-tag">{{ $action->statusLabel() }}</span>
+                    <span class="tot-presenter-tag">{{ $action->statusLabel() }}</span>
                 </div>
             </div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">

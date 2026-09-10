@@ -196,12 +196,12 @@
             </div>
 
             @if ($session->exists && $canParticipate && $session->status !== 'skipped')
-                <div class="wd-foot">
-                    <textarea rows="1" x-ref="composer" maxlength="2000"
+                <div class="wd-foot wd-foot--reveal" x-data="{ draft: '' }" :class="{ 'has-text': draft.trim().length }">
+                    <textarea rows="1" x-ref="composer" maxlength="2000" x-model="draft"
                               :placeholder="slotRoom ? ($store.ui.lang==='en' ? 'Comment on this slot' : 'Komen tentang slot ini') : ($store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari')"
-                              @keydown.enter.prevent="postComment($event.target.value); $event.target.value = ''"></textarea>
+                              @keydown.enter.prevent="postComment(draft); draft = ''"></textarea>
                     <button type="button" class="uj-btn-primary wd-post"
-                            @click="postComment($refs.composer.value); $refs.composer.value = ''"
+                            @click="postComment(draft); draft = ''"
                             x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</button>
                 </div>
             @endif
