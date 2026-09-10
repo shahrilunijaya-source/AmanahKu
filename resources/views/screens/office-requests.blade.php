@@ -38,43 +38,62 @@
 ])
 
 <div class="uj-lv" x-data="officeRequests()">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <h1 style="font-size:19px;font-weight:600;color:var(--ink);margin:0;"
-            x-text="$store.ui.lang==='en' ? 'Office Requests' : 'Permintaan Pejabat'">Office Requests</h1>
-        <div style="display:flex;gap:10px;">
-            @if ($orCanSeeInsights ?? false)
-            <a href="{{ route('office-requests.insights') }}" class="uj-btn-ghost" style="height:34px;padding:0 13px;font-size:12.5px;display:inline-flex;align-items:center;"
-               x-text="$store.ui.lang==='en' ? 'Insights' : 'Wawasan'">Insights</a>
-            @endif
-            <button type="button" @click="open = !open" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;"
-                    x-text="open ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ New request' : '+ Permintaan baharu')">+ New request</button>
-        </div>
+    {{-- The guide above already carries the screen title; this row is just the actions. --}}
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;">
+        @if ($orCanSeeInsights ?? false)
+        <a href="{{ route('office-requests.insights') }}" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;display:inline-flex;align-items:center;"
+           x-text="$store.ui.lang==='en' ? 'Insights' : 'Wawasan'">Insights</a>
+        @endif
+        <button type="button" @click="open = !open" :class="open ? 'uj-btn-ghost' : 'uj-btn-primary'" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"
+                x-text="open ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ New request' : '+ Permintaan baharu')">+ New request</button>
     </div>
 
     {{-- ── Raise form ─────────────────────────────────────────────────── --}}
-    <div class="uj-card" x-show="open" x-cloak style="padding:20px;margin-top:14px;">
-        <form method="post" action="{{ route('office-requests.store') }}" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:14px;">
+    <div class="uj-card uj-or-form" x-show="open" x-cloak>
+        <div class="uj-or-form-head">
+            <b x-text="$store.ui.lang==='en' ? 'New request' : 'Permintaan baharu'">New request</b>
+            <span x-text="$store.ui.lang==='en' ? 'Say what is wrong or needed, and where. The Admin team picks it up from here.' : 'Nyatakan apa yang rosak atau diperlukan, dan di mana. Pasukan Admin ambil alih dari sini.'">Say what is wrong or needed, and where. The Admin team picks it up from here.</span>
+        </div>
+        <form method="post" action="{{ route('office-requests.store') }}" enctype="multipart/form-data" class="uj-or-fields">
             @csrf
-            <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</label>
-                <select name="category" x-model="category" required class="uj-lv-in">
-                    @foreach ($orCategories as $c)
-                        <option value="{{ $c }}" @selected(old('category') === $c) x-text="$store.ui.lang==='en' ? @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][0]) : @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][1])">{{ \App\Models\OfficeRequest::CATEGORY_LABELS[$c][0] }}</option>
-                    @endforeach
-                </select>
+            <div class="uj-lv-row2">
+                <div>
+                    <label class="uj-lv-field" for="or-category" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</label>
+                    <select id="or-category" name="category" x-model="category" required class="uj-lv-in">
+                        @foreach ($orCategories as $c)
+                            <option value="{{ $c }}" @selected(old('category') === $c) x-text="$store.ui.lang==='en' ? @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][0]) : @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][1])">{{ \App\Models\OfficeRequest::CATEGORY_LABELS[$c][0] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="uj-lv-field" for="or-urgency" x-text="$store.ui.lang==='en' ? 'Urgency' : 'Kesegeraan'">Urgency</label>
+                    <select id="or-urgency" name="urgency" x-model="urgency" required class="uj-lv-in">
+                        @php $urgencyLabels = ['low' => ['Low', 'Rendah'], 'normal' => ['Normal', 'Biasa'], 'urgent' => ['Urgent', 'Segera']]; @endphp
+                        @foreach ($orUrgencies as $u)
+                            <option value="{{ $u }}" @selected(old('urgency', 'normal') === $u) x-text="$store.ui.lang==='en' ? @js($urgencyLabels[$u][0] ?? ucfirst($u)) : @js($urgencyLabels[$u][1] ?? ucfirst($u))">{{ $urgencyLabels[$u][0] ?? ucfirst($u) }}</option>
+                        @endforeach
+                    </select>
+                    <p class="uj-or-hint" x-show="urgency !== 'urgent'" x-text="$store.ui.lang==='en' ? 'Urgent pages the Finance Manager and Director. Use it for today-only problems.' : 'Segera memaklumkan Pengurus Kewangan dan Pengarah. Guna untuk masalah hari ini sahaja.'"></p>
+                </div>
+            </div>
+
+            <div x-show="urgency === 'urgent'" x-cloak>
+                <label class="uj-lv-field" for="or-urgency-reason" x-text="$store.ui.lang==='en' ? 'Why is this urgent?' : 'Kenapa ini segera?'">Why is this urgent?</label>
+                <textarea id="or-urgency-reason" name="urgency_reason" :required="urgency === 'urgent'" maxlength="500" rows="2" class="uj-lv-in"
+                          :placeholder="$store.ui.lang==='en' ? 'One line on why it cannot wait until tomorrow.' : 'Satu baris kenapa ia tidak boleh tunggu esok.'">{{ old('urgency_reason') }}</textarea>
+                @error('urgency_reason')<p class="uj-or-err">{{ $message }}</p>@enderror
             </div>
 
             <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'">Title</label>
-                <input name="title" x-model="title" @input.debounce.400ms="checkSimilar()" required maxlength="160" class="uj-lv-in" value="{{ old('title') }}">
+                <label class="uj-lv-field" for="or-title" x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'">Title</label>
+                <input id="or-title" name="title" x-model="title" @input.debounce.400ms="checkSimilar()" required maxlength="160" class="uj-lv-in" value="{{ old('title') }}"
+                       :placeholder="$store.ui.lang==='en' ? 'Short and searchable, e.g. Printer out of toner' : 'Pendek dan mudah dicari, cth. Dakwat pencetak habis'">
                 <template x-if="similar.length">
-                    <div style="margin-top:8px;padding:10px 12px;border-radius:9px;background:var(--canvas);border:1px solid var(--hairline);">
-                        <p style="font-size:12px;color:var(--muted);margin:0 0 6px;" x-text="$store.ui.lang==='en' ? 'Already raised — +1 instead?' : 'Sudah dimohon — +1 sahaja?'"></p>
+                    <div class="uj-or-similar">
+                        <p x-text="$store.ui.lang==='en' ? 'Already raised. +1 one of these instead?' : 'Sudah dimohon. +1 salah satu ini?'"></p>
                         <template x-for="s in similar" :key="s.id">
-                            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
-                                <span style="font-size:13px;" x-text="s.title + ' (' + s.votes + ')'"></span>
+                            <div>
+                                <span x-text="s.title + ' (' + s.votes + ')'"></span>
                                 <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11.5px;" @click="upvote(s.id)">+1</button>
                             </div>
                         </template>
@@ -83,59 +102,48 @@
             </div>
 
             <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label>
-                <textarea name="description" required maxlength="2000" rows="3" class="uj-lv-in">{{ old('description') }}</textarea>
+                <label class="uj-lv-field" for="or-description" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</label>
+                <textarea id="or-description" name="description" required maxlength="2000" rows="3" class="uj-lv-in"
+                          :placeholder="$store.ui.lang==='en' ? 'What happened, since when, anything Admin should know before they come.' : 'Apa yang berlaku, sejak bila, apa yang Admin perlu tahu sebelum datang.'">{{ old('description') }}</textarea>
             </div>
 
             <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label>
-                <input name="location" required maxlength="160" class="uj-lv-in" value="{{ old('location') }}">
+                <label class="uj-lv-field" for="or-location" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label>
+                <input id="or-location" name="location" required maxlength="160" class="uj-lv-in" value="{{ old('location') }}"
+                       :placeholder="$store.ui.lang==='en' ? 'e.g. Level 2 pantry, meeting room B' : 'cth. Pantri tingkat 2, bilik mesyuarat B'">
             </div>
 
-            <div x-show="category === 'vehicle'" x-cloak style="display:flex;flex-direction:column;gap:14px;">
-                <div>
-                    <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                           x-text="$store.ui.lang==='en' ? 'Vehicle plate' : 'Plat kenderaan'">Vehicle plate</label>
-                    <input name="vehicle_plate" maxlength="20" class="uj-lv-in" value="{{ old('vehicle_plate') }}">
+            <div x-show="category === 'vehicle'" x-cloak class="uj-or-fields">
+                <div class="uj-lv-row2">
+                    <div>
+                        <label class="uj-lv-field" for="or-plate" x-text="$store.ui.lang==='en' ? 'Vehicle plate' : 'Plat kenderaan'">Vehicle plate</label>
+                        <input id="or-plate" name="vehicle_plate" maxlength="20" class="uj-lv-in" value="{{ old('vehicle_plate') }}" placeholder="WXY 1234">
+                    </div>
+                    <div>
+                        <label class="uj-lv-field" for="or-mileage" x-text="$store.ui.lang==='en' ? 'Mileage' : 'Bacaan meter'">Mileage</label>
+                        <input id="or-mileage" type="number" name="vehicle_mileage" min="0" class="uj-lv-in" value="{{ old('vehicle_mileage') }}" placeholder="km">
+                    </div>
                 </div>
                 <div>
-                    <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                           x-text="$store.ui.lang==='en' ? 'Mileage' : 'Bacaan meter'">Mileage</label>
-                    <input type="number" name="vehicle_mileage" min="0" class="uj-lv-in" value="{{ old('vehicle_mileage') }}">
-                </div>
-                <div>
-                    <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                           x-text="$store.ui.lang==='en' ? 'Last service date' : 'Tarikh servis terakhir'">Last service date</label>
-                    <input type="date" name="vehicle_last_service_at" class="uj-lv-in" value="{{ old('vehicle_last_service_at') }}">
+                    <label class="uj-lv-field" for="or-service" x-text="$store.ui.lang==='en' ? 'Last service date' : 'Tarikh servis terakhir'">Last service date</label>
+                    <input id="or-service" type="date" name="vehicle_last_service_at" class="uj-lv-in" value="{{ old('vehicle_last_service_at') }}">
                 </div>
             </div>
 
             <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Urgency' : 'Kesegeraan'">Urgency</label>
-                <select name="urgency" x-model="urgency" required class="uj-lv-in">
-                    @foreach ($orUrgencies as $u)
-                        <option value="{{ $u }}" @selected(old('urgency', 'normal') === $u)>{{ ucfirst($u) }}</option>
-                    @endforeach
-                </select>
+                <label class="uj-lv-field" for="or-photo">
+                    <span x-text="$store.ui.lang==='en' ? 'Photo' : 'Gambar'">Photo</span>
+                    <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional' : '— pilihan'">— optional</span>
+                </label>
+                <div class="uj-lv-file">
+                    <input type="file" id="or-photo" name="photo" accept="image/*">
+                </div>
+                <p class="uj-or-hint" x-text="$store.ui.lang==='en' ? 'A quick phone photo helps Admin bring the right thing the first time.' : 'Gambar telefon yang ringkas membantu Admin bawa barang yang betul pada kali pertama.'"></p>
             </div>
 
-            <div x-show="urgency === 'urgent'" x-cloak>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Why is this urgent?' : 'Kenapa ini segera?'">Why is this urgent?</label>
-                <textarea name="urgency_reason" :required="urgency === 'urgent'" maxlength="500" rows="2" class="uj-lv-in">{{ old('urgency_reason') }}</textarea>
-                @error('urgency_reason')<p style="font-size:12px;color:var(--error);margin:7px 0 0;">{{ $message }}</p>@enderror
-            </div>
-
-            <div>
-                <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:7px;"
-                       x-text="$store.ui.lang==='en' ? 'Photo (optional)' : 'Gambar (pilihan)'">Photo</label>
-                <input type="file" name="photo" accept="image/*" class="uj-lv-in">
-            </div>
-
-            <div style="display:flex;justify-content:flex-end;">
+            <div class="uj-or-foot">
+                <button type="button" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;" @click="open = false"
+                        x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
                 <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"
                         x-text="$store.ui.lang==='en' ? 'Submit request' : 'Hantar permintaan'">Submit request</button>
             </div>

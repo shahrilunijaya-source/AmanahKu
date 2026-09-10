@@ -4766,6 +4766,19 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-drw[data-withdrawn] .uj-lv-drw-main b,
 .uj-lv-drw[data-withdrawn] .uj-lv-drw-meta { opacity: .6; }
 
+/* Office Requests raise form (screens/office-requests) */
+.uj-or-form { padding: 0; margin-top: 4px; overflow: hidden; }
+.uj-or-form-head { padding: 16px 20px; border-bottom: 1px solid var(--hairline-soft); background: #fbfbf9; }
+.uj-or-form-head b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-or-form-head span { display: block; font-size: var(--t-sm); color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.uj-or-fields { display: flex; flex-direction: column; gap: 16px; }
+form.uj-or-fields { padding: 20px; }
+.uj-or-hint { font-size: var(--t-sm); color: var(--muted); margin: 7px 0 0; line-height: 1.5; }
+.uj-or-err { font-size: var(--t-sm); color: var(--error); margin: 7px 0 0; }
+.uj-or-similar { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--canvas); border: 1px solid var(--hairline); }
+.uj-or-similar p { font-size: var(--t-sm); color: var(--muted); margin: 0 0 4px; }
+.uj-or-similar > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: var(--t-base); color: var(--ink); }
+.uj-or-foot { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--hairline-soft); margin-top: 2px; padding-top: 16px; }
 .uj-lv-empty { padding: 34px 20px; text-align: center; }
 .uj-lv-empty b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
 .uj-lv-empty span { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.55; max-width: 40ch; margin: 3px auto 0; }
