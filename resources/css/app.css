@@ -4766,6 +4766,18 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-drw[data-withdrawn] .uj-lv-drw-main b,
 .uj-lv-drw[data-withdrawn] .uj-lv-drw-meta { opacity: .6; }
 
+/* Plain tooltip: put the text in data-tip. Shows on hover and on keyboard focus,
+   sits above the element, never on touch (no hover there, the label has to carry it). */
+[data-tip] { position: relative; }
+[data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 7px); translate: -50% 2px; z-index: 40; padding: 5px 9px; border-radius: 7px; background: var(--ink); color: #fff; font: 500 var(--t-micro) var(--font-sans); letter-spacing: 0; text-transform: none; white-space: nowrap; max-width: 260px; pointer-events: none; opacity: 0; transition: opacity 120ms ease-out, translate 120ms ease-out; }
+[data-tip]:is(:hover, :focus-visible)::after { opacity: 1; translate: -50% 0; }
+[data-tip][data-tip-wrap]::after { white-space: normal; width: max-content; }
+[data-tip][data-tip-end]::after { left: auto; right: 0; translate: 0 2px; }
+[data-tip][data-tip-end]:is(:hover, :focus-visible)::after { translate: 0 0; }
+[data-tip][data-tip-start]::after { left: 0; translate: 0 2px; }
+[data-tip][data-tip-start]:is(:hover, :focus-visible)::after { translate: 0 0; }
+@media (hover: none) { [data-tip]::after { display: none; } }
+.uj-tip-i { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; border: 1px solid var(--muted-soft); color: var(--muted); font: 600 10px var(--font-sans); vertical-align: -2px; cursor: help; }
 /* Office Requests raise form (screens/office-requests) */
 .uj-or-form { padding: 0; margin-top: 4px; overflow: hidden; }
 .uj-or-form-head { padding: 16px 20px; border-bottom: 1px solid var(--hairline-soft); background: #fbfbf9; }

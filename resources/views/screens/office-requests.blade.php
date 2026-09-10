@@ -41,7 +41,8 @@
     {{-- The guide above already carries the screen title; this row is just the actions. --}}
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;">
         @if ($orCanSeeInsights ?? false)
-        <a href="{{ route('office-requests.insights') }}" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;display:inline-flex;align-items:center;"
+        <a href="{{ route('office-requests.insights') }}" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;display:inline-flex;align-items:center;" data-tip-end
+           :data-tip="$store.ui.lang==='en' ? 'Volumes, response times and repeat issues' : 'Jumlah, masa tindak balas dan isu berulang'"
            x-text="$store.ui.lang==='en' ? 'Insights' : 'Wawasan'">Insights</a>
         @endif
         <button type="button" @click="open = !open" :class="open ? 'uj-btn-ghost' : 'uj-btn-primary'" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"
@@ -58,7 +59,7 @@
             @csrf
             <div class="uj-lv-row2">
                 <div>
-                    <label class="uj-lv-field" for="or-category" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</label>
+                    <label class="uj-lv-field" for="or-category"><span x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</span><span class="uj-tip-i" tabindex="0" data-tip-wrap data-tip-start :data-tip="$store.ui.lang==='en' ? 'Picks who sees it first. Vehicle asks for the plate and mileage.' : 'Menentukan siapa lihat dahulu. Kenderaan minta plat dan bacaan meter.'">i</span></label>
                     <select id="or-category" name="category" x-model="category" required class="uj-lv-in">
                         @foreach ($orCategories as $c)
                             <option value="{{ $c }}" @selected(old('category') === $c) x-text="$store.ui.lang==='en' ? @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][0]) : @js(\App\Models\OfficeRequest::CATEGORY_LABELS[$c][1])">{{ \App\Models\OfficeRequest::CATEGORY_LABELS[$c][0] }}</option>
@@ -66,7 +67,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="uj-lv-field" for="or-urgency" x-text="$store.ui.lang==='en' ? 'Urgency' : 'Kesegeraan'">Urgency</label>
+                    <label class="uj-lv-field" for="or-urgency"><span x-text="$store.ui.lang==='en' ? 'Urgency' : 'Kesegeraan'">Urgency</span><span class="uj-tip-i" tabindex="0" data-tip-wrap data-tip-start :data-tip="$store.ui.lang==='en' ? 'Low can wait a week. Normal is this week. Urgent is today and pages management.' : 'Rendah boleh tunggu seminggu. Biasa minggu ini. Segera hari ini dan memaklumkan pengurusan.'">i</span></label>
                     <select id="or-urgency" name="urgency" x-model="urgency" required class="uj-lv-in">
                         @php $urgencyLabels = ['low' => ['Low', 'Rendah'], 'normal' => ['Normal', 'Biasa'], 'urgent' => ['Urgent', 'Segera']]; @endphp
                         @foreach ($orUrgencies as $u)
@@ -85,7 +86,7 @@
             </div>
 
             <div>
-                <label class="uj-lv-field" for="or-title" x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'">Title</label>
+                <label class="uj-lv-field" for="or-title"><span x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'">Title</span><span class="uj-tip-i" tabindex="0" data-tip-wrap data-tip-start :data-tip="$store.ui.lang==='en' ? 'As you type we look for the same request already open, so you can +1 it instead.' : 'Semasa anda menaip kami cari permintaan sama yang masih terbuka, supaya anda boleh +1 sahaja.'">i</span></label>
                 <input id="or-title" name="title" x-model="title" @input.debounce.400ms="checkSimilar()" required maxlength="160" class="uj-lv-in" value="{{ old('title') }}"
                        :placeholder="$store.ui.lang==='en' ? 'Short and searchable, e.g. Printer out of toner' : 'Pendek dan mudah dicari, cth. Dakwat pencetak habis'">
                 <template x-if="similar.length">
@@ -108,7 +109,7 @@
             </div>
 
             <div>
-                <label class="uj-lv-field" for="or-location" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label>
+                <label class="uj-lv-field" for="or-location"><span x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</span><span class="uj-tip-i" tabindex="0" data-tip-wrap data-tip-start :data-tip="$store.ui.lang==='en' ? 'Floor and room, so Admin walks straight to it.' : 'Tingkat dan bilik, supaya Admin terus ke situ.'">i</span></label>
                 <input id="or-location" name="location" required maxlength="160" class="uj-lv-in" value="{{ old('location') }}"
                        :placeholder="$store.ui.lang==='en' ? 'e.g. Level 2 pantry, meeting room B' : 'cth. Pantri tingkat 2, bilik mesyuarat B'">
             </div>
@@ -184,7 +185,7 @@
                                 <span style="font-size:14px;font-weight:600;color:var(--ink);">{{ $r->title }}</span>
                                 <span class="uj-stamp" style="font-size:10.5px;" x-text="$store.ui.lang==='en' ? @js($r->categoryLabel()) : @js($r->categoryLabel(true))">{{ $r->categoryLabel() }}</span>
                                 @if ($r->urgency === 'urgent')
-                                    <span class="uj-stamp" data-tone="error" x-text="$store.ui.lang==='en' ? 'Urgent' : 'Segera'">Urgent</span>
+                                    <span class="uj-stamp" data-tone="error" @if($r->urgency_reason) tabindex="0" data-tip="{{ $r->urgency_reason }}" data-tip-wrap @endif x-text="$store.ui.lang==='en' ? 'Urgent' : 'Segera'">Urgent</span>
                                 @endif
                             </div>
                             <p style="font-size:12.5px;color:var(--body);margin:5px 0 0;">{{ $r->description }}</p>
@@ -199,15 +200,16 @@
                             @endif
                         </div>
                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-                            <button type="button" class="uj-btn-ghost" style="height:28px;padding:0 11px;font-size:11.5px;" :disabled="{{ $myVotes->contains($r->id) ? 'true' : 'false' }}" @click="upvote({{ $r->id }})">
+                            <button data-tip-end type="button" class="uj-btn-ghost" style="height:28px;padding:0 11px;font-size:11.5px;" :disabled="{{ $myVotes->contains($r->id) ? 'true' : 'false' }}" @click="upvote({{ $r->id }})"
+                                    :data-tip="{{ $myVotes->contains($r->id) ? 'true' : 'false' }} ? ($store.ui.lang==='en' ? 'You already +1 this' : 'Anda sudah +1') : ($store.ui.lang==='en' ? '+1 if you need this too. One per person.' : '+1 jika anda perlukan juga. Satu seorang.')">
                                 &uarr; {{ $r->votes }}
                             </button>
                             @if ($adminIds->contains($r->id) && $r->status !== 'done')
-                                <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptNote({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Note' : 'Nota'">Note</button>
-                                <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptDone({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'">Done</button>
+                                <button data-tip-end type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptNote({{ $r->id }})" :data-tip="$store.ui.lang==='en' ? 'Leave the requester an update, e.g. Ordered, Thu' : 'Tinggalkan kemas kini untuk pemohon, cth. Dipesan, Kha'" x-text="$store.ui.lang==='en' ? 'Note' : 'Nota'">Note</button>
+                                <button data-tip-end type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptDone({{ $r->id }})" :data-tip="$store.ui.lang==='en' ? 'Close it with a short note on what was done' : 'Tutup dengan nota ringkas tentang apa yang dibuat'" x-text="$store.ui.lang==='en' ? 'Done' : 'Selesai'">Done</button>
                             @endif
                             @if ($r->status === 'done' && $r->employee_id === ($employee->id ?? null) && $r->withinReopenWindow())
-                                <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="reopen({{ $r->id }})" x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'">Reopen</button>
+                                <button data-tip-end type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="reopen({{ $r->id }})" :data-tip="$store.ui.lang==='en' ? 'Not actually fixed? Send it back to Open.' : 'Belum betul-betul selesai? Hantar semula ke Buka.'" x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'">Reopen</button>
                             @endif
                         </div>
                     </div>
