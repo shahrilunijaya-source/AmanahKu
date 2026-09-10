@@ -33,7 +33,7 @@
             'Tap a day in the strip to open it. The cards you have In Progress or In Review are already listed. Set each line\'s percentage until the day reads 100%, and remove anything you did not actually work on.',
             'Locked days (approved leave, public holidays) are filled in for you and can\'t be edited.',
             'Touch a line to show its own amount buttons: 100%, 50%, 25%, or "Give it the rest". A line left without a percentage stays on screen and blocks the week until you fill it in or remove it.',
-            'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit week" once every day reads 100%.',
+            'Use "Same as <day>" to copy the previous day. Save a draft any time; press "Submit day" as each day is done, and "Submit week" takes its place at the end of the week for whatever is left.',
             'Turn off "Fill from board" and use "+ Add what you worked on" to add a line by hand: category, then project and sub-pillar if asked, then the percentage and notes.',
         ],
     ],
@@ -46,7 +46,7 @@
             'Ketik satu hari dalam jalur untuk membukanya. Kad anda yang In Progress atau In Review sudah tersenarai. Tetapkan peratus setiap baris sehingga hari itu membaca 100%, dan buang apa yang anda tidak kerjakan.',
             'Hari yang dikunci (cuti diluluskan, cuti umum) sudah diisi untuk anda dan tidak boleh disunting.',
             'Sentuh satu baris untuk memaparkan butang amaunnya sendiri: 100%, 50%, 25%, atau "Beri baki". Baris tanpa peratus kekal di skrin dan menghalang minggu itu sehingga anda mengisinya atau membuangnya.',
-            'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar minggu" apabila setiap hari membaca 100%.',
+            'Guna "Sama seperti <hari>" untuk menyalin hari sebelumnya. Simpan draf pada bila-bila masa; tekan "Hantar hari" sebaik sahaja hari itu selesai, dan "Hantar minggu" menggantikannya pada hujung minggu untuk hari yang berbaki.',
             'Matikan "Isi dari papan" dan guna "+ Tambah apa yang anda kerjakan" untuk menambah baris secara manual: kategori, kemudian projek dan sub-pillar jika ditanya, kemudian peratus dan nota.',
         ],
     ],
@@ -702,10 +702,13 @@
             </div>
             <div style="display:flex;gap:8px;">
                 <button type="button" @click="save(false, true)" :disabled="readonly || saving" class="uj-btn-ghost" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save draft' : 'Simpan draf'">Save draft</span></button>
-                <button type="button" id="ts-submit-day-btn" @click="submitDay(selected)" :disabled="!canSubmitDay(selected) || readonly || saving || submittingDay"
+                {{-- One primary button at a time: Submit day through the week, Submit week once the
+                     week's cutoff has passed. A day with no lines still needs its own reason, and a
+                     returned day its own resubmit, so those keep Submit day even at week end. --}}
+                <button type="button" id="ts-submit-day-btn" x-show="!weekEndReached() || dayState(selected) === 'empty' || dayStatus(selected) === 'returned'" @click="submitDay(selected)" :disabled="!canSubmitDay(selected) || readonly || saving || submittingDay"
                     :style="(!canSubmitDay(selected) || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="submitDayLabel()">Submit day</span></button>
-                <button type="button" id="ts-submit-btn" @click="openReview()" :disabled="!weekComplete() || readonly || saving"
+                <button type="button" id="ts-submit-btn" x-show="weekEndReached() && dayState(selected) !== 'empty' && dayStatus(selected) !== 'returned'" @click="openReview()" :disabled="!weekComplete() || readonly || saving"
                     :style="(!weekComplete() || readonly) ? { opacity:'.5', cursor:'not-allowed' } : {}"
                     class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Submit week' : 'Hantar minggu'">Submit week</span></button>
             </div>
