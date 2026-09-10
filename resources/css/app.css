@@ -5366,7 +5366,12 @@ form.uj-or-fields { padding: 20px; }
 .uj-sq-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--red); }
 .uj-sq-k--muted { color:var(--muted); }
 .uj-sq-sub { font-size:13px; color:var(--muted); }
+.uj-sq-hint { font-size:11.5px; color:var(--muted-soft); }
 .uj-sq-quests { display:grid; grid-template-columns:1fr; gap:12px; }
+/* Deck: cards sit absolute in one stack and fan out on hover / focus; Alpine measures heights and sets translateY. */
+.uj-sq-deck { position:relative; display:block; transition:height .32s cubic-bezier(.23,1,.32,1); }
+.uj-sq-deck .uj-sq-quest { position:absolute; left:0; right:0; top:0; transform-origin:top center; transition:transform .32s cubic-bezier(.23,1,.32,1), box-shadow .32s ease; box-shadow:0 1px 2px rgba(0,0,0,.04), 0 10px 24px -14px rgba(0,0,0,.25); will-change:transform; }
+@media (prefers-reduced-motion: reduce) { .uj-sq-deck, .uj-sq-deck .uj-sq-quest { transition:none; } }
 .uj-sq-quest { padding:16px 18px; display:flex; flex-direction:column; gap:8px; position:relative; }
 .uj-sq-quest .uj-sq-art { font-size:26px; line-height:1; }
 .uj-sq-quest .t { font-size:15px; font-weight:600; color:var(--ink); line-height:1.3; }

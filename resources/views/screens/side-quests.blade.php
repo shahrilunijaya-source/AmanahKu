@@ -27,17 +27,40 @@
     <div class="uj-sq-head">
         <span class="uj-sq-k">{{ $plain ? 'Optional challenges' : 'NOT A KPI. NEVER WILL BE.' }}</span>
         <span class="uj-sq-sub">Finish one, post the proof, wear the badge for 30 days. HR swaps the quests now and then. Nothing counts.</span>
+        @unless ($plain)
+            <span class="uj-sq-sub uj-sq-hint">{{ $quests->count() }} live · hover the deck to fan it out</span>
+        @endunless
     </div>
     <div class="uj-sq-cols">
     <div class="uj-sq-col">
 
-    <div class="uj-sq-quests">
+    <div class="uj-sq-quests @unless ($plain) uj-sq-deck @endunless"
+         @unless ($plain)
+         x-data="{
+            up: false, h: 0, y: [],
+            cards() { return Array.from($el.querySelectorAll(':scope > .uj-sq-quest')); },
+            layout() {
+                const cs = this.cards(); let acc = 0; this.y = [];
+                cs.forEach((c, i) => { this.y[i] = this.up ? acc : i * 14; acc += c.offsetHeight + 12; });
+                this.h = this.up ? acc - 12 : (cs[0]?.offsetHeight ?? 0) + (cs.length - 1) * 14;
+            },
+            init() {
+                const ro = new ResizeObserver(() => this.layout());
+                this.cards().forEach(c => ro.observe(c));
+                this.$nextTick(() => this.layout());
+            }
+         }"
+         :style="'height:' + h + 'px'"
+         @mouseenter="up = true; layout()" @mouseleave="if (!$el.contains(document.activeElement)) { up = false; layout() }"
+         @focusin="up = true; layout()" @focusout="$nextTick(() => { if (!$el.contains(document.activeElement) && !$el.matches(':hover')) { up = false; layout() } })"
+         @endunless>
         @foreach ($quests as $quest)
             @php
                 $myPost = $myPosts->get($quest->id);
                 $expiry = $myBadgeExpiry->get($quest->id);
             @endphp
             <div class="uj-card uj-sq-quest @if ($myPost) is-done @endif" data-quest="{{ $quest->id }}"
+                 @unless ($plain) :style="'transform:translateY(' + (y[{{ $loop->index }}] ?? 0) + 'px) scale(' + (up ? 1 : 1 - {{ $loop->index }} * .03) + ');z-index:{{ 10 - $loop->index }}'" @endunless
                  @unless ($myPost) x-data="{ open: false }" @endunless>
                 @unless ($plain)
                     <span class="uj-sq-art" aria-hidden="true">🎯</span>
