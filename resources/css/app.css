@@ -4774,6 +4774,10 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 [data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 7px); translate: -50% 2px; z-index: 40; padding: 5px 9px; border-radius: 7px; background: var(--ink); color: #fff; font: 500 var(--t-micro) var(--font-sans); letter-spacing: 0; text-transform: none; white-space: nowrap; max-width: 260px; pointer-events: none; opacity: 0; transition: opacity 120ms ease-out, translate 120ms ease-out; }
 [data-tip]:is(:hover, :focus-visible)::after { opacity: 1; translate: -50% 0; }
 [data-tip][data-tip-wrap]::after { white-space: normal; width: max-content; }
+[data-tip][data-tip-below]::after { bottom: auto; top: calc(100% + 6px); translate: -50% -2px; }
+[data-tip][data-tip-below]:is(:hover, :focus-visible)::after { translate: -50% 0; }
+[data-tip][data-tip-below][data-tip-start]::after { translate: 0 -2px; }
+[data-tip][data-tip-below][data-tip-start]:is(:hover, :focus-visible)::after { translate: 0 0; }
 [data-tip][data-tip-end]::after { left: auto; right: 0; translate: 0 2px; }
 [data-tip][data-tip-end]:is(:hover, :focus-visible)::after { translate: 0 0; }
 [data-tip][data-tip-start]::after { left: 0; translate: 0 2px; }

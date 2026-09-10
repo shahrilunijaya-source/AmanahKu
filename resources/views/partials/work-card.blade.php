@@ -17,6 +17,8 @@
 @php
     $wcTag = ['assignment' => ['Assignment', 'var(--red)'], 'task' => ['Task', 'var(--info)'], 'adhoc' => ['Adhoc', 'var(--amber)'], 'event' => ['Event', 'var(--success)']]; // QA F6 (CR-11): an Event card is not a Task
     [$wcTypeLabel, $wcTypeColor] = $wcTag[$c->type] ?? ['Task', 'var(--info)'];
+    $wcTypeTip = ['assignment' => 'Handed to you by someone else', 'task' => 'Work you set for yourself', 'adhoc' => 'Small one-off job, no project', 'event' => 'A company event you are down for'][$c->type] ?? 'Work you set for yourself';
+    $wcRoleTip = ['helper' => 'You were tagged to do part of this', 'fyi' => 'Tagged so you know. Nothing for you to do.', 'reviewer' => 'You sign it off once the owner is done'];
     $wcLabelDef = \App\Models\WorkItem::LABELS;
     $wcCompact = $compact ?? false;
     $wcOverdue = $c->due_at && $c->status !== 'done' && $c->due_at->lt(today()) && $c->type !== 'event' && ! $c->cancelled_at;
@@ -115,15 +117,15 @@
      tabindex="0" role="button" aria-haspopup="dialog"
 >
     <div class="wc-top">
-        <span class="wc-type"><span class="wc-dot" style="--wc-type:{{ $wcTypeColor }};"></span>{{ $wcTypeLabel }}</span>
+        <span class="wc-type" data-tip="{{ $wcTypeTip }}" data-tip-below data-tip-start><span class="wc-dot" style="--wc-type:{{ $wcTypeColor }};"></span>{{ $wcTypeLabel }}</span>
         @if ($c->priority === 'high')
-            <span class="wc-pri">High</span>
+            <span class="wc-pri" data-tip="High priority. Do this before the rest." data-tip-below>High</span>
         @endif
         @if ($wcRoleLabel)
-            <span class="wc-role wc-role--{{ $wcRole }}">{{ $wcRoleLabel }}</span>
+            <span class="wc-role wc-role--{{ $wcRole }}" data-tip="{{ $wcRoleTip[$wcRole] ?? '' }}" data-tip-below>{{ $wcRoleLabel }}</span>
         @endif
         @if ($c->auto_closed_at)
-            <span class="wc-auto" title="{{ $wcAutoReason }}">
+            <span class="wc-auto" data-tip="{{ $wcAutoReason }}" data-tip-below data-tip-end data-tip-wrap>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
                 Auto
             </span>
@@ -133,7 +135,7 @@
     @if ($wcParentTitle)
         <p class="wc-parent-of">Subtask of {{ $wcParentTitle }}</p>
     @endif
-    <p class="wc-title">@if ($c->is_milestone)<span class="wc-milestone" title="Milestone" aria-hidden="true">🔔</span>@endif{{ $c->title }}</p>
+    <p class="wc-title">@if ($c->is_milestone)<span class="wc-milestone" data-tip="Milestone" aria-hidden="true">🔔</span>@endif{{ $c->title }}</p>
 
     @if (! empty($c->labels))
         <div class="wc-labels">
@@ -147,14 +149,14 @@
 
     <div class="wc-foot">
         @if ($c->due_at)
-            <span class="wc-when @if ($wcOverdue) wc-when--over @endif">{{ $c->due_at->format('d M') }}</span>
+            <span class="wc-when @if ($wcOverdue) wc-when--over @endif" data-tip="{{ $wcOverdue ? 'Past due. Locked, so it cannot be moved.' : 'Due date. Locked once saved.' }}" data-tip-start>{{ $c->due_at->format('d M') }}</span>
             @if ($wcPendingAttendance)
-                <span class="wc-when-badge wc-when--pending">Pending Attendance</span>
+                <span class="wc-when-badge wc-when--pending" data-tip="Event is over. Attendance not marked yet." data-tip-start>Pending Attendance</span>
             @elseif ($wcDueBadge)
-                <span class="wc-when-badge {{ $wcDueBadge['class'] }}">{{ $wcDueBadge['text'] }}</span>
+                <span class="wc-when-badge {{ $wcDueBadge['class'] }}" data-tip="{{ $wcDiffDays > 0 ? ($c->status === 'done' ? 'Finished this many days late' : 'This many days past due') : 'Finished this many days early' }}" data-tip-start>{{ $wcDueBadge['text'] }}</span>
             @endif
         @else
-            <span class="wc-when wc-when--none">No due date</span>
+            <span class="wc-when wc-when--none" data-tip="Set one in the card. It locks once saved." data-tip-start>No due date</span>
         @endif
         @if ($c->projectRef)
             <span class="wc-sep">·</span>
@@ -164,7 +166,7 @@
             @if ($wcAvatarsShown->isNotEmpty())
                 <span class="wa-stack">
                     @foreach ($wcAvatarsShown as $wcAvatar)
-                        <span class="wa" style="background:{{ $wcAvatar['color'] }};" title="{{ $wcAvatar['title'] }}">{{ $wcAvatar['initials'] }}</span>
+                        <span class="wa" style="background:{{ $wcAvatar['color'] }};" data-tip="{{ $wcAvatar['title'] }}" data-tip-end>{{ $wcAvatar['initials'] }}</span>
                     @endforeach
                     @if ($wcAvatarOverflow > 0)
                         <span class="wa wa--more">+{{ $wcAvatarOverflow }}</span>
@@ -172,15 +174,15 @@
                 </span>
             @endif
             @if ($wcChildren)
-                <span class="wc-sub @if ($wcChildren['done'] === $wcChildren['total']) wc-sub--all @endif" title="Subtasks">
+                <span class="wc-sub @if ($wcChildren['done'] === $wcChildren['total']) wc-sub--all @endif" data-tip="{{ $wcChildren['done'] }} of {{ $wcChildren['total'] }} subtasks done" data-tip-end>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>{{ $wcChildren['done'] }}/{{ $wcChildren['total'] }}
                 </span>
                 @if ($wcChildOverdue)
-                    <span class="wc-sub-overdue" title="Earliest overdue subtask">{{ $wcChildOverdue->format('d M') }}</span>
+                    <span class="wc-sub-overdue" data-tip="Earliest overdue subtask" data-tip-end>{{ $wcChildOverdue->format('d M') }}</span>
                 @endif
             @endif
             @if (($c->comments_count ?? 0) > 0)
-                <span class="wc-cmt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>
+                <span class="wc-cmt" data-tip="{{ $c->comments_count }} {{ $c->comments_count === 1 ? 'comment' : 'comments' }}" data-tip-end><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>{{ $c->comments_count }}</span>
             @endif
         </span>
     </div>

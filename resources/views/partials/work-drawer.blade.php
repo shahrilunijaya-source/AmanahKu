@@ -60,7 +60,7 @@
                     <span x-text="$store.ui.lang==='en' ? 'Saved' : 'Disimpan'">Saved</span>
                 </span>
                 <div style="position:relative;">
-                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu"
+                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu" data-tip-end :data-tip="$store.ui.lang==='en' ? 'Archive, cancel or delete' : 'Arkib, batal atau padam'"
                             :aria-expanded="drawer.menuOpen ? 'true' : 'false'" :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Tindakan lain'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
@@ -248,7 +248,7 @@
                                             <span x-text="p.name"></span>
                                             {{-- CR-04: Helper does part of the work, FYI only watches. Click to flip. --}}
                                             <button type="button" class="wd-role-toggle" @click="setPersonRole(p.id, p.role === 'fyi' ? 'helper' : 'fyi')"
-                                                    :title="$store.ui.lang==='en' ? 'Click to switch between Helper and FYI' : 'Klik untuk tukar antara Pembantu dan FYI'"
+                                                    :data-tip="$store.ui.lang==='en' ? 'Helper does part of the work, FYI only watches. Click to flip.' : 'Pembantu buat sebahagian kerja, FYI hanya lihat. Klik untuk tukar.'" data-tip-wrap data-tip-start
                                                     x-text="p.role === 'fyi' ? 'FYI' : ($store.ui.lang==='en' ? 'Helper' : 'Pembantu')"></button>
                                             <button type="button" @click="removePerson(p.id)" :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + p.name"
                                                     style="border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0;">×</button>

@@ -42,7 +42,8 @@
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
         @foreach (['all' => ['All work', 'Semua kerja'], 'task' => ['Tasks', 'Tugas'], 'assignment' => ['Assignments', 'Tugasan'], 'adhoc' => ['Adhoc', 'Adhoc']] as $fk => $fl)
-            <button type="button" @click="setFilter('{{ $fk }}')"
+            @php $fkTip = ['all' => ['Everything on your plate, all three kinds', 'Semua kerja anda, ketiga-tiga jenis'], 'task' => ['Work you set for yourself', 'Kerja yang anda tetapkan sendiri'], 'assignment' => ['Handed to you by someone else', 'Diberi oleh orang lain'], 'adhoc' => ['Small one-off jobs, no project', 'Kerja kecil sekali lalu, tiada projek']][$fk]; @endphp
+            <button type="button" @click="setFilter('{{ $fk }}')" data-tip-below data-tip-start :data-tip="$store.ui.lang==='en' ? @js($fkTip[0]) : @js($fkTip[1])"
                     :style="filter === '{{ $fk }}'
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
@@ -52,7 +53,7 @@
             </button>
         @endforeach
             <span style="width:1px;height:20px;background:var(--hairline);margin:0 3px;"></span>
-            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen"
+            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Narrow by role, label or due date' : 'Tapis ikut peranan, label atau tarikh akhir'"
                     :style="filtersOpen || activeFilterCount > 0
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
@@ -69,7 +70,8 @@
     <div class="wb-roles" style="display:flex;align-items:center;gap:7px;margin:-8px 0 16px;flex-wrap:wrap;">
         <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Mine' : 'Saya'">Mine</span>
         @foreach (['assigned' => ['Assigned', 'Ditugaskan'], 'tagged' => ['Tagged', 'Ditanda'], 'reviewing' => ['Reviewing', 'Menyemak'], 'all' => ['All', 'Semua']] as $rk => $rl)
-            <button type="button" data-role-filter="{{ $rk }}" @click="setRoleFilter('{{ $rk }}')"
+            @php $rkTip = ['assigned' => ['Cards that are yours to do', 'Kad yang anda perlu buat'], 'tagged' => ['Cards where you help or just watch', 'Kad di mana anda bantu atau hanya lihat'], 'reviewing' => ['Cards you sign off once the owner is done', 'Kad yang anda sahkan selepas pemilik siap'], 'all' => ['Every card you have a hand in', 'Semua kad yang anda terlibat']][$rk]; @endphp
+            <button type="button" data-role-filter="{{ $rk }}" @click="setRoleFilter('{{ $rk }}')" data-tip-below data-tip-start :data-tip="$store.ui.lang==='en' ? @js($rkTip[0]) : @js($rkTip[1])"
                     :style="roleFilter === '{{ $rk }}'
                         ? { background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
@@ -163,7 +165,7 @@
                     <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $col['title'] }}</span>
                     <span data-count="{{ $key }}" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 8px;border-radius:9999px;">{{ $col['assigned'] }}</span>
                     @if ($key === 'done' && $employee)
-                        <button type="button" @click="openArchived()" x-show="archivedCount > 0" x-cloak
+                        <button type="button" @click="openArchived()" x-show="archivedCount > 0" x-cloak data-tip-end :data-tip="$store.ui.lang==='en' ? 'Done cards swept off the board. Restore from here.' : 'Kad selesai yang disapu dari papan. Pulihkan dari sini.'"
                                 style="margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:transparent;cursor:pointer;text-decoration:underline;padding:0;">
                             <span x-text="($store.ui.lang==='en' ? 'Archived' : 'Diarkibkan') + ' (' + archivedCount + ')'"></span>
                         </button>
@@ -184,7 +186,7 @@
                     <div style="margin-top:10px;">
                         {{-- Due dates lock on first save (date-calendar-rules §1), so the date is
                              picked before the card exists: the button opens a one-line composer. --}}
-                        <button type="button" :disabled="busy" x-show="adding !== '{{ $key }}'" @click="openAdd('{{ $key }}')"
+                        <button type="button" :disabled="busy" x-show="adding !== '{{ $key }}'" @click="openAdd('{{ $key }}')" data-tip-start :data-tip="$store.ui.lang==='en' ? 'You pick the due date first. It locks once saved.' : 'Pilih tarikh akhir dahulu. Dikunci selepas disimpan.'"
                                 style="width:100%;text-align:left;padding:9px 12px;border:1px dashed var(--hairline);border-radius:10px;background:transparent;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;">
                             <span x-text="$store.ui.lang==='en' ? '+ Add a card' : '+ Tambah kad'"></span>
                         </button>
