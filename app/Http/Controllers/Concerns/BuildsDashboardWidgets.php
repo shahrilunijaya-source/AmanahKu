@@ -8,11 +8,13 @@ use App\Attendance\HolidayEve;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\FridayController;
 use App\Http\Controllers\VictoryBellController;
 use App\Http\Controllers\WrappedController;
 use App\Models\AttendanceRecord;
 use App\Models\BigDeal;
+use App\Models\CalendarNote;
 use App\Models\Claim;
 use App\Models\CompanyEvent;
 use App\Models\Employee;
@@ -21,6 +23,7 @@ use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
 use App\Models\VictoryBell;
+use App\Models\WorkItem;
 use App\Models\WrappedStory;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
@@ -358,7 +361,25 @@ trait BuildsDashboardWidgets
             );
         }
 
-        return $data + $this->calendarDays($data['weeks'], $employee, $data['leaveTypeIds']);
+        $days = $this->calendarDays($data['weeks'], $employee, $data['leaveTypeIds']);
+
+        // A note or pin just saved answers with this same card; land on the day
+        // that was touched rather than snapping back to today.
+        $sel = $request->query('sel');
+        if (is_string($sel) && isset($days['days'][$sel])) {
+            $days['selected'] = $sel;
+        }
+
+        $days['pinnable'] = $employee === null ? [] : CalendarNoteController::pinnable($employee)
+            ->get(['id', 'title', 'due_at'])
+            ->map(fn (WorkItem $card): array => [
+                'id' => $card->id,
+                'title' => (string) $card->title,
+                'due' => $card->due_at?->format('j M'),
+            ])
+            ->all();
+
+        return $data + $days;
     }
 
     /**
@@ -380,6 +401,7 @@ trait BuildsDashboardWidgets
     {
         $reports = $this->dashboardTeamIds($employee);
         $ownPending = $this->ownPendingLeave($weeks, $employee);
+        $ownNotes = $this->ownCalendarNotes($weeks, $employee);
 
         $days = [];
         $selected = null;
@@ -392,6 +414,7 @@ trait BuildsDashboardWidgets
 
                 $key = $day['date']->toDateString();
                 $entries = $this->calendarEntries($day, $employee, $reports, $ownPending, $leaveTypeIds);
+                $entries = array_merge($entries, $this->calendarNoteEntries($ownNotes->get($key) ?? new \Illuminate\Database\Eloquent\Collection));
 
                 $days[$key] = [
                     'label' => $day['date']->format('j F'),
@@ -518,6 +541,71 @@ trait BuildsDashboardWidgets
             ->whereDate('date_from', '<=', $last->toDateString())
             ->whereDate('date_to', '>=', $first->toDateString())
             ->get();
+    }
+
+    /**
+     * The viewer's private notes and pinned cards across the visible grid, keyed
+     * by date. Loaded once for the month, like the pending leave.
+     *
+     * @param  list<list<array<string, mixed>>>  $weeks
+     * @return Collection<int|string, \Illuminate\Database\Eloquent\Collection<int, CalendarNote>>
+     */
+    private function ownCalendarNotes(array $weeks, ?Employee $employee): Collection
+    {
+        if ($employee === null || $weeks === []) {
+            return collect();
+        }
+
+        $first = $weeks[0][0]['date'];
+        $lastWeek = $weeks[count($weeks) - 1];
+        $last = $lastWeek[count($lastWeek) - 1]['date'];
+
+        return CalendarNote::with('workItem')
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', '>=', $first->toDateString())
+            ->whereDate('date', '<=', $last->toDateString())
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (CalendarNote $note): string => $note->date->toDateString());
+    }
+
+    /**
+     * Notes and pins as day entries. Always level 0: nobody but the owner sees
+     * them, on any tab. A pin whose card has since been archived falls away
+     * rather than pointing at nothing.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, CalendarNote>  $notes
+     * @return list<array{level: int, kind: string, who: string, short: string, title: string, sub: string, id: int, starts_at: string|null, ends_at: string|null, body: string|null}>
+     */
+    private function calendarNoteEntries(Collection $notes): array
+    {
+        $entries = [];
+
+        foreach ($notes as $note) {
+            if ($note->isPin()) {
+                $card = $note->workItem;
+                if ($card === null || $card->archived_at !== null || $card->cancelled_at !== null) {
+                    continue;
+                }
+
+                $entries[] = ['level' => 0, 'kind' => 'task', 'who' => 'Me', 'id' => $note->id,
+                    'short' => (string) $card->title, 'title' => (string) $card->title,
+                    'sub' => $card->due_at !== null ? 'Due '.$card->due_at->format('j M') : 'On your board',
+                    'starts_at' => null, 'ends_at' => null, 'body' => null];
+
+                continue;
+            }
+
+            $entries[] = ['level' => 0, 'kind' => 'note', 'who' => 'Me', 'id' => $note->id,
+                'short' => (string) $note->title, 'title' => (string) $note->title,
+                'sub' => $note->timeLabel() ?? ($note->body !== null && $note->body !== '' ? Str::limit($note->body, 60) : 'All day'),
+                'starts_at' => $note->starts_at === null ? null : substr($note->starts_at, 0, 5),
+                'ends_at' => $note->ends_at === null ? null : substr($note->ends_at, 0, 5),
+                'body' => $note->body];
+        }
+
+        return $entries;
     }
 
     /**

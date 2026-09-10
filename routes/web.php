@@ -17,6 +17,7 @@ use App\Http\Controllers\AwardController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
+use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
@@ -216,6 +217,10 @@ Route::middleware('auth')->group(function () {
         // same way the dashboard gates the card itself, so the arrows cannot reach
         // a widget the viewer's role or the tenant's modules keep off their page.
         Route::get('/app/dashboard/widget/{widget}', [AppController::class, 'dashboardWidgetPartial'])->name('dashboard.widget');
+        // Personal tab of the calendar widget: private day notes and pinned cards.
+        Route::post('/app/dashboard/calendar-notes', [CalendarNoteController::class, 'store'])->name('calendar-notes.store');
+        Route::patch('/app/dashboard/calendar-notes/{note}', [CalendarNoteController::class, 'update'])->name('calendar-notes.update');
+        Route::delete('/app/dashboard/calendar-notes/{note}', [CalendarNoteController::class, 'destroy'])->name('calendar-notes.destroy');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
         // HR grants quota of an HR-granted type (Replacement) — see LeaveController::grant.
         Route::post('/app/leave/grant', [LeaveController::class, 'grant'])->name('leave.grant');
