@@ -34,19 +34,19 @@
     @if ($errors->any())
         <div class="uj-card" style="padding:12px 18px;font-size:13px;color:var(--ink);border-left:3px solid var(--red,#b42318);">{{ $errors->first() }}</div>
     @endif
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'winners' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'winners'">
+    <div class="uj-seg" style="width:max-content;max-width:100%;flex-wrap:wrap;">
+        <button type="button" :data-on="tab === 'winners' ? '' : null" @click="tab = 'winners'">
             <span x-text="$store.ui.lang==='en' ? @js("This month's winners") : 'Pemenang bulan ini'">This month's winners</span>
         </button>
-        <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'nominate' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'nominate'">
+        <button type="button" :data-on="tab === 'nominate' ? '' : null" @click="tab = 'nominate'">
             <span x-text="$store.ui.lang==='en' ? 'Nominate' : 'Calonkan'">Nominate</span>
         </button>
         @if ($canSelect)
-            <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'select' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'select'">
+            <button type="button" :data-on="tab === 'select' ? '' : null" @click="tab = 'select'">
                 <span x-text="$store.ui.lang==='en' ? 'Select' : 'Pilih'">Select</span>
             </button>
         @endif
-        <button type="button" class="uj-btn-ghost" :class="{ 'uj-btn-primary': tab === 'past' }" style="height:36px;padding:0 14px;font-size:12.5px;" @click="tab = 'past'">
+        <button type="button" :data-on="tab === 'past' ? '' : null" @click="tab = 'past'">
             <span x-text="$store.ui.lang==='en' ? 'Past winners' : 'Pemenang terdahulu'">Past winners</span>
         </button>
     </div>
