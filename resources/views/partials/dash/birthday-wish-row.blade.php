@@ -20,10 +20,18 @@
             // and a nested scope would make $root this span instead of the whole region.
             $mineKeys = json_encode($w->reactions->where('employee_id', $viewerId)->pluck('emoji')->values()->all(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
         @endphp
-        <div class="uj-db-wish-reactions">
-            {{-- CR-30: the tenant's own set; the tally keeps a retired reaction readable. --}}
-            @include('partials.reaction-picker', ['onPick' => 'react('.$w->id.", 'KEY')", 'mine' => $mineKeys])
+        <div class="uj-db-wish-reactions" @keydown.escape.window="fly = null">
+            {{-- CR-30: the tenant's own set in a flyout, like the TOT heart; the tally keeps a retired reaction readable. --}}
+            <button type="button" class="uj-db-wish-react" :data-on="fly === {{ $w->id }} ? '1' : null"
+                    @click="fly = fly === {{ $w->id }} ? null : {{ $w->id }}"
+                    :aria-expanded="fly === {{ $w->id }}"
+                    :aria-label="$store.ui.lang==='en' ? 'React to this wish' : 'Beri reaksi'">
+                <span aria-hidden="true">☺</span><span x-text="$store.ui.lang==='en' ? 'React' : 'Reaksi'">React</span>
+            </button>
             @include('partials.reaction-tally', ['counts' => $byEmoji->map->count()->all()])
+            <div class="uj-db-wish-fly" x-show="fly === {{ $w->id }}" x-cloak>
+                @include('partials.reaction-picker', ['onPick' => 'react('.$w->id.", 'KEY'); fly = null", 'mine' => $mineKeys])
+            </div>
         </div>
     </div>
 </div>

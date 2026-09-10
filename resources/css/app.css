@@ -5241,6 +5241,8 @@ form.uj-or-fields { padding: 20px; }
 .uj-db-band[data-tone] .uj-react-pick:hover { background:rgba(255,255,255,.32); }
 .uj-db-band[data-tone] .uj-react-pick[data-mine] { background:#fff; color:var(--deep); }
 .uj-db-band[data-tone] .uj-react-chip { border:0; background:transparent; color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-db-wish-send { background:var(--deep); color:#fff; }
+.uj-db-band[data-tone] .uj-db-wish-send:disabled { opacity:.6; }
 .uj-db-band[data-tone] .uj-react-chip b { color:#fff; }
 .uj-db-band[data-tone] .uj-bd-story { background:rgba(255,255,255,.16); }
 .uj-db-band[data-tone] .uj-bd-story b { color:#fff; opacity:.8; }
@@ -5425,6 +5427,13 @@ form.uj-or-fields { padding: 20px; }
 .uj-db-wish-at { font-size:11px; color:var(--muted-soft); margin-left:auto; }
 .uj-db-wish-text { font-size:12.5px; color:var(--body); word-break:break-word; }
 .uj-db-wish-reactions { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+.uj-db-wish-fly { display:flex; flex-wrap:wrap; gap:4px 6px; width:100%; margin-top:4px; padding:7px 10px; border-radius:12px; background:var(--card); border:1px solid var(--hairline); animation:tot-fly-in 200ms cubic-bezier(.2,.9,.3,1.35) both; }
+.uj-db:not([data-plain]) .uj-db-band[data-tone] .uj-db-wish-fly { background:var(--deep); border-color:rgba(255,255,255,.35); }
+.uj-db-wish-react { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--hairline); border-radius:999px; background:var(--card); padding:2px 9px; font:500 12px var(--font-sans); color:var(--ink); cursor:pointer; transition:transform 160ms ease-out; }
+.uj-db-wish-react:active { transform:scale(.97); }
+.uj-db-band[data-tone] .uj-db-wish-react { border:0; background:rgba(255,255,255,.22); color:#fff; }
+.uj-db-wish-react[data-on] { border-color:var(--red); background:var(--red-tint); }
+.uj-db[data-plain] .uj-db-wish-fly { animation:none; }
 .uj-db-wish-chip { border:1px solid var(--hairline); background:var(--card); border-radius:999px; padding:2px 8px; font-size:11.5px; cursor:pointer; opacity:.55; transition:opacity 160ms ease, border-color 160ms ease; }
 .uj-db-wish-chip[data-count="1"] { opacity:1; }
 .uj-db-wish-chip[data-mine="1"] { opacity:1; border-color:var(--red); background:var(--red-tint); }

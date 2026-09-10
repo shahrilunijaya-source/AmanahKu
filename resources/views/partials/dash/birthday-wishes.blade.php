@@ -21,6 +21,7 @@
         thanksBody: '',
         thanking: false,
         busy: false,
+        fly: null,
         emoji: @js(\App\Models\TotSession::EMOJI),
         async post(url, body) {
             if (this.busy || !body.trim()) return;
