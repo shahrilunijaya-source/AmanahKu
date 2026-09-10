@@ -4997,11 +4997,9 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-more { margin-left:auto; font:500 12px var(--font-mono); color:var(--muted-soft); white-space:nowrap; background:none; border:0; padding:4px 6px; border-radius:6px; cursor:pointer; transition:transform 160ms ease-out, background 160ms ease; }
 .uj-db-more:hover { background:rgba(0,0,0,.05); color:var(--ink); }
 .uj-db-more:active { transform:scale(.97); }
-.uj-db-cake { font-size:28px; line-height:1; filter:drop-shadow(0 3px 5px rgba(38,37,30,.18)); }
 
 .uj-db-cta + .uj-db-more { margin-left:0; }
-.uj-db-moment { background:var(--red-tint); border-color:#f3c9cc; }
-.uj-db-management { background:var(--shelf); flex-wrap:wrap; align-items:flex-start; }
+.uj-db-management { flex-wrap:wrap; align-items:flex-start; }
 .uj-db-management .uj-db-s { flex-basis:100%; }
 /* CR-17: the management band's two panels (lateness, overdue by Primary Owner). */
 .uj-mgmt { flex-basis:100%; display:flex; flex-direction:column; gap:10px; margin-top:2px; }
@@ -5017,7 +5015,6 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-mgmt-days { color:var(--muted); white-space:nowrap; font-size:12px; }
 .uj-mgmt-btn { font-size:11.5px; padding:3px 8px; border-radius:6px; border:1px solid var(--hairline); background:var(--card); color:var(--ink); cursor:pointer; }
 .uj-mgmt-empty { color:var(--muted-soft); font-size:12.5px; padding:4px 2px; }
-.uj-db-awards { background:var(--amber-tint); border-color:var(--amber-line); }
 /* CR-27 Mystery Award — dashboard slide and Awards screen Select tab (docs/build/sessions/S27/mockup) */
 .uj-ma-slide { display:flex; flex-direction:column; gap:6px; padding:14px 0; }
 .uj-ma-k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:#8a5a00; display:inline-flex; align-items:center; gap:6px; }
@@ -5044,34 +5041,88 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-ma-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; border:1px solid var(--hairline); border-radius:9999px; padding:4px 10px 4px 4px; background:#fff; }
 .uj-ma-chip .uj-db-avatar { width:22px; height:22px; font-size:9.5px; }
 .uj-ma-h { font-size:13px; font-weight:600; color:var(--ink); }
-.uj-db-moment .uj-db-k { color:var(--red); }
-.uj-db-moment .uj-db-cta { background:var(--red); color:#fff; }
-/* ornament zone on the right; the copy never runs under it */
-.uj-db-art { position:absolute; right:0; top:0; bottom:0; width:240px; pointer-events:none; }
-/* copy keeps clear of the ornament; the button and the pill sit on top of it */
+/* flat illustration zone on the right (partials/dash/band-art); the copy never runs under it */
+.uj-db-art { position:absolute; right:0; top:0; bottom:0; width:240px; display:grid; place-items:center; padding:12px 18px 12px 0; pointer-events:none; }
+.uj-db-art svg { width:100%; max-width:210px; max-height:100%; filter:drop-shadow(0 6px 10px rgba(0,0,0,.12)); }
 .uj-db-band:has(.uj-db-art) { padding-right:250px; }
-.uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:absolute; right:16px; top:50%; translate:0 -50%; margin:0; }
-.uj-db-band:has(.uj-db-art) > .uj-db-cta:has(+ .uj-db-more) { right:92px; }
 .uj-db-cta, .uj-db-more { position:relative; z-index:1; }
-.uj-db-art i { position:absolute; width:7px; height:11px; border-radius:2px; transform:rotate(var(--r)); opacity:.9; animation:uj-db-drift 900ms var(--ease) var(--d, 0ms) both; }
-.uj-db-art i:nth-child(4n) { background:var(--red); } .uj-db-art i:nth-child(4n+1) { background:var(--amber); }
-.uj-db-art i:nth-child(4n+2) { background:var(--success); } .uj-db-art i:nth-child(4n+3) { background:var(--info); }
-@keyframes uj-db-drift { from { transform:translateY(-14px) rotate(0); opacity:0; } to { transform:translateY(0) rotate(var(--r)); opacity:.9; } }
-.uj-db-stamp { position:absolute; right:120px; top:50%; translate:0 -50%; rotate:-10deg; width:62px; height:62px; border-radius:50%; border:3px double var(--red); display:grid; place-items:center; font:600 13px var(--font-mono); color:var(--red); opacity:.7; mix-blend-mode:multiply; }
-.uj-db-stamp::after { content:""; position:absolute; inset:5px; border-radius:50%; border:1px solid var(--red); }
-/* Keep it plain: same words, no tint, no ornament */
-.uj-db[data-plain] .uj-db-band { background:var(--card); border-color:var(--hairline); }
-.uj-db[data-plain] .uj-db-k { color:var(--muted-soft); }
-.uj-db[data-plain] .uj-db-cta { background:var(--shelf); color:var(--ink); }
-.uj-db[data-plain] .uj-react-pick { animation:none; }
-@media (prefers-reduced-motion: reduce) { .uj-db-art i { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
-@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-art { display:none; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-band:has(.uj-db-art) > :is(.uj-db-cta, .uj-db-more) { position:static; translate:none; } .uj-db-s { flex-basis:100%; } }
+
+/* ── band families (docs/build/design/banners): Celebration, Heads-up, Needs action. Alarm (brand red) reserved.
+   Shazwan 2026-09-10: solid fills, white type, folder mark, illustration; celebrations get a slow lava-lamp gradient.
+   Inside a coloured band the palette variables are re-pointed at white so every child (chips, panels, dots) follows. ── */
+.uj-db-band[data-tone] { border:0; border-radius:18px; padding:46px 20px 18px; min-height:150px; flex-wrap:wrap; row-gap:8px; color:#fff; isolation:isolate; }
+.uj-db-band[data-tone]:has(.uj-db-art) { padding-right:250px; }
+/* stacked copy like the mockup: kicker on its own line, title row, then the sentence */
+.uj-db-band[data-tone] .uj-db-k, .uj-db-band[data-tone] .uj-db-s, .uj-db-band[data-tone] .uj-db-awards-track, .uj-db-band[data-tone] .uj-db-awards-dots { flex-basis:100%; }
+.uj-db-band[data-tone] .uj-db-k { margin-bottom:-4px; }
+.uj-db-band[data-tone] .uj-db-s { margin-top:0 !important; }
+.uj-db:not([data-plain]) .uj-db-band[data-tone] { --ink:#fff; --body:rgba(255,255,255,.94); --muted:rgba(255,255,255,.78); --muted-soft:rgba(255,255,255,.72);
+    --hairline:rgba(255,255,255,.35); --hairline-soft:rgba(255,255,255,.22); --card:rgba(255,255,255,.2); --shelf:rgba(255,255,255,.22);
+    --red:#fff; --red-tint:rgba(255,255,255,.28); --red-active:rgba(255,255,255,.4); }
+.uj-db-band[data-tone="cele"] { background:var(--fill, #ef6b74); --deep:#c9424c; }
+.uj-db-band[data-tone="head"] { background:#4a90e2; --deep:#2f6bb8; }
+.uj-db-band[data-tone="need"] { background:#f2a54f; --deep:#c97d27; }
+.uj-db-band[data-kind="big-deal"], .uj-db-band[data-band="awards"] { --fill:#a67bc4; --deep:#7c549b; }
+.uj-db-band[data-kind="victory-bell"] { --fill:#7cc7a1; --deep:#4f9d78; }
+.uj-db-band[data-tone] .uj-db-k { color:#fff; opacity:.85; letter-spacing:.13em; }
+.uj-db-band[data-tone] .uj-db-t { color:#fff; font-size:22px; letter-spacing:-.02em; line-height:1.15; white-space:normal; flex:0 1 auto; min-width:0; }
+.uj-db-band[data-tone] .uj-db-s { color:#fff; opacity:.95; }
+.uj-db-band[data-tone] .uj-db-cta { background:var(--deep); color:#fff; border-radius:10px; padding:8px 14px; }
+.uj-db-band[data-tone] .uj-db-more { color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-db-more:hover { background:rgba(255,255,255,.18); opacity:1; }
+.uj-db-band[data-tone] .uj-react-pick { border:0; background:rgba(255,255,255,.22); color:#fff; }
+.uj-db-band[data-tone] .uj-react-pick:hover { background:rgba(255,255,255,.32); }
+.uj-db-band[data-tone] .uj-react-pick[data-mine] { background:#fff; color:var(--deep); }
+.uj-db-band[data-tone] .uj-react-chip { border:0; background:transparent; color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-react-chip b { color:#fff; }
+.uj-db-band[data-tone] .uj-bd-story { background:rgba(255,255,255,.16); }
+.uj-db-band[data-tone] .uj-bd-story b { color:#fff; opacity:.8; }
+.uj-db-band[data-tone] .uj-bd-team .uj-db-avatar { box-shadow:none; }
+.uj-db-band[data-tone] .uj-db-dismiss { color:#fff; opacity:.75; }
+.uj-db-band[data-tone] .uj-db-dismiss:hover { background:rgba(255,255,255,.2); color:#fff; opacity:1; }
+.uj-db-band[data-tone] .uj-mgmt-btn { background:rgba(255,255,255,.22); border:0; color:#fff; }
+.uj-db-band[data-tone] .uj-ma-k { color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-ma-form :is(select, input, textarea) { color:#26251e; }
+.uj-db-band[data-tone] .uj-ma-sealed { color:#fff; background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.5); }
+.uj-db-band[data-tone] .uj-ma-chip { background:rgba(255,255,255,.2); border:0; }
+/* faded white folder mark, top-left */
+.uj-db-fold { position:absolute; left:20px; top:14px; width:34px; height:26px; opacity:.55; pointer-events:none; }
+.uj-db-fold::before { content:""; position:absolute; left:0; top:0; width:14px; height:8px; border-radius:3px 3px 0 0; background:#fff; }
+.uj-db-fold::after { content:""; position:absolute; left:0; top:5px; right:0; bottom:0; border-radius:3px; background:#fff; }
+/* lava lamp: two big blurred blobs drift under the copy, celebration bands only, each kind its own pair */
+.uj-db-band[data-tone="cele"]::before, .uj-db-band[data-tone="cele"]::after { content:""; position:absolute; z-index:-1; border-radius:50%; filter:blur(40px); opacity:.9; pointer-events:none; will-change:transform; }
+.uj-db-band[data-tone="cele"]::before { width:60%; height:170%; left:-15%; top:-60%; animation:uj-lava-a 14s ease-in-out infinite alternate; }
+.uj-db-band[data-tone="cele"]::after { width:55%; height:150%; right:-10%; bottom:-70%; animation:uj-lava-b 18s ease-in-out infinite alternate; }
+.uj-db-band[data-kind="birthday"]::before { background:#ff9d6c; } .uj-db-band[data-kind="birthday"]::after { background:#f0508f; }
+.uj-db-band[data-kind="big-deal"]::before { background:#6f6bf0; } .uj-db-band[data-kind="big-deal"]::after { background:#e08ad6; }
+.uj-db-band[data-kind="victory-bell"]::before { background:#2fb3a8; } .uj-db-band[data-kind="victory-bell"]::after { background:#b6e25e; }
+.uj-db-band[data-kind="wrapped"]::before { background:#c93d78; } .uj-db-band[data-kind="wrapped"]::after { background:#ff8f5a; }
+.uj-db-band[data-band="awards"]::before { background:#5468e6; } .uj-db-band[data-band="awards"]::after { background:#d25aa8; }
+@keyframes uj-lava-a { from { transform:translate(0,0) scale(1); } 50% { transform:translate(35%,30%) scale(1.15); } to { transform:translate(70%,10%) scale(.95); } }
+@keyframes uj-lava-b { from { transform:translate(0,0) scale(1); } 50% { transform:translate(-40%,-25%) scale(1.2); } to { transform:translate(-75%,5%) scale(1); } }
+/* Keep it plain: white card, no art, no folder, no motion; only the kicker and the button keep the family colour */
+.uj-db[data-plain] .uj-db-band { background:var(--card); border:1px solid var(--hairline); border-radius:14px; padding:16px 20px; min-height:0; color:var(--ink); isolation:auto; }
+.uj-db[data-plain] .uj-db-band::before, .uj-db[data-plain] .uj-db-band::after { content:none; animation:none; }
+.uj-db[data-plain] .uj-db-band .uj-db-t { color:var(--ink); }
+.uj-db[data-plain] .uj-db-band .uj-db-s { color:var(--body); opacity:1; }
+.uj-db[data-plain] .uj-db-band .uj-db-more { color:var(--muted-soft); }
+.uj-db[data-plain] .uj-db-band[data-tone="cele"] { --deep:var(--fill, #ef6b74); }
+.uj-db[data-plain] .uj-db-band[data-tone="head"] { --deep:#4a90e2; }
+.uj-db[data-plain] .uj-db-band[data-tone="need"] { --deep:#f2a54f; }
+.uj-db[data-plain] .uj-db-band .uj-db-k { color:var(--deep); opacity:1; }
+.uj-db[data-plain] .uj-db-band .uj-db-cta { background:var(--deep); color:#fff; }
+.uj-db[data-plain] .uj-db-band .uj-react-pick { border:1px solid var(--hairline); background:var(--card); color:var(--ink); animation:none; }
+.uj-db[data-plain] .uj-db-band .uj-react-pick[data-mine] { border-color:var(--deep); color:var(--deep); }
+.uj-db[data-plain] .uj-db-band .uj-react-chip { border:1px solid var(--hairline); background:var(--card); color:var(--body); opacity:1; }
+.uj-db[data-plain] .uj-db-band .uj-react-chip b { color:var(--ink); }
+.uj-db[data-plain] .uj-db-band .uj-ma-k { color:#8a5a00; opacity:1; }
+.uj-db[data-plain] .uj-db-band .uj-mgmt-btn { background:var(--card); border:1px solid var(--hairline); color:var(--ink); }
+.uj-db[data-plain] .uj-db-band .uj-db-dismiss { color:var(--muted-soft); opacity:1; }
+@media (prefers-reduced-motion: reduce) { .uj-db-band::before, .uj-db-band::after { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
+@media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-art { position:static; width:100%; height:120px; padding:0; justify-items:end; flex-basis:100%; order:99; } .uj-db-art svg { max-width:170px; } .uj-db-s { flex-basis:100%; } }
 
 /* --- CR-24: Big Deal Alert banner (moments band) and Wins page card --- */
-/* Shazwan 2026-09-10: a Big Deal is good news, red reads as an alarm. Calm green instead. */
-.uj-db-band[data-kind="big-deal"] { flex-wrap:wrap; row-gap:10px; background:#e9f5ee; border-color:#bfe3cc; }
-.uj-db-band[data-kind="big-deal"] .uj-db-k { color:#1f6b4a; }
-.uj-db-band[data-kind="big-deal"] .uj-db-cta { background:#1f6b4a; color:#fff; }
+.uj-db-band[data-kind="big-deal"] { flex-wrap:wrap; row-gap:10px; }
 .uj-db-band[data-kind="big-deal"] .uj-db-s { flex-basis:100%; margin-top:-6px; }
 .uj-bd-team { display:flex; align-items:center; }
 .uj-bd-team .uj-db-avatar { margin-left:-7px; border:2px solid #fff; box-shadow:0 0 0 1px var(--hairline); }
@@ -5086,30 +5137,27 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-bd-react { flex-basis:100%; display:flex; flex-wrap:wrap; gap:6px; align-items:center; position:relative; z-index:1; }
 .uj-bd-react .uj-react-tally { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
 .uj-db[data-plain] .uj-bd-story { background:none; }
-.uj-db[data-plain] .uj-db-band[data-kind="big-deal"] .uj-db-k { color:var(--muted-soft); }
 /* Wins page card (screens/wins.blade.php) reuses the same .uj-bd-* pieces outside a band. */
 [data-win] .uj-bd-story { background:var(--shelf); }
 @media (max-width:720px) { .uj-bd-photos img { width:64px; height:48px; } .uj-bd-react .uj-react-tally { margin-left:0; flex-basis:100%; } }
 
 /* --- CR-28: Victory Bell celebration (moments band), toast prompt, Wins card --- */
-/* Shazwan 2026-09-10: milestone celebrations in calm green, same as Big Deal. */
-.uj-db-band[data-kind="victory-bell"] { flex-wrap:wrap; row-gap:10px; background:#e9f5ee; border-color:#bfe3cc; }
-.uj-db-band[data-kind="victory-bell"] .uj-db-k { color:#1f6b4a; }
-.uj-db-band[data-kind="victory-bell"] .uj-db-cta { background:#1f6b4a; color:#fff; }
+.uj-db-band[data-kind="victory-bell"] { flex-wrap:wrap; row-gap:10px; }
 .uj-db-band[data-kind="victory-bell"] .uj-db-s { flex-basis:100%; margin-top:-6px; font-style:italic; }
-.uj-vb-bell { font-size:22px; line-height:1; transform-origin:top center; animation:uj-vb-swing 900ms var(--ease) 0ms 3; }
-@keyframes uj-vb-swing { 0%,100% { transform:rotate(0) } 30% { transform:rotate(-18deg) } 60% { transform:rotate(14deg) } }
-.uj-db[data-plain] .uj-vb-bell { animation:none; }
 .uj-vb-meta { flex-basis:100%; font-size:11.5px; color:var(--muted); }
 .uj-vb-meta b { font-weight:600; color:var(--body); }
-.uj-vb-prompt { position:fixed; right:24px; bottom:24px; z-index:63; width:340px; background:#fff; border:1px solid var(--hairline); border-radius:14px; box-shadow:0 12px 32px rgba(0,0,0,.14); padding:14px 16px; display:flex; flex-direction:column; gap:10px; animation:uj-toast-in 260ms var(--ease) both; }
-.uj-vb-prompt .k { font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:#1f6b4a; }
-.uj-vb-prompt .t { font-size:15px; font-weight:600; color:var(--ink); }
-.uj-vb-prompt .s { font-size:12.5px; color:var(--muted); line-height:1.4; }
-.uj-vb-prompt input { height:36px; padding:0 10px; border:1px solid var(--hairline); border-radius:8px; font-size:12.5px; }
+/* "Milestone done" toast: Needs-action tangerine, same family as the management band. */
+.uj-vb-prompt { position:fixed; right:24px; bottom:24px; z-index:63; width:340px; background:#f2a54f; color:#fff; border:0; border-radius:18px; box-shadow:var(--lift); padding:16px 18px; display:flex; flex-direction:column; gap:8px; animation:uj-toast-in 260ms var(--ease) both; }
+.uj-vb-prompt .k { font:600 11px var(--font-sans); letter-spacing:.13em; text-transform:uppercase; color:#fff; opacity:.85; }
+.uj-vb-prompt .t { font-size:16px; font-weight:600; color:#fff; letter-spacing:-.01em; }
+.uj-vb-prompt .s { font-size:12.5px; color:#fff; opacity:.9; line-height:1.4; }
+.uj-vb-prompt input { height:36px; padding:0 10px; border:0; border-radius:8px; font-size:12.5px; background:#fff; color:#26251e; }
 .uj-vb-prompt .row { display:flex; gap:8px; align-items:center; }
-.uj-vb-prompt .uj-btn-primary, .uj-vb-prompt .uj-btn-ghost { height:34px; font-size:12.5px; white-space:nowrap; }
-.uj-vb-prompt .count { margin-left:auto; font-size:11px; color:var(--muted-soft); text-align:right; max-width:120px; }
+.uj-vb-prompt .uj-btn-primary, .uj-vb-prompt .uj-btn-ghost { height:34px; padding:0 14px; font-size:12.5px; white-space:nowrap; border:0; border-radius:8px; }
+.uj-vb-prompt .uj-btn-primary { background:#c97d27; color:#fff; }
+.uj-vb-prompt .uj-btn-primary:hover { background:#b06a1c; }
+.uj-vb-prompt .uj-btn-ghost { background:rgba(255,255,255,.22); color:#fff; }
+.uj-vb-prompt .count { margin-left:auto; font-size:11px; color:#fff; opacity:.8; text-align:right; max-width:120px; }
 .wc-milestone { font-size:12px; margin-right:2px; }
 
 /* --- CR-25: This Week's Plot Twist (Notice board row + /app/plot-twist screen) --- */
@@ -5288,5 +5336,4 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
    into a narrow column beside the reaction chips and the footer overlaps it. */
 .uj-db-band[data-kind="wrapped"] { flex-wrap:wrap; row-gap:10px; }
 .uj-db-band[data-kind="wrapped"] .uj-db-s { flex-basis:100%; margin-top:-6px; }
-.uj-wr-num { font-size:40px; font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--red); }
 @media (max-width:600px){ .uj-wr-card { padding:22px; min-height:200px; } .uj-wr-card .big { font-size:42px; } }

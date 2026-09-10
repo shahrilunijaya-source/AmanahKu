@@ -28,8 +28,13 @@
     @if ($moments !== [])
         <div class="uj-db-moments" x-data="{ i: {{ (int) ($bands['moments_start'] ?? 0) }}, n: {{ count($moments) }} }">
         @foreach ($moments as $idx => $m)
-            @php $isBirthday = $m['kind'] === 'birthday'; $isBigDeal = $m['kind'] === 'big-deal'; $isVictoryBell = $m['kind'] === 'victory-bell'; $isWrapped = $m['kind'] === 'wrapped'; @endphp
-            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" @if ($isBigDeal) data-big-deal="{{ $m['big_deal_id'] }}" @endif @if ($isVictoryBell) data-victory-bell="{{ $m['victory_bell_id'] }}" @endif @if ($isWrapped) data-wrapped-company="{{ $m['wrapped_story_id'] }}" @endif aria-label="{{ $m['title']['en'] }}"
+            @php
+                $isBirthday = $m['kind'] === 'birthday'; $isBigDeal = $m['kind'] === 'big-deal'; $isVictoryBell = $m['kind'] === 'victory-bell'; $isWrapped = $m['kind'] === 'wrapped';
+                $isAdvance = $isBirthday && ($m['date'] ?? $todayKey) !== $todayKey;
+                $tone = ($isAdvance || $m['kind'] === 'holiday-eve') ? 'head' : 'cele';
+                $art = match (true) { $isAdvance => 'calendar', $isBirthday => 'cake', $isBigDeal => 'trophy', $isVictoryBell => 'bell', $isWrapped => 'blocks', $m['kind'] === 'holiday-eve' => 'moon', default => null };
+            @endphp
+            <section class="uj-db-band uj-db-moment" data-kind="{{ $m['kind'] }}" data-tone="{{ $tone }}" @if ($isBigDeal) data-big-deal="{{ $m['big_deal_id'] }}" @endif @if ($isVictoryBell) data-victory-bell="{{ $m['victory_bell_id'] }}" @endif @if ($isWrapped) data-wrapped-company="{{ $m['wrapped_story_id'] }}" @endif aria-label="{{ $m['title']['en'] }}"
                      @if ($isBirthday)
                          x-data="{
                             dismissed: false,
@@ -57,10 +62,8 @@
                          x-show="i === {{ $idx }}"
                      @endif
                      @if ($idx !== (int) ($bands['moments_start'] ?? 0)) style="display:none" @endif>
+                @if (! $plain)<span class="uj-db-fold" aria-hidden="true"></span>@endif
                 <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($m['kicker']['en']) : @js($m['kicker']['ms'])">{{ $m['kicker']['en'] }}</span>
-                @if (! $plain && $m['art'] === 'cake')<span class="uj-db-cake" aria-hidden="true">🎂</span>@endif
-                @if ($isVictoryBell && ! $plain)<span class="uj-vb-bell" aria-hidden="true">🔔</span>@endif
-                @if ($isWrapped && ! $plain)<span class="uj-wr-num" aria-hidden="true">{{ $m['stats']['cards_closed'] }}</span>@endif
                 @if ($isBirthday && isset($m['employee']))
                     <span class="uj-db-avatar" style="background:{{ $m['employee']['avatar_color'] ?? '#3a6ea5' }}">{{ $m['employee']['initials'] }}</span>
                 @endif
@@ -120,13 +123,9 @@
                     @endif
                     {!! $m['reactHtml'] ?? '' !!}
                 @endif
-                @if (! $plain && $m['art'])
-                    <div class="uj-db-art" aria-hidden="true">
-                        @for ($i = 0; $i < 8; $i++)
-                            <i style="left:{{ 8 + ($i * 47) % 150 }}px;top:{{ 6 + ($i * 37) % 54 }}px;--r:{{ ($i * 53) % 90 - 45 }}deg;--d:{{ ($i * 70) % 400 }}ms"></i>
-                        @endfor
-                        @if ($m['art'] === 'stamp')<span class="uj-db-stamp">CUTI</span>@endif
-                    </div>
+                @if (! $plain && $art)
+                    @php $on = $isAdvance ? \Carbon\CarbonImmutable::parse($m['date']) : null; @endphp
+                    @include('partials.dash.band-art', ['art' => $art, 'num' => $m['stats']['cards_closed'] ?? null, 'day' => $on?->format('j'), 'dow' => $on?->format('D')])
                 @endif
                 @if ($isBirthday)
                     @if (! $plain)
@@ -157,7 +156,8 @@
          text only, for FINAL_APPROVAL_ROLES every day. --}}
     @if ($bands['management'] ?? null)
         @php $mgmt = $bands['management']; @endphp
-        <section class="uj-db-band uj-db-management" data-band="management" aria-label="{{ $mgmt['title']['en'] }}">
+        <section class="uj-db-band uj-db-management" data-band="management" data-tone="need" aria-label="{{ $mgmt['title']['en'] }}">
+            @if (! $plain)<span class="uj-db-fold" aria-hidden="true"></span>@include('partials.dash.band-art', ['art' => 'mailbox'])@endif
             <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($mgmt['kicker']['en']) : @js($mgmt['kicker']['ms'])">{{ $mgmt['kicker']['en'] }}</span>
             <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($mgmt['title']['en']) : @js($mgmt['title']['ms'])">{{ $mgmt['title']['en'] }}</span>
             <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($mgmt['sub']['en']) : @js($mgmt['sub']['ms'])">{{ $mgmt['sub']['en'] }}</span>
@@ -165,26 +165,26 @@
         </section>
     @endif
     {{-- CR-32/CR-14b: the awards carousel — one data-slide per award (a tie shares its
-         slide), manual awards first then App\Support\Awards::KEYS order. Auto-rotation,
-         hover-pause and swipe are a human check (CR14bTest item 2); the markup and the
+         slide), manual awards first then App\Support\Awards::KEYS order. No auto-rotation
+         (arrows, dots and swipe only; CR14bTest item 2 is a human check); the markup and the
          reactions/comments underneath are exercised by the acceptance suite. --}}
     @if ($bands['awards'] ?? null)
-        @php $b = $bands['awards']; $awardSlides = $b['slides']; @endphp
-        <section class="uj-db-band uj-db-awards" data-band="awards" aria-label="{{ $b['title']['en'] }}"
-                 x-data="{ i: 0, n: {{ $awardSlides->count() }}, timer: null,
-                    start() { if ({{ $plain ? 'true' : 'false' }} || this.n < 2) return; this.timer = setInterval(() => { this.i = (this.i + 1) % this.n; }, 6000); },
-                    stop() { clearInterval(this.timer); },
-                    go(d) { this.stop(); this.i = (this.i + d + this.n) % this.n; },
+        @php $b = $bands['awards']; $awardSlides = $b['slides']; $awardStart = $awardSlides->count() > 1 ? random_int(0, $awardSlides->count() - 1) : 0; @endphp
+        {{-- Shazwan 2026-09-10: nothing auto-rotates; the opening slide changes per page load, arrows and swipe step through. --}}
+        <section class="uj-db-band uj-db-awards" data-band="awards" data-tone="cele" aria-label="{{ $b['title']['en'] }}"
+                 x-data="{ i: {{ $awardStart }}, n: {{ $awardSlides->count() }},
+                    go(d) { this.i = (this.i + d + this.n) % this.n; },
                     tx: null,
                     swipeStart(e) { this.tx = e.changedTouches[0].clientX; },
                     swipeEnd(e) { if (this.tx === null) return; const dx = e.changedTouches[0].clientX - this.tx; this.tx = null; if (Math.abs(dx) > 40) this.go(dx < 0 ? 1 : -1); } }"
-                 x-init="start()" @mouseenter="stop()" @mouseleave="start()" @touchstart.passive="swipeStart($event)" @touchend="swipeEnd($event)">
+                 @touchstart.passive="swipeStart($event)" @touchend="swipeEnd($event)">
+            @if (! $plain)<span class="uj-db-fold" aria-hidden="true"></span>@include('partials.dash.band-art', ['art' => 'medals'])@endif
             <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($b['kicker']['en']) : @js($b['kicker']['ms'])">{{ $b['kicker']['en'] }}</span>
             <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($b['title']['en']) : @js($b['title']['ms'])">{{ $b['title']['en'] }}</span>
             <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($b['sub']['en']) : @js($b['sub']['ms'])">{{ $b['sub']['en'] }}</span>
             <div class="uj-db-awards-track">
                 @forelse ($awardSlides as $idx => $group)
-                    <div x-show="i === {{ $idx }}" @if ($idx !== 0) style="display:none" @endif>
+                    <div x-show="i === {{ $idx }}" @if ($idx !== $awardStart) style="display:none" @endif>
                         @include($group->award_key === 'mystery' ? 'partials.awards.mystery' : 'partials.awards.result', ['group' => $group, 'attr' => 'slide'])
                     </div>
                 @empty
@@ -196,7 +196,7 @@
                 <div class="uj-db-awards-dots" role="tablist" style="display:flex;align-items:center;gap:6px;margin-top:8px;">
                     <button type="button" data-carousel-prev aria-label="Previous award" @click="go(-1)" style="border:1px solid var(--hairline);background:transparent;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">&lsaquo;</button>
                     @foreach ($awardSlides as $idx => $group)
-                        <button type="button" role="tab" :aria-selected="i === {{ $idx }}" @click="stop(); i = {{ $idx }}"
+                        <button type="button" role="tab" :aria-selected="i === {{ $idx }}" @click="i = {{ $idx }}"
                                 :style="{ background: i === {{ $idx }} ? 'var(--ink)' : 'var(--hairline)' }"
                                 style="width:8px;height:8px;border-radius:50%;border:0;padding:0;cursor:pointer;" aria-label="{{ $group->award_key === 'mystery' ? 'Mystery Award' : $group->copy['en']['name'] }}"></button>
                     @endforeach
