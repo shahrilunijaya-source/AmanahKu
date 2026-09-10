@@ -5359,7 +5359,7 @@ form.uj-or-fields { padding: 20px; }
 
 /* --- CR-26: Side Quests (docs/build/sessions/S26/mockup) --- */
 .uj-sq-wrap { display:flex; flex-direction:column; gap:14px; }
-.uj-sq-cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; align-items:start; }
+.uj-sq-cols { display:grid; grid-template-columns:minmax(0,5fr) minmax(0,4fr); gap:24px; align-items:start; }
 .uj-sq-col { display:flex; flex-direction:column; gap:12px; min-width:0; }
 @media (max-width:960px) { .uj-sq-cols { grid-template-columns:1fr; } }
 .uj-sq-head { display:flex; flex-direction:column; gap:3px; }
