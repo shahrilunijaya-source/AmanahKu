@@ -1289,7 +1289,8 @@ These are already known before the run starts. A session that hits one of them s
 
 ### S30 / CR-08 / PE and attachments
 - Question: roles contract has no PE role; card comments have no attachments.
-- Decided: PE = `projects.pe_id` (and PM = `projects.pm_id`) on the card's project; they may push even with the `employee` role. Attachment filtering is not applicable, the preview lists `attachments: []`. The Internal label on the card blocks the push.
+- Decided: PE = `projects.pe_id` (and PM = `projects.pm_id`) on the card's project; they may push even with the `employee` role. The Internal label on the card blocks the push.
+- Update 2026-09-10 (Shazwan): card comments now take files (`work_item_comment_attachments`). Each file has a Confidential tick (never leaves the card) and, with Push on, its own Push tick (off by default). The feed lists only ticked, non-confidential files as card-gated links; Track links back rather than copying the file.
 - Alternatives: gate PE by position title (fragile).
 - Reversal cost: cheap.
 - Source: spec acceptance 5 assumes attachments that do not exist.
