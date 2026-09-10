@@ -35,12 +35,6 @@
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
     - tag: added
-      text: "Your own notes on the dashboard calendar. Pick a day on the Personal tab, add a note with a title, an optional time and a few words, or pin one of your open cards to that day. Only you see them."
-      text_ms: "Nota anda sendiri pada kalendar papan pemuka. Pilih hari pada tab Peribadi, tambah nota dengan tajuk, masa pilihan dan beberapa patah kata, atau sematkan satu kad terbuka anda pada hari itu. Hanya anda yang nampak."
-      link: "/app/dash"
-      link_text: "Open Dashboard"
-      link_text_ms: "Buka Papan Pemuka"
-    - tag: added
       major: true
       text: "Connect your Google Calendar from your account and every card with a due date appears there. Events you add to the Amanahku calendar show up in My Work too."
       text_ms: "Sambungkan Google Calendar anda dari akaun dan setiap kad yang ada tarikh akhir muncul di sana. Acara yang anda tambah dalam kalendar Amanahku muncul dalam Kerja Saya juga."
@@ -63,6 +57,12 @@
       major: true
       text: "A project now carries its full contract: client, value, bond, dates, PM and PE. Every change is versioned with an effective date, and a Director approves variations before they count. Track pulls it automatically."
       text_ms: "Projek kini membawa kontrak penuhnya: klien, nilai, bon, tarikh, PM dan PE. Setiap perubahan diversikan dengan tarikh berkuat kuasa, dan Pengarah meluluskan variasi sebelum ia dikira. Track menariknya secara automatik."
+    - tag: added
+      text: "Your own notes on the dashboard calendar. Pick a day on the Personal tab, add a note with a title, an optional time and a few words, or pin one of your open cards to that day. Only you see them."
+      text_ms: "Nota anda sendiri pada kalendar papan pemuka. Pilih hari pada tab Peribadi, tambah nota dengan tajuk, masa pilihan dan beberapa patah kata, atau sematkan satu kad terbuka anda pada hari itu. Hanya anda yang nampak."
+      link: "/app/dash"
+      link_text: "Open Dashboard"
+      link_text_ms: "Buka Papan Pemuka"
     - tag: added
       text: "TOT sessions have a chair, an attendance list, several slots and follow-up actions. Each action becomes a T.A.A. card due on the next TOT Saturday."
       text_ms: "Sesi TOT ada pengerusi, senarai kehadiran, beberapa slot dan tindakan susulan. Setiap tindakan menjadi kad T.A.A. dengan tarikh akhir pada Sabtu TOT seterusnya."
