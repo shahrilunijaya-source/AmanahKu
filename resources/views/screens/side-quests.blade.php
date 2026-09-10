@@ -28,6 +28,8 @@
         <span class="uj-sq-k">{{ $plain ? 'Optional challenges' : 'NOT A KPI. NEVER WILL BE.' }}</span>
         <span class="uj-sq-sub">Finish one, post the proof, wear the badge for 30 days. HR swaps the quests now and then. Nothing counts.</span>
     </div>
+    <div class="uj-sq-cols">
+    <div class="uj-sq-col">
 
     <div class="uj-sq-quests">
         @foreach ($quests as $quest)
@@ -113,15 +115,16 @@
         </form>
     @endif
 
-    <span class="uj-sq-k uj-sq-k--muted" style="margin-top:6px;">Side Quest feed <span class="uj-doc-n">{{ $posts->count() }}</span></span>
+    </div>
+    <div class="uj-sq-col uj-sq-col-feed">
+    <span class="uj-sq-k uj-sq-k--muted" >Side Quest feed <span class="uj-doc-n">{{ $posts->count() }}</span></span>
     <div class="uj-sq-feed">
         @forelse ($posts as $row)
             @php $post = $row['post']; @endphp
             <div class="uj-card uj-sq-post" data-quest-post="{{ $post->id }}">
                 <div class="who">
                     <span class="uj-db-avatar" style="background:{{ $post->employee?->avatar_color ?? '#8a8f98' }};">{{ $post->employee?->initials }}</span>
-                    <span class="n">{{ $post->employee?->name }}</span>
-                    <span class="q">{{ $post->quest?->title }}</span>
+                    <span class="nq"><span class="n">{{ $post->employee?->name }}</span><span class="q">{{ $post->quest?->title }}</span></span>
                     <span class="w">{{ $post->created_at->format('D j M') }}</span>
                 </div>
                 @if ($post->note)
@@ -133,8 +136,10 @@
                 {!! $row['reactHtml'] !!}
             </div>
         @empty
-            <div class="uj-card uj-sq-empty-card">Nobody has posted a Side Quest yet. Finish one above and be first.</div>
+            <div class="uj-card uj-sq-empty-card">Nobody has posted a Side Quest yet. Finish one and be first.</div>
         @endforelse
+    </div>
+    </div>
     </div>
 </div>
 @endsection
