@@ -342,8 +342,8 @@
                         </template>
 
                         {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
-                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Signs the card off. It cannot reach Done without them.' : 'Mengesahkan kad. Tidak boleh Selesai tanpa mereka.'" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
-                        <span class="wd-pval">
+                        <span class="wd-plabel" x-show="drawer.card.can_set_reviewer || drawer.card.reviewer" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Signs the card off. It cannot reach Done without them.' : 'Mengesahkan kad. Tidak boleh Selesai tanpa mereka.'" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
+                        <span class="wd-pval" x-show="drawer.card.can_set_reviewer || drawer.card.reviewer">
                             {{-- The server says who may set it (PM and above, covering the owner), so the
                                  control follows can_set_reviewer rather than the drawer lock: the team board
                                  is otherwise read-only, yet it is where a PM meets a staff member's card. --}}
@@ -362,8 +362,8 @@
                         </span>
 
                         {{-- CR-28: Milestone — set by PM and above; only a Milestone card can ring the Victory Bell. --}}
-                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Big deal card. PM and above set it, and only a Milestone can ring the bell.' : 'Kad besar. PM ke atas tetapkan, dan hanya Pencapaian boleh bunyikan loceng.'" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
-                        <span class="wd-pval">
+                        <span class="wd-plabel" x-show="drawer.card.can_set_milestone || drawer.card.is_milestone" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Big deal card. PM and above set it, and only a Milestone can ring the bell.' : 'Kad besar. PM ke atas tetapkan, dan hanya Pencapaian boleh bunyikan loceng.'" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
+                        <span class="wd-pval" x-show="drawer.card.can_set_milestone || drawer.card.is_milestone">
                             <template x-if="drawer.card.can_set_milestone">
                                 <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
                                     <input type="checkbox" :checked="drawer.card.is_milestone" :disabled="drawer.locked"
