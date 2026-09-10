@@ -4,7 +4,6 @@ namespace App\Ports\Adapters;
 
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
-use App\Models\WorkItem;
 use App\Ports\CalendarPort;
 use App\Ports\Data\CalendarEvent;
 use App\Ports\Outbox;
@@ -14,13 +13,10 @@ use Carbon\CarbonImmutable;
 use RuntimeException;
 
 /**
- * The real calendar adapter, scaffolded over the hand-rolled client that already exists
- * (docs/build/contracts/ports.md, "What exists today"). NOT bound during the build run:
- * PortsServiceProvider resolves every calendar driver to the stub. Shazwan wires it up
- * after the run by setting PORT_CALENDAR_DRIVER=google and lifting the guard in the provider.
- *
- * The client only knows how to mirror a work item's due date as an all-day event, so
- * that is all this scaffold carries; other subjects and pull are left as failed results.
+ * The real calendar adapter (CR-01) over the hand-rolled client. Selected with
+ * PORT_CALENDAR_DRIVER=google; the stub stays the default. Every call still writes
+ * its outbox row first, so the Sync issues list and the audit trail read the same
+ * table whichever driver is on.
  */
 final class GoogleCalendarAdapter implements CalendarPort
 {
@@ -31,12 +27,9 @@ final class GoogleCalendarAdapter implements CalendarPort
         return $this->outbox->call('calendar', 'upsertEvent', $event->subject,
             ['for_employee_id' => $for->id] + $event->toPayload(),
             function () use ($for, $event) {
-                $item = $event->subject;
-                if (! $item instanceof WorkItem) {
-                    throw new RuntimeException('The Google adapter only mirrors work items today.');
-                }
+                [$id, $version] = $this->client->upsertEvent($event, $this->connectionFor($for));
 
-                return [$this->client->createOrUpdateEvent($item, $this->connectionFor($for)), []];
+                return [$id, ['version' => $version]];
             },
             $for->tenant_id);
     }
@@ -57,7 +50,11 @@ final class GoogleCalendarAdapter implements CalendarPort
     {
         return $this->outbox->call('calendar', 'pullChanges', null,
             ['for_employee_id' => $for->id, 'since' => $since->toIso8601String()],
-            fn () => throw new RuntimeException('Pulling changes from Google Calendar is not built yet (CR-01, deferred).'),
+            function () use ($for, $since) {
+                $changes = $this->client->listChanges($this->connectionFor($for), $since);
+
+                return [null, $changes];
+            },
             $for->tenant_id);
     }
 

@@ -1236,3 +1236,39 @@ These are already known before the run starts. A session that hits one of them s
 - Alternatives: count `urgent` some other way that happens to total 4 for this fixture (rejected — the only way to reach 4 is to count high-priority cards by `completed_at` instead of `created_at`, which would make `urgent` and `fires` identical stats and contradict the spec's own "created" vs. "closed" distinction between the two numbers); adjust the fixture's dates (rejected — `tests/Acceptance/*` is frozen/input-only).
 - Reversal cost: for a future QA pass — cheap, either fix the test's expected value to `'3'`, or adjust the fixture's card dates so two of Yati's high-priority cards actually land their `created_at` in September.
 - Source: `tests/Acceptance/CR22Test.php::test_acceptance_3_dashboard_shows_company_wrapped_with_reactions` (line ~192/215/219, `finishedCard()` helper's `subDay()` mechanism), `docs/build/OPEN.md` (`QA / CR-26 / S26 grade PASS...` and `QA / CR-27 / S27 CR27Test's test_acceptance_2...` precedents), `app/Console/Commands/WrappedBuild.php` (`$createdInMonth` computation).
+
+### S29 / CR-01 / Google leg wired as a real adapter, off by default
+- Question: ports contract says the stub is the only driver enabled in the run and the real Google adapter stays unbound; CR-01 is the two-way sync itself, which is useless unbound.
+- Decided: `GoogleCalendarAdapter` is registered under `calendar:google` and switched on only by `PORT_CALENDAR_DRIVER=google`; the default stays `stub`, so nothing in the run reaches Google. Every call still writes its `port_outbox` row first. `PortsTest` now proves fallback with an unknown driver name instead of `google`.
+- Alternatives: leave it unbound and hand Shazwan a one-line wiring task (rejected, CR-01 was asked for explicitly after the run and the wiring is the deliverable).
+- Reversal cost: cheap, remove one array entry in `PortsServiceProvider`.
+- Source: contract vs explicit request.
+
+### S29 / CR-01 / Rules 5, 7 and 8 trimmed
+- Question: recurring series (rule 5), extra read-only calendars on the dashboard (rule 7) and helpers as optional guests (rule 8).
+- Decided: rule 5 is met by pulling with `singleEvents=true` over a 30 day horizon, one card per occurrence, no series bookkeeping and no "edit future occurrences only" logic. Rule 7 and rule 8 are not built. Only the Primary Owner's calendar receives an event.
+- Alternatives: full series model with `recurringEventId` linkage; a calendar picker on the profile and a dashboard band for read-only calendars; `attendees` on the Google event for helpers (needs the helpers' addresses to be Google accounts and shows the event in their primary calendar, which rule 1 forbids for automatic flow).
+- Reversal cost: medium for rule 5 (a `series_id` column and a rule for future-only edits), cheap for rule 8 (add `attendees` in `GoogleCalendarClient::upsertEvent`), medium for rule 7 (new setting plus a dashboard slot).
+- Source: spec text, scope judgement.
+
+### S29 / CR-01 / Conflict inside 60 seconds keeps Amanahku's date
+- Question: rule 4 says Event conflicts within 60 seconds are "queued for the owner to resolve" without saying where.
+- Decided: Amanahku's date is kept, the calendar entry is pushed back, the card gets a history line and the owner gets an in-app notification pointing at the card. No separate resolution queue or screen.
+- Alternatives: a conflicts table and a resolve screen. Rejected as a whole UI for a one-minute race nobody has hit yet.
+- Reversal cost: medium, the reconciler already isolates the branch (`CalendarReconciler::moved`).
+- Source: spec silent.
+
+### S29 / CR-01 / One attendee's calendar move does not move the shared company event
+- Question: an attendee drags their copy of a company event in Google. The T.A.A. Event card is theirs; the `company_events` row is shared by everyone invited.
+- Decided: only that attendee's card follows (with history), the shared `company_events` row and the other attendees' cards do not. The poster reschedules the shared event in Amanahku.
+- Alternatives: move the company event and every attendee card from one person's drag. Rejected, one attendee would silently reschedule everybody.
+- Reversal cost: cheap if wanted, the reconciler has the `company_event_id` at hand.
+- Source: spec silent.
+
+### S29 / CR-01 / Sync issues live on the profile
+- Question: rule 9 asks for a "Sync issues" list without naming a screen.
+- Decided: the job gives up after five tries (1 min, 5 min, 15 min, 1 h backoff) and writes the error on the card; the profile's Google Calendar block lists those cards with a Retry button. No dashboard slot used.
+- Alternatives: a dashboard band; an HR-wide list. Rejected, the failures are per person and per connection.
+- Reversal cost: cheap.
+- Source: spec silent.
+

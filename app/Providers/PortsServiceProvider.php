@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Ports\Adapters\GoogleCalendarAdapter;
 use App\Ports\CalendarPort;
 use App\Ports\MailPort;
 use App\Ports\Stub\StubCalendarPort;
@@ -51,12 +52,15 @@ class PortsServiceProvider extends ServiceProvider
 
     /**
      * Real adapters keyed "<port>:<driver>", e.g. "calendar:google" => GoogleCalendarAdapter::class.
-     * Empty during the build run on purpose; Shazwan adds one entry per port after it.
+     * The build run shipped this empty; the Google calendar adapter was the first to be wired (CR-01).
      *
      * @return array<string, class-string>
      */
     private static function realAdapters(): array
     {
-        return [];
+        return [
+            // CR-01: opt in with PORT_CALENDAR_DRIVER=google plus the GOOGLE_CALENDAR_* keys.
+            'calendar:google' => GoogleCalendarAdapter::class,
+        ];
     }
 }

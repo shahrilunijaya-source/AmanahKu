@@ -4,31 +4,43 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
 use App\Models\WorkItem;
-use App\Services\GoogleCalendarClient;
+use App\Ports\CalendarPort;
+use App\Support\Calendar\CalendarMirror;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use RuntimeException;
+use Throwable;
 
 /**
- * Create/update/delete a work item's Google Calendar event. Takes scalars, not
- * an Eloquent WorkItem instance: on delete-after-reassignment or delete-after-
- * destroy the model may already be gone or already carry the NEW assignee by
- * the time this runs, so the caller (WorkItemObserver) captures whatever it
- * needs at dispatch time instead of relying on a serialized model.
+ * Create/update/delete a work item's calendar event through CalendarPort (CR-01).
+ * Takes scalars, not an Eloquent WorkItem instance: on delete-after-reassignment or
+ * delete-after-destroy the model may already be gone or already carry the NEW assignee
+ * by the time this runs, so WorkItemObserver captures what it needs at dispatch time.
  *
- * Tenant-aware like the queued digest commands: WorkItem/GoogleCalendarConnection
- * queries need CurrentTenant set explicitly because a queued job runs outside the
- * request lifecycle that normally resolves it.
+ * Unique until processing: five quick title edits collapse into one push, so the
+ * calendar sees exactly one event and no ping-pong (acceptance 5). Five tries with
+ * backoff (rule 9); after the last the card records the error for the Sync issues list.
+ *
+ * Tenant-aware like the queued digest commands: a queued job runs outside the request
+ * lifecycle that normally resolves CurrentTenant.
  */
-class SyncWorkItemCalendarEventJob implements ShouldQueue
+class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 5;
+
+    /** @var list<int> seconds between retries: 1 min, 5 min, 15 min, 1 h */
+    public array $backoff = [60, 300, 900, 3600];
 
     public function __construct(
         public readonly int $tenantId,
@@ -38,65 +50,89 @@ class SyncWorkItemCalendarEventJob implements ShouldQueue
         public readonly ?string $googleEventId = null,
     ) {}
 
-    public function handle(CurrentTenant $context, GoogleCalendarClient $client): void
+    public function uniqueId(): string
+    {
+        return "{$this->action}:{$this->workItemId}:{$this->userId}:{$this->googleEventId}";
+    }
+
+    public function handle(CurrentTenant $context, CalendarPort $port): void
     {
         $tenant = Tenant::find($this->tenantId);
         if (! $tenant) {
             return;
         }
 
-        // Restore whatever was active before, not null — on the `sync` queue driver
-        // (used in tests, and possibly locally) this job runs INLINE inside the
-        // request that dispatched it, so blindly nulling context here would wipe
-        // the request's own tenant scope out from under it after this job returns.
+        // Restore whatever was active before, not null: on the `sync` queue driver this
+        // job runs inline inside the request that dispatched it.
         $previous = $context->get();
         $context->set($tenant);
 
         try {
-            $this->action === 'delete' ? $this->runDelete($client) : $this->runUpsert($client);
+            $this->action === 'delete' ? $this->runDelete($port) : $this->runUpsert($port);
         } finally {
             $context->set($previous);
         }
     }
 
-    private function runUpsert(GoogleCalendarClient $client): void
+    public function failed(?Throwable $e): void
     {
-        $item = WorkItem::find($this->workItemId);
-        if (! $item || ! $item->due_at || $item->archived_at !== null || $item->status === 'done') {
-            return;
+        if ($this->workItemId) {
+            WorkItem::withoutGlobalScopes()->where('id', $this->workItemId)
+                ->update(['calendar_sync_error' => mb_substr($e?->getMessage() ?? 'Calendar sync failed', 0, 500)]);
         }
-
-        $userId = $item->employee?->user_id;
-        if (! $userId) {
-            return;
-        }
-
-        $connection = GoogleCalendarConnection::where('user_id', $userId)->first();
-        if (! $connection) {
-            return;
-        }
-
-        $eventId = $client->createOrUpdateEvent($item, $connection);
-        $item->update(['google_event_id' => $eventId]);
     }
 
-    private function runDelete(GoogleCalendarClient $client): void
+    private function runUpsert(CalendarPort $port): void
+    {
+        $item = WorkItem::withoutGlobalScopes()->find($this->workItemId);
+        if (! $item || ! CalendarMirror::syncable($item)) {
+            return;
+        }
+
+        $employee = Employee::withoutGlobalScope('tenant')->find($item->employee_id);
+        if (! $employee?->user_id || ! $this->connected($employee)) {
+            return;
+        }
+
+        $result = $port->upsertEvent($employee, CalendarMirror::event($item));
+        if (! $result->ok) {
+            throw new RuntimeException("Calendar push failed (outbox #{$result->outboxId}).");
+        }
+
+        // Query builder on purpose: a version stamp is not a card edit, no audit row, no observer.
+        WorkItem::withoutGlobalScopes()->where('id', $item->id)->update([
+            'google_event_id' => $result->externalId,
+            'calendar_version' => $result->payload['version'] ?? null,
+            'calendar_sync_error' => null,
+        ]);
+    }
+
+    private function runDelete(CalendarPort $port): void
     {
         if (! $this->userId || ! $this->googleEventId) {
             return;
         }
 
-        $connection = GoogleCalendarConnection::where('user_id', $this->userId)->first();
-        if ($connection) {
-            $client->deleteEvent($this->googleEventId, $connection);
+        $employee = Employee::withoutGlobalScope('tenant')->where('user_id', $this->userId)->where('tenant_id', $this->tenantId)->first();
+        if ($employee && $this->connected($employee)) {
+            $result = $port->deleteEvent($employee, $this->googleEventId);
+            if (! $result->ok) {
+                throw new RuntimeException("Calendar delete failed (outbox #{$result->outboxId}).");
+            }
         }
 
         if ($this->workItemId) {
-            // Scoped by the event id we just deleted, not just the item id — if a
-            // later upsert already wrote a newer event id onto this row, don't clobber it.
-            WorkItem::where('id', $this->workItemId)
+            // Scoped by the event id we just deleted: if a later upsert already wrote a
+            // newer event id onto this row, don't clobber it.
+            WorkItem::withoutGlobalScopes()->where('id', $this->workItemId)
                 ->where('google_event_id', $this->googleEventId)
-                ->update(['google_event_id' => null]);
+                ->update(['google_event_id' => null, 'calendar_version' => null]);
         }
+    }
+
+    /** No connection, nothing to mirror: silently done, not a failure to retry. */
+    private function connected(Employee $employee): bool
+    {
+        return GoogleCalendarConnection::where('user_id', $employee->user_id)->exists();
     }
 }

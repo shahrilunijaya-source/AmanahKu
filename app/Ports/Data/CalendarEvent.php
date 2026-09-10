@@ -20,6 +20,10 @@ final readonly class CalendarEvent
         public ?Model $subject = null,
         public ?string $externalId = null,
         public bool $allDay = false,
+        /** The calendar's own status: true when it was deleted or cancelled there. */
+        public bool $cancelled = false,
+        /** The calendar's version stamp for this event (Google `updated`); echoes of our own push carry the one we stored. */
+        public ?string $version = null,
     ) {}
 
     /** @return array<string, mixed> */
@@ -32,6 +36,8 @@ final readonly class CalendarEvent
             'description' => $this->description,
             'external_id' => $this->externalId,
             'all_day' => $this->allDay,
+            'cancelled' => $this->cancelled,
+            'version' => $this->version,
         ];
     }
 }

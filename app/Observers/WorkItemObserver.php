@@ -8,13 +8,11 @@ use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
+use App\Support\Calendar\CalendarMirror;
 
 /**
- * Detects the WorkItem changes that matter for Google Calendar sync and
- * dispatches SyncWorkItemCalendarEventJob accordingly. Only employee_id,
- * due_at, archived_at and status are watched — an edit to title/priority/etc.
- * with none of those changed does not re-sync (the calendar event's summary
- * can go stale on a title-only edit; out of scope per the spec's trigger list).
+ * Detects the WorkItem changes that matter for calendar sync (CR-01) and
+ * dispatches SyncWorkItemCalendarEventJob accordingly.
  */
 class WorkItemObserver
 {
@@ -28,6 +26,13 @@ class WorkItemObserver
 
         $this->recordProgressStint($item);
 
+        // A company event's attendee cards are mirrored by EventController itself (CR-11
+        // scope 2: per-attendee upsert on RSVP, delete on withdrawal, re-upsert on
+        // reschedule), so the observer must not push them a second time.
+        if ($item->type === 'event' && $item->company_event_id !== null) {
+            return;
+        }
+
         // isDirty() works here because Eloquent's `saved` event fires BEFORE
         // syncOriginal() runs (see Model::finishSave()) — so at this point $original
         // still holds the pre-save values, and isDirty() correctly reflects what this
@@ -36,7 +41,10 @@ class WorkItemObserver
         // it back to false on the same in-memory instance across later save()/update()
         // calls, so it stays stuck true forever — wrongly treating every later
         // unrelated update as "just created".
-        $relevant = $item->isDirty(['employee_id', 'due_at', 'archived_at', 'status']);
+        // CR-01: title and priority travel in the event too, so edits re-push (the job
+        // is unique until processing, so a burst of edits is one push). Cancelled cards
+        // leave the calendar like archived ones.
+        $relevant = $item->isDirty(['employee_id', 'due_at', 'archived_at', 'cancelled_at', 'status', 'title', 'priority']);
 
         if (! $relevant) {
             return;
@@ -51,7 +59,7 @@ class WorkItemObserver
             $this->deleteFromOldAssignee($item);
         }
 
-        $syncable = $item->due_at !== null && $item->archived_at === null && $item->status !== 'done';
+        $syncable = CalendarMirror::syncable($item);
 
         if (! $syncable) {
             if (! $reassigned && $item->google_event_id) {

@@ -85,7 +85,7 @@ class WorkItemObserverTest extends TestCase
         $card = $this->card(['due_at' => '2026-09-30']);
         Bus::fake();
 
-        $card->update(['priority' => 'high']);
+        $card->update(['description' => 'more detail']);
 
         Bus::assertNotDispatched(SyncWorkItemCalendarEventJob::class);
     }

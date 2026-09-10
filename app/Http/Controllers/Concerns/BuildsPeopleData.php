@@ -276,6 +276,10 @@ trait BuildsPeopleData
             'googleCalendarConnected' => ($own && $e && $own->id === $e->id)
                 ? GoogleCalendarConnection::where('user_id', $own->user_id)->exists()
                 : false,
+            // CR-01 rule 9: cards whose calendar push gave up after five tries.
+            'calendarSyncIssues' => ($own && $e && $own->id === $e->id)
+                ? WorkItem::where('employee_id', $own->id)->whereNotNull('calendar_sync_error')->orderByDesc('updated_at')->get(['id', 'title', 'calendar_sync_error'])
+                : collect(),
             'canSeeAttendance' => $leaveGate,
             'attendance' => $attendance,
             'leaveGate' => $leaveGate,

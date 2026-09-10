@@ -364,6 +364,23 @@
                         </a>
                     @endif
                 </div>
+                @if ($googleCalendarConnected ?? false)
+                    <div style="font-size:11.5px;color:var(--muted);margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Your cards with a due date appear in a separate \'Amanahku\' calendar, never your main one. Move a Task there and it snaps back; move an Event and the card follows.' : 'Kad anda yang bertarikh akhir muncul dalam kalendar \'Amanahku\' berasingan, bukan kalendar utama. Alih Tugasan di sana dan ia kembali; alih Acara dan kad mengikut.'">Your cards with a due date appear in a separate 'Amanahku' calendar, never your main one.</div>
+                @endif
+                @if (($calendarSyncIssues ?? collect())->isNotEmpty())
+                    <div data-testid="calendar-sync-issues" style="margin-top:10px;border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 10px;">
+                        <div style="font-size:11px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:0.6px;" x-text="$store.ui.lang==='en' ? 'Sync issues' : 'Isu penyegerakan'">Sync issues</div>
+                        @foreach ($calendarSyncIssues as $issue)
+                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;">
+                                <a href="{{ route('work.show', $issue) }}" style="flex:1;min-width:0;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ $issue->calendar_sync_error }}">{{ $issue->title }}</a>
+                                <form method="post" action="{{ route('google-calendar.retry', $issue) }}">
+                                    @csrf
+                                    <button type="submit" class="uj-btn-ghost" style="height:24px;padding:0 8px;font-size:11px;" data-tip="Push this card to the calendar once more">Retry</button>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
                 </div>
                 @endif
                 @forelse ($wItems as $w)

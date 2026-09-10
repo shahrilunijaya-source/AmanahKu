@@ -49,7 +49,7 @@ class PortsTest extends TestCase
     #[Test]
     public function a_driver_that_is_not_enabled_falls_back_to_the_stub(): void
     {
-        config(['ports.driver.calendar' => 'google']);
+        config(['ports.driver.calendar' => 'outlook']);
         $this->app->forgetInstance(CalendarPort::class);
 
         $this->assertInstanceOf(StubCalendarPort::class, app(CalendarPort::class));
@@ -72,7 +72,7 @@ class PortsTest extends TestCase
 
         $pull = $adapter->pullChanges($for, CarbonImmutable::parse('2026-09-01'));
         $this->assertFalse($pull->ok);
-        $this->assertStringContainsString('deferred', PortOutbox::find($pull->outboxId)->error);
+        $this->assertStringContainsString('not configured', PortOutbox::find($pull->outboxId)->error);
 
         Http::assertNothingSent();
     }

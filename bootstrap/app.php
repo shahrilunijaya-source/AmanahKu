@@ -78,6 +78,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // per staffer per type per day regardless of how many ticks fire.
         $schedule->command('attendance:remind')->everyFiveMinutes()->between('6:00', '22:00')
             ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
+        // CR-01: calendar pull, every five minutes so a Google-side change lands within
+        // the spec's minute-ish window. Each connection is one unique queued job.
+        $schedule->command('calendar:pull')->everyFiveMinutes()
+            ->withoutOverlapping()->onFailure($onFailure('calendar:pull'));
         // CR-20: holiday-eve greeting for whoever never clocked out. Dedupes against the
         // clock-out card, so it only reaches the people the card did not.
         $schedule->command('attendance:holiday-eve')->weekdays()->at('17:30')

@@ -312,6 +312,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
         Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
+        Route::post('/app/settings/google-calendar/retry/{workItem}', [GoogleCalendarConnectionController::class, 'retry'])->name('google-calendar.retry');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');

@@ -16,6 +16,9 @@ use Illuminate\Support\Carbon;
  * calls accessTokenFor()'s ->isAfter() a method call on a string.
  *
  * @property Carbon|null $expires_at
+ * @property Carbon|null $last_pulled_at
+ * @property string|null $calendar_id
+ * @property string|null $sync_token
  */
 class GoogleCalendarConnection extends Model
 {
@@ -27,6 +30,7 @@ class GoogleCalendarConnection extends Model
             'access_token' => 'encrypted',
             'refresh_token' => 'encrypted',
             'expires_at' => 'datetime',
+            'last_pulled_at' => 'datetime',
         ];
     }
 
