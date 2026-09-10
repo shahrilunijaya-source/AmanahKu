@@ -2157,6 +2157,13 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-dw-plain input { margin-top:3px; accent-color:var(--red); }
 .uj-dw-plain b { display:block; font-size:var(--t-base); font-weight:500; color:var(--ink); }
 .uj-dw-plain small { font-size:var(--t-sm); color:var(--muted); }
+/* CR-33 greeting suggestion: same gutter as the Keep it plain row above it */
+.uj-dw-suggest { padding:12px 18px 16px; border-top:1px solid var(--hairline); }
+.uj-dw-suggest > button { font-size:var(--t-sm); color:var(--ink); text-decoration:underline; text-underline-offset:2px; }
+.uj-dw-suggest form { margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.uj-dw-suggest form :is(select, input) { height:36px; padding:0 10px; border:1px solid var(--hairline); border-radius:8px; font-size:12.5px; background:#fff; min-width:0; }
+.uj-dw-suggest form .uj-dw-btn { justify-self:start; }
+@media (max-width:600px) { .uj-dw-suggest form { grid-template-columns:1fr; } }
 .uj-dw-sheet-ft { display:flex; align-items:center; gap:10px; padding:13px 18px; border-top:1px solid var(--hairline); background:#fbfbf9; }
 .uj-dw-sheet-ft .n { font-size:var(--t-sm); color:var(--muted); }
 .uj-dw-sheet-ft .uj-dw-btn-ghost { margin-left:auto; }

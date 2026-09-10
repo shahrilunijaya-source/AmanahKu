@@ -138,19 +138,19 @@
 
             @if (\Illuminate\Support\Facades\Route::has('greetings.suggest'))
             {{-- CR-33: any employee can suggest a greeting line for HR to approve. --}}
-            <div x-data="{ suggesting: false }" style="border-top:1px solid var(--hairline-soft);margin-top:14px;padding-top:12px;">
-                <button type="button" @click="suggesting = !suggesting" style="font-size:12.5px;color:var(--ink);text-decoration:underline;"
+            <div x-data="{ suggesting: false }" class="uj-dw-suggest">
+                <button type="button" @click="suggesting = !suggesting"
                         x-text="$store.ui.lang==='en' ? 'Suggest a greeting line' : 'Cadangkan ucapan'">Suggest a greeting line</button>
-                <form x-show="suggesting" x-cloak method="post" action="{{ route('greetings.suggest') }}" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                <form x-show="suggesting" x-cloak method="post" action="{{ route('greetings.suggest') }}">
                     @csrf
-                    <select name="trigger" required style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;">
+                    <select name="trigger" required>
                         @foreach (\App\Models\GreetingLine::TRIGGERS as $key => $t)
                             <option value="{{ $key }}">{{ $t['label_en'] }} / {{ $t['label_ms'] }}</option>
                         @endforeach
                     </select>
-                    <input name="text_en" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'English line' : 'Baris Bahasa Inggeris'" style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
-                    <input name="text_ms" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Bahasa Melayu line' : 'Baris Bahasa Melayu'" style="height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
-                    <button type="submit" class="uj-dw-btn uj-dw-btn-ghost" style="align-self:flex-start;" x-text="$store.ui.lang==='en' ? 'Send' : 'Hantar'">Send</button>
+                    <input name="text_en" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'English line' : 'Baris Bahasa Inggeris'" />
+                    <input name="text_ms" required maxlength="200" :placeholder="$store.ui.lang==='en' ? 'Bahasa Melayu line' : 'Baris Bahasa Melayu'" />
+                    <button type="submit" class="uj-dw-btn uj-dw-btn-ghost" x-text="$store.ui.lang==='en' ? 'Send' : 'Hantar'">Send</button>
                 </form>
             </div>
             @endif
