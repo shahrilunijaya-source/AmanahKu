@@ -156,6 +156,12 @@
     - tag: fixed
       text: "The card drawer no longer shows Reviewer and Milestone rows to people who cannot set them."
       text_ms: "Laci kad tidak lagi menunjukkan baris Penyemak dan Milestone kepada orang yang tidak boleh menetapkannya."
+    - tag: fixed
+      text: "The clock in / clock out window could freeze after the server asked for a reason: the Confirm button stayed greyed out and nothing happened when tapped. It works again."
+      text_ms: "Tetingkap masuk / keluar kerja boleh terhenti selepas pelayan meminta sebab: butang Sahkan kekal kelabu dan tiada apa berlaku apabila ditekan. Ia berfungsi semula."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
 
 - version: "1.7.4"
   date: "2026-09-03"

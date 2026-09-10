@@ -148,9 +148,14 @@ class ChangelogScreenTest extends TestCase
 
     public function test_the_newest_release_announces_subtasks(): void
     {
-        $newest = Changelog::releases()[0];
+        $releases = Changelog::releases();
 
-        $this->assertSame('2.0', $newest['version']);
+        // 2.0 is open at the top of the file and collects fixes as they land; the
+        // subtask/leave/dashboard copy this test guards belongs to 1.7.4 below it.
+        $this->assertSame('2.0', $releases[0]['version']);
+
+        $newest = collect($releases)->firstWhere('version', '1.7.4');
+        $this->assertNotNull($newest);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])

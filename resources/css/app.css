@@ -1366,10 +1366,13 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
     align-self: stretch; background: none; border: 0; padding: 0; font: inherit; font-size: 15px;
     color: var(--ink); text-align: left; cursor: pointer; transition: color 200ms ease, transform 120ms var(--ease);
 }
-.wd-ov-child-title > span { position: relative; }
-.wd-ov-child-title > span::after {
-    content: ''; position: absolute; left: 0; right: 0; top: 55%; height: 1.5px; background: currentColor;
-    transform: scaleX(0); transform-origin: left; transition: transform 140ms var(--ease);
+/* The strike is a background stroke, not a pseudo-element: a title that wraps gets
+   one stroke per line (box-decoration-break: clone), where an absolute bar drew a
+   single line through the gap between the two rows. It still sweeps in from the left. */
+.wd-ov-child-title > span {
+    background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0% 1.5px;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+    transition: background-size 140ms var(--ease);
 }
 .wd-ov-child-title:active { transform: scale(.98); }
 /* Delete sits outside the row's right edge and only shows while the row is hovered
@@ -1388,7 +1391,7 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 @media (hover: none) { .wd-ov-x { opacity: 1; transform: none; } }
 .wd-ov-child { position: relative; }
 .wd-ov-child.is-done .wd-ov-child-title { color: var(--muted); }
-.wd-ov-child.is-done .wd-ov-child-title > span::after { transform: scaleX(1); transition-duration: 260ms; }
+.wd-ov-child.is-done .wd-ov-child-title > span { background-size: 100% 1.5px; transition-duration: 260ms; }
 .wd-ov-add .wd-inline {
     width: 100%; margin: 0; padding: 14px 20px; font-size: 14px; color: #fff;
     background: rgba(255,255,255,.12); border: 1px dashed rgba(255,255,255,.5); border-radius: 18px;
@@ -1410,7 +1413,7 @@ a, button { transition: background-color .14s ease, border-color .14s ease, colo
 @media (prefers-reduced-motion: reduce) {
     .wd-ov, .wd-ov-parent, .wd-ov-child, .wd-ov-add { animation: uj-fade .15s ease both; animation-delay: 0s; }
     .wd-ov-parent:hover, .wd-ov-parent:active, .wd-ov-child-title:active, .wd-ov-child input[type="checkbox"]:active, .wd-ov-x { transform: none; }
-    .wd-ov-child-title > span::after { transition: none; }
+    .wd-ov-child-title > span { transition: none; }
 }
 /* Phone and tablet: no room beside a full-width drawer, so the overview is a
    bottom sheet over it, opened from the drawer's Subtasks pill (.wd-subpill).

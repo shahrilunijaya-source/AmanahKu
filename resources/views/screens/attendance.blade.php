@@ -122,7 +122,7 @@
               // ClockService::clockOut()'s $newlyDeclared. Only a mode that was NOT already
               // declared this morning owes a destination again at clock-out.
               declaredIn: {{ $today?->work_mode === 'site_visit' ? 'true' : 'false' }},
-              reason: @js(old('justification', '')),
+              reason: @js(old('justification') ?? ''),
               siteLat: {{ $site && $site->hasGeofence() ? $site->latitude : 'null' }},
               siteLng: {{ $site && $site->hasGeofence() ? $site->longitude : 'null' }},
               radius: {{ $site?->radiusM ?? 0 }},
