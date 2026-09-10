@@ -73,7 +73,7 @@
                 @if ($myPost)
                     <span class="done">{{ $plain ? 'Done' : '✓ Done' }}@if ($expiry) · badge until {{ \Illuminate\Support\Carbon::parse($expiry)->format('j M') }}@endif</span>
                 @else
-                    <button type="button" class="uj-btn-primary" :aria-expanded="open" @click="open = !open">I did this</button>
+                    <button type="button" class="uj-btn-primary" :aria-expanded="open" @click="open = !open" data-tip-start data-tip="Post a one-liner or photo">I did this</button>
                 @endif
                 @if ($canCurate)
                     <form method="POST" action="{{ route('side-quests.retire', $quest) }}" onsubmit="return confirm('Retire this quest? It leaves the board; posts and badges stay.')">
@@ -90,8 +90,8 @@
                                 <textarea name="note" rows="2" maxlength="280" placeholder="What did you do?"></textarea>
                             </label>
                             <div class="row">
-                                <label class="uj-sq-file">{{ $plain ? '' : '📎 ' }}Add a photo <input type="file" name="photo" accept="image/*" hidden></label>
-                                <button type="submit" class="uj-btn-primary">Post it</button>
+                                <label class="uj-sq-file" data-tip="Optional, any image">{{ $plain ? '' : '📎 ' }}Add a photo <input type="file" name="photo" accept="image/*" hidden></label>
+                                <button type="submit" class="uj-btn-primary" data-tip-start data-tip="Goes to the feed and your profile">Post it</button>
                             </div>
                         </form>
                     </div>
@@ -103,14 +103,14 @@
     @if ($canCurate)
         <div class="uj-sq-curate">
             <div class="uj-card uj-sq-sugg">
-                <span class="uj-sq-k uj-sq-k--muted">Suggested by staff <span class="uj-doc-n">{{ $suggestions->count() }}</span></span>
+                <span class="uj-sq-k uj-sq-k--muted">Suggested by staff <span class="uj-doc-n" data-tip="Waiting for HR to make live">{{ $suggestions->count() }}</span></span>
                 @forelse ($suggestions as $suggestion)
                     <div class="row" data-quest-suggestion="{{ $suggestion->id }}">
                         <span>{{ $suggestion->title }}</span>
                         <small>{{ $suggestion->suggestedBy?->name }}</small>
                         <form method="POST" action="{{ route('side-quests.approve', $suggestion) }}">
                             @csrf
-                            <button type="submit" class="uj-btn-ghost">Make it live</button>
+                            <button type="submit" class="uj-btn-ghost" data-tip-end data-tip="Publish this suggestion as a quest">Make it live</button>
                         </form>
                     </div>
                 @empty
@@ -122,7 +122,7 @@
                 <span class="uj-sq-k uj-sq-k--muted">Publish a new quest</span>
                 <div class="row">
                     <input type="text" name="title" placeholder="e.g. Teach someone a keyboard shortcut" maxlength="255" required class="uj-sq-in">
-                    <button type="submit" class="uj-btn-primary">Publish</button>
+                    <button type="submit" class="uj-btn-primary" data-tip-end data-tip="Live for everyone straight away">Publish</button>
                 </div>
                 <small>Goes live straight away, next to the quests above.</small>
             </form>
@@ -133,14 +133,14 @@
             <span class="uj-sq-k uj-sq-k--muted">Got a quest idea?</span>
             <div class="row">
                 <input type="text" name="title" placeholder="Suggest one for HR to pick up" maxlength="255" required class="uj-sq-in">
-                <button type="submit" class="uj-btn-ghost">Suggest</button>
+                <button type="submit" class="uj-btn-ghost" data-tip-end data-tip="HR sees it and can make it live">Suggest</button>
             </div>
         </form>
     @endif
 
     </div>
     <div class="uj-sq-col uj-sq-col-feed">
-    <span class="uj-sq-k uj-sq-k--muted" >Side Quest feed <span class="uj-doc-n">{{ $posts->count() }}</span></span>
+    <span class="uj-sq-k uj-sq-k--muted" >Side Quest feed <span class="uj-doc-n" data-tip="Posts from everyone, newest first">{{ $posts->count() }}</span></span>
     <div class="uj-sq-feed">
         @forelse ($posts as $row)
             @php $post = $row['post']; @endphp

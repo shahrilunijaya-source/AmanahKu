@@ -76,7 +76,7 @@
             <span class="uj-pill" style="background:var(--canvas);color:var(--muted);">{{ $totalDocs }}</span>
             <span class="uj-pill" style="background:var(--canvas);color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($scopeEn) : @js($scopeMs)">{{ $scopeEn }}</span>
         </div>
-        <button @click="add = ! add" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;"><span x-text="add ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Upload' : '+ Muat naik')"></span></button>
+        <button @click="add = ! add" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;" data-tip-end :data-tip="$store.ui.lang==='en' ? 'Add a file to the vault' : 'Tambah fail ke peti'"><span x-text="add ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Upload' : '+ Muat naik')"></span></button>
     </div>
 
     @if ($totalDocs > 0)
@@ -87,9 +87,9 @@
                 <input type="search" x-model="q" :placeholder="$store.ui.lang==='en' ? @js($privileged ? 'Filter by title or person' : 'Filter by title') : @js($privileged ? 'Tapis ikut tajuk atau nama' : 'Tapis ikut tajuk')" autocomplete="off">
             </label>
             <div class="uj-seg">
-                <button type="button" :data-on="cat === '' ? '' : null" @click="cat = ''"><span x-text="$store.ui.lang==='en' ? 'All' : 'Semua'">All</span>&nbsp;<span class="uj-doc-n">{{ $totalDocs }}</span></button>
+                <button type="button" :data-on="cat === '' ? '' : null" @click="cat = ''" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Show every category' : 'Tunjuk semua kategori'"><span x-text="$store.ui.lang==='en' ? 'All' : 'Semua'">All</span>&nbsp;<span class="uj-doc-n">{{ $totalDocs }}</span></button>
                 @foreach ($documents as $category => $docs)
-                    <button type="button" :data-on="cat === @js($category) ? '' : null" @click="cat = cat === @js($category) ? '' : @js($category)"><span x-text="$store.ui.lang==='en' ? @js($catLabels[$category]['en'] ?? $category) : @js($catLabels[$category]['ms'] ?? $category)">{{ $category }}</span>&nbsp;<span class="uj-doc-n">{{ $docs->count() }}</span></button>
+                    <button type="button" :data-on="cat === @js($category) ? '' : null" @click="cat = cat === @js($category) ? '' : @js($category)" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Only this category, click again to clear' : 'Kategori ini sahaja, klik lagi untuk kosongkan'"><span x-text="$store.ui.lang==='en' ? @js($catLabels[$category]['en'] ?? $category) : @js($catLabels[$category]['ms'] ?? $category)">{{ $category }}</span>&nbsp;<span class="uj-doc-n">{{ $docs->count() }}</span></button>
                 @endforeach
             </div>
         </div>
@@ -98,7 +98,7 @@
     @forelse ($documents as $category => $docs)
         @php $cm = $catMeta[$category] ?? $catMeta['Other']; @endphp
         @php $searchable = $docs->map(fn ($d) => $d->title.' '.($privileged ? ($d->employee?->name ?? '') : ''))->all(); @endphp
-        <button type="button" class="uj-doc-cat" x-show="showCat(@js($category)) && @js($searchable).some(t => hit(t))" @click="folded[@js($category)] = ! folded[@js($category)]" :aria-expanded="! folded[@js($category)]">
+        <button type="button" class="uj-doc-cat" data-tip-start :data-tip="folded[@js($category)] ? ($store.ui.lang==='en' ? 'Expand' : 'Kembangkan') : ($store.ui.lang==='en' ? 'Collapse' : 'Lipat')" x-show="showCat(@js($category)) && @js($searchable).some(t => hit(t))" @click="folded[@js($category)] = ! folded[@js($category)]" :aria-expanded="! folded[@js($category)]">
             <span class="uj-mgmt-chev" aria-hidden="true" :data-open="folded[@js($category)] ? null : ''">&#9656;</span>
             <span style="color:{{ $cm['tint'] }};">{{ $category }}</span>
             <span class="uj-doc-n">{{ $docs->count() }}</span>

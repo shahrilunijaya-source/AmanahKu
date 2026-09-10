@@ -66,7 +66,7 @@
     @endif
     <div class="uj-mgmt-panel" data-panel="lateness">
         <button type="button" class="uj-mgmt-head" @click="lateOpen = ! lateOpen">
-            <span><span x-text="$store.ui.lang==='en' ? 'Lateness today' : 'Lewat hari ini'">Lateness today</span> <span class="uj-mgmt-n">{{ count($lateness) }}</span></span>
+            <span><span x-text="$store.ui.lang==='en' ? 'Lateness today' : 'Lewat hari ini'">Lateness today</span> <span class="uj-mgmt-n" :data-tip="$store.ui.lang==='en' ? 'People late today' : 'Orang lewat hari ini'">{{ count($lateness) }}</span></span>
             <span aria-hidden="true" x-text="lateOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="lateOpen">
@@ -89,7 +89,7 @@
     </div>
     <div class="uj-mgmt-panel" data-panel="overdue">
         <button type="button" class="uj-mgmt-head" @click="overdueOpen = ! overdueOpen">
-            <span><span x-text="$store.ui.lang==='en' ? 'Overdue tasks' : 'Tugasan tertunggak'">Overdue tasks</span> <span class="uj-mgmt-n">{{ array_sum(array_map(fn ($g) => count($g['cards']), $overdue)) }}</span></span>
+            <span><span x-text="$store.ui.lang==='en' ? 'Overdue tasks' : 'Tugasan tertunggak'">Overdue tasks</span> <span class="uj-mgmt-n" :data-tip="$store.ui.lang==='en' ? 'Cards past their due date' : 'Kad lepas tarikh akhir'">{{ array_sum(array_map(fn ($g) => count($g['cards']), $overdue)) }}</span></span>
             <span aria-hidden="true" x-text="overdueOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="overdueOpen">
@@ -104,7 +104,7 @@
                         <button type="button" class="uj-mgmt-owner-name uj-mgmt-owner-toggle" @click="open[{{ $group['owner_id'] }}] = ! open[{{ $group['owner_id'] }}]" :aria-expanded="unfolded({{ $group['owner_id'] }})">
                             <span class="uj-mgmt-chev" aria-hidden="true" :data-open="unfolded({{ $group['owner_id'] }}) ? '' : null">&#9656;</span>
                             {{ $group['owner_name'] }}
-                            <span class="uj-mgmt-n">{{ count($group['cards']) }}</span>
+                            <span class="uj-mgmt-n" :data-tip="$store.ui.lang==='en' ? 'Overdue cards for this owner' : 'Kad tertunggak pemilik ini'">{{ count($group['cards']) }}</span>
                             <span class="uj-mgmt-worst" x-text="$store.ui.lang==='en' ? @js('worst '.$worst.' days') : @js('paling teruk '.$worst.' hari')">worst {{ $worst }} days</span>
                         </button>
                     @endif
@@ -118,9 +118,9 @@
                             <span class="uj-mgmt-card-title">{{ $card['title'] }}</span>
                             <span class="uj-mgmt-days" x-text="$store.ui.lang==='en' ? @js($card['days_overdue'].' days overdue') : @js($card['days_overdue'].' hari tertunggak')">{{ $card['days_overdue'] }} days overdue</span>
                             <span class="uj-mgmt-acts">
-                                <button type="button" class="uj-mgmt-btn" data-nudge-url="{{ $nudgeUrl }}" @click="nudge('{{ $nudgeUrl }}')" x-text="$store.ui.lang==='en' ? 'Nudge' : 'Ingatkan'">Nudge</button>
+                                <button type="button" class="uj-mgmt-btn" data-nudge-url="{{ $nudgeUrl }}" @click="nudge('{{ $nudgeUrl }}')" :data-tip="$store.ui.lang==='en' ? 'Send the owner a reminder' : 'Hantar peringatan kepada pemilik'" x-text="$store.ui.lang==='en' ? 'Nudge' : 'Ingatkan'">Nudge</button>
                                 @if ($card['can_reassign'] ?? true)
-                                    <button type="button" class="uj-mgmt-btn" data-reassign-url="{{ $reassignUrl }}" @click="reassign('{{ $reassignUrl }}')" x-text="$store.ui.lang==='en' ? 'Reassign' : 'Tugas semula'">Reassign</button>
+                                    <button type="button" class="uj-mgmt-btn" data-reassign-url="{{ $reassignUrl }}" @click="reassign('{{ $reassignUrl }}')" :data-tip="$store.ui.lang==='en' ? 'Move the card to someone else' : 'Pindah kad kepada orang lain'" x-text="$store.ui.lang==='en' ? 'Reassign' : 'Tugas semula'">Reassign</button>
                                 @endif
                             </span>
                         </div>

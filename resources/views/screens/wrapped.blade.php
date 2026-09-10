@@ -35,7 +35,7 @@
         <p class="uj-card uj-wr-plain" data-wrapped-plain>Your {{ $story->month->format('F') }}, from the same frozen numbers the awards use. You closed {{ $cards['cards_closed'] }} cards and survived {{ $cards['high_priority'] }} high-priority situations. @if (($cards['best_day'] ?? '') !== '')Your most productive day was {{ $cards['best_day'] }}, with {{ $cards['best_day_count'] ?? 0 }} of your {{ $cards['cards_closed'] }} cards landing there. @else No cards closed this month, and that is fine. @endif You helped {{ $cards['helped_people'] }} different people finish their work, and shared {{ $cards['lessons_shared'] }} lesson(s) in the Knowledge Bank. Your character arc this month: {{ $arcTitle }}.</p>
         @if ($story->shared_at === null)
             <form method="POST" action="{{ route('wrapped.share', $story->id) }}"><input type="hidden" name="_token" value="{{ csrf_token() }}">
-                <button type="submit" class="uj-btn-ghost">Share to the Wall</button>
+                <button type="submit" class="uj-btn-ghost" data-tip-end data-tip="Post your Wrapped to the Wins wall">Share to the Wall</button>
             </form>
         @else
             <span class="uj-wr-shared">Shared on the Wall
@@ -79,7 +79,7 @@
                 <button type="button" class="arrow" @click="i = (i + 1) % n" aria-label="Next">›</button>
                 @if ($story->shared_at === null)
                     <form method="POST" action="{{ route('wrapped.share', $story->id) }}"><input type="hidden" name="_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="uj-btn-primary share">Share to the Wall</button>
+                        <button type="submit" class="uj-btn-primary share" data-tip="Post your Wrapped to the Wins wall">Share to the Wall</button>
                     </form>
                 @else
                     <span class="uj-wr-shared">Shared on the Wall ·
@@ -107,10 +107,10 @@
         <div class="uj-card uj-wr-arcs" x-data="{ open: false }">
             <div class="uj-wr-arcs-head">
                 <div>
-                    <b>Character arcs</b> <span class="uj-mgmt-n">{{ $wrappedArcs->count() }}</span>
+                    <b>Character arcs</b> <span class="uj-mgmt-n" data-tip="Live arc titles across all rules">{{ $wrappedArcs->count() }}</span>
                     <div class="uj-wr-arcs-sub">The title a person's Wrapped gets. Rules are checked top to bottom, first match wins, then one title is drawn from that group.</div>
                 </div>
-                <button type="button" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12.5px;" @click="open = ! open" x-text="open ? 'Close' : 'Add an arc'">Add an arc</button>
+                <button type="button" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12.5px;" @click="open = ! open" x-text="open ? 'Close' : 'Add an arc'" data-tip-end :data-tip="open ? 'Hide the form' : 'Add a title the story builder can draw'">Add an arc</button>
             </div>
             <form method="POST" action="{{ route('wrapped.arcs.store') }}" class="uj-wr-arcs-add" x-show="open" x-cloak>
                 <input type="hidden" name="_token" value="{{ csrf_token() }}">
@@ -120,7 +120,7 @@
                         <option value="{{ $rule }}">{{ $label }} · {{ $when }}</option>
                     @endforeach
                 </select>
-                <button type="submit" class="uj-btn-primary">Add</button>
+                <button type="submit" class="uj-btn-primary" data-tip-end data-tip="Saved as live, used from the next Wrapped">Add</button>
             </form>
             <div class="uj-wr-arc-groups">
                 @foreach ($arcRules as $rule => [$label, $when])
@@ -130,7 +130,7 @@
                             <span class="uj-wr-arc-step">{{ $loop->iteration }}</span>
                             <b>{{ $label }}</b>
                             <span class="uj-wr-arc-when">{{ $when }}</span>
-                            <span class="uj-mgmt-n" @if ($group->count() < 3) data-low title="Fewer than 3 live titles: the builder needs at least 3 per rule" @endif>{{ $group->count() }}</span>
+                            <span class="uj-mgmt-n" @if ($group->count() < 3) data-low data-tip-wrap data-tip="Fewer than 3 live titles: the builder needs at least 3 per rule" @else data-tip="Live titles for this rule" @endif>{{ $group->count() }}</span>
                         </header>
                         <div class="uj-wr-arc-chips">
                             @forelse ($group as $arc)

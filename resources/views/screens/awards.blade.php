@@ -35,18 +35,18 @@
         <div class="uj-card" style="padding:12px 18px;font-size:13px;color:var(--ink);border-left:3px solid var(--red,#b42318);">{{ $errors->first() }}</div>
     @endif
     <div class="uj-seg" style="width:max-content;max-width:100%;flex-wrap:wrap;">
-        <button type="button" :data-on="tab === 'winners' ? '' : null" @click="tab = 'winners'">
+        <button type="button" :data-on="tab === 'winners' ? '' : null" @click="tab = 'winners'" data-tip-below data-tip="This cycle's winners">
             <span x-text="$store.ui.lang==='en' ? @js("This month's winners") : 'Pemenang bulan ini'">This month's winners</span>
         </button>
-        <button type="button" :data-on="tab === 'nominate' ? '' : null" @click="tab = 'nominate'">
+        <button type="button" :data-on="tab === 'nominate' ? '' : null" @click="tab = 'nominate'" data-tip-below data-tip="Put a colleague forward">
             <span x-text="$store.ui.lang==='en' ? 'Nominate' : 'Calonkan'">Nominate</span>
         </button>
         @if ($canSelect)
-            <button type="button" :data-on="tab === 'select' ? '' : null" @click="tab = 'select'">
+            <button type="button" :data-on="tab === 'select' ? '' : null" @click="tab = 'select'" data-tip-below data-tip="Committee picks the winner">
                 <span x-text="$store.ui.lang==='en' ? 'Select' : 'Pilih'">Select</span>
             </button>
         @endif
-        <button type="button" :data-on="tab === 'past' ? '' : null" @click="tab = 'past'">
+        <button type="button" :data-on="tab === 'past' ? '' : null" @click="tab = 'past'" data-tip-below data-tip="Earlier cycles">
             <span x-text="$store.ui.lang==='en' ? 'Past winners' : 'Pemenang terdahulu'">Past winners</span>
         </button>
     </div>
@@ -90,7 +90,7 @@
                 <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Why</label>
                 <textarea name="reason" rows="3" maxlength="2000" style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:13px;"></textarea>
             </div>
-            <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;">Nominate</button>
+            <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;" data-tip-end data-tip="Sends to the committee, one per cycle">Nominate</button>
         </form>
     </div>
 
@@ -109,7 +109,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;">Pick</button>
+                    <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;" data-tip-end data-tip="Names the winner for this cycle">Pick</button>
                 </form>
             @endif
             @if ($canSelectChosenOne ?? false)
@@ -128,7 +128,7 @@
                         <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">Reason (required)</label>
                         <textarea name="reason" rows="3" maxlength="2000" required style="width:100%;border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;font-size:13px;"></textarea>
                     </div>
-                    <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;">Pick</button>
+                    <button type="submit" class="uj-btn-primary" style="height:38px;font-size:13px;" data-tip-end data-tip="Names the winner for this cycle">Pick</button>
                 </form>
             @endif
 
@@ -174,7 +174,7 @@
                                             @endforeach
                                         </select>
                                     @endfor
-                                    <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;">Save committee</button>
+                                    <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;" data-tip-end data-tip="These people pick the winners">Save committee</button>
                                 </form>
                             </details>
                         </div>
