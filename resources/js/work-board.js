@@ -136,6 +136,7 @@ export function registerWorkBoard(Alpine) {
             // CR-08: Push to Track. Off on every open, never remembered. `preview`
             // is the exact text Track will show, fetched from the server.
             pushToTrack: false,
+            reply: null, // comment being replied to, or null
             files: [], // CR-08: [{ file, confidential, push }]
             pushPreview: '',
             editing: { id: null, body: '' },
@@ -902,6 +903,7 @@ export function registerWorkBoard(Alpine) {
             this.drawer.family = null;
             this.drawer.ovOpen = false;
             this.drawer.newComment = '';
+            this.drawer.reply = null;
             this.drawer.pushToTrack = false;
             this.drawer.files = [];
             this.drawer.pushPreview = '';
@@ -1356,6 +1358,11 @@ export function registerWorkBoard(Alpine) {
             return html;
         },
 
+        replyTo(c) {
+            this.drawer.reply = c;
+            this.$nextTick(() => this.$refs.newCommentEl && this.$refs.newCommentEl.focus());
+        },
+
         async addComment() {
             const body = this.drawer.newComment.trim();
             if (!body) return;
@@ -1364,6 +1371,7 @@ export function registerWorkBoard(Alpine) {
             try {
                 const form = new FormData();
                 form.append('body', body);
+                if (this.drawer.reply) form.append('parent_id', String(this.drawer.reply.id));
                 form.append('push_to_track', this.drawer.pushToTrack ? '1' : '0');
                 this.drawer.files.forEach((f, i) => {
                     form.append('attachments[]', f.file);
@@ -1378,6 +1386,7 @@ export function registerWorkBoard(Alpine) {
                 // sequence. Only the card-face repaint (which carries a full snapshot)
                 // is guarded, so it can't revert a field edited after this request fired.
                 this.drawer.comments.push(comment);
+                this.drawer.reply = null;
                 this.drawer.newComment = '';
                 this.drawer.card.comments_count = count;
                 if (this.acceptSeq(seq)) this.repaintNode(html);

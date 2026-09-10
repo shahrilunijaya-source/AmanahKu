@@ -469,7 +469,7 @@
 
                     <h3 class="wd-sech" x-text="drawer.comments.length ? (($store.ui.lang==='en' ? 'Comments' : 'Komen') + ' (' + drawer.comments.length + ')') : ($store.ui.lang==='en' ? 'Comments' : 'Komen')">Comments</h3>
                     <div class="wd-cmts">
-                        <template x-for="c in drawer.comments" :key="c.id">
+                        <template x-for="c in drawer.comments.filter((x) => !x.parent_id)" :key="c.id">
                             <div class="wd-cmt" :class="{ 'wd-cmt--system': c.is_system }">
                                 {{-- CR-19: an auto-close activity line carries no employee_id — a system
                                      mark renders instead of an avatar. --}}
@@ -486,10 +486,11 @@
                                         <span class="wd-cmt-track wd-cmt-track--off" x-show="c.withdrawn_reason"
                                               :title="c.withdrawn_reason"
                                               x-text="$store.ui.lang==='en' ? 'Withdrawn' : 'Ditarik balik'"></span>
-                                        <span class="wd-cmt-acts" x-show="c.mine && !c.is_system && drawer.editing.id !== c.id">
-                                            <button type="button" @click="startEditComment(c)" x-show="!c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
-                                            <button type="button" @click="withdrawComment(c)" x-show="c.pushed && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Withdraw' : 'Tarik balik'"></button>
-                                            <button type="button" @click="deleteComment(c.id)" x-show="!c.pushed" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                        <span class="wd-cmt-acts" x-show="!c.is_system && drawer.editing.id !== c.id">
+                                            <button type="button" @click="replyTo(c)" x-show="!c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Reply' : 'Balas'"></button>
+                                            <button type="button" @click="startEditComment(c)" x-show="c.mine && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
+                                            <button type="button" @click="withdrawComment(c)" x-show="c.mine && c.pushed && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Withdraw' : 'Tarik balik'"></button>
+                                            <button type="button" @click="deleteComment(c.id)" x-show="c.mine && !c.pushed" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
                                         </span>
                                     </div>
                                     {{-- Escaped first, then tinted: c.body is user input, and renderCommentBody()
@@ -518,6 +519,34 @@
                                             </div>
                                         </div>
                                     </template>
+                                    {{-- Replies: comments whose parent_id points at this one, oldest first. --}}
+                                    <div class="wd-cmt-replies" x-show="drawer.comments.some((r) => r.parent_id === c.id)">
+                                        <template x-for="r in drawer.comments.filter((x) => x.parent_id === c.id)" :key="r.id">
+                                            <div class="wd-cmt wd-cmt--reply">
+                                                <span class="wa" :style="'background:' + r.color" x-text="r.initials"></span>
+                                                <div style="flex:1;min-width:0;">
+                                                    <div class="wd-cmt-who">
+                                                        <span class="wd-cmt-name" x-text="r.author"></span>
+                                                        <span class="wd-cmt-at" x-text="r.when"></span>
+                                                        <span class="wd-cmt-acts" x-show="r.mine && drawer.editing.id !== r.id">
+                                                            <button type="button" @click="startEditComment(r)" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
+                                                            <button type="button" @click="deleteComment(r.id)" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                                        </span>
+                                                    </div>
+                                                    <div class="wd-cmt-body" x-show="drawer.editing.id !== r.id" x-html="renderCommentBody(r.body)"></div>
+                                                    <template x-if="drawer.editing.id === r.id">
+                                                        <div class="wd-cmt-edit">
+                                                            <textarea x-model="drawer.editing.body" rows="2" maxlength="2000" @keydown.enter.meta.prevent="saveEditComment()" @keydown.escape.stop="cancelEditComment()"></textarea>
+                                                            <div>
+                                                                <button type="button" class="uj-btn-primary" @click="saveEditComment()" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'"></button>
+                                                                <button type="button" @click="cancelEditComment()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -534,6 +563,11 @@
              see mentionActiveQuery()/paintMention()/insertMention() in
              work-board.js (and its team-board.js counterpart). --}}
         <div class="wd-foot wd-foot--reveal" :class="{ 'has-text': drawer.newComment.trim().length }">
+            {{-- Replying: the composer posts under that comment until cleared. --}}
+            <div class="wd-replying" x-show="drawer.reply" x-cloak>
+                <span x-text="($store.ui.lang==='en' ? 'Replying to ' : 'Membalas ') + (drawer.reply ? drawer.reply.author : '')"></span>
+                <button type="button" @click="drawer.reply = null" :aria-label="$store.ui.lang==='en' ? 'Stop replying' : 'Berhenti membalas'">&times;</button>
+            </div>
             {{-- CR-08: Push to Track. Only PM and above, or the project's PE/PM, see it. Off
                  on every open, never remembered. Disabled with the reason when the project
                  is not linked to Track or the card is Internal. Ticking shows the exact

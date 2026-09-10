@@ -115,6 +115,27 @@ class BoardCardTest extends TestCase
             ->assertJsonPath('comments.0.mine', true);
     }
 
+    public function test_a_reply_nests_under_its_parent_and_only_a_top_level_comment_can_be_replied_to(): void
+    {
+        $item = $this->card();
+        $parent = $item->comments()->create(['tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'body' => 'First note']);
+
+        $reply = $this->actingInTenant()->postJson("/app/board/{$item->id}/comments", ['body' => 'Agreed', 'parent_id' => $parent->id])
+            ->assertCreated()
+            ->assertJsonPath('comment.parent_id', $parent->id)
+            ->json('comment.id');
+
+        $this->actingInTenant()->postJson("/app/board/{$item->id}/comments", ['body' => 'Nested too deep', 'parent_id' => $reply])
+            ->assertStatus(422);
+
+        $other = $this->card();
+        $this->actingInTenant()->postJson("/app/board/{$other->id}/comments", ['body' => 'Wrong card', 'parent_id' => $parent->id])
+            ->assertStatus(422);
+
+        $this->actingInTenant()->getJson("/app/board/{$item->id}")
+            ->assertJsonPath('comments.1.parent_id', $parent->id);
+    }
+
     public function test_owner_updates_card_fields(): void
     {
         $item = $this->card();

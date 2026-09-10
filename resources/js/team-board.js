@@ -106,6 +106,7 @@ export function registerTeamBoard(Alpine) {
             comments: [],
             // CR-08: Push to Track (PM and above, or the project's PE/PM), see work-board.js.
             pushToTrack: false,
+            reply: null, // comment being replied to, or null
             files: [], // CR-08: [{ file, confidential, push }]
             pushPreview: '',
             editing: { id: null, body: '' },
@@ -513,6 +514,7 @@ export function registerTeamBoard(Alpine) {
             this.drawer.family = null;
             this.drawer.ovOpen = false;
             this.drawer.newComment = '';
+            this.drawer.reply = null;
             this.drawer.pushToTrack = false;
             this.drawer.files = [];
             this.drawer.pushPreview = '';
@@ -679,6 +681,11 @@ export function registerTeamBoard(Alpine) {
             return html;
         },
 
+        replyTo(c) {
+            this.drawer.reply = c;
+            this.$nextTick(() => this.$refs.newCommentEl && this.$refs.newCommentEl.focus());
+        },
+
         async addComment() {
             const body = this.drawer.newComment.trim();
             if (!body) return;
@@ -686,6 +693,7 @@ export function registerTeamBoard(Alpine) {
             try {
                 const form = new FormData();
                 form.append('body', body);
+                if (this.drawer.reply) form.append('parent_id', String(this.drawer.reply.id));
                 form.append('push_to_track', this.drawer.pushToTrack ? '1' : '0');
                 this.drawer.files.forEach((f, i) => {
                     form.append('attachments[]', f.file);
@@ -694,6 +702,7 @@ export function registerTeamBoard(Alpine) {
                 });
                 const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, { method: 'POST', body: form });
                 this.drawer.comments.push(comment);
+                this.drawer.reply = null;
                 this.drawer.newComment = '';
                 this.drawer.pushToTrack = false;
                 this.drawer.files = [];

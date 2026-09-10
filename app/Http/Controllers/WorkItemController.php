@@ -746,6 +746,8 @@ class WorkItemController extends Controller
 
         $data = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
+            // A reply points at a top-level comment on this same card.
+            'parent_id' => ['nullable', 'integer'],
             'push_to_track' => ['sometimes', 'boolean'],
             // CR-08: files ride along; each one may be marked confidential (never
             // leaves the card) and, per push, ticked to go to Track.
@@ -766,8 +768,16 @@ class WorkItemController extends Controller
             $this->authorizePushToTrack($request, $workItem, $employee);
         }
 
+        $parentId = null;
+        if (! empty($data['parent_id'])) {
+            $parent = $workItem->comments()->whereNull('parent_id')->find((int) $data['parent_id']);
+            abort_unless($parent, 422, 'That comment is not on this card.');
+            $parentId = $parent->id;
+        }
+
         $comment = $workItem->comments()->create([
             'employee_id' => $employee->id,
+            'parent_id' => $parentId,
             'body' => $data['body'],
         ]);
         $comment->setRelation('employee', $employee);
@@ -1380,6 +1390,7 @@ class WorkItemController extends Controller
 
         return [
             'id' => $c->id,
+            'parent_id' => $c->parent_id,
             'body' => $c->body,
             'author' => $isSystem ? 'Amanahku' : ($c->employee?->display_name ?? 'Someone'),
             'initials' => $isSystem ? '' : ($c->employee?->initials ?? '··'),

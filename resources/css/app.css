@@ -1654,6 +1654,11 @@ select.wd-inline {
 .wd-cmt-acts { margin-left: auto; display: inline-flex; gap: 10px; }
 .wd-cmt-acts button { font-size: 11px; color: var(--muted); background: transparent; cursor: pointer; border: 0; padding: 0; }
 .wd-cmt-acts button:hover { color: var(--ink); }
+.wd-cmt-replies { margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--hairline); display: flex; flex-direction: column; gap: 10px; }
+.wd-cmt--reply .wa { width: 22px; height: 22px; font-size: 9px; }
+.wd-replying { width: 100%; display: flex; align-items: center; gap: 8px; font-size: var(--t-micro); color: var(--muted); }
+.wd-replying button { border: 0; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.wd-replying button:hover { color: var(--ink); }
 .wd-cmt-edit { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .wd-cmt-edit textarea { width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 8px; resize: vertical; background: var(--surface); color: var(--ink); }
 .wd-cmt-edit p { margin: 0; font-size: var(--t-micro); color: var(--muted); }
@@ -5584,3 +5589,10 @@ form.uj-or-fields { padding: 20px; }
 .uj-ev-reactions { display:flex; gap:6px; margin-top:10px; }
 .uj-ev-reactions .uj-btn-ghost { height:28px; padding:0 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px; }
 @media (max-width: 860px) { .uj-ev-grid { grid-template-columns:1fr; } }
+
+/* Awards engagement: the reaction picks stay tucked away until the block is hovered,
+   focused, or the count is clicked. */
+.uj-award-engage .uj-aw-react-row { display: none; }
+.uj-award-engage:hover .uj-aw-react-row, .uj-award-engage:focus-within .uj-aw-react-row, .uj-award-engage[data-open] .uj-aw-react-row { display: flex; }
+.uj-aw-react-count { border: 0; background: transparent; padding: 0; font: inherit; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.uj-aw-react-count:hover { color: var(--ink); }

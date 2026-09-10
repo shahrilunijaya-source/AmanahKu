@@ -13,7 +13,9 @@
 --}}
 <div class="uj-award-engage" id="uj-award-engage-{{ $resultId }}" data-reactions="{{ $reactionCount }}" data-comments="{{ $comments->count() }}"
      style="margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px;"
+     :data-open="open ? '' : null"
      x-data="{
+        open: false,
         busy: false,
         async post(url, body) {
             if (this.busy) return;
@@ -31,14 +33,14 @@
             } finally { this.busy = false; }
         }
      }">
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <button type="button" class="uj-aw-react-count" @click="open = !open">{{ $reactionCount }} {{ $reactionCount === 1 ? 'reaction' : 'reactions' }} &middot; <span x-text="open ? 'hide' : 'react'">react</span></button>
+    <div class="uj-aw-react-row" style="align-items:center;gap:6px;flex-wrap:wrap;">
         @foreach ($activeKeys as $key)
             @php $rd = \App\Models\Reaction::describe($key); @endphp
             {{-- QA S18 F7: the CR-30 icon and label, not the storage key. --}}
             <button type="button" class="uj-btn-ghost" style="height:26px;padding:0 9px;font-size:11px;" title="{{ $rd['label'] }}" data-reaction="{{ $key }}"
                     @click="post('{{ url('/app/awards/'.$resultId.'/react') }}', { reaction: '{{ $key }}' })">{{ $rd['icon'] }} {{ $rd['label'] }}</button>
         @endforeach
-        <span style="font-size:11.5px;color:var(--muted);">{{ $reactionCount }} {{ $reactionCount === 1 ? 'reaction' : 'reactions' }}</span>
     </div>
     @if ($comments->isNotEmpty())
         <div style="display:flex;flex-direction:column;gap:4px;">
