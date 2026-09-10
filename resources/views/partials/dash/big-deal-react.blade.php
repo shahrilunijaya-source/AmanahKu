@@ -18,6 +18,8 @@
 <div class="uj-bd-react" id="uj-bd-react-{{ $dealId }}"
      x-data="{
         busy: false,
+        pick: false,
+        mine: {{ $mineJson }},
         async react(key) {
             if (this.busy) return;
             const root = this.$root;
@@ -36,7 +38,18 @@
             } finally { this.busy = false; }
         }
      }">
-    @include('partials.reaction-picker', ['onPick' => "react('KEY')", 'mine' => $mineJson])
+    {{-- Picker hides behind the heart until hover (or tap), same as the TOT drawer. --}}
+    <span class="tot-fw" @mouseleave="pick = false">
+        <span class="tot-fly tot-fly-react" x-show="pick" x-cloak @keydown.escape.window="pick = false">
+            @include('partials.reaction-picker', ['onPick' => "react('KEY')", 'mine' => 'mine'])
+        </span>
+        <button type="button" class="tot-act" :data-on="mine.length ? '1' : null" @click="pick = !pick" @mouseenter="pick = true"
+                :aria-label="$store.ui.lang==='en' ? 'React' : 'Beri reaksi'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+            @php $total = array_sum($counts); @endphp
+            @if ($total > 0)<span>{{ $total }}</span>@endif
+        </button>
+    </span>
     <span class="uj-react-tally">
         @foreach ($counts as $key => $n)
             @continue($n < 1)
