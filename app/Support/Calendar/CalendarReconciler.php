@@ -96,7 +96,7 @@ final class CalendarReconciler
             return;
         }
 
-        if ($card->updated_at && $card->updated_at->diffInSeconds(now(), true) <= self::CONFLICT_WINDOW_SECONDS) {
+        if ($card->updated_at?->diffInSeconds(now(), true) <= self::CONFLICT_WINDOW_SECONDS) {
             $this->trail($card, "Conflict: moved to {$change->startsAt->format('j M Y')} in Google Calendar while being edited here; Amanahku's date kept, please resolve");
             AppNotification::send($for->user_id, "Calendar conflict on {$card->title}",
                 'The event was moved in Google Calendar and in Amanahku within a minute of each other. Amanahku kept its date; check the card.',

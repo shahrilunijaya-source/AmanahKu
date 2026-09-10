@@ -94,7 +94,7 @@ final class Awards
      * for Wrapped's "high-priority cards created that month" figure; every existing
      * caller in this class ignores the new key.
      *
-     * @return Collection<int, object{id:int, employee_id:?int, priority:string, due_at:?Carbon, completed_at:?Carbon, created_at:Carbon, helpers:list<int>}>
+     * @return Collection<int, object{id:int, employee_id:?int, priority:string, due_at:?Carbon, completed_at:?Carbon, created_at:?Carbon, helpers:list<int>}>
      */
     public function creditableCards(): Collection
     {

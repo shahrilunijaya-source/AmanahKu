@@ -6,7 +6,14 @@ use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $pushed_to_track_at
+ * @property Carbon|null $withdrawn_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class WorkItemComment extends Model
 {
     use BelongsToTenant;

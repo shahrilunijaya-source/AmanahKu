@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * One row per effective change to a project's master fields (CR-06a §E2, E3).
@@ -14,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * {field: {old, new}} for what moved since the previous version (null on the
  * very first version). Append-only in spirit — nothing in this CR updates or
  * deletes a version row.
+ *
+ * @property Carbon $effective_date
  */
 class ProjectVersion extends Model
 {

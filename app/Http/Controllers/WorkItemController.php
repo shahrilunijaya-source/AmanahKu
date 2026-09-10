@@ -1247,7 +1247,7 @@ class WorkItemController extends Controller
     /** @return array{id:int,title:string,date:?string,status:?string}|null */
     private function eventPayload(?CompanyEvent $event): ?array
     {
-        return $event ? ['id' => $event->id, 'title' => $event->title, 'date' => $event->event_date?->format('d M Y'), 'status' => $event->status] : null;
+        return $event ? ['id' => $event->id, 'title' => $event->title, 'date' => $event->event_date->format('d M Y'), 'status' => $event->status] : null;
     }
 
     /**
@@ -1266,7 +1266,7 @@ class WorkItemController extends Controller
         return CompanyEvent::where('tenant_id', $item->tenant_id)
             ->whereDate('event_date', '>=', now()->subMonth()->toDateString())
             ->orderBy('event_date')->limit(40)->get()
-            ->map(fn (CompanyEvent $e) => ['id' => $e->id, 'title' => $e->title, 'date' => $e->event_date?->format('d M Y')])
+            ->map(fn (CompanyEvent $e) => ['id' => $e->id, 'title' => $e->title, 'date' => $e->event_date->format('d M Y')])
             ->values()->all();
     }
 

@@ -19,7 +19,19 @@ use RuntimeException;
  * `due_at` has a `date` cast, so it reads back as a Carbon instance rather than
  * the string the schema reports.
  *
+ * `type` includes `event` since 2026_09_08_100000, added with a raw ALTER the
+ * migration parser cannot read, so it is declared here.
+ *
  * @property Carbon|null $due_at
+ * @property 'assignment'|'task'|'adhoc'|'event' $type
+ * @property 'todo'|'prog'|'review'|'done' $status
+ * @property Carbon|null $assigned_at
+ * @property Carbon|null $archived_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon|null $done_at
+ * @property Carbon|null $auto_closed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  * @property int|null $parent_id
  */
 class WorkItem extends Model implements HasAuditedFields

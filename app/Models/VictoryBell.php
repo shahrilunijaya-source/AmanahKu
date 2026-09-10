@@ -8,12 +8,15 @@ use App\Models\Concerns\BelongsToTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * CR-28: a Victory Bell ring on a Milestone card's Done transition. Shown on
  * every dashboard in the tenant for 24 hours, then only on the Wins page.
  * Reactions (`victory_bell_reactions`) stay plain `DB::table()` access from
  * the controller — same split as `BigDeal`/`big_deal_reactions`.
+ *
+ * @property Carbon|null $rung_at
  */
 class VictoryBell extends Model
 {

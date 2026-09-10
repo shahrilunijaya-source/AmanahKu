@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * CR-24: a Big Deal Alert, raised by PM-and-above from a project or T.A.A. card.
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * (`big_deal_reactions`) stay plain `DB::table()` access from the controller —
  * same split as `AwardResult`/`award_reactions`/`award_comments` — this model
  * exists for tenant scoping, route-model binding and the 3-day window rule.
+ *
+ * @property Carbon|null $published_at
  */
 class BigDeal extends Model
 {

@@ -14,6 +14,8 @@ use Illuminate\Support\Carbon;
  * CR-34: one row per tenant for the Friday management-meeting task/reminder. A tenant with
  * no row yet (forTenant() below) reads the spec's own defaults, so every command and the
  * overdue panel work correctly before HR ever visits the settings screen.
+ *
+ * @property Carbon|null $paused_until
  */
 class ManagementMeetingSettings extends Model implements HasAuditedFields
 {
