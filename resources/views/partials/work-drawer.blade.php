@@ -490,6 +490,18 @@
                                          only ever wraps exact-match substrings of the card's own mentionable
                                          names inside the ALREADY-escaped string — see work-board.js/team-board.js. --}}
                                     <div class="wd-cmt-body" :class="{ 'wd-cmt-body--off': c.withdrawn_reason }" x-show="drawer.editing.id !== c.id" x-html="renderCommentBody(c.body)"></div>
+                                    {{-- CR-08: files on the comment. A lock marks a confidential file (never leaves
+                                         the card); a small "Track" tag marks one that went with the push. --}}
+                                    <div class="wd-cmt-files" x-show="c.attachments && c.attachments.length">
+                                        <template x-for="a in (c.attachments || [])" :key="a.id">
+                                            <a class="wd-file" :href="a.url" target="_blank" rel="noopener" :title="a.name + ' · ' + fileSize(a.size)">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                                                <span class="wd-file-name" x-text="a.name"></span>
+                                                <span class="wd-file-tag wd-file-tag--lock" x-show="a.confidential" x-text="$store.ui.lang==='en' ? 'Confidential' : 'Sulit'"></span>
+                                                <span class="wd-file-tag wd-file-tag--track" x-show="a.pushed" x-text="'Track'"></span>
+                                            </a>
+                                        </template>
+                                    </div>
                                     <template x-if="drawer.editing.id === c.id">
                                         <div class="wd-cmt-edit">
                                             <textarea x-model="drawer.editing.body" rows="2" maxlength="2000" @keydown.enter.meta.prevent="saveEditComment()" @keydown.escape.stop="cancelEditComment()"></textarea>
@@ -530,10 +542,32 @@
                     <div class="wd-push-prev" x-show="drawer.pushToTrack" x-cloak>
                         <div class="wd-push-prev-h" x-text="$store.ui.lang==='en' ? 'Will appear in Track as' : 'Akan dipaparkan dalam Track sebagai'"></div>
                         <div class="wd-push-prev-b" x-text="drawer.pushPreview || (drawer.newComment.trim() ? '…' : ($store.ui.lang==='en' ? 'Type the comment first.' : 'Tulis komen dahulu.'))"></div>
+                        <div class="wd-push-prev-files" x-show="drawer.files.length">
+                            <template x-for="(f, i) in drawer.files" :key="'pv' + i">
+                                <div class="wd-push-prev-file" :class="{ 'is-out': !fileGoesToTrack(f) }">
+                                    <span x-text="fileGoesToTrack(f) ? '✓' : '✕'"></span>
+                                    <span class="wd-file-name" x-text="f.file.name"></span>
+                                    <span class="wd-push-why" x-show="!fileGoesToTrack(f)" x-text="f.confidential ? ($store.ui.lang==='en' ? 'confidential, stays on the card' : 'sulit, kekal pada kad') : ($store.ui.lang==='en' ? 'not ticked' : 'tidak ditanda')"></span>
+                                </div>
+                            </template>
+                        </div>
                         <div class="wd-push-prev-n" x-text="$store.ui.lang==='en' ? 'Mentions become plain names. Nobody in Track is notified. Once posted this is an official project record.' : 'Sebutan jadi nama biasa. Tiada sesiapa dalam Track dimaklumkan. Selepas dihantar ini menjadi rekod rasmi projek.'"></div>
                     </div>
                 </div>
             </template>
+            {{-- CR-08: files picked for this comment. Each may be marked Confidential
+                 (never leaves the card). With Push to Track on, each other file has its
+                 own Push tick, off by default. --}}
+            <div class="wd-files" x-show="drawer.files.length" x-cloak data-testid="comment-files">
+                <template x-for="(f, i) in drawer.files" :key="'f' + i">
+                    <div class="wd-files-row">
+                        <span class="wd-file-name" x-text="f.file.name" :title="f.file.name + ' · ' + fileSize(f.file.size)"></span>
+                        <label><input type="checkbox" x-model="f.confidential" @change="if (f.confidential) f.push = false; refreshPushPreview()"> <span x-text="$store.ui.lang==='en' ? 'Confidential' : 'Sulit'"></span></label>
+                        <label x-show="drawer.pushToTrack" :class="{ 'is-off': f.confidential }"><input type="checkbox" x-model="f.push" :disabled="f.confidential" @change="refreshPushPreview()"> <span x-text="$store.ui.lang==='en' ? 'Push' : 'Hantar'"></span></label>
+                        <button type="button" class="wd-files-x" @click="removeFile(i)" :aria-label="$store.ui.lang==='en' ? 'Remove file' : 'Buang fail'">×</button>
+                    </div>
+                </template>
+            </div>
             <div class="wd-ment" role="listbox" :data-open="drawer.mention.open ? '' : null"
                  :aria-label="$store.ui.lang==='en' ? 'Mention someone on this card' : 'Sebut seseorang pada kad ini'">
                 <template x-if="drawer.mention.open && !mentionPool.length">
@@ -557,6 +591,11 @@
             <textarea x-ref="newCommentEl" x-model="drawer.newComment" @input="onCommentInput($event)" @input.debounce.400ms="refreshPushPreview()" @keydown="onCommentKeydown($event)"
                       @blur="setTimeout(() => closeMention(), 120)" @keydown.enter.meta.prevent="addComment()" rows="1" maxlength="2000"
                       :placeholder="$store.ui.lang==='en' ? 'Write a comment, or type @ to notify someone…' : 'Tulis komen, atau taip @ untuk maklumkan seseorang…'"></textarea>
+            <input type="file" x-ref="commentFiles" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" hidden @change="pickFiles($event)">
+            <button type="button" class="wd-attach" @click="$refs.commentFiles.click()" :title="$store.ui.lang==='en' ? 'Attach a file' : 'Lampirkan fail'" :aria-label="$store.ui.lang==='en' ? 'Attach a file' : 'Lampirkan fail'" data-testid="comment-attach">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                <span class="wd-attach-n" x-show="drawer.files.length" x-text="drawer.files.length"></span>
+            </button>
             <button type="button" class="uj-btn-primary wd-post" @click="addComment()">
                 <span x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</span>
             </button>

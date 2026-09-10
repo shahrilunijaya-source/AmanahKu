@@ -106,6 +106,7 @@ export function registerTeamBoard(Alpine) {
             comments: [],
             // CR-08: Push to Track (PM and above, or the project's PE/PM), see work-board.js.
             pushToTrack: false,
+            files: [], // CR-08: [{ file, confidential, push }]
             pushPreview: '',
             editing: { id: null, body: '' },
             mention: { open: false, hits: [], idx: 0 },
@@ -464,7 +465,7 @@ export function registerTeamBoard(Alpine) {
 
         async api(url, opts = {}) {
             const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-            if (opts.body) headers['Content-Type'] = 'application/json';
+            if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
             const res = await fetch(url, { headers, ...opts });
             if (!res.ok) throw new Error('Request failed: ' + res.status);
             return res.status === 204 ? null : res.json();
@@ -505,6 +506,7 @@ export function registerTeamBoard(Alpine) {
             this.drawer.ovOpen = false;
             this.drawer.newComment = '';
             this.drawer.pushToTrack = false;
+            this.drawer.files = [];
             this.drawer.pushPreview = '';
             this.drawer.editing = { id: null, body: '' };
             this.drawer.labelMenuOpen = false;
@@ -674,13 +676,19 @@ export function registerTeamBoard(Alpine) {
             if (!body) return;
             this.closeMention();
             try {
-                const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, {
-                    method: 'POST',
-                    body: JSON.stringify({ body, push_to_track: this.drawer.pushToTrack }),
+                const form = new FormData();
+                form.append('body', body);
+                form.append('push_to_track', this.drawer.pushToTrack ? '1' : '0');
+                this.drawer.files.forEach((f, i) => {
+                    form.append('attachments[]', f.file);
+                    if (f.confidential) form.append('attachments_confidential[]', String(i));
+                    if (f.push) form.append('attachments_push[]', String(i));
                 });
+                const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, { method: 'POST', body: form });
                 this.drawer.comments.push(comment);
                 this.drawer.newComment = '';
                 this.drawer.pushToTrack = false;
+                this.drawer.files = [];
                 this.drawer.pushPreview = '';
                 this.drawer.card.comments_count = count;
                 this.repaintNode(html);
@@ -729,12 +737,33 @@ export function registerTeamBoard(Alpine) {
             try {
                 const { track_body } = await this.api(`/app/board/${this.drawer.id}/comments/preview`, {
                     method: 'POST',
-                    body: JSON.stringify({ body }),
+                    body: JSON.stringify({ body, attachments: this.drawer.files.map((f) => ({ name: f.file.name, confidential: !!f.confidential, push: !!f.push })) }),
                 });
                 this.drawer.pushPreview = track_body;
             } catch (err) {
                 this.drawer.pushPreview = '';
             }
+        },
+
+        pickFiles(e) {
+            const picked = Array.from(e.target.files || []).map((file) => ({ file, confidential: false, push: false }));
+            this.drawer.files = this.drawer.files.concat(picked).slice(0, 6);
+            e.target.value = '';
+            this.refreshPushPreview();
+        },
+
+        removeFile(i) {
+            this.drawer.files.splice(i, 1);
+            this.refreshPushPreview();
+        },
+
+        fileGoesToTrack(f) {
+            return !f.confidential && !!f.push;
+        },
+
+        fileSize(bytes) {
+            if (!bytes) return '';
+            return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
 
         startEditComment(c) {

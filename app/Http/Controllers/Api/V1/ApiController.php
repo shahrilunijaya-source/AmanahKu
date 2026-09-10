@@ -520,7 +520,7 @@ class ApiController extends Controller
             ->whereNotNull('pushed_to_track_at')
             ->when($q['since'] ?? null, fn ($qq, $since) => $qq->where('updated_at', '>=', CarbonImmutable::parse($since)))
             ->when($ids->isNotEmpty(), fn ($qq) => $qq->whereHas('workItem', fn ($w) => $w->whereIn('project_id', $ids)))
-            ->with(['workItem:id,title,project_id', 'employee:id,name,nickname,user_id'])
+            ->with(['workItem:id,title,project_id', 'employee:id,name,nickname,user_id', 'attachments'])
             ->orderBy('id')
             ->get();
 
@@ -540,6 +540,13 @@ class ApiController extends Controller
                 'updated_at' => $c->updated_at?->toIso8601String(),
                 'withdrawn_at' => $c->withdrawn_at?->toIso8601String(),
                 'withdrawn_reason' => $c->withdrawn_reason,
+                // Only files the author ticked for Track; confidential ones never appear.
+                'attachments' => $c->attachments->where('pushed_to_track', true)->where('confidential', false)->map(fn ($a) => [
+                    'name' => $a->name,
+                    'size' => $a->size,
+                    'mime' => $a->mime,
+                    'url' => route('work.comment.attachment', $a),
+                ])->values(),
             ])->values(),
         ]);
     }

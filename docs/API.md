@@ -324,6 +324,9 @@ a role badge (`PE`, `PM`, `Manager`, `Director`…), a link back to the card, th
 latest text with every `@mention` flattened to a plain name, and the full
 version history. A withdrawn comment is **not dropped** from the list — it
 carries `withdrawn_at` and `withdrawn_reason` so the consumer greys it out.
+`attachments` lists only the files the author ticked for Track; each `url` is a
+card-gated download on AmanahKu, not a public file. Confidential files never
+appear.
 
 Optional `since=<ISO datetime>` returns only rows changed at or after that
 moment. Optional `project_ids=1,2,3` filters to those AmanahKu projects **and
@@ -344,7 +347,11 @@ cards — a project no pull has named for two days shows the tick disabled.
           { "v": 2, "body": "Payment cleared today.", "by": "Yati", "at": "2026-09-10T09:30:00+08:00" }
         ],
         "pushed_at": "2026-09-10T09:00:00+08:00", "updated_at": "2026-09-10T09:30:00+08:00",
-        "withdrawn_at": null, "withdrawn_reason": null
+        "withdrawn_at": null, "withdrawn_reason": null,
+        "attachments": [
+          { "name": "receipt.pdf", "size": 48213, "mime": "application/pdf",
+            "url": "https://amanahku.unijaya.com/app/board/comments/attachments/12" }
+        ]
       }
     ]
   },

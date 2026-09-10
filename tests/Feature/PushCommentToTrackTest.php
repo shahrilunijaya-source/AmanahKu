@@ -10,7 +10,9 @@ use App\Models\WorkItem;
 use App\Models\WorkItemComment;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -135,20 +137,62 @@ class PushCommentToTrackTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'comment.track_version']);
     }
 
-    public function test_acceptance_5_preview_flattens_mentions_and_lists_no_attachments(): void
+    public function test_acceptance_5_preview_flattens_mentions_and_excludes_a_confidential_attachment(): void
     {
         $card = $this->card($this->seniorPm);
         $card->participants()->attach($this->adri->id, ['role' => 'helper']);
 
-        $this->as($this->seniorPm)->postJson("/app/board/{$card->id}/comments/preview", ['body' => 'Please check with @Adri before Friday.'])
+        $this->as($this->seniorPm)->postJson("/app/board/{$card->id}/comments/preview", [
+            'body' => 'Please check with @Adri before Friday.',
+            'attachments' => [
+                ['name' => 'secret.pdf', 'confidential' => true, 'push' => true],
+                ['name' => 'receipt.pdf', 'confidential' => false, 'push' => true],
+                ['name' => 'draft.docx', 'confidential' => false, 'push' => false],
+            ],
+        ])
             ->assertOk()
             ->assertJsonPath('track_body', 'Please check with Adri before Friday.')
-            ->assertJsonPath('attachments', []);
+            ->assertJsonPath('attachments.0', ['name' => 'secret.pdf', 'included' => false, 'why' => 'confidential'])
+            ->assertJsonPath('attachments.1', ['name' => 'receipt.pdf', 'included' => true, 'why' => null])
+            ->assertJsonPath('attachments.2', ['name' => 'draft.docx', 'included' => false, 'why' => 'not ticked']);
 
         $this->as($this->seniorPm)->postJson("/app/board/{$card->id}/comments", ['body' => '@Adri to follow up.', 'push_to_track' => true])->assertCreated();
         $this->assertSame('Adri to follow up.', $this->trackPull()->json('data.comments.0.body'));
         // The card keeps the mention for its own notification.
         $this->assertDatabaseHas('work_item_comments', ['body' => '@Adri to follow up.']);
+    }
+
+    public function test_acceptance_5c_only_ticked_non_confidential_files_reach_track(): void
+    {
+        Storage::fake('local');
+        $card = $this->card($this->seniorPm);
+
+        $res = $this->as($this->seniorPm)->post("/app/board/{$card->id}/comments", [
+            'body' => 'Receipt attached.',
+            'push_to_track' => '1',
+            'attachments' => [
+                UploadedFile::fake()->create('secret.pdf', 10, 'application/pdf'),
+                UploadedFile::fake()->create('receipt.pdf', 10, 'application/pdf'),
+                UploadedFile::fake()->create('draft.docx', 10, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            ],
+            'attachments_confidential' => [0],
+            'attachments_push' => [0, 1],
+        ], ['Accept' => 'application/json'])->assertCreated();
+
+        $files = collect($res->json('comment.attachments'))->keyBy('name');
+        $this->assertCount(3, $files);
+        $this->assertTrue($files['secret.pdf']['confidential']);
+        $this->assertFalse($files['secret.pdf']['pushed'], 'a confidential file cannot be pushed even when ticked');
+        $this->assertTrue($files['receipt.pdf']['pushed']);
+        $this->assertFalse($files['draft.docx']['pushed']);
+
+        $feed = $this->trackPull()->json('data.comments.0.attachments');
+        $this->assertCount(1, $feed);
+        $this->assertSame('receipt.pdf', $feed[0]['name']);
+
+        // The link Track gets is card-gated, never a public file.
+        $this->as($this->seniorPm)->get($feed[0]['url'])->assertOk();
+        $this->as($this->junior)->get($feed[0]['url'])->assertForbidden();
     }
 
     public function test_acceptance_5b_internal_card_cannot_be_pushed(): void

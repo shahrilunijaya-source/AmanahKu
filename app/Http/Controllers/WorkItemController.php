@@ -14,6 +14,7 @@ use App\Models\TimesheetCategory;
 use App\Models\VictoryBell;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
+use App\Models\WorkItemCommentAttachment;
 use App\Support\AuditContext;
 use App\Support\BoardRules;
 use App\Support\DashboardPrefs;
@@ -26,8 +27,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkItemController extends Controller
 {
@@ -233,7 +236,7 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'reviewer', 'projectRef', 'employee', 'children.participants']);
+        $workItem->load(['comments.employee', 'comments.attachments', 'assignedBy', 'participants', 'reviewer', 'projectRef', 'employee', 'children.participants']);
 
         // The same call the write gate makes, so the drawer's read-only state can
         // never disagree with what the server will accept. A participant opens the
@@ -744,6 +747,18 @@ class WorkItemController extends Controller
         $data = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
             'push_to_track' => ['sometimes', 'boolean'],
+            // CR-08: files ride along; each one may be marked confidential (never
+            // leaves the card) and, per push, ticked to go to Track.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_COMMENT_ATTACHMENTS],
+            'attachments.*' => ['file', 'mimes:'.self::COMMENT_ATTACHMENT_MIMES, 'max:8192'],
+            'attachments_confidential' => ['nullable', 'array'],
+            'attachments_confidential.*' => ['integer'],
+            'attachments_push' => ['nullable', 'array'],
+            'attachments_push.*' => ['integer'],
+        ], [
+            'attachments.max' => 'You can attach up to '.self::MAX_COMMENT_ATTACHMENTS.' files.',
+            'attachments.*.mimes' => 'Attachments must be an image, PDF, or Office document.',
+            'attachments.*.max' => 'Each attachment must be 8 MB or smaller.',
         ]);
 
         $push = (bool) ($data['push_to_track'] ?? false);
@@ -756,6 +771,25 @@ class WorkItemController extends Controller
             'body' => $data['body'],
         ]);
         $comment->setRelation('employee', $employee);
+
+        $confidential = array_map('intval', $data['attachments_confidential'] ?? []);
+        $pushFiles = array_map('intval', $data['attachments_push'] ?? []);
+        foreach (array_values((array) $request->file('attachments', [])) as $i => $file) {
+            $path = $file->store('comment-attachments', self::COMMENT_ATTACHMENT_DISK);
+            abort_unless($path !== false, 500, 'Attachment could not be stored.');
+            $isConfidential = in_array($i, $confidential, true);
+            $comment->attachments()->create([
+                'tenant_id' => $comment->tenant_id,
+                'path' => $path,
+                'name' => $file->getClientOriginalName() ?: 'attachment',
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize() ?? 0,
+                'confidential' => $isConfidential,
+                // Opt-in per file, and a confidential file can never be opted in.
+                'pushed_to_track' => $push && ! $isConfidential && in_array($i, $pushFiles, true),
+            ]);
+        }
+        $comment->load('attachments');
 
         if ($push) {
             $this->trackComments->push($comment, $employee, $this->trackComments->filter($data['body'], $this->mentionableNames($workItem)));
@@ -783,12 +817,24 @@ class WorkItemController extends Controller
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
         $this->authorizePushToTrack($request, $workItem, $employee);
 
-        $body = $request->validate(['body' => ['required', 'string', 'max:2000']])['body'];
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            // Files are not uploaded yet at preview time; the composer sends their
+            // names and ticks so the preview can say which ones Track will get.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_COMMENT_ATTACHMENTS],
+            'attachments.*.name' => ['required', 'string', 'max:255'],
+            'attachments.*.confidential' => ['nullable', 'boolean'],
+            'attachments.*.push' => ['nullable', 'boolean'],
+        ]);
 
         return response()->json([
-            'track_body' => $this->trackComments->filter($body, $this->mentionableNames($workItem)),
+            'track_body' => $this->trackComments->filter($data['body'], $this->mentionableNames($workItem)),
             'project' => $workItem->projectRef?->name,
-            'attachments' => [], // card comments carry no attachments; nothing to exclude
+            'attachments' => collect($data['attachments'] ?? [])->map(fn (array $a) => [
+                'name' => $a['name'],
+                'included' => ! ($a['confidential'] ?? false) && ($a['push'] ?? false),
+                'why' => ($a['confidential'] ?? false) ? 'confidential' : (($a['push'] ?? false) ? null : 'not ticked'),
+            ])->values(),
         ]);
     }
 
@@ -834,7 +880,7 @@ class WorkItemController extends Controller
 
         $comment->setRelation('employee', $employee);
 
-        return response()->json(['comment' => $this->commentPayload($comment->fresh(['employee']), $employee)]);
+        return response()->json(['comment' => $this->commentPayload($comment->fresh(['employee', 'attachments']), $employee)]);
     }
 
     /**
@@ -860,7 +906,7 @@ class WorkItemController extends Controller
             return response()->json([
                 'ok' => true,
                 'withdrawn' => true,
-                'comment' => $this->commentPayload($comment->fresh(['employee']), $employee),
+                'comment' => $this->commentPayload($comment->fresh(['employee', 'attachments']), $employee),
                 'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
                 'html' => $this->cardHtml($workItem),
             ]);
@@ -873,6 +919,25 @@ class WorkItemController extends Controller
             'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    /** Private disk comment attachments live on — reached only via commentAttachment(). */
+    private const COMMENT_ATTACHMENT_DISK = 'local';
+
+    private const MAX_COMMENT_ATTACHMENTS = 6;
+
+    private const COMMENT_ATTACHMENT_MIMES = 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv';
+
+    /** Stream a comment file to anyone who can open the card. */
+    public function commentAttachment(Request $request, WorkItemCommentAttachment $attachment): StreamedResponse
+    {
+        $employee = $this->employee($request);
+        $workItem = $attachment->comment?->workItem;
+        abort_unless($workItem, 404);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+        abort_unless(Storage::disk(self::COMMENT_ATTACHMENT_DISK)->exists($attachment->path), 404);
+
+        return Storage::disk(self::COMMENT_ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
     }
 
     private function authorizePushToTrack(Request $request, WorkItem $workItem, Employee $employee): void
@@ -1326,6 +1391,15 @@ class WorkItemController extends Controller
             'pushed' => $c->pushed_to_track_at !== null,
             'track_version' => $c->track_version,
             'withdrawn_reason' => $c->withdrawn_reason,
+            'attachments' => $c->attachments->map(fn (WorkItemCommentAttachment $a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'size' => $a->size,
+                'is_image' => $a->isImage(),
+                'url' => route('work.comment.attachment', $a),
+                'confidential' => $a->confidential,
+                'pushed' => $a->pushed_to_track,
+            ])->values(),
         ];
     }
 }

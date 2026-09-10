@@ -953,6 +953,31 @@
                                   "string",
                                   "null"
                                 ]
+                              },
+                              "attachments": {
+                                "type": "array",
+                                "description": "Files the author ticked for Track. url is a card-gated AmanahKu download.",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "size": {
+                                      "type": "integer"
+                                    },
+                                    "mime": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "url": {
+                                      "type": "string",
+                                      "format": "uri"
+                                    }
+                                  }
+                                }
                               }
                             }
                           }

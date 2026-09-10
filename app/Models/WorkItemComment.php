@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkItemComment extends Model
 {
@@ -31,5 +32,11 @@ class WorkItemComment extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /** @return HasMany<WorkItemCommentAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(WorkItemCommentAttachment::class);
     }
 }

@@ -311,6 +311,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/board/{workItem}/comments/preview', [WorkItemController::class, 'commentPreview'])->name('work.comment.preview');
         Route::patch('/app/board/comments/{comment}', [WorkItemController::class, 'commentUpdate'])->name('work.comment.update');
         Route::delete('/app/board/comments/{comment}', [WorkItemController::class, 'commentDestroy'])->name('work.comment.destroy');
+        Route::get('/app/board/comments/attachments/{attachment}', [WorkItemController::class, 'commentAttachment'])->name('work.comment.attachment');
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
         Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
