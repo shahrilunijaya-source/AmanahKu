@@ -46,6 +46,7 @@ class Project extends Model implements HasAuditedFields
             'loa_date' => 'date:Y-m-d',
             'agreement_date' => 'date:Y-m-d',
             'contract_start' => 'date:Y-m-d',
+            'track_linked_at' => 'datetime',
             'contract_end' => 'date:Y-m-d',
             'closed_at' => 'datetime',
         ];

@@ -308,6 +308,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/workload/apply', [WorkforceController::class, 'apply'])->name('workforce.apply');
         Route::post('/app/board/{workItem}/bell', [WorkItemController::class, 'ring'])->name('work.bell');
         Route::post('/app/board/{workItem}/comments', [WorkItemController::class, 'comment'])->name('work.comment');
+        Route::post('/app/board/{workItem}/comments/preview', [WorkItemController::class, 'commentPreview'])->name('work.comment.preview');
+        Route::patch('/app/board/comments/{comment}', [WorkItemController::class, 'commentUpdate'])->name('work.comment.update');
         Route::delete('/app/board/comments/{comment}', [WorkItemController::class, 'commentDestroy'])->name('work.comment.destroy');
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');

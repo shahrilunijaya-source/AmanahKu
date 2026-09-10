@@ -1646,6 +1646,29 @@ select.wd-inline {
 .wd-cmt-name { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
 .wd-cmt-at { font-size: var(--t-micro); color: var(--muted-soft); }
 .wd-cmt-body { font-size: 13.5px; color: var(--body); line-height: 1.6; margin-top: 2px; white-space: pre-wrap; }
+/* CR-08: Push to Track */
+.wd-cmt-who { flex-wrap: wrap; }
+.wd-cmt-track { font-size: var(--t-micro); font-weight: 600; color: #1c7c54; background: rgba(28, 124, 84, 0.1); padding: 1px 7px; border-radius: 999px; }
+.wd-cmt-track--off { color: var(--muted); background: var(--hairline-soft); text-decoration: line-through; }
+.wd-cmt-body--off { color: var(--muted-soft); text-decoration: line-through; }
+.wd-cmt-acts { margin-left: auto; display: inline-flex; gap: 10px; }
+.wd-cmt-acts button { font-size: 11px; color: var(--muted); background: transparent; cursor: pointer; border: 0; padding: 0; }
+.wd-cmt-acts button:hover { color: var(--ink); }
+.wd-cmt-edit { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.wd-cmt-edit textarea { width: 100%; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 8px; resize: vertical; background: var(--surface); color: var(--ink); }
+.wd-cmt-edit p { margin: 0; font-size: var(--t-micro); color: var(--muted); }
+.wd-cmt-edit div { display: flex; gap: 8px; align-items: center; }
+.wd-cmt-edit .uj-btn-primary { height: 30px; padding: 0 12px; font-size: var(--t-sm); border: 0; cursor: pointer; }
+.wd-cmt-edit div > button:not(.uj-btn-primary) { font-size: var(--t-sm); color: var(--muted); background: transparent; border: 0; cursor: pointer; }
+.wd-push { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.wd-push label { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-sm); color: var(--ink); cursor: pointer; flex-wrap: wrap; }
+.wd-push label.is-off { color: var(--muted); cursor: not-allowed; }
+.wd-push label input { accent-color: #1c7c54; width: 15px; height: 15px; margin: 0; }
+.wd-push-why { font-size: var(--t-micro); color: var(--muted-soft); }
+.wd-push-prev { border: 1px solid rgba(28, 124, 84, 0.35); background: rgba(28, 124, 84, 0.05); border-radius: 10px; padding: 10px 12px; }
+.wd-push-prev-h { font-size: var(--t-micro); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #1c7c54; margin-bottom: 4px; }
+.wd-push-prev-b { font-size: 13.5px; color: var(--ink); white-space: pre-wrap; line-height: 1.5; }
+.wd-push-prev-n { font-size: var(--t-micro); color: var(--muted); margin-top: 6px; }
 /* CR-19 system activity line (docs/build/sessions/S19/mockup/README.md) */
 .wd-cmt--system .wd-cmt-mark { width: 28px; height: 28px; border-radius: 50%; background: var(--hairline-soft); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
@@ -1653,7 +1676,7 @@ select.wd-inline {
 .wd-foot {
     position: relative; /* anchors .wd-ment, which floats above it */
     flex-shrink: 0; border-top: 1px solid var(--hairline); padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-    display: flex; gap: 8px; align-items: flex-end; background: var(--card);
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; background: var(--card);
 }
 .wd-foot textarea {
     flex: 1; border: 1px solid var(--hairline); border-radius: 9px; padding: 8px 10px;

@@ -12,6 +12,16 @@ class WorkItemComment extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return ['pushed_to_track_at' => 'datetime', 'withdrawn_at' => 'datetime', 'track_versions' => 'array'];
+    }
+
+    public function isPushedToTrack(): bool
+    {
+        return $this->pushed_to_track_at !== null;
+    }
+
     /** @return BelongsTo<WorkItem, $this> */
     public function workItem(): BelongsTo
     {

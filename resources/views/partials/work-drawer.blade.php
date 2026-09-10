@@ -473,12 +473,33 @@
                                     <div class="wd-cmt-who">
                                         <span class="wd-cmt-name" x-text="c.author"></span>
                                         <span class="wd-cmt-at" x-text="c.when"></span>
-                                        <button type="button" x-show="c.mine" @click="deleteComment(c.id)" style="margin-left:auto;font-size:11px;color:var(--muted);background:transparent;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                        {{-- CR-08: an official record in Track, with its version; greyed once withdrawn. --}}
+                                        <span class="wd-cmt-track" x-show="c.pushed && !c.withdrawn_reason"
+                                              :title="$store.ui.lang==='en' ? 'Official record in Track' : 'Rekod rasmi dalam Track'"
+                                              x-text="($store.ui.lang==='en' ? 'In Track' : 'Dalam Track') + (c.track_version > 1 ? ' · v' + c.track_version : '')"></span>
+                                        <span class="wd-cmt-track wd-cmt-track--off" x-show="c.withdrawn_reason"
+                                              :title="c.withdrawn_reason"
+                                              x-text="$store.ui.lang==='en' ? 'Withdrawn' : 'Ditarik balik'"></span>
+                                        <span class="wd-cmt-acts" x-show="c.mine && !c.is_system && drawer.editing.id !== c.id">
+                                            <button type="button" @click="startEditComment(c)" x-show="!c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
+                                            <button type="button" @click="withdrawComment(c)" x-show="c.pushed && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Withdraw' : 'Tarik balik'"></button>
+                                            <button type="button" @click="deleteComment(c.id)" x-show="!c.pushed" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                        </span>
                                     </div>
                                     {{-- Escaped first, then tinted: c.body is user input, and renderCommentBody()
                                          only ever wraps exact-match substrings of the card's own mentionable
                                          names inside the ALREADY-escaped string — see work-board.js/team-board.js. --}}
-                                    <div class="wd-cmt-body" x-html="renderCommentBody(c.body)"></div>
+                                    <div class="wd-cmt-body" :class="{ 'wd-cmt-body--off': c.withdrawn_reason }" x-show="drawer.editing.id !== c.id" x-html="renderCommentBody(c.body)"></div>
+                                    <template x-if="drawer.editing.id === c.id">
+                                        <div class="wd-cmt-edit">
+                                            <textarea x-model="drawer.editing.body" rows="2" maxlength="2000" @keydown.enter.meta.prevent="saveEditComment()" @keydown.escape.stop="cancelEditComment()"></textarea>
+                                            <p x-show="c.pushed" x-text="$store.ui.lang==='en' ? 'Saving makes a new version in Track; the old one stays in its history.' : 'Simpan akan buat versi baharu dalam Track; yang lama kekal dalam sejarah.'"></p>
+                                            <div>
+                                                <button type="button" class="uj-btn-primary" @click="saveEditComment()" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'"></button>
+                                                <button type="button" @click="cancelEditComment()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </template>
@@ -495,6 +516,24 @@
              see mentionActiveQuery()/paintMention()/insertMention() in
              work-board.js (and its team-board.js counterpart). --}}
         <div class="wd-foot wd-foot--reveal" :class="{ 'has-text': drawer.newComment.trim().length }">
+            {{-- CR-08: Push to Track. Only PM and above, or the project's PE/PM, see it. Off
+                 on every open, never remembered. Disabled with the reason when the project
+                 is not linked to Track or the card is Internal. Ticking shows the exact
+                 text Track will display. --}}
+            <template x-if="drawer.card.can_push_to_track">
+                <div class="wd-push" data-testid="push-to-track">
+                    <label :class="{ 'is-off': drawer.card.push_to_track_disabled }" :title="drawer.card.push_to_track_disabled || ''">
+                        <input type="checkbox" :checked="drawer.pushToTrack" :disabled="!!drawer.card.push_to_track_disabled" @change="togglePushToTrack()">
+                        <span x-text="$store.ui.lang==='en' ? 'Push to Track' : 'Hantar ke Track'"></span>
+                        <span class="wd-push-why" x-show="drawer.card.push_to_track_disabled" x-text="drawer.card.push_to_track_disabled"></span>
+                    </label>
+                    <div class="wd-push-prev" x-show="drawer.pushToTrack" x-cloak>
+                        <div class="wd-push-prev-h" x-text="$store.ui.lang==='en' ? 'Will appear in Track as' : 'Akan dipaparkan dalam Track sebagai'"></div>
+                        <div class="wd-push-prev-b" x-text="drawer.pushPreview || (drawer.newComment.trim() ? '…' : ($store.ui.lang==='en' ? 'Type the comment first.' : 'Tulis komen dahulu.'))"></div>
+                        <div class="wd-push-prev-n" x-text="$store.ui.lang==='en' ? 'Mentions become plain names. Nobody in Track is notified. Once posted this is an official project record.' : 'Sebutan jadi nama biasa. Tiada sesiapa dalam Track dimaklumkan. Selepas dihantar ini menjadi rekod rasmi projek.'"></div>
+                    </div>
+                </div>
+            </template>
             <div class="wd-ment" role="listbox" :data-open="drawer.mention.open ? '' : null"
                  :aria-label="$store.ui.lang==='en' ? 'Mention someone on this card' : 'Sebut seseorang pada kad ini'">
                 <template x-if="drawer.mention.open && !mentionPool.length">
@@ -515,7 +554,7 @@
                     </template>
                 </template>
             </div>
-            <textarea x-ref="newCommentEl" x-model="drawer.newComment" @input="onCommentInput($event)" @keydown="onCommentKeydown($event)"
+            <textarea x-ref="newCommentEl" x-model="drawer.newComment" @input="onCommentInput($event)" @input.debounce.400ms="refreshPushPreview()" @keydown="onCommentKeydown($event)"
                       @blur="setTimeout(() => closeMention(), 120)" @keydown.enter.meta.prevent="addComment()" rows="1" maxlength="2000"
                       :placeholder="$store.ui.lang==='en' ? 'Write a comment, or type @ to notify someone…' : 'Tulis komen, atau taip @ untuk maklumkan seseorang…'"></textarea>
             <button type="button" class="uj-btn-primary wd-post" @click="addComment()">

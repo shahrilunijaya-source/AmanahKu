@@ -840,6 +840,138 @@
           }
         ]
       }
+    },
+    "/project-comments": {
+      "get": {
+        "summary": "Card comments pushed to Track as official project records",
+        "description": "Requires the comments:read scope. CR-08: every T.A.A. card comment a PM, PE or director ticked 'Push to Track', with its latest text (mentions flattened to plain names), version history and withdrawal state. Withdrawn comments stay in the list with their reason so a consumer greys them rather than dropping them. Passing project_ids marks those projects as linked to Track, which enables the tick on their cards.",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Only comments changed at or after this ISO datetime.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "project_ids",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated AmanahKu project ids the caller has linked. Filters the list and stamps those projects as linked.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pushed comments, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "comments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "project_id": {
+                                "type": "integer"
+                              },
+                              "card_id": {
+                                "type": "integer"
+                              },
+                              "card_title": {
+                                "type": "string"
+                              },
+                              "card_url": {
+                                "type": "string"
+                              },
+                              "author": {
+                                "type": "string"
+                              },
+                              "author_role": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "body": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "integer"
+                              },
+                              "versions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "v": {
+                                      "type": "integer"
+                                    },
+                                    "body": {
+                                      "type": "string"
+                                    },
+                                    "by": {
+                                      "type": "string"
+                                    },
+                                    "at": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    }
+                                  }
+                                }
+                              },
+                              "pushed_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updated_at": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "withdrawn_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "date-time"
+                              },
+                              "withdrawn_reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "error": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Token lacks comments:read, or is a person-token without a management or HR role."
+          }
+        }
+      }
     }
   }
 }

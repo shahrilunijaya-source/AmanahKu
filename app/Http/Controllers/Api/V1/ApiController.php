@@ -13,8 +13,11 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
+use App\Models\User;
 use App\Models\WorkItem;
+use App\Models\WorkItemComment;
 use App\Support\ApiCaller;
+use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -484,6 +487,76 @@ class ApiController extends Controller
             ->sortBy(fn (array $row) => $row['position_title'] ?? '')
             ->values()
             ->all();
+    }
+
+    /**
+     * CR-08: every card comment pushed to Track, for Track to mirror into its project
+     * Comments panel. Latest version plus the full version list, withdrawn ones
+     * included (Track greys them, never drops them). `project_ids` is Track's list
+     * of linked Amanahku projects: each pull stamps them as linked, which is how the
+     * Push to Track tick knows to enable itself on those projects' cards.
+     */
+    public function projectComments(Request $request): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'comments:read')) {
+            return $this->denyScope('comments:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $q = $request->validate([
+            'since' => ['nullable', 'date'],
+            'project_ids' => ['nullable', 'string'],
+        ]);
+
+        $ids = collect(explode(',', $q['project_ids'] ?? ''))->filter(fn ($v) => ctype_digit(trim($v)))->map(fn ($v) => (int) $v);
+        if ($ids->isNotEmpty()) {
+            Project::whereIn('id', $ids)->update(['track_linked_at' => now()]);
+        }
+
+        $comments = WorkItemComment::query()
+            ->whereNotNull('pushed_to_track_at')
+            ->when($q['since'] ?? null, fn ($qq, $since) => $qq->where('updated_at', '>=', CarbonImmutable::parse($since)))
+            ->when($ids->isNotEmpty(), fn ($qq) => $qq->whereHas('workItem', fn ($w) => $w->whereIn('project_id', $ids)))
+            ->with(['workItem:id,title,project_id', 'employee:id,name,nickname,user_id'])
+            ->orderBy('id')
+            ->get();
+
+        return $this->ok([
+            'comments' => $comments->map(fn (WorkItemComment $c) => [
+                'id' => $c->id,
+                'project_id' => $c->workItem?->project_id,
+                'card_id' => $c->work_item_id,
+                'card_title' => $c->workItem?->title,
+                'card_url' => $c->workItem ? route('work.show', $c->workItem) : null,
+                'author' => $c->employee?->display_name,
+                'author_role' => $this->roleLabel($c),
+                'body' => $c->track_body,
+                'version' => $c->track_version,
+                'versions' => $c->track_versions ?? [],
+                'pushed_at' => $c->pushed_to_track_at?->toIso8601String(),
+                'updated_at' => $c->updated_at?->toIso8601String(),
+                'withdrawn_at' => $c->withdrawn_at?->toIso8601String(),
+                'withdrawn_reason' => $c->withdrawn_reason,
+            ])->values(),
+        ]);
+    }
+
+    /** "Director", "Manager", "PE"… the badge Track shows beside a pushed comment. */
+    private function roleLabel(WorkItemComment $c): ?string
+    {
+        $project = $c->workItem?->project_id ? Project::find($c->workItem->project_id) : null;
+        if ($project && $c->employee_id === $project->pe_id) {
+            return 'PE';
+        }
+        if ($project && $c->employee_id === $project->pm_id) {
+            return 'PM';
+        }
+        $role = $c->employee?->user_id ? User::find($c->employee->user_id)?->roleIn(app(CurrentTenant::class)->get()) : null;
+
+        return $role ? ucfirst($role) : null;
     }
 
     /**

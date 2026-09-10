@@ -1272,3 +1272,24 @@ These are already known before the run starts. A session that hits one of them s
 - Reversal cost: cheap.
 - Source: spec silent.
 
+
+### S30 / CR-08 / Track pulls comments, Amanahku does not push
+- Question: spec reads as Amanahku pushing into Track ("appears in Track within 1 min"); the ports contract only has a stub TrackPort and Track has no inbound API.
+- Decided: Amanahku exposes `GET /api/v1/project-comments` (scope `comments:read`); Track's `amanahku:sync-comments` pulls every minute and mirrors rows into `project_comments`. `TrackPort::pushComment/withdrawComment` still write `port_outbox` rows as the audit trail.
+- Alternatives: real push adapter (needs a Track inbound API, a second key and retry logic on Amanahku's side); rejected as a bigger surface for the same one-minute latency.
+- Reversal cost: medium. A push adapter can replace the pull later; the outbox rows and the comment columns stay as they are.
+- Source: spec silent on direction, contract says "Track: nothing".
+
+### S30 / CR-08 / "Linked to Track" is Track's heartbeat
+- Question: Amanahku holds no record of which projects Track has linked (Track owns `amanahku_project_id`).
+- Decided: each Track pull sends `project_ids=`; Amanahku stamps `projects.track_linked_at`. The tick is disabled when the stamp is missing or older than two days.
+- Alternatives: a manual "linked to Track" flag on the project form (a second source of truth that drifts); Track writing back through a new endpoint.
+- Reversal cost: cheap, one column and one check in `TrackComments::disabledReason()`.
+- Source: spec silent.
+
+### S30 / CR-08 / PE and attachments
+- Question: roles contract has no PE role; card comments have no attachments.
+- Decided: PE = `projects.pe_id` (and PM = `projects.pm_id`) on the card's project; they may push even with the `employee` role. Attachment filtering is not applicable, the preview lists `attachments: []`. The Internal label on the card blocks the push.
+- Alternatives: gate PE by position title (fragile).
+- Reversal cost: cheap.
+- Source: spec acceptance 5 assumes attachments that do not exist.

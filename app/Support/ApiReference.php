@@ -81,6 +81,16 @@ class ApiReference
             'note' => 'Feeds the Last Week card in Track. Items carry the card id, title, status and a link back to the card.',
         ],
         [
+            'path' => '/project-comments',
+            'scope' => 'comments:read',
+            'app_key' => true,
+            'title' => 'Project comments',
+            'blurb' => 'Every card comment a PM, PE or director pushed to Track, with its version history.',
+            'fields' => 'comments[] { id, project_id, card_id, card_title, card_url, author, author_role, body, version, versions[], pushed_at, updated_at, withdrawn_at, withdrawn_reason }',
+            'query' => 'since=ISO datetime (optional); project_ids=1,2,3 (optional, marks those projects as linked to Track)',
+            'note' => 'Track pulls this every minute. Withdrawn comments stay in the list with their reason so Track can grey them rather than drop them.',
+        ],
+        [
             'path' => '/leave-requests',
             'scope' => 'leave:read',
             'app_key' => true,

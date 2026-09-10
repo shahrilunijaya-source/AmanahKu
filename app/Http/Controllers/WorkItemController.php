@@ -19,6 +19,7 @@ use App\Support\BoardRules;
 use App\Support\DashboardPrefs;
 use App\Support\EasterEggBank;
 use App\Support\Permissions;
+use App\Support\TrackComments;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +35,7 @@ class WorkItemController extends Controller
 
     private const STATUS_LABELS = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
 
-    public function __construct(private BoardRules $boardRules) {}
+    public function __construct(private BoardRules $boardRules, private TrackComments $trackComments) {}
 
     /** The current employee adds a work item to their own board. */
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -256,6 +257,11 @@ class WorkItemController extends Controller
                     && ($workItem->employee_id === $employee->id
                         || in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true)),
                 'viewer_role' => $workItem->roleFor($employee->id),
+                // CR-08: PM and above, or the project's PE/PM, may push a comment to Track.
+                // The tick is disabled (with the reason) when the project is not linked
+                // or the card is Internal. Default off for everyone, never remembered.
+                'can_push_to_track' => $this->trackComments->canPush($request->attributes->get('tenantRole', 'employee'), $workItem, $employee),
+                'push_to_track_disabled' => $this->trackComments->disabledReason($workItem),
                 // Drawer subline only: "Opened 12 Jul 2026 by X" for a self-made card,
                 // "Assigned 12 Jul 2026 by X" for a tac. Fetched once on open — later
                 // write responses don't repeat these, so the merge in the client just
@@ -735,13 +741,25 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            'push_to_track' => ['sometimes', 'boolean'],
+        ]);
+
+        $push = (bool) ($data['push_to_track'] ?? false);
+        if ($push) {
+            $this->authorizePushToTrack($request, $workItem, $employee);
+        }
 
         $comment = $workItem->comments()->create([
             'employee_id' => $employee->id,
             'body' => $data['body'],
         ]);
         $comment->setRelation('employee', $employee);
+
+        if ($push) {
+            $this->trackComments->push($comment, $employee, $this->trackComments->filter($data['body'], $this->mentionableNames($workItem)));
+        }
 
         $this->notifyMentions($workItem, $employee, $data['body']);
 
@@ -755,13 +773,99 @@ class WorkItemController extends Controller
         ], 201);
     }
 
-    /** Delete one's own comment. */
+    /**
+     * CR-08: exactly what Track will show for this text — mentions flattened to plain
+     * names — so the author confirms the record before it leaves the card.
+     */
+    public function commentPreview(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+        $this->authorizePushToTrack($request, $workItem, $employee);
+
+        $body = $request->validate(['body' => ['required', 'string', 'max:2000']])['body'];
+
+        return response()->json([
+            'track_body' => $this->trackComments->filter($body, $this->mentionableNames($workItem)),
+            'project' => $workItem->projectRef?->name,
+            'attachments' => [], // card comments carry no attachments; nothing to exclude
+        ]);
+    }
+
+    /**
+     * CR-08: edit one's own comment. A pushed comment's edit becomes a new version in
+     * Track; unticking a pushed comment is a withdrawal and needs a reason. Ticking a
+     * comment that was never pushed pushes it now.
+     */
+    public function commentUpdate(Request $request, WorkItemComment $comment): JsonResponse
+    {
+        $employee = $this->employee($request);
+        abort_unless($comment->employee_id === $employee->id, 403);
+        $workItem = $comment->workItem;
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+
+        $data = $request->validate([
+            'body' => ['sometimes', 'required', 'string', 'max:2000'],
+            'push_to_track' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $body = $data['body'] ?? $comment->body;
+        $wantPush = array_key_exists('push_to_track', $data) ? (bool) $data['push_to_track'] : $comment->isPushedToTrack();
+
+        if ($comment->isPushedToTrack() && ! $wantPush) {
+            if (blank($data['reason'] ?? null)) {
+                throw ValidationException::withMessages(['reason' => 'A reason is required to withdraw a comment from Track.']);
+            }
+            $this->trackComments->withdraw($comment, $data['reason']);
+        }
+
+        if ($body !== $comment->body) {
+            $comment->update(['body' => $body]);
+        }
+
+        if ($wantPush && $comment->withdrawn_at === null) {
+            $this->authorizePushToTrack($request, $workItem, $employee);
+            $trackBody = $this->trackComments->filter($body, $this->mentionableNames($workItem));
+            if (! $comment->isPushedToTrack() || $trackBody !== $comment->track_body) {
+                $this->trackComments->push($comment, $employee, $trackBody);
+            }
+        }
+
+        $comment->setRelation('employee', $employee);
+
+        return response()->json(['comment' => $this->commentPayload($comment->fresh(['employee']), $employee)]);
+    }
+
+    /**
+     * Delete one's own comment. A comment already pushed to Track is never deleted:
+     * it is withdrawn with a reason and stays on the card, greyed (CR-08).
+     */
     public function commentDestroy(Request $request, WorkItemComment $comment): JsonResponse
     {
         $employee = $this->employee($request);
         abort_unless($comment->employee_id === $employee->id, 403);
 
         $workItem = $comment->workItem;
+
+        if ($comment->isPushedToTrack()) {
+            $reason = $request->validate(['reason' => ['nullable', 'string', 'max:255']])['reason'] ?? null;
+            if (blank($reason)) {
+                throw ValidationException::withMessages(['reason' => 'A reason is required to withdraw a comment from Track.']);
+            }
+            if ($comment->withdrawn_at === null) {
+                $this->trackComments->withdraw($comment, $reason);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'withdrawn' => true,
+                'comment' => $this->commentPayload($comment->fresh(['employee']), $employee),
+                'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
+                'html' => $this->cardHtml($workItem),
+            ]);
+        }
+
         $comment->delete();
 
         return response()->json([
@@ -769,6 +873,20 @@ class WorkItemController extends Controller
             'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    private function authorizePushToTrack(Request $request, WorkItem $workItem, Employee $employee): void
+    {
+        abort_unless($this->trackComments->canPush($request->attributes->get('tenantRole', 'employee'), $workItem, $employee), 403, 'Only PM and above, or the project\'s PE, can push to Track.');
+        if ($reason = $this->trackComments->disabledReason($workItem)) {
+            throw ValidationException::withMessages(['push_to_track' => $reason]);
+        }
+    }
+
+    /** @return Collection<int, string> */
+    private function mentionableNames(WorkItem $workItem): Collection
+    {
+        return $this->mentionableEmployees($workItem)->map(fn (Employee $e) => $e->display_name)->values();
     }
 
     /**
@@ -1204,6 +1322,10 @@ class WorkItemController extends Controller
             'when' => $c->created_at?->diffForHumans(),
             'mine' => $c->employee_id === $viewer->id,
             'is_system' => $isSystem,
+            // CR-08
+            'pushed' => $c->pushed_to_track_at !== null,
+            'track_version' => $c->track_version,
+            'withdrawn_reason' => $c->withdrawn_reason,
         ];
     }
 }

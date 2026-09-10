@@ -3,7 +3,7 @@
 This is the reference for AmanahKu's read-only HTTP API. It is written for a
 developer — or a coding agent — in another repository (DevStage 01, Track,
 SupportOS) who has never seen AmanahKu's codebase and needs to wire up a
-client against it. A machine-readable version of the same six endpoints
+client against it. A machine-readable version of the same seven endpoints
 lives at [`/openapi.json`](/openapi.json) (OpenAPI 3.1).
 
 Base URL: `https://amanahku.unijaya.com/api/v1`
@@ -29,7 +29,7 @@ break or silently do the wrong thing:
 
 - **No write endpoints of any kind.** Every route in this document is
   `GET`. There is no way to create, update, or delete anything through this
-  API — not a project, not a leave request, not a payslip. All six routes
+  API — not a project, not a leave request, not a payslip. All seven routes
   are read-only.
 - **No webhooks or callbacks.** AmanahKu never calls out to you. If you
   need to know when something changes, poll the relevant endpoint on your
@@ -136,7 +136,7 @@ optional.
 
 ## 5. Endpoints
 
-All six endpoints live under `/api/v1` and require `Authorization: Bearer
+All seven endpoints live under `/api/v1` and require `Authorization: Bearer
 <key>`. Listed in the order scopes are declared in `ApiClient::SCOPES`.
 
 ### `GET /projects` — requires `projects:read`
@@ -316,6 +316,46 @@ project with nothing that week is omitted.
 curl -H "Authorization: Bearer $AMANAHKU_KEY" "https://amanahku.unijaya.com/api/v1/board-week?week_start=2026-08-03"
 ```
 
+### `GET /project-comments` — requires `comments:read`
+
+Every T.A.A. card comment a PM, PE or director ticked **Push to Track** on
+(CR-08). Built for Track's project Comments panel: each row carries the author,
+a role badge (`PE`, `PM`, `Manager`, `Director`…), a link back to the card, the
+latest text with every `@mention` flattened to a plain name, and the full
+version history. A withdrawn comment is **not dropped** from the list — it
+carries `withdrawn_at` and `withdrawn_reason` so the consumer greys it out.
+
+Optional `since=<ISO datetime>` returns only rows changed at or after that
+moment. Optional `project_ids=1,2,3` filters to those AmanahKu projects **and
+stamps them as linked to Track**, which is what enables the tick on their
+cards — a project no pull has named for two days shows the tick disabled.
+
+```json
+{
+  "data": {
+    "comments": [
+      {
+        "id": 500, "project_id": 7, "card_id": 41, "card_title": "Bond renewal",
+        "card_url": "https://amanahku.unijaya.com/app/board/41",
+        "author": "Yati", "author_role": "Manager",
+        "body": "Payment cleared today.", "version": 2,
+        "versions": [
+          { "v": 1, "body": "Payment cleared.", "by": "Yati", "at": "2026-09-10T09:00:00+08:00" },
+          { "v": 2, "body": "Payment cleared today.", "by": "Yati", "at": "2026-09-10T09:30:00+08:00" }
+        ],
+        "pushed_at": "2026-09-10T09:00:00+08:00", "updated_at": "2026-09-10T09:30:00+08:00",
+        "withdrawn_at": null, "withdrawn_reason": null
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+```bash
+curl -H "Authorization: Bearer $AMANAHKU_KEY" "https://amanahku.unijaya.com/api/v1/project-comments?project_ids=7,10&since=2026-09-10T09:00:00%2B08:00"
+```
+
 ### `GET /leave-requests` — requires `leave:read`
 
 Every leave request in the company, newest first.
@@ -385,6 +425,7 @@ filtered response — there is no partial access to an endpoint.
 | `positions:read` | Position bands (no salary) |
 | `effort:read` | Weekly timesheet effort per band (no names, no salary) |
 | `board-week:read` | One week of board activity per project (planned, happened, events) |
+| `comments:read` | Card comments pushed to Track (official project records) |
 | `leave:read` | Leave requests |
 
 `payslips:read` cannot be granted to an application key. The endpoint remains reachable by a staff token, which carries every ability, and is documented below for that reason.

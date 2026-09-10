@@ -133,6 +133,11 @@ export function registerWorkBoard(Alpine) {
             seq: 0,
             lastApplied: 0,
             newComment: '',
+            // CR-08: Push to Track. Off on every open, never remembered. `preview`
+            // is the exact text Track will show, fetched from the server.
+            pushToTrack: false,
+            pushPreview: '',
+            editing: { id: null, body: '' },
             card: {
                 id: null, title: '', description: '', type: 'task', priority: 'medium',
                 due_at: '', due_label: '', status: 'todo', labels: [], participants: [], reviewer: null, reviewer_id: null,
@@ -885,6 +890,9 @@ export function registerWorkBoard(Alpine) {
             this.drawer.family = null;
             this.drawer.ovOpen = false;
             this.drawer.newComment = '';
+            this.drawer.pushToTrack = false;
+            this.drawer.pushPreview = '';
+            this.drawer.editing = { id: null, body: '' };
             this.drawer.menuOpen = false;
             this.drawer.labelMenuOpen = false;
             this.drawer.editingLinkIdx = null;
@@ -1343,8 +1351,10 @@ export function registerWorkBoard(Alpine) {
             try {
                 const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, {
                     method: 'POST',
-                    body: JSON.stringify({ body }),
+                    body: JSON.stringify({ body, push_to_track: this.drawer.pushToTrack }),
                 });
+                this.drawer.pushToTrack = false;
+                this.drawer.pushPreview = '';
                 // The comment itself is additive, never stale — apply it regardless of
                 // sequence. Only the card-face repaint (which carries a full snapshot)
                 // is guarded, so it can't revert a field edited after this request fired.
@@ -1358,14 +1368,93 @@ export function registerWorkBoard(Alpine) {
         },
 
         async deleteComment(id) {
+            const existing = this.drawer.comments.find((c) => c.id === id);
+            let reason = null;
+            // CR-08: a pushed comment is an official record in Track. It is withdrawn
+            // with a reason, never removed.
+            if (existing?.pushed) {
+                reason = window.prompt(this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'));
+                if (!reason || !reason.trim()) return;
+            }
             const seq = this.nextSeq();
             try {
-                const { count, html } = await this.api(`/app/board/comments/${id}`, { method: 'DELETE' });
-                this.drawer.comments = this.drawer.comments.filter((c) => c.id !== id);
-                this.drawer.card.comments_count = count;
-                if (this.acceptSeq(seq)) this.repaintNode(html);
+                const res = await this.api(`/app/board/comments/${id}`, {
+                    method: 'DELETE',
+                    body: reason ? JSON.stringify({ reason: reason.trim() }) : undefined,
+                });
+                if (res.withdrawn) {
+                    this.drawer.comments = this.drawer.comments.map((c) => (c.id === id ? res.comment : c));
+                } else {
+                    this.drawer.comments = this.drawer.comments.filter((c) => c.id !== id);
+                }
+                this.drawer.card.comments_count = res.count;
+                if (this.acceptSeq(seq)) this.repaintNode(res.html);
             } catch (err) {
                 this.drawer.error = this.t('Could not delete comment.', 'Tidak dapat padam komen.');
+            }
+        },
+
+        // ── CR-08: Push to Track ─────────────────────────────────────────────
+        // The tick shows the preview under the composer: exactly what Track will
+        // display (mentions flattened to names). Re-fetched as the text changes.
+        async togglePushToTrack() {
+            if (!this.drawer.card.can_push_to_track || this.drawer.card.push_to_track_disabled) return;
+            this.drawer.pushToTrack = !this.drawer.pushToTrack;
+            if (this.drawer.pushToTrack) await this.refreshPushPreview();
+        },
+
+        async refreshPushPreview() {
+            if (!this.drawer.pushToTrack) return;
+            const body = this.drawer.newComment.trim();
+            if (!body) { this.drawer.pushPreview = ''; return; }
+            try {
+                const { track_body } = await this.api(`/app/board/${this.drawer.id}/comments/preview`, {
+                    method: 'POST',
+                    body: JSON.stringify({ body }),
+                });
+                this.drawer.pushPreview = track_body;
+            } catch (err) {
+                this.drawer.pushPreview = '';
+            }
+        },
+
+        startEditComment(c) {
+            this.drawer.editing = { id: c.id, body: c.body };
+        },
+
+        cancelEditComment() {
+            this.drawer.editing = { id: null, body: '' };
+        },
+
+        // A pushed comment's edit becomes a new version in Track; nothing is lost.
+        async saveEditComment() {
+            const { id, body } = this.drawer.editing;
+            if (!id || !body.trim()) return;
+            try {
+                const { comment } = await this.api(`/app/board/comments/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ body: body.trim() }),
+                });
+                this.drawer.comments = this.drawer.comments.map((c) => (c.id === id ? comment : c));
+                this.cancelEditComment();
+            } catch (err) {
+                this.drawer.error = this.t('Could not save comment.', 'Tidak dapat simpan komen.');
+            }
+        },
+
+        // Untick after the fact: withdraw from Track with a reason. The comment stays
+        // on the card, Track shows it as withdrawn.
+        async withdrawComment(c) {
+            const reason = window.prompt(this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'));
+            if (!reason || !reason.trim()) return;
+            try {
+                const { comment } = await this.api(`/app/board/comments/${c.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ push_to_track: false, reason: reason.trim() }),
+                });
+                this.drawer.comments = this.drawer.comments.map((x) => (x.id === c.id ? comment : x));
+            } catch (err) {
+                this.drawer.error = this.t('Could not withdraw comment.', 'Tidak dapat tarik balik komen.');
             }
         },
 
