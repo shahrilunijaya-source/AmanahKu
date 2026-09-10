@@ -5048,9 +5048,9 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-cta, .uj-db-more { position:relative; z-index:1; }
 
 /* ── band families (docs/build/design/banners): Celebration, Heads-up, Needs action. Alarm (brand red) reserved.
-   Shazwan 2026-09-10: solid fills, white type, folder mark, illustration; celebrations get a slow lava-lamp gradient.
+   Shazwan 2026-09-10: solid fills, white type, folder mark, illustration; each kind a soft tonal gradient, no second hue.
    Inside a coloured band the palette variables are re-pointed at white so every child (chips, panels, dots) follows. ── */
-.uj-db-band[data-tone] { border:0; border-radius:18px; padding:46px 20px 18px; min-height:150px; flex-wrap:wrap; row-gap:8px; color:#fff; isolation:isolate; }
+.uj-db-band[data-tone] { border:0; border-radius:18px; padding:46px 20px 18px; min-height:150px; flex-wrap:wrap; row-gap:8px; color:#fff; }
 .uj-db-band[data-tone]:has(.uj-db-art) { padding-right:250px; }
 /* stacked copy like the mockup: kicker on its own line, title row, then the sentence */
 .uj-db-band[data-tone] .uj-db-k, .uj-db-band[data-tone] .uj-db-s, .uj-db-band[data-tone] .uj-db-awards-track, .uj-db-band[data-tone] .uj-db-awards-dots { flex-basis:100%; }
@@ -5089,20 +5089,15 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db-fold { position:absolute; left:20px; top:14px; width:34px; height:26px; opacity:.55; pointer-events:none; }
 .uj-db-fold::before { content:""; position:absolute; left:0; top:0; width:14px; height:8px; border-radius:3px 3px 0 0; background:#fff; }
 .uj-db-fold::after { content:""; position:absolute; left:0; top:5px; right:0; bottom:0; border-radius:3px; background:#fff; }
-/* lava lamp: two big blurred blobs drift under the copy, celebration bands only, each kind its own pair */
-.uj-db-band[data-tone="cele"]::before, .uj-db-band[data-tone="cele"]::after { content:""; position:absolute; z-index:-1; border-radius:50%; filter:blur(40px); opacity:.9; pointer-events:none; will-change:transform; }
-.uj-db-band[data-tone="cele"]::before { width:60%; height:170%; left:-15%; top:-60%; animation:uj-lava-a 14s ease-in-out infinite alternate; }
-.uj-db-band[data-tone="cele"]::after { width:55%; height:150%; right:-10%; bottom:-70%; animation:uj-lava-b 18s ease-in-out infinite alternate; }
-.uj-db-band[data-kind="birthday"]::before { background:#ff9d6c; } .uj-db-band[data-kind="birthday"]::after { background:#f0508f; }
-.uj-db-band[data-kind="big-deal"]::before { background:#6f6bf0; } .uj-db-band[data-kind="big-deal"]::after { background:#e08ad6; }
-.uj-db-band[data-kind="victory-bell"]::before { background:#2fb3a8; } .uj-db-band[data-kind="victory-bell"]::after { background:#b6e25e; }
-.uj-db-band[data-kind="wrapped"]::before { background:#c93d78; } .uj-db-band[data-kind="wrapped"]::after { background:#ff8f5a; }
-.uj-db-band[data-band="awards"]::before { background:#5468e6; } .uj-db-band[data-band="awards"]::after { background:#d25aa8; }
-@keyframes uj-lava-a { from { transform:translate(0,0) scale(1); } 50% { transform:translate(35%,30%) scale(1.15); } to { transform:translate(70%,10%) scale(.95); } }
-@keyframes uj-lava-b { from { transform:translate(0,0) scale(1); } 50% { transform:translate(-40%,-25%) scale(1.2); } to { transform:translate(-75%,5%) scale(1); } }
+/* soft tonal gradient per celebration kind: lighter top-left to a little deeper bottom-right, same hue only */
+.uj-db-band[data-kind="birthday"] { background:linear-gradient(135deg,#f58a92 0%,#ef6b74 55%,#e65c68 100%); }
+.uj-db-band[data-kind="wrapped"] { background:linear-gradient(135deg,#f38089 0%,#ef6b74 50%,#df5a66 100%); }
+.uj-db-band[data-kind="big-deal"], .uj-db-band[data-band="awards"] { background:linear-gradient(135deg,#b893d1 0%,#a67bc4 55%,#9569b5 100%); }
+.uj-db-band[data-kind="victory-bell"] { background:linear-gradient(135deg,#93d3b2 0%,#7cc7a1 55%,#6bb992 100%); }
+.uj-db-band[data-tone="head"] { background:linear-gradient(135deg,#63a1e9 0%,#4a90e2 55%,#3f82d3 100%); }
+.uj-db-band[data-tone="need"] { background:linear-gradient(135deg,#f5b56b 0%,#f2a54f 55%,#e9963f 100%); }
 /* Keep it plain: white card, no art, no folder, no motion; only the kicker and the button keep the family colour */
-.uj-db[data-plain] .uj-db-band { background:var(--card); border:1px solid var(--hairline); border-radius:14px; padding:16px 20px; min-height:0; color:var(--ink); isolation:auto; }
-.uj-db[data-plain] .uj-db-band::before, .uj-db[data-plain] .uj-db-band::after { content:none; animation:none; }
+.uj-db[data-plain] .uj-db-band { background:var(--card); border:1px solid var(--hairline); border-radius:14px; padding:16px 20px; min-height:0; color:var(--ink); }
 .uj-db[data-plain] .uj-db-band .uj-db-t { color:var(--ink); }
 .uj-db[data-plain] .uj-db-band .uj-db-s { color:var(--body); opacity:1; }
 .uj-db[data-plain] .uj-db-band .uj-db-more { color:var(--muted-soft); }
@@ -5118,7 +5113,7 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-db[data-plain] .uj-db-band .uj-ma-k { color:#8a5a00; opacity:1; }
 .uj-db[data-plain] .uj-db-band .uj-mgmt-btn { background:var(--card); border:1px solid var(--hairline); color:var(--ink); }
 .uj-db[data-plain] .uj-db-band .uj-db-dismiss { color:var(--muted-soft); opacity:1; }
-@media (prefers-reduced-motion: reduce) { .uj-db-band::before, .uj-db-band::after { animation:none; } @starting-style { .uj-db-band { transform:none; filter:none; } } }
+@media (prefers-reduced-motion: reduce) { @starting-style { .uj-db-band { transform:none; filter:none; } } }
 @media (max-width:720px) { .uj-db-band { flex-wrap:wrap; gap:6px 12px; } .uj-db-band:has(.uj-db-art) { padding-right:20px !important; } .uj-db-art { position:static; width:100%; height:120px; padding:0; justify-items:end; flex-basis:100%; order:99; } .uj-db-art svg { max-width:170px; } .uj-db-s { flex-basis:100%; } }
 
 /* --- CR-24: Big Deal Alert banner (moments band) and Wins page card --- */
