@@ -135,6 +135,19 @@ class RecurringTaskTest extends TestCase
     }
 
     #[Test]
+    public function monthly_ignores_the_hidden_every_n_field(): void
+    {
+        $hr = $this->person('HR Person', 'hr');
+        $this->actingAs($hr->user)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/admin/recurring', [
+                'title' => 'Monthly check', 'frequency' => 'monthly', 'interval' => 2, 'start_on' => '2026-10-01',
+                'owner_employee_id' => $hr->id,
+            ])->assertRedirect();
+
+        $this->assertSame(1, RecurringTask::where('title', 'Monthly check')->first()->interval);
+    }
+
+    #[Test]
     public function a_schedule_from_another_company_is_not_found(): void
     {
         $hr = $this->person('HR Person', 'hr');

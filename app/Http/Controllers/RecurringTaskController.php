@@ -79,7 +79,7 @@ class RecurringTaskController extends Controller
             'tenant_id' => $tenantId,
             'title' => $data['title'],
             'frequency' => $data['frequency'],
-            'interval' => $data['interval'] ?? 1,
+            'interval' => $data['frequency'] === 'monthly' ? 1 : ($data['interval'] ?? 1),
             'start_on' => $data['start_on'],
             'owner_employee_id' => $data['owner_employee_id'] ?? null,
             'owner_position_title' => filled($data['owner_position_title'] ?? null) ? $data['owner_position_title'] : null,
