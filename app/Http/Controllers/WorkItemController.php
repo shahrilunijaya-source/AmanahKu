@@ -5,20 +5,32 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\AppNotification;
+use App\Models\AuditLog;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Project;
+use App\Models\RecurringTask;
 use App\Models\TimesheetCategory;
+use App\Models\VictoryBell;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
+use App\Models\WorkItemCommentAttachment;
+use App\Support\AuditContext;
 use App\Support\BoardRules;
+use App\Support\DashboardPrefs;
+use App\Support\EasterEggBank;
 use App\Support\Permissions;
+use App\Support\TrackComments;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkItemController extends Controller
 {
@@ -26,7 +38,7 @@ class WorkItemController extends Controller
 
     private const STATUS_LABELS = ['todo' => 'To Do', 'prog' => 'In Progress', 'review' => 'In Review', 'done' => 'Done'];
 
-    public function __construct(private BoardRules $boardRules) {}
+    public function __construct(private BoardRules $boardRules, private TrackComments $trackComments) {}
 
     /** The current employee adds a work item to their own board. */
     public function store(Request $request): RedirectResponse|JsonResponse
@@ -45,6 +57,15 @@ class WorkItemController extends Controller
             // Looked up through the default (ParentOnly) scope on purpose: a child's id
             // is not found, which is what refuses a grandchild.
             'parent_id' => ['nullable', 'integer', Rule::exists('work_items', 'id')->where('tenant_id', app(CurrentTenant::class)->id())->whereNull('parent_id')],
+            // A subtask's own assignee, due date and helpers — only meaningful with
+            // parent_id set (storeChild() is the only reader of these three); a
+            // top-level card ignores them.
+            'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            // Mandatory on every work row now (docs/build/contracts/dates.md Rule 1):
+            // the only legal write to due_at, so it must happen at creation.
+            'due_at' => ['required', 'date'],
+            'helper_ids' => ['nullable', 'array'],
+            'helper_ids.*' => ['integer'],
         ], [
             'parent_id.exists' => 'That card cannot take subtasks: it does not exist, or it is a subtask itself.',
         ]);
@@ -66,6 +87,7 @@ class WorkItemController extends Controller
             'type' => $data['type'],
             'priority' => $data['priority'] ?? 'medium',
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'],
             'project_id' => $data['project_id'] ?? null,
             'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
             'status' => $status,
@@ -88,11 +110,14 @@ class WorkItemController extends Controller
     }
 
     /**
-     * A subtask lands on the PARENT's board, whoever adds it: it belongs to the parent,
-     * and the parent belongs to its owner. Anyone who can open the parent may add one
-     * (authorizeAccess, the same grant as moving or commenting). Type, project and
-     * category are copied so the drawer has something to show and never asks again;
-     * the child's only state is todo or done.
+     * A subtask lands on the PARENT's board by default, but may carry its own
+     * assignee: whoever it's given to gets it on THEIR board too (see
+     * BuildsWorkData::boardColumns()), still shown as a subtask of the parent.
+     * Whoever can open the parent may add one (authorizeAccess, the same grant
+     * as moving or commenting) — the assignee need not be the actor. Type,
+     * project and category are copied from the parent so the drawer has
+     * something to show and never asks again; the child's only status is todo
+     * or done.
      *
      * @param  array<string, mixed>  $data
      */
@@ -100,19 +125,33 @@ class WorkItemController extends Controller
     {
         $this->boardRules->authorizeAccess($request, $parent, $actor);
 
-        return $parent->children()->create([
+        $assignee = isset($data['employee_id']) ? Employee::findOrFail($data['employee_id']) : null;
+        // Same guard assign() applies: no new work onto an archived person.
+        abort_if($assignee?->isArchived(), 422, 'You cannot assign a subtask to an archived staff member.');
+
+        $child = $parent->children()->create([
             'tenant_id' => $parent->tenant_id,
-            'employee_id' => $parent->employee_id,
+            'employee_id' => $assignee?->id ?? $parent->employee_id,
             'title' => $data['title'],
             'type' => $parent->type,
             'priority' => $data['priority'] ?? 'medium',
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'] ?? null,
             'project_id' => $parent->project_id,
             'timesheet_category_id' => $parent->timesheet_category_id,
             'status' => 'todo',
             'progress' => 0,
             'sort_order' => (int) $parent->children()->max('sort_order') + 1,
         ]);
+
+        if (! empty($data['helper_ids'])) {
+            $child->participants()->sync(
+                Employee::active()->whereIn('id', $data['helper_ids'])->where('id', '!=', $child->employee_id)->pluck('id')
+                    ->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all(),
+            );
+        }
+
+        return $child;
     }
 
     /** A privileged user assigns an adhoc task onto a staff member's board. */
@@ -197,7 +236,7 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $workItem->load(['comments.employee', 'assignedBy', 'participants', 'projectRef', 'employee', 'children.participants']);
+        $workItem->load(['comments.employee', 'comments.attachments', 'assignedBy', 'participants', 'reviewer', 'projectRef', 'employee', 'children.participants']);
 
         // The same call the write gate makes, so the drawer's read-only state can
         // never disagree with what the server will accept. A participant opens the
@@ -208,6 +247,24 @@ class WorkItemController extends Controller
             'card' => $this->cardPayload($workItem) + [
                 'description' => $workItem->description,
                 'can_manage' => $canManage,
+                // CR-04: PM and above set the reviewer; the card's role for this viewer
+                // drives the drawer's "you are the reviewer" hint.
+                'can_set_reviewer' => $canManage && in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true),
+                // CR-28: PM and above flag the Milestone toggle, regardless of $canManage
+                // (which the is_milestone gate deliberately does not use — see update()).
+                'can_set_milestone' => in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true),
+                // CR-28: whether this viewer (owner or PM+) may ring the bell right now.
+                'can_ring_bell' => $workItem->is_milestone
+                    && $workItem->status === 'done'
+                    && ! DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists()
+                    && ($workItem->employee_id === $employee->id
+                        || in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true)),
+                'viewer_role' => $workItem->roleFor($employee->id),
+                // CR-08: PM and above, or the project's PE/PM, may push a comment to Track.
+                // The tick is disabled (with the reason) when the project is not linked
+                // or the card is Internal. Default off for everyone, never remembered.
+                'can_push_to_track' => $this->trackComments->canPush($request->attributes->get('tenantRole', 'employee'), $workItem, $employee),
+                'push_to_track_disabled' => $this->trackComments->disabledReason($workItem),
                 // Drawer subline only: "Opened 12 Jul 2026 by X" for a self-made card,
                 // "Assigned 12 Jul 2026 by X" for a tac. Fetched once on open — later
                 // write responses don't repeat these, so the merge in the client just
@@ -218,8 +275,15 @@ class WorkItemController extends Controller
                 // see mentionableEmployees() for why the roster stops there.
                 'mentionable' => $this->mentionablePayload($workItem),
                 'family' => $this->familyPayload($workItem->parent_id ? $workItem->parent : $workItem),
+                // CR-18: a recurring card can carry the Event its "Create Event" step made.
+                'company_event' => $this->eventPayload($workItem->companyEvent),
+                'event_options' => $this->eventOptions($workItem),
             ],
             'comments' => $workItem->comments->map(fn (WorkItemComment $c) => $this->commentPayload($c, $employee))->values(),
+            // CR-19 (QA shape, tests/Acceptance/CR19Test.php): read off the JSON's top
+            // level, not nested under `card`.
+            'auto_closed' => $workItem->auto_closed_at !== null,
+            'pending_attendance' => $workItem->isPendingAttendance(),
         ]);
     }
 
@@ -272,7 +336,33 @@ class WorkItemController extends Controller
             'links.*.url' => ['required_with:links', 'url', 'max:2000'],
             'participant_ids' => ['sometimes', 'array'],
             'participant_ids.*' => ['integer'],
+            // CR-04: the tagged set with a role each. Replaces the whole set, like
+            // participant_ids (which still works and means helper).
+            'tagged' => ['sometimes', 'array', 'prohibits:participant_ids'],
+            'tagged.*.employee_id' => ['required', 'integer'],
+            'tagged.*.role' => ['required', Rule::in(WorkItem::TAG_ROLES)],
+            // CR-04: the one person who may move the card from In Review to Done. Set
+            // by PM and above only (checked below), never the Assigned owner.
+            'reviewer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            // CR-28: only a Milestone card can ring the Victory Bell. Set by PM and
+            // above only (checked below); an employee gets 403 even on their own card.
+            'is_milestone' => ['sometimes', 'boolean'],
+            // A subtask's assignee may be reassigned after the fact; a top-level
+            // card's owner never changes, so this is rejected unless the card is a
+            // child (checked below, once we know which we're holding).
+            'employee_id' => ['sometimes', 'nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', app(CurrentTenant::class)->id())],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
+
+        $reason = $data['reason'] ?? null;
+        unset($data['reason']);
+
+        if (array_key_exists('employee_id', $data)) {
+            abort_unless($workItem->isChild(), 422, "A card's owner cannot be changed; only a subtask's assignee can.");
+            $assignee = $data['employee_id'] ? Employee::findOrFail($data['employee_id']) : null;
+            abort_if($assignee?->isArchived(), 422, 'You cannot assign a subtask to an archived staff member.');
+            $data['employee_id'] = $assignee?->id ?? $workItem->parent->employee_id;
+        }
 
         // A card that involves anyone but its owner (a tac, or a card with
         // participants) must carry a due date. See BoardRules::assertDueDateRetained()
@@ -280,13 +370,44 @@ class WorkItemController extends Controller
         // behind, not the raw body, because the drawer autosaves one field at a time.
         $this->boardRules->assertDueDateRetained($workItem, $data);
 
-        // Participants are a relation, not a column — pull them out before the fill.
-        if (array_key_exists('participant_ids', $data)) {
-            $this->syncParticipants($workItem, $data['participant_ids'], $employee);
-            unset($data['participant_ids']);
+        if (array_key_exists('due_at', $data)) {
+            $this->boardRules->assertDueDateLocked($workItem, $data['due_at']);
         }
 
-        $workItem->update($data);
+        if (array_key_exists('reviewer_id', $data)) {
+            $role = $request->attributes->get('tenantRole', 'employee');
+            abort_unless(in_array(Permissions::effectiveRole($role), BoardRules::ASSIGNER_ROLES, true), 403, 'Only a manager can set a reviewer.');
+            if ($data['reviewer_id'] !== null && (int) $data['reviewer_id'] === $workItem->employee_id) {
+                throw ValidationException::withMessages(['reviewer_id' => 'The reviewer cannot be the person the card is assigned to.']);
+            }
+            $data['reviewer_id'] = $data['reviewer_id'] === null ? null : (int) $data['reviewer_id'];
+        }
+
+        if (array_key_exists('is_milestone', $data)) {
+            $role = $request->attributes->get('tenantRole', 'employee');
+            abort_unless(in_array(Permissions::effectiveRole($role), BoardRules::ASSIGNER_ROLES, true), 403, 'Only a manager can flag a milestone.');
+        }
+
+        // Participants are a relation, not a column — pull them out before the fill.
+        if (array_key_exists('participant_ids', $data)) {
+            $this->syncParticipants($workItem, array_fill_keys(array_filter($data['participant_ids']), 'helper'), $employee);
+            unset($data['participant_ids']);
+        }
+        if (array_key_exists('tagged', $data)) {
+            $roles = [];
+            foreach ($data['tagged'] as $tag) {
+                $roles[(int) $tag['employee_id']] = $tag['role'];
+            }
+            $this->syncParticipants($workItem, $roles, $employee);
+            unset($data['tagged']);
+        }
+
+        AuditContext::reason($reason);
+        try {
+            $workItem->update($data);
+        } finally {
+            AuditContext::reset();
+        }
 
         // Changing either half of the pair can leave the other one stranded: a category
         // that needs no project at all, or one tagged to a different set of projects than
@@ -296,7 +417,7 @@ class WorkItemController extends Controller
             BoardRules::dropProjectTheCategoryDisallows($workItem);
         }
 
-        $workItem->load('participants');
+        $workItem->load(['participants', 'reviewer']);
 
         return response()->json([
             'card' => $this->cardPayload($workItem) + ['description' => $workItem->description],
@@ -340,6 +461,8 @@ class WorkItemController extends Controller
         }
 
         $this->boardRules->assertChildrenDoneForStatus($workItem, $data['status']);
+        $this->boardRules->assertReviewerMovesToDone($workItem, $data['status'], $employee);
+        $this->boardRules->assertLinkedEventSatisfiesDoneRule($workItem, $data['status']);
 
         $wasDone = $workItem->status === 'done';
 
@@ -350,6 +473,10 @@ class WorkItemController extends Controller
             // move or reorder — the auto-archive clock (WorkItem::archive-done) reads
             // this, not updated_at, so reordering cards within Done doesn't reset it.
             'done_at' => (! $wasDone && $data['status'] === 'done') ? now() : $workItem->done_at,
+            // CR-19: moving an auto-closed card off Done by hand makes it a normal card
+            // again — the Auto badge and marker are gone for good, not reapplied by a
+            // later scheduler run.
+            'auto_closed_at' => $data['status'] === 'done' ? $workItem->auto_closed_at : null,
         ]);
 
         // Close the loop: when an assigned tac first reaches Done, tell the assigner.
@@ -363,11 +490,39 @@ class WorkItemController extends Controller
             );
         }
 
+        // The last open subtask just closed: send the parent to Review on its own.
+        if (! $wasDone && $workItem->status === 'done') {
+            $reviewedParent = $this->boardRules->autoReviewParentOnLastChildDone($workItem);
+            if ($reviewedParent) {
+                $this->notifyParentAutoReview($reviewedParent, $employee);
+            }
+        }
+
         // Persist the destination column order. Only the employee's own cards are touched.
         if (! empty($data['ids'])) {
             foreach (array_values($data['ids']) as $i => $id) {
                 $employee->workItems()->whereKey($id)->update(['sort_order' => $i]);
             }
+        }
+
+        // CR-31 inbox_zero: never lets a bank/view problem fail the move itself.
+        $egg = null;
+        if (! $wasDone && $workItem->status === 'done') {
+            try {
+                $egg = $this->boardMoveEgg($request, $employee, $workItem);
+            } catch (\Throwable) {
+                $egg = null;
+            }
+        }
+
+        // CR-28: a Milestone card that just reached Done, and has never been rung,
+        // gets offered the "Ring the bell?" prompt. Keyed off whether a victory_bells
+        // row already exists (not off $wasDone) so a rung card that leaves Done and
+        // comes back to Done never re-offers it.
+        $bell = null;
+        if ($workItem->status === 'done' && $workItem->is_milestone
+            && ! DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists()) {
+            $bell = ['work_item_id' => $workItem->id, 'prompt' => 'Ring the bell?'];
         }
 
         if ($request->expectsJson()) {
@@ -377,10 +532,100 @@ class WorkItemController extends Controller
                 'html' => $this->cardHtml($workItem),
                 // A ticked subtask changes the parent's face (the 1/3 badge), so hand it back.
                 'parent_html' => $workItem->parent_id ? $this->cardHtml($workItem->parent->fresh()) : null,
+                'egg' => $egg,
+                'bell' => $bell,
             ]);
         }
 
         return back()->with('ok', 'Work item moved to '.(self::STATUS_LABELS[$workItem->status] ?? $workItem->status).'.');
+    }
+
+    /**
+     * CR-28: ring the Victory Bell on a Milestone card that just reached Done. The
+     * card's owner or a PM-and-above may ring it, once, with an optional line —
+     * everyone else is 403'd. Route-model binding is not tenant-scoped, so the
+     * tenant check happens here before anything else. Business rules (not a
+     * milestone, not Done, already rung, project's 3-a-month cap) are 422s so the
+     * "Ring the bell?" toast can show a clear reason.
+     */
+    public function ring(Request $request, WorkItem $workItem): JsonResponse
+    {
+        abort_unless($workItem->tenant_id === app(CurrentTenant::class)->id(), 404);
+
+        $employee = $this->employee($request);
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        $isOwner = $workItem->employee_id === $employee->id;
+        abort_unless($isOwner || in_array($role, BoardRules::ASSIGNER_ROLES, true), 403, 'Only the card owner or a manager can ring the bell.');
+
+        $data = $request->validate([
+            'line' => ['sometimes', 'nullable', 'string', 'max:160'],
+        ]);
+
+        abort_unless($workItem->is_milestone, 422, 'Only a Milestone card can ring the bell.');
+        abort_unless($workItem->status === 'done', 422, 'The card must be Done before ringing the bell.');
+        abort_if(DB::table('victory_bells')->where('work_item_id', $workItem->id)->exists(), 422, 'This card has already rung the bell.');
+
+        // Max 3 bells per project per calendar month (docs/specs/CR-28.md). A card
+        // with no project is never counted against any project's cap.
+        if ($workItem->project_id !== null) {
+            $ringsThisMonth = DB::table('victory_bells')
+                ->where('project_id', $workItem->project_id)
+                ->whereBetween('rung_at', [now()->startOfMonth(), now()->endOfMonth()])
+                ->count();
+            abort_if($ringsThisMonth >= 3, 422, 'This project has already rung 3 bells this month.');
+        }
+
+        $bell = VictoryBell::create([
+            'tenant_id' => app(CurrentTenant::class)->id(),
+            'work_item_id' => $workItem->id,
+            'project_id' => $workItem->project_id,
+            'rung_by' => $employee->id,
+            'line' => filled($data['line'] ?? null) ? $data['line'] : null,
+            'rung_at' => now(),
+        ]);
+
+        AuditLog::record('victory_bell.rung', "victory_bell:{$bell->id}");
+
+        return response()->json(['ok' => true, 'id' => $bell->id]);
+    }
+
+    /**
+     * CR-31 inbox_zero: fires only when the just-closed card was itself overdue
+     * (not an Event, due before today) AND, after this move, the viewer has no
+     * other overdue open card left. "Keep it plain" and the once-a-day gate
+     * both live in EasterEggBank::showOnce().
+     *
+     * @return array{kind: string, text_en: string, text_ms: string}|null
+     */
+    private function boardMoveEgg(Request $request, Employee $employee, WorkItem $workItem): ?array
+    {
+        $today = now()->toDateString();
+        $dueDate = $workItem->due_at?->toDateString();
+        if ($workItem->type === 'event' || $dueDate === null || $dueDate >= $today) {
+            return null;
+        }
+
+        if (DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']) {
+            return null;
+        }
+
+        $stillOverdue = WorkItem::where('employee_id', $employee->id)
+            ->where('id', '!=', $workItem->id)
+            ->where('status', '!=', 'done')
+            ->whereNull('archived_at')
+            ->whereNull('cancelled_at')
+            ->where('type', '!=', 'event')
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', $today)
+            ->exists();
+
+        if ($stillOverdue) {
+            return null;
+        }
+
+        $egg = EasterEggBank::showOnce($employee->tenant_id, $employee->id, 'inbox_zero', now());
+
+        return $egg ? ['kind' => 'inbox_zero', 'text_en' => $egg->text_en, 'text_ms' => $egg->text_ms] : null;
     }
 
     /** Delete one of the employee's own cards. */
@@ -390,7 +635,12 @@ class WorkItemController extends Controller
         $this->boardRules->authorizeManage($request, $workItem, $employee);
 
         $parent = $workItem->parent_id ? $workItem->parent : null;
+        $title = $workItem->title;
         $workItem->delete();
+
+        if ($parent) {
+            AuditLog::record('Deleted subtask', $title.' (of '.$parent->title.')');
+        }
 
         // A deleted subtask changes the parent's face (the "1/2" count), so hand it back.
         return response()->json(['ok' => true, 'parent_html' => $parent ? $this->cardHtml($parent->fresh()) : null]);
@@ -410,8 +660,39 @@ class WorkItemController extends Controller
 
         DB::transaction(function () use ($workItem) {
             $workItem->update(['archived_at' => now()]);
-            $workItem->children()->update(['archived_at' => now()]);
+            $workItem->children->each(fn (WorkItem $child) => $child->update(['archived_at' => now()]));
         });
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Close a card out as Cancelled instead of moving its due date: the only honest way
+     * to change a locked due date is to cancel and create a new card (dates.md Rule 1).
+     * Behaves like archive() otherwise — takes the card and its subtasks off the board,
+     * reversible only in the sense that they still exist in the archived list — plus a
+     * mandatory reason, carried onto the audit row for `cancelled_at` on each row.
+     */
+    public function cancel(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'A subtask is cancelled with its parent.');
+        abort_if($workItem->isCancelled(), 422, 'This card is already cancelled.');
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        AuditContext::reason($data['reason']);
+        try {
+            DB::transaction(function () use ($workItem) {
+                $workItem->update(['cancelled_at' => now(), 'archived_at' => now()]);
+                $workItem->children->each(fn (WorkItem $child) => $child->update(['cancelled_at' => now(), 'archived_at' => now()]));
+            });
+        } finally {
+            AuditContext::reset();
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -421,6 +702,7 @@ class WorkItemController extends Controller
     {
         $employee = $this->employee($request);
         $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isCancelled(), 422, 'A cancelled card stays cancelled. Create a new card instead.');
 
         DB::transaction(function () use ($workItem, $employee) {
             $workItem->update([
@@ -428,7 +710,7 @@ class WorkItemController extends Controller
                 'status' => 'todo',
                 'sort_order' => (int) $employee->workItems()->where('status', 'todo')->max('sort_order') + 1,
             ]);
-            $workItem->children()->update(['archived_at' => null]);
+            $workItem->children->each(fn (WorkItem $child) => $child->update(['archived_at' => null]));
         });
 
         return response()->json(['ok' => true, 'html' => $this->cardHtml($workItem)]);
@@ -444,13 +726,14 @@ class WorkItemController extends Controller
                 ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->whereNotNull('archived_at')
             ->orderByDesc('archived_at')
-            ->get(['id', 'title', 'archived_at']);
+            ->get(['id', 'title', 'archived_at', 'cancelled_at']);
 
         return response()->json([
             'items' => $items->map(fn (WorkItem $i) => [
                 'id' => $i->id,
                 'title' => $i->title,
                 'archived_at' => $i->archived_at?->format('d M Y'),
+                'cancelled' => $i->cancelled_at !== null,
             ])->values(),
         ]);
     }
@@ -461,13 +744,66 @@ class WorkItemController extends Controller
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
-        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            // A reply points at a top-level comment on this same card.
+            'parent_id' => ['nullable', 'integer'],
+            'push_to_track' => ['sometimes', 'boolean'],
+            // CR-08: files ride along; each one may be marked confidential (never
+            // leaves the card) and, per push, ticked to go to Track.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_COMMENT_ATTACHMENTS],
+            'attachments.*' => ['file', 'mimes:'.self::COMMENT_ATTACHMENT_MIMES, 'max:8192'],
+            'attachments_confidential' => ['nullable', 'array'],
+            'attachments_confidential.*' => ['integer'],
+            'attachments_push' => ['nullable', 'array'],
+            'attachments_push.*' => ['integer'],
+        ], [
+            'attachments.max' => 'You can attach up to '.self::MAX_COMMENT_ATTACHMENTS.' files.',
+            'attachments.*.mimes' => 'Attachments must be an image, PDF, or Office document.',
+            'attachments.*.max' => 'Each attachment must be 8 MB or smaller.',
+        ]);
+
+        $push = (bool) ($data['push_to_track'] ?? false);
+        if ($push) {
+            $this->authorizePushToTrack($request, $workItem, $employee);
+        }
+
+        $parentId = null;
+        if (! empty($data['parent_id'])) {
+            $parent = $workItem->comments()->whereNull('parent_id')->find((int) $data['parent_id']);
+            abort_unless($parent, 422, 'That comment is not on this card.');
+            $parentId = $parent->id;
+        }
 
         $comment = $workItem->comments()->create([
             'employee_id' => $employee->id,
+            'parent_id' => $parentId,
             'body' => $data['body'],
         ]);
         $comment->setRelation('employee', $employee);
+
+        $confidential = array_map('intval', $data['attachments_confidential'] ?? []);
+        $pushFiles = array_map('intval', $data['attachments_push'] ?? []);
+        foreach (array_values((array) $request->file('attachments', [])) as $i => $file) {
+            $path = $file->store('comment-attachments', self::COMMENT_ATTACHMENT_DISK);
+            abort_unless($path !== false, 500, 'Attachment could not be stored.');
+            $isConfidential = in_array($i, $confidential, true);
+            $comment->attachments()->create([
+                'tenant_id' => $comment->tenant_id,
+                'path' => $path,
+                'name' => $file->getClientOriginalName() ?: 'attachment',
+                'mime' => $file->getClientMimeType(),
+                'size' => $file->getSize() ?? 0,
+                'confidential' => $isConfidential,
+                // Opt-in per file, and a confidential file can never be opted in.
+                'pushed_to_track' => $push && ! $isConfidential && in_array($i, $pushFiles, true),
+            ]);
+        }
+        $comment->load('attachments');
+
+        if ($push) {
+            $this->trackComments->push($comment, $employee, $this->trackComments->filter($data['body'], $this->mentionableNames($workItem)));
+        }
 
         $this->notifyMentions($workItem, $employee, $data['body']);
 
@@ -481,13 +817,111 @@ class WorkItemController extends Controller
         ], 201);
     }
 
-    /** Delete one's own comment. */
+    /**
+     * CR-08: exactly what Track will show for this text — mentions flattened to plain
+     * names — so the author confirms the record before it leaves the card.
+     */
+    public function commentPreview(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+        $this->authorizePushToTrack($request, $workItem, $employee);
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+            // Files are not uploaded yet at preview time; the composer sends their
+            // names and ticks so the preview can say which ones Track will get.
+            'attachments' => ['nullable', 'array', 'max:'.self::MAX_COMMENT_ATTACHMENTS],
+            'attachments.*.name' => ['required', 'string', 'max:255'],
+            'attachments.*.confidential' => ['nullable', 'boolean'],
+            'attachments.*.push' => ['nullable', 'boolean'],
+        ]);
+
+        return response()->json([
+            'track_body' => $this->trackComments->filter($data['body'], $this->mentionableNames($workItem)),
+            'project' => $workItem->projectRef?->name,
+            'attachments' => collect($data['attachments'] ?? [])->map(fn (array $a) => [
+                'name' => $a['name'],
+                'included' => ! ($a['confidential'] ?? false) && ($a['push'] ?? false),
+                'why' => ($a['confidential'] ?? false) ? 'confidential' : (($a['push'] ?? false) ? null : 'not ticked'),
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * CR-08: edit one's own comment. A pushed comment's edit becomes a new version in
+     * Track; unticking a pushed comment is a withdrawal and needs a reason. Ticking a
+     * comment that was never pushed pushes it now.
+     */
+    public function commentUpdate(Request $request, WorkItemComment $comment): JsonResponse
+    {
+        $employee = $this->employee($request);
+        abort_unless($comment->employee_id === $employee->id, 403);
+        $workItem = $comment->workItem;
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+
+        $data = $request->validate([
+            'body' => ['sometimes', 'required', 'string', 'max:2000'],
+            'push_to_track' => ['sometimes', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $body = $data['body'] ?? $comment->body;
+        $wantPush = array_key_exists('push_to_track', $data) ? (bool) $data['push_to_track'] : $comment->isPushedToTrack();
+
+        if ($comment->isPushedToTrack() && ! $wantPush) {
+            if (blank($data['reason'] ?? null)) {
+                throw ValidationException::withMessages(['reason' => 'A reason is required to withdraw a comment from Track.']);
+            }
+            $this->trackComments->withdraw($comment, $data['reason']);
+        }
+
+        if ($body !== $comment->body) {
+            $comment->update(['body' => $body]);
+        }
+
+        if ($wantPush && $comment->withdrawn_at === null) {
+            $this->authorizePushToTrack($request, $workItem, $employee);
+            $trackBody = $this->trackComments->filter($body, $this->mentionableNames($workItem));
+            if (! $comment->isPushedToTrack() || $trackBody !== $comment->track_body) {
+                $this->trackComments->push($comment, $employee, $trackBody);
+            }
+        }
+
+        $comment->setRelation('employee', $employee);
+
+        return response()->json(['comment' => $this->commentPayload($comment->fresh(['employee', 'attachments']), $employee)]);
+    }
+
+    /**
+     * Delete one's own comment. A comment already pushed to Track is never deleted:
+     * it is withdrawn with a reason and stays on the card, greyed (CR-08).
+     */
     public function commentDestroy(Request $request, WorkItemComment $comment): JsonResponse
     {
         $employee = $this->employee($request);
         abort_unless($comment->employee_id === $employee->id, 403);
 
         $workItem = $comment->workItem;
+
+        if ($comment->isPushedToTrack()) {
+            $reason = $request->validate(['reason' => ['nullable', 'string', 'max:255']])['reason'] ?? null;
+            if (blank($reason)) {
+                throw ValidationException::withMessages(['reason' => 'A reason is required to withdraw a comment from Track.']);
+            }
+            if ($comment->withdrawn_at === null) {
+                $this->trackComments->withdraw($comment, $reason);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'withdrawn' => true,
+                'comment' => $this->commentPayload($comment->fresh(['employee', 'attachments']), $employee),
+                'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
+                'html' => $this->cardHtml($workItem),
+            ]);
+        }
+
         $comment->delete();
 
         return response()->json([
@@ -495,6 +929,60 @@ class WorkItemController extends Controller
             'count' => WorkItemComment::where('work_item_id', $workItem->id)->count(),
             'html' => $this->cardHtml($workItem),
         ]);
+    }
+
+    /** Private disk comment attachments live on — reached only via commentAttachment(). */
+    private const COMMENT_ATTACHMENT_DISK = 'local';
+
+    private const MAX_COMMENT_ATTACHMENTS = 6;
+
+    private const COMMENT_ATTACHMENT_MIMES = 'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,csv';
+
+    /** Stream a comment file to anyone who can open the card. */
+    public function commentAttachment(Request $request, WorkItemCommentAttachment $attachment): StreamedResponse
+    {
+        $employee = $this->employee($request);
+        $workItem = $attachment->comment?->workItem;
+        abort_unless($workItem, 404);
+        $this->boardRules->authorizeAccess($request, $workItem, $employee);
+        abort_unless(Storage::disk(self::COMMENT_ATTACHMENT_DISK)->exists($attachment->path), 404);
+
+        return Storage::disk(self::COMMENT_ATTACHMENT_DISK)->response($attachment->path, $attachment->name);
+    }
+
+    private function authorizePushToTrack(Request $request, WorkItem $workItem, Employee $employee): void
+    {
+        abort_unless($this->trackComments->canPush($request->attributes->get('tenantRole', 'employee'), $workItem, $employee), 403, 'Only PM and above, or the project\'s PE, can push to Track.');
+        if ($reason = $this->trackComments->disabledReason($workItem)) {
+            throw ValidationException::withMessages(['push_to_track' => $reason]);
+        }
+    }
+
+    /** @return Collection<int, string> */
+    private function mentionableNames(WorkItem $workItem): Collection
+    {
+        return $this->mentionableEmployees($workItem)->map(fn (Employee $e) => $e->display_name)->values();
+    }
+
+    /**
+     * Tell the parent's owner (and its assigner, if a tac and different) that their card
+     * just moved itself to Review because its last subtask ticked off.
+     */
+    private function notifyParentAutoReview(WorkItem $parent, Employee $actor): void
+    {
+        $parent->loadMissing(['employee', 'assignedBy']);
+
+        $recipients = collect([$parent->employee?->user_id, $parent->assigned_by_id ? $parent->assignedBy?->user_id : null])
+            ->filter()->unique();
+
+        foreach ($recipients as $userId) {
+            AppNotification::send(
+                $userId,
+                $actor->display_name.' finished the last subtask of: '.$parent->title,
+                null,
+                route('app.screen', 'board'),
+            );
+        }
     }
 
     private function employee(Request $request): Employee
@@ -513,18 +1001,150 @@ class WorkItemController extends Controller
      * people are notified once; re-saving with an unchanged set does not re-ping
      * the survivors.
      */
-    private function syncParticipants(WorkItem $item, array $ids, Employee $actor): void
+    /**
+     * @param  array<int, string>  $roles  employee id => helper | fyi
+     */
+    /**
+     * CR-30 Request Help: the explicit escalation a reaction never is. Whoever may
+     * edit the card names a colleague and says why; that person becomes a Helper
+     * (CR-04) and gets one notification carrying the message. Asking again sends
+     * another message without touching the tag.
+     */
+    public function requestHelp(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $workItem->tenant_id)->whereNull('archived_at')],
+            'message' => ['required', 'string', 'max:200'],
+        ]);
+        $helper = Employee::findOrFail($data['employee_id']);
+        if ($helper->id === $workItem->employee_id) {
+            throw ValidationException::withMessages(['employee_id' => 'That person already owns this card.']);
+        }
+
+        $roles = $workItem->participants()->get()->mapWithKeys(fn (Employee $e) => [$e->id => $e->pivot->role ?? 'helper'])->all();
+        $roles[$helper->id] = 'helper';
+        $this->syncParticipants($workItem, $roles, $employee, notify: false);
+
+        AppNotification::send(
+            $helper->user_id,
+            $employee->display_name.' asked for your help',
+            $workItem->title.' — '.$data['message'],
+            route('app.screen', 'board').'?card='.$workItem->id,
+        );
+
+        return response()->json(['ok' => true, 'card' => $this->cardPayload($workItem->fresh(['participants', 'reviewer']))]);
+    }
+
+    /**
+     * CR-18: link the Event the card's "Create Event" step produced. Everyone still with
+     * the company must be on the event's attendee list before it counts, because the
+     * social activity is for all staff. Linking ticks the Create Event subtask.
+     */
+    public function linkEvent(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $this->employee($request);
+        $this->boardRules->authorizeManage($request, $workItem, $employee);
+        abort_if($workItem->isChild(), 422, 'Link the event on the main card, not a subtask.');
+
+        $data = $request->validate([
+            'company_event_id' => ['required', 'integer', Rule::exists('company_events', 'id')->where('tenant_id', $workItem->tenant_id)],
+        ]);
+        $event = CompanyEvent::findOrFail($data['company_event_id']);
+
+        $staff = Employee::active()->where('tenant_id', $workItem->tenant_id)->pluck('id');
+        $missing = $staff->diff($event->rsvps()->pluck('employee_id'));
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'company_event_id' => 'Add everyone as an attendee first: '.$missing->count().' of '.$staff->count().' staff are not on this event yet.',
+            ]);
+        }
+
+        $workItem->update(['company_event_id' => $event->id]);
+
+        $createStep = $workItem->children()->where('status', '!=', 'done')
+            ->get()->first(fn (WorkItem $c) => str_starts_with(mb_strtolower($c->title), 'create event'));
+        if ($createStep) {
+            $createStep->update(['status' => 'done', 'progress' => 100, 'done_at' => now()]);
+        }
+
+        $fresh = $workItem->fresh(['participants', 'reviewer', 'companyEvent']);
+
+        return response()->json([
+            'ok' => true,
+            'card' => $this->cardPayload($fresh) + [
+                'company_event' => $this->eventPayload($fresh->companyEvent),
+                'family' => $this->familyPayload($fresh),
+            ],
+            'html' => $this->cardHtml($fresh),
+        ]);
+    }
+
+    /**
+     * CR-18 off-boarding: HR or management hands an open card (and the open subtasks the
+     * departing owner held) to someone else, with a reason. The due date stays locked.
+     */
+    public function reassign(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $actor = $this->employee($request);
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+        abort_unless($workItem->tenant_id === app(CurrentTenant::class)->id(), 404);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $workItem->tenant_id)->whereNull('archived_at')],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+        $to = Employee::findOrFail($data['employee_id']);
+        if ($to->id === $workItem->employee_id) {
+            throw ValidationException::withMessages(['employee_id' => 'That person already owns this card.']);
+        }
+
+        $from = $workItem->employee_id;
+        AuditContext::reason($data['reason']);
+        try {
+            $workItem->participants()->detach($to->id);
+            $workItem->update(['employee_id' => $to->id]);
+            $workItem->children()->where('employee_id', $from)->where('status', '!=', 'done')
+                ->get()->each(fn (WorkItem $c) => $c->update(['employee_id' => $to->id]));
+        } finally {
+            AuditContext::reason(null);
+        }
+
+        AppNotification::send(
+            $to->user_id,
+            $actor->display_name.' handed you a card: '.$workItem->title,
+            $data['reason'],
+            route('app.screen', 'board').'?card='.$workItem->id,
+        );
+
+        return response()->json(['ok' => true, 'card' => $this->cardPayload($workItem->fresh(['participants', 'reviewer']))]);
+    }
+
+    private function syncParticipants(WorkItem $item, array $roles, Employee $actor, bool $notify = true): void
     {
         // Keep only real, active employees in this tenant; never the owner themselves.
-        $target = Employee::active()
-            ->whereIn('id', array_filter($ids))
+        $ids = Employee::active()
+            ->whereIn('id', array_keys($roles))
             ->where('id', '!=', $item->employee_id)
             ->pluck('id');
+        $target = $ids->mapWithKeys(fn (int $id) => [$id => ['role' => $roles[$id] ?? 'helper']]);
 
-        $before = $item->participants()->pluck('employees.id');
-        $item->participants()->sync($target);
+        $before = $item->participants()->get()->mapWithKeys(fn (Employee $e) => [$e->id => $e->pivot->role ?? 'helper']);
+        $item->participants()->sync($target->all());
+        $after = $target->map(fn (array $row) => $row['role']);
 
-        foreach ($target->diff($before) as $addedId) {
+        if ($after->all() != $before->all()) {
+            $describe = fn ($map) => collect($map)->map(fn ($role, $id) => $id.':'.$role)->values()->all();
+            AuditLog::change($item, 'participants', $describe($before), $describe($after));
+        }
+
+        if (! $notify) {
+            return;
+        }
+
+        foreach ($ids->diff($before->keys()) as $addedId) {
             AppNotification::send(
                 Employee::find($addedId)?->user_id,
                 $actor->display_name.' added you to a task',
@@ -624,11 +1244,39 @@ class WorkItemController extends Controller
      * one place every write response's HTML comes from — keep it in sync with
      * cardPayload() below, which still feeds the detail modal's in-memory state.
      */
+    /** @return array{id:int,title:string,date:?string,status:?string}|null */
+    private function eventPayload(?CompanyEvent $event): ?array
+    {
+        return $event ? ['id' => $event->id, 'title' => $event->title, 'date' => $event->event_date->format('d M Y'), 'status' => $event->status] : null;
+    }
+
+    /**
+     * The events a recurring card may link: this tenant's, from a month back onward, so
+     * the organiser finds the one they just posted on The Playground. Empty for any
+     * other card, so the drawer shows no picker there.
+     *
+     * @return list<array{id:int,title:string,date:?string}>
+     */
+    private function eventOptions(WorkItem $item): array
+    {
+        if ($item->parent_id || ! in_array(RecurringTask::LABEL, $item->labels ?? [], true) || $item->company_event_id) {
+            return [];
+        }
+
+        return CompanyEvent::where('tenant_id', $item->tenant_id)
+            ->whereDate('event_date', '>=', now()->subMonth()->toDateString())
+            ->orderBy('event_date')->limit(40)->get()
+            ->map(fn (CompanyEvent $e) => ['id' => $e->id, 'title' => $e->title, 'date' => $e->event_date->format('d M Y')])
+            ->values()->all();
+    }
+
     private function cardHtml(WorkItem $item): string
     {
-        $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children'])->loadCount('comments');
+        $item->loadMissing(['participants', 'projectRef', 'assignedBy', 'children', 'parent'])->loadCount('comments');
 
-        return view('partials.work-card', ['c' => $item])->render();
+        // The card face carries the role it holds for whoever asked (CR-04), so a
+        // write response repaints the same label the board rendered.
+        return view('partials.work-card', ['c' => $item, 'viewerId' => request()->attributes->get('employee')?->id])->render();
     }
 
     /**
@@ -677,13 +1325,19 @@ class WorkItemController extends Controller
             'priority' => $item->priority,
             'status' => $item->status,
             'parent_id' => $item->parent_id,
+            'employee_id' => $item->employee_id,
             'child_summary' => $item->parent_id ? null : $item->childSummary(),
             'due_label' => $item->dueText(),
             'due_at' => $item->due_at?->format('Y-m-d'),
+            // CR-19: the Auto badge and the drawer's "Closed automatically <date>" suffix.
+            'auto_closed' => $item->auto_closed_at !== null,
+            'auto_closed_label' => $item->auto_closed_at?->format('j M'),
+            'pending_attendance' => $item->isPendingAttendance(),
             'labels' => $item->labels ?? [],
             'links' => $item->links ?? [],
             'project' => $item->projectRef ? ['id' => $item->projectRef->id, 'name' => $item->projectRef->name] : null,
             'project_id' => $item->project_id,
+            'company_event_id' => $item->company_event_id,
             // Which effort type this card's hours are costed as once they reach a
             // timesheet. Null means the card still owes an answer and its rows are held
             // back — see BoardSuggestions::categoryFor().
@@ -713,21 +1367,50 @@ class WorkItemController extends Controller
                     'name' => $e->display_name,
                     'initials' => $e->initials,
                     'color' => $e->avatar_color,
+                    'role' => $e->pivot->role ?? 'helper',
                 ])->values()->all()
                 : [],
+            // CR-28: the Milestone flag — see BoardRules::ASSIGNER_ROLES for who sets it.
+            'is_milestone' => (bool) $item->is_milestone,
+            'reviewer_id' => $item->reviewer_id,
+            'reviewer' => $item->reviewer_id ? [
+                'id' => $item->reviewer_id,
+                'name' => $item->reviewer?->display_name,
+                'initials' => $item->reviewer?->initials,
+                'color' => $item->reviewer?->avatar_color,
+            ] : null,
         ];
     }
 
     private function commentPayload(WorkItemComment $c, Employee $viewer): array
     {
+        // CR-19: an auto-close activity line carries no employee_id — the drawer renders
+        // it with a system mark instead of an avatar (work-drawer.blade.php).
+        $isSystem = $c->employee_id === null;
+
         return [
             'id' => $c->id,
+            'parent_id' => $c->parent_id,
             'body' => $c->body,
-            'author' => $c->employee?->display_name ?? 'Someone',
-            'initials' => $c->employee?->initials ?? '··',
+            'author' => $isSystem ? 'Amanahku' : ($c->employee?->display_name ?? 'Someone'),
+            'initials' => $isSystem ? '' : ($c->employee?->initials ?? '··'),
             'color' => $c->employee?->avatar_color ?? 'var(--muted)',
             'when' => $c->created_at?->diffForHumans(),
             'mine' => $c->employee_id === $viewer->id,
+            'is_system' => $isSystem,
+            // CR-08
+            'pushed' => $c->pushed_to_track_at !== null,
+            'track_version' => $c->track_version,
+            'withdrawn_reason' => $c->withdrawn_reason,
+            'attachments' => $c->attachments->map(fn (WorkItemCommentAttachment $a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'size' => $a->size,
+                'is_image' => $a->isImage(),
+                'url' => route('work.comment.attachment', $a),
+                'confidential' => $a->confidential,
+                'pushed' => $a->pushed_to_track,
+            ])->values(),
         ];
     }
 }

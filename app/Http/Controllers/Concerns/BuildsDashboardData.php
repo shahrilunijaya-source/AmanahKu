@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Attendance\HolidayEve;
+use App\Http\Controllers\PlotTwistController;
 use App\Models\Achievement;
 use App\Models\Announcement;
 use App\Models\Claim;
@@ -14,9 +16,14 @@ use App\Models\KnowledgeEntry;
 use App\Models\KnowledgeRead;
 use App\Models\LeaveRequest;
 use App\Models\PerformanceReview;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Models\WorkItem;
 use App\Services\FeatureManager;
+use App\Support\DashboardPrefs;
+use App\Support\EasterEggBank;
+use App\Support\GreetingBank;
 use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
@@ -52,32 +59,241 @@ trait BuildsDashboardData
         ['claim', 'Claim', 'claims'],
     ];
 
-    /** "Good afternoon, {firstName}." greeting + today's date and clock state. */
-    private function meHead(?Employee $employee): array
+    /**
+     * CR-33: rotating, context-aware greeting. "Keep it plain" (or no employee record)
+     * keeps the original static "Good morning/afternoon/evening, {name}." behaviour;
+     * otherwise a line is picked from App\Support\GreetingBank based on which triggers
+     * are active right now, and the picked id is remembered in session so the next
+     * pageview doesn't repeat it.
+     */
+    private function meHead(Request $request, ?Employee $employee): array
     {
-        $hour = (int) now()->hour;
-        $greeting = match (true) {
-            $hour < 12 => 'Good morning',
-            $hour < 18 => 'Good afternoon',
-            default => 'Good evening',
-        };
-
+        $now = now();
         $name = trim((string) ($employee->display_name ?? ''));
         $firstName = $name === '' ? '' : (string) Str::of($name)->squish()->explode(' ')->first();
-        $h1 = $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
 
         // Prefer the still-open punch: an overnight shift's open record is dated
         // yesterday, so an onDate() lookup greeted someone mid-shift with "not clocked
         // in yet". Falls back to today's row so a closed day still reports its times.
-        $today = $employee?->attendanceRecords()->openPunch(now())->first()
-            ?? $employee?->attendanceRecords()->onDate(now())->first();
+        $today = $employee?->attendanceRecords()->openPunch($now)->first()
+            ?? $employee?->attendanceRecords()->onDate($now)->first();
         $clockState = match (true) {
             $today === null || ! $today->clock_in => 'not clocked in yet',
             (bool) $today->clock_out => 'clocked out',
             default => 'clocked in at '.$today->clock_in,
         };
+        $sub = $now->format('l, j F Y')." · {$clockState}.";
 
-        return ['h1' => $h1, 'sub' => now()->format('l, j F Y')." · {$clockState}."];
+        $plain = DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain'];
+
+        if ($plain || ! $employee) {
+            return ['h1' => $this->plainGreeting($now, $firstName, 'en'), 'h1_ms' => $this->plainGreeting($now, $firstName, 'ms'), 'sub' => $sub];
+        }
+
+        $triggers = $this->activeGreetingTriggers($employee, $today, $now);
+
+        // CR-33 "first load" markers for month_start / back_from_leave: stamped on every
+        // non-plain load so a trigger that fired once for this browser session doesn't
+        // fire again on the next reload of the same day/leave-return.
+        session(['greeting.month_seen' => $now->format('Y-m'), 'greeting.dash_last_load' => $now->toDateString()]);
+
+        $lastId = (string) session('greeting.last', '');
+        $line = GreetingBank::pick($employee->tenant_id, $triggers, $lastId !== '' ? $lastId : null);
+
+        if ($line === null) {
+            return ['h1' => $this->plainGreeting($now, $firstName, 'en'), 'h1_ms' => $this->plainGreeting($now, $firstName, 'ms'), 'sub' => $sub];
+        }
+
+        session(['greeting.last' => (string) $line->id]);
+
+        return [
+            'h1' => $this->fillGreetingName($line->text_en, $firstName),
+            'h1_ms' => $this->fillGreetingName($line->text_ms, $firstName),
+            'sub' => $sub,
+        ];
+    }
+
+    /** The original static "Good morning/afternoon/evening, {name}." fallback. */
+    private function plainGreeting(CarbonInterface $now, string $firstName, string $lang): string
+    {
+        $hour = (int) $now->hour;
+        $greeting = $lang === 'en'
+            ? match (true) {
+                $hour < 12 => 'Good morning',
+                $hour < 18 => 'Good afternoon',
+                default => 'Good evening',
+            }
+        : match (true) {
+            $hour < 12 => 'Selamat pagi',
+            $hour < 18 => 'Selamat petang',
+            default => 'Selamat malam',
+        };
+
+        return $firstName === '' ? "{$greeting}." : "{$greeting}, {$firstName}.";
+    }
+
+    /** Replace {name}, or cleanly strip it (and its leading ", ") when there is none. */
+    private function fillGreetingName(string $text, string $firstName): string
+    {
+        if ($firstName !== '') {
+            return str_replace('{name}', $firstName, $text);
+        }
+
+        return str_replace('{name}', '', str_replace(', {name}', '', $text));
+    }
+
+    /**
+     * CR-31: one contextual aside under the greeting, at most one per load,
+     * priority late_night (22:00+) > friday_late (Friday 17:00+) > holiday_eve.
+     * "Keep it plain" computes and records nothing — a plain viewer never calls
+     * EasterEggBank::showOnce() at all. Once shown, easter_egg_views keeps it
+     * from showing again the same day (see EasterEggBank::showOnce()).
+     *
+     * @return array{kind: string, text_en: string, text_ms: string}|null
+     */
+    private function dashboardEgg(?Employee $employee, CarbonInterface $now, bool $plain): ?array
+    {
+        if ($plain || ! $employee) {
+            return null;
+        }
+
+        $kind = match (true) {
+            (int) $now->hour >= 22 => 'late_night',
+            $now->isFriday() && (int) $now->hour >= 17 => 'friday_late',
+            app(HolidayEve::class)->forDay($now) !== null => 'holiday_eve',
+            default => null,
+        };
+
+        if ($kind === null) {
+            return null;
+        }
+
+        $egg = EasterEggBank::showOnce($employee->tenant_id, $employee->id, $kind, $now);
+
+        if (! $egg) {
+            return null;
+        }
+
+        // The late-night shortcut lands on Overtime only when that module is on for the
+        // tenant; otherwise it points at the timesheet so it never 404s.
+        $overtime = app(FeatureManager::class)->screenAllowed(Tenant::find($employee->tenant_id), 'overtime');
+
+        return [
+            'kind' => $kind,
+            'text_en' => $egg->text_en,
+            'text_ms' => $egg->text_ms,
+            'shortcut' => $overtime ? '/app/overtime' : '/app/timesheets',
+            'shortcut_en' => $overtime ? 'Log your hours as overtime?' : 'Log your hours on the timesheet?',
+            'shortcut_ms' => $overtime ? 'Log jam kerja sebagai lebih masa?' : 'Log jam kerja dalam timesheet?',
+        ];
+    }
+
+    /**
+     * Real signals that decide which greeting bucket/trigger fires. Every active
+     * trigger is passed to GreetingBank::pick(), which walks buckets in priority
+     * order (personal, situation, day, time) and matches within the first
+     * non-empty one.
+     *
+     * @return list<string>
+     */
+    private function activeGreetingTriggers(Employee $employee, ?Model $today, CarbonInterface $now): array
+    {
+        $triggers = [];
+
+        $dob = $employee->date_of_birth;
+        if ($dob !== null && $dob->month === $now->month && $dob->day === $now->day) {
+            $triggers[] = 'birthday';
+        }
+
+        $joined = $employee->joined_at;
+        if ($joined !== null && $joined->month === $now->month && $joined->day === $now->day
+            && ! ($dob !== null && $dob->month === $now->month && $dob->day === $now->day)) {
+            $triggers[] = 'anniversary';
+        }
+
+        // First load after an approved leave that ended before today, and no later
+        // than the last recorded load caught it — session-marker "first load" pattern,
+        // same one greeting.last already uses for no-immediate-repeat.
+        $lastLoad = session('greeting.dash_last_load');
+        if (LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where('date_to', '<', $now->toDateString())
+            ->when($lastLoad, fn ($q) => $q->where('date_to', '>=', $lastLoad))
+            ->exists()
+        ) {
+            $triggers[] = 'back_from_leave';
+        }
+
+        if (app(HolidayEve::class)->forDay($now) !== null) {
+            $triggers[] = 'holiday_eve';
+        }
+
+        if ($this->isLongWeekend($employee->tenant_id, $now)) {
+            $triggers[] = 'long_weekend';
+        }
+
+        if ($now->day === 1 && session('greeting.month_seen') !== $now->format('Y-m')) {
+            $triggers[] = 'month_start';
+        }
+
+        // "All clear": at least one open card AND none of them overdue. Without the
+        // "has an open card" half, someone with an empty board trivially has "nothing
+        // overdue" and this would fire on every quiet day, outranking day/time lines.
+        $openCards = WorkItem::where('employee_id', $employee->id)
+            ->where('status', '!=', 'done')
+            ->whereNull('archived_at')
+            ->whereNull('cancelled_at')
+            ->where('type', '!=', 'event');
+
+        $hasOpenCards = (clone $openCards)->exists();
+        $hasOverdueCards = (clone $openCards)
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', $now->toDateString())
+            ->exists();
+
+        if ($hasOpenCards && ! $hasOverdueCards) {
+            $triggers[] = 'all_clear';
+        }
+
+        // Weather lines have no real signal wired up (no forecast source, no port) — the
+        // flag exists so a later session can wire a real one behind it, but this session
+        // never fires `rain` on its own. See docs/build/OPEN.md.
+
+        $triggers[] = match (true) {
+            $now->isMonday() => 'monday',
+            $now->isWednesday() => 'wednesday',
+            $now->isFriday() => 'friday',
+            $now->isSaturday() => 'saturday',
+            $now->isSunday() => 'weekend',
+            default => null,
+        };
+
+        $triggers[] = match (true) {
+            (int) $now->hour < 8 => 'early',
+            (int) $now->hour < 12 => 'morning',
+            (int) $now->hour < 18 => 'afternoon',
+            (int) $now->hour < 22 => 'evening',
+            default => 'late',
+        };
+
+        return array_values(array_filter($triggers));
+    }
+
+    /** A public holiday on the Friday before, or the Monday after, the coming weekend. */
+    private function isLongWeekend(int $tenantId, CarbonInterface $now): bool
+    {
+        $saturday = in_array($now->dayOfWeekIso, [6, 7], true)
+            ? $now->copy()->startOfWeek(CarbonInterface::SATURDAY)
+            : $now->copy()->next(CarbonInterface::SATURDAY);
+
+        $dates = [
+            $saturday->copy()->subDay()->toDateString(),
+            $saturday->copy()->addDays(2)->toDateString(),
+        ];
+
+        return PublicHoliday::where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->whereDate('date', $dates[0])->orWhereDate('date', $dates[1]))
+            ->exists();
     }
 
     /** Trim a float to its shortest useful string: 12.0 → "12", 12.5 → "12.5". */
@@ -252,7 +468,15 @@ trait BuildsDashboardData
             );
         }
 
-        return $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
+        $news = $rows->sortByDesc('_sort')->take(5)->map(fn (array $r) => Arr::except($r, '_sort'))->values()->all();
+
+        // CR-25: one extra row at the top of the Notice board from reveals_at until
+        // the next week's poll reveals in turn — never part of the news sort above,
+        // it is not an announcement.
+        $plain = (bool) DashboardPrefs::forUser($employee?->user?->dashboard_prefs)['plain'];
+        $plotTwist = app(PlotTwistController::class)->noticeRow($plain);
+
+        return $plotTwist ? array_merge([$plotTwist], $news) : $news;
     }
 
     /** "today" / "tomorrow" / "in 3 days" — the rail's right-hand meta for a dated event. */

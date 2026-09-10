@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Http\Controllers\FlowerController;
 use App\Models\Asset;
 use App\Models\Branch;
 use App\Models\Department;
@@ -25,6 +26,7 @@ use App\Models\UserPermission;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\DashboardPrefs;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -227,8 +229,36 @@ trait BuildsPeopleData
             ? EmployeeSkill::where('employee_id', $e->id)->with('skill')->get()
             : collect();
 
+        // CR-13/CR-23 Wall: every birthday wish and flower this person has received,
+        // newest first. Same visibility as the rest of the profile. wallViewData()
+        // also backs FlowerController's AJAX re-render, so the two never drift apart.
+        $wallData = ($e && $canViewFull)
+            ? app(FlowerController::class)->wallViewData($request, $e, $own)
+            : ['wall' => collect(), 'canGiveFlower' => false, 'flowersLeft' => 0, 'alreadyGaveThisMonth' => false, 'canHideFlowers' => false];
+
+        // CR-14b: award badges (one per distinct award key won, ever) and hall-of-fame
+        // (3+ wins of the same award) — shown on BOTH the slim public card and the full
+        // profile, so this sits outside canViewFull entirely, unlike everything above it.
+        $awardBadges = $e
+            ? DB::table('award_results')->where('employee_id', $e->id)
+                ->select('award_key', DB::raw('count(*) as wins'))->groupBy('award_key')->orderBy('award_key')
+                ->get()->map(fn ($row) => ['key' => $row->award_key, 'wins' => (int) $row->wins, 'hallOfFame' => (int) $row->wins >= 3])
+            : collect();
+
+        // CR-26: Side Quest badges still inside their 30-day window — same "both cards,
+        // outside canViewFull" rule as award badges above. Never touches award_results.
+        $questBadges = $e
+            ? DB::table('side_quest_badges')->join('side_quests', 'side_quests.id', '=', 'side_quest_badges.quest_id')
+                ->where('side_quest_badges.employee_id', $e->id)
+                ->where('side_quest_badges.expires_at', '>', now())
+                ->select('side_quest_badges.quest_id', 'side_quests.title', 'side_quest_badges.expires_at')
+                ->get()
+            : collect();
+
         return array_merge([
             'profile' => $e,
+            'awardBadges' => $awardBadges,
+            'questBadges' => $questBadges,
             'canViewFull' => $canViewFull,
             'canEdit' => $canEdit,
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
@@ -238,9 +268,18 @@ trait BuildsPeopleData
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
             'canSeeMoney' => $canSeeMoney,
             'assignedTasks' => $assignedTasks,
+            // CR-31: "Keep it plain" also lives on the profile screen, same prefs key as
+            // the dashboard picker (App\Support\DashboardPrefs), own profile only.
+            'keepItPlain' => ($own && $e && $own->id === $e->id)
+                ? DashboardPrefs::forUser($own->user?->dashboard_prefs)['plain']
+                : false,
             'googleCalendarConnected' => ($own && $e && $own->id === $e->id)
                 ? GoogleCalendarConnection::where('user_id', $own->user_id)->exists()
                 : false,
+            // CR-01 rule 9: cards whose calendar push gave up after five tries.
+            'calendarSyncIssues' => ($own && $e && $own->id === $e->id)
+                ? WorkItem::where('employee_id', $own->id)->whereNotNull('calendar_sync_error')->orderByDesc('updated_at')->get(['id', 'title', 'calendar_sync_error'])
+                : collect(),
             'canSeeAttendance' => $leaveGate,
             'attendance' => $attendance,
             'leaveGate' => $leaveGate,
@@ -254,6 +293,11 @@ trait BuildsPeopleData
             'probation' => $probation,
             'skillsGate' => $skillsGate,
             'skills' => $skills,
+            'wall' => $wallData['wall'],
+            'canGiveFlower' => $wallData['canGiveFlower'],
+            'flowersLeft' => $wallData['flowersLeft'],
+            'alreadyGaveThisMonth' => $wallData['alreadyGaveThisMonth'],
+            'canHideFlowers' => $wallData['canHideFlowers'],
             'payrollGate' => $payrollGate,
             'payslips' => $payslips,
             'claimsGate' => $claimsGate,

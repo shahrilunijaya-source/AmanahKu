@@ -67,7 +67,7 @@ class MobileDockTest extends TestCase
 
         // A screen well past the four tabs, and the section heading above it.
         $this->assertStringContainsString('/app/claims', $grid);
-        $this->assertStringContainsString('>Learning<', $grid);
+        $this->assertStringContainsString('>The Playground<', $grid);
         // The grid opens over the page, not by sliding the desktop sidebar in.
         $this->assertStringNotContainsString('uj-sidebar', $grid);
     }

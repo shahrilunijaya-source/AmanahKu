@@ -166,6 +166,16 @@
                     <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'State (optional)' : 'Negeri (pilihan)'">State (optional)</span></label>
                     <input name="state" maxlength="80" placeholder="All" style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                 </div>
+                <div style="flex:1 1 100%;display:flex;gap:12px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:220px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Clock-out greeting (EN, optional)' : 'Ucapan keluar kerja (EN, pilihan)'">Clock-out greeting (EN, optional)</span></label>
+                        <input name="greeting_en" maxlength="200" placeholder="Have a restful break — see you after the holiday." style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                        <label style="display:block;font-size:12px;font-weight:500;color:var(--ink);margin-bottom:5px;"><span x-text="$store.ui.lang==='en' ? 'Clock-out greeting (BM, optional)' : 'Ucapan keluar kerja (BM, pilihan)'">Clock-out greeting (BM, optional)</span></label>
+                        <input name="greeting_ms" maxlength="200" placeholder="Selamat bercuti, jumpa lagi selepas cuti." style="width:100%;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                    </div>
+                </div>
                 <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</span></button>
             </form>
         </div>
@@ -174,12 +184,23 @@
     @if ($holidays->isNotEmpty())
         <div class="uj-card" style="padding:6px 0;margin-bottom:14px;">
             @foreach ($holidays as $h)
-                <div style="display:flex;align-items:center;gap:12px;padding:8px 20px;{{ ! $loop->last ? 'border-bottom:1px solid var(--hairline-soft);' : '' }}">
-                    <span style="width:104px;flex-shrink:0;font-size:12.5px;font-family:var(--font-mono);color:var(--muted);">{{ $h->date->format('d M Y') }}</span>
-                    <span style="flex:1;min-width:0;font-size:13px;color:var(--ink);">{{ $h->name }}@if ($h->state)<span style="color:var(--muted);font-size:11.5px;"> · {{ $h->state }}</span>@endif</span>
-                    <form method="post" action="{{ route('holiday.delete', $h) }}" onsubmit="return confirm('Delete this holiday?')">
+                <div x-data="{ greet: false }" style="padding:8px 20px;{{ ! $loop->last ? 'border-bottom:1px solid var(--hairline-soft);' : '' }}">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="width:104px;flex-shrink:0;font-size:12.5px;font-family:var(--font-mono);color:var(--muted);">{{ $h->date->format('d M Y') }}</span>
+                        <span style="flex:1;min-width:0;font-size:13px;color:var(--ink);">{{ $h->name }}@if ($h->state)<span style="color:var(--muted);font-size:11.5px;"> · {{ $h->state }}</span>@endif
+                            @if ($h->greeting_en || $h->greeting_ms)<span style="display:block;color:var(--muted);font-size:11.5px;">“{{ $h->greeting_en ?: $h->greeting_ms }}”</span>@endif
+                        </span>
+                        <button type="button" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;" @click="greet = ! greet"><span x-text="$store.ui.lang==='en' ? 'Greeting' : 'Ucapan'">Greeting</span></button>
+                        <form method="post" action="{{ route('holiday.delete', $h) }}" onsubmit="return confirm('Delete this holiday?')">
+                            @csrf
+                            <button type="submit" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
+                        </form>
+                    </div>
+                    <form x-show="greet" x-cloak method="post" action="{{ route('holiday.greeting', $h) }}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 0 4px 116px;">
                         @csrf
-                        <button type="submit" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
+                        <input name="greeting_en" maxlength="200" value="{{ $h->greeting_en }}" placeholder="EN greeting" style="flex:1;min-width:200px;height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        <input name="greeting_ms" maxlength="200" value="{{ $h->greeting_ms }}" placeholder="Ucapan BM" style="flex:1;min-width:200px;height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;" />
+                        <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
                     </form>
                 </div>
             @endforeach

@@ -483,6 +483,7 @@
                                     </span>
                                 </span>
                                 <span class="val">
+                                    @if ($canSeeCost)
                                     <template x-if="(lens === 'staff' && !row.costed) || !(row.cost > 0)">
                                         <span style="color:var(--amber-ink)" x-text="$store.ui.lang==='en' ? 'uncosted' : 'tanpa kos'">uncosted</span>
                                     </template>
@@ -490,6 +491,9 @@
                                         <b x-text="'RM ' + Number(row.cost || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></b>
                                     </template>
                                     <span x-text="' · ' + (Math.round((row.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md'"></span>
+                                    @else
+                                    <b x-text="(Math.round((row.days || 0) * 100) / 100).toFixed(2).replace(/\.?0+$/, '') + ' md'"></b>
+                                    @endif
                                     <template x-if="lens === 'staff' && row.weeksIn < row.weeksTotal">
                                         <span class="dim" x-text="' · ' + row.weeksIn + '/' + row.weeksTotal + ' ' + ($store.ui.lang === 'en' ? 'wk' : 'mgu')"></span>
                                     </template>
@@ -623,9 +627,11 @@
                                             </div>
                                             <div class="tot">
                                                 <b x-text="md(wk.days) + ' md'"></b>
+                                                @if ($canSeeCost)
                                                 <template x-if="p.costed && wk.cost > 0">
                                                     <span x-text="rm(wk.cost)"></span>
                                                 </template>
+                                                @endif
                                             </div>
                                             <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeksList.length - 1"
                                                 :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
@@ -658,9 +664,11 @@
                                 </template>
                             </div>
                         </template>
+                        @if ($canSeeCost)
                         <template x-if="!p.costed">
                             <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
                         </template>
+                        @endif
                     </div>
                 </div>
             </template>

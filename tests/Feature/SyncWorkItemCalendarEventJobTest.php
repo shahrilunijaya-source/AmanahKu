@@ -5,16 +5,18 @@ namespace Tests\Feature;
 use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
+use App\Models\PortOutbox;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkItem;
-use App\Services\GoogleCalendarClient;
+use App\Ports\CalendarPort;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
+/** The push job goes through CalendarPort (CR-01): the stub records the intent in port_outbox, nothing leaves. */
 class SyncWorkItemCalendarEventJobTest extends TestCase
 {
     use RefreshDatabase;
@@ -30,6 +32,7 @@ class SyncWorkItemCalendarEventJobTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Http::fake();
 
         $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
         $this->assigneeUser = User::create(['name' => 'Assignee', 'email' => 'assignee@example.com', 'password' => Hash::make('password')]);
@@ -51,27 +54,34 @@ class SyncWorkItemCalendarEventJobTest extends TestCase
         ]);
     }
 
-    public function test_upsert_creates_an_event_and_stores_the_event_id(): void
+    private function runJob(string $action, ?int $userId = null, ?string $eventId = null): void
+    {
+        (new SyncWorkItemCalendarEventJob(
+            tenantId: $this->tenant->id, action: $action, workItemId: $this->item->id, userId: $userId, googleEventId: $eventId,
+        ))->handle(app(CurrentTenant::class), app(CalendarPort::class));
+    }
+
+    public function test_upsert_writes_the_intent_and_stores_the_external_id(): void
     {
         $this->connectAssignee();
-        Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(['id' => 'evt_new'])]);
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'upsert', workItemId: $this->item->id,
-        ))->handle(app(CurrentTenant::class), app(GoogleCalendarClient::class));
+        $this->runJob('upsert');
 
-        $this->assertSame('evt_new', $this->item->fresh()->google_event_id);
+        $row = PortOutbox::where('method', 'upsertEvent')->sole();
+        $this->assertSame('sent', $row->status);
+        $this->assertSame($this->item->id, (int) $row->subject_id);
+        $this->assertSame('Ship it', $row->payload['title']);
+        $this->assertStringContainsString('Type: Task', $row->payload['description']);
+        $this->assertStringContainsString("/app/board/{$this->item->id}", $row->payload['description']);
+        $this->assertSame($row->external_id, $this->item->fresh()->google_event_id);
+        Http::assertNothingSent();
     }
 
     public function test_upsert_is_a_no_op_when_the_assignee_has_no_connection(): void
     {
-        Http::fake();
+        $this->runJob('upsert');
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'upsert', workItemId: $this->item->id,
-        ))->handle(app(CurrentTenant::class), app(GoogleCalendarClient::class));
-
-        Http::assertNothingSent();
+        $this->assertSame(0, PortOutbox::count());
         $this->assertNull($this->item->fresh()->google_event_id);
     }
 
@@ -79,52 +89,47 @@ class SyncWorkItemCalendarEventJobTest extends TestCase
     {
         $this->connectAssignee();
         $this->item->update(['status' => 'done', 'done_at' => now()]);
-        Http::fake();
+        PortOutbox::query()->delete();
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'upsert', workItemId: $this->item->id,
-        ))->handle(app(CurrentTenant::class), app(GoogleCalendarClient::class));
+        $this->runJob('upsert');
 
-        Http::assertNothingSent();
+        $this->assertSame(0, PortOutbox::count());
     }
 
-    public function test_delete_removes_the_remote_event_and_clears_the_column(): void
+    public function test_delete_sends_the_intent_and_clears_the_column(): void
     {
         $this->connectAssignee();
         $this->item->update(['google_event_id' => 'evt_old']);
-        Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(null, 204)]);
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'delete',
-            workItemId: $this->item->id, userId: $this->assigneeUser->id, googleEventId: 'evt_old',
-        ))->handle(app(CurrentTenant::class), app(GoogleCalendarClient::class));
+        $this->runJob('delete', $this->assigneeUser->id, 'evt_old');
 
-        Http::assertSent(fn ($request) => $request->method() === 'DELETE' && str_contains((string) $request->url(), 'evt_old'));
+        $row = PortOutbox::where('method', 'deleteEvent')->sole();
+        $this->assertSame('evt_old', $row->payload['external_id']);
         $this->assertNull($this->item->fresh()->google_event_id);
     }
 
     public function test_delete_is_a_no_op_without_a_connection(): void
     {
-        Http::fake();
+        $this->runJob('delete', $this->assigneeUser->id, 'evt_old');
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'delete',
-            userId: $this->assigneeUser->id, googleEventId: 'evt_old',
-        ))->handle(app(CurrentTenant::class), app(GoogleCalendarClient::class));
-
-        Http::assertNothingSent();
+        $this->assertSame(0, PortOutbox::count());
     }
 
-    public function test_handle_scopes_queries_to_the_dispatched_tenant_and_clears_context_after(): void
+    public function test_handle_restores_the_previous_tenant_context(): void
     {
         $this->connectAssignee();
-        Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(['id' => 'evt_new'])]);
         $context = app(CurrentTenant::class);
 
-        (new SyncWorkItemCalendarEventJob(
-            tenantId: $this->tenant->id, action: 'upsert', workItemId: $this->item->id,
-        ))->handle($context, app(GoogleCalendarClient::class));
+        $this->runJob('upsert');
 
         $this->assertFalse($context->check());
+    }
+
+    public function test_giving_up_records_the_error_on_the_card_for_the_sync_issues_list(): void
+    {
+        (new SyncWorkItemCalendarEventJob(tenantId: $this->tenant->id, action: 'upsert', workItemId: $this->item->id))
+            ->failed(new \RuntimeException('Calendar push failed (outbox #9).'));
+
+        $this->assertSame('Calendar push failed (outbox #9).', $this->item->fresh()->calendar_sync_error);
     }
 }

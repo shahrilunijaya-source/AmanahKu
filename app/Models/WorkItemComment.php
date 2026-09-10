@@ -5,12 +5,30 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $pushed_to_track_at
+ * @property Carbon|null $withdrawn_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class WorkItemComment extends Model
 {
     use BelongsToTenant;
 
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return ['pushed_to_track_at' => 'datetime', 'withdrawn_at' => 'datetime', 'track_versions' => 'array'];
+    }
+
+    public function isPushedToTrack(): bool
+    {
+        return $this->pushed_to_track_at !== null;
+    }
 
     /** @return BelongsTo<WorkItem, $this> */
     public function workItem(): BelongsTo
@@ -21,5 +39,11 @@ class WorkItemComment extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /** @return HasMany<WorkItemCommentAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(WorkItemCommentAttachment::class);
     }
 }

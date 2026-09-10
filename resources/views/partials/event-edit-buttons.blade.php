@@ -12,6 +12,8 @@
             'host' => $e->host,
             'event_date' => $e->event_date->format('Y-m-d'),
             'start_time' => $e->start_time,
+            'starts_at' => $e->starts_at?->format('Y-m-d\TH:i'),
+            'ends_at' => $e->ends_at?->format('Y-m-d\TH:i'),
             'location' => $e->location,
             'venue_map_url' => $e->venue_map_url,
             'registration_url' => $e->registration_url,

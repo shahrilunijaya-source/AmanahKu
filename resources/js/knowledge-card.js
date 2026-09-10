@@ -58,8 +58,8 @@ export function registerKnowledgeCard(Alpine) {
             }
         },
 
-        react(emoji) {
-            return this.act(`/app/knowledge-bank/${this.id}/react`, { emoji });
+        react(reaction) {
+            return this.act(`/app/knowledge-bank/${this.id}/react`, { reaction });
         },
 
         // The outer icon is the toggle; the flyout is only for choosing. With a

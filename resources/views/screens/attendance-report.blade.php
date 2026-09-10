@@ -49,8 +49,11 @@
         },
 
         onFilterSubmit(event) {
-            event.preventDefault();
             const form = event.target;
+            // Only the GET filter forms are ledger navigation. The person drawer's amend and
+            // reverse forms POST, and turning those into a GET lands on a 405 page.
+            if (form.method !== 'get') return;
+            event.preventDefault();
             const query = new URLSearchParams(new FormData(form));
             this.filters = false;
             this.go(`${form.action}?${query}`);

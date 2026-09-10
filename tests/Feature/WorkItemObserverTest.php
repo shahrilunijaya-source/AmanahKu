@@ -85,14 +85,20 @@ class WorkItemObserverTest extends TestCase
         $card = $this->card(['due_at' => '2026-09-30']);
         Bus::fake();
 
-        $card->update(['priority' => 'high']);
+        $card->update(['description' => 'more detail']);
 
         Bus::assertNotDispatched(SyncWorkItemCalendarEventJob::class);
     }
 
+    /**
+     * A due-date clear is refused outright for a work row since S02
+     * (BoardRules::assertDueDateLocked(), docs/build/contracts/dates.md Rule 1) — an
+     * Event is the one type still allowed to change its date freely (Rule 2), so this
+     * observer behaviour is now only exercised through one.
+     */
     public function test_clearing_due_date_dispatches_a_delete_for_the_existing_event(): void
     {
-        $card = $this->card(['due_at' => '2026-09-30', 'google_event_id' => 'evt_1']);
+        $card = $this->card(['due_at' => '2026-09-30', 'google_event_id' => 'evt_1', 'type' => 'event']);
         Bus::fake();
 
         $card->update(['due_at' => null]);

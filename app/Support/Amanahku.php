@@ -101,16 +101,32 @@ class Amanahku
             ]]),
             $s('My Team', 'Pasukan Saya', ['id' => 'workload', 'label' => 'AI Workforce Intel', 'label_ms' => 'Risikan Tenaga Kerja AI', 'icon' => 'M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z']),
 
-            // ── Learning ──────────────────────────────────────────────────────
-            $s('Learning', 'Pembelajaran', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
-            $s('Learning', 'Pembelajaran', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
-            $s('Learning', 'Pembelajaran', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
-            $s('Learning', 'Pembelajaran', ['id' => 'profile-test', 'label' => 'My Profile Test', 'label_ms' => 'Ujian Profil Saya', 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
+            // ── The Playground ────────────────────────────────────────────────
+            // Renamed from "Learning" and given Events (CR-16). Same label in BM, on
+            // purpose: it is a name, not a word to translate.
+            $s('The Playground', 'The Playground', ['id' => 'knowledge-bank', 'label' => 'Knowledge Bank', 'label_ms' => 'Bank Pengetahuan', 'icon' => 'M9 21h6M12 3a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.79-1.04 3-2.98 3-5.2a6 6 0 0 0-6-6z']),
+            $s('The Playground', 'The Playground', ['id' => 'tot', 'label' => 'TOT Sessions', 'label_ms' => 'Sesi TOT', 'icon' => 'M3 3v18h18M7 14l4-4 3 3 5-6']),
+            $s('The Playground', 'The Playground', ['id' => 'events', 'label' => 'Events', 'label_ms' => 'Acara', 'icon' => 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14h.01M16 14h.01M8 18h.01M12 18h.01']),
+            $s('The Playground', 'The Playground', ['id' => 'training', 'label' => 'Training', 'label_ms' => 'Latihan', 'icon' => 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z']),
+            $s('The Playground', 'The Playground', ['id' => 'learning', 'label' => 'Learning Library', 'label_ms' => 'Pustaka Pembelajaran', 'icon' => 'M22 10v6M2 10l10-5 10 5-10 5zM6 12v5c3 3 9 3 12 0v-5']),
+            $s('The Playground', 'The Playground', ['id' => 'handbook', 'label' => 'Handbook', 'label_ms' => 'Buku Panduan', 'icon' => 'M2 3h7a3 3 0 0 1 3 3v15a2.5 2.5 0 0 0-2.5-2.5H2zM22 3h-7a3 3 0 0 0-3 3v15a2.5 2.5 0 0 1 2.5-2.5H22z']),
+            // CR-14b: monthly awards — everyone, so no `roles` key. The "Select" tab
+            // inside the screen is what's gated to PM and above.
+            $s('The Playground', 'The Playground', ['id' => 'awards', 'label' => 'Awards', 'label_ms' => 'Anugerah', 'icon' => 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.5 14L7 22l5-3 5 3-1.5-8']),
+            // CR-24: Big Deal Alerts archive, everyone reads it, no `roles` key.
+            $s('The Playground', 'The Playground', ['id' => 'wins', 'label' => 'Wins', 'label_ms' => 'Kejayaan', 'icon' => 'M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z']),
+            // CR-22: Amanahku Wrapped, own story only, everyone reads it, no `roles` key.
+            $s('The Playground', 'The Playground', ['id' => 'wrapped', 'label' => 'Wrapped', 'label_ms' => 'Wrapped', 'icon' => 'M4 4h16v16H4z M8 8h8v8H8z']),
+            // CR-25: weekly anonymous poll, everyone reads and votes, no `roles` key
+            // (publishing itself is gated to hr/director inside PlotTwistController).
+            $s('The Playground', 'The Playground', ['id' => 'plot-twist', 'label' => 'Plot Twist', 'label_ms' => 'Plot Twist', 'icon' => 'M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5M4 4l7 7M20 4l-7 7']),
+            // CR-26: optional non-KPI challenges, everyone reads/suggests/completes, no
+            // `roles` key (curating is gated to hr/director inside SideQuestController).
+            $s('The Playground', 'The Playground', ['id' => 'side-quests', 'label' => 'Side Quests', 'label_ms' => 'Side Quests', 'icon' => 'M12 8v8M8 12h8M12 2l2.4 6.6L21 9l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.6 3 9l6.6-.4z']),
+            // 'profile-test' has no sidebar row (CR-15): it is reached from the dashboard's
+            // 'My working style' card and from the profile page. The screen itself stays.
 
             // ── Workplace ─────────────────────────────────────────────────────
-            $s('Workplace', 'Tempat Kerja', ['id' => 'events', 'label' => 'Events', 'label_ms' => 'Acara', 'icon' => 'M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14h.01M16 14h.01M8 18h.01M12 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'rooms', 'label' => 'Room Booking', 'label_ms' => 'Tempahan Bilik', 'icon' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'vehicles', 'label' => 'Vehicle Booking', 'label_ms' => 'Tempahan Kenderaan', 'icon' => 'M5 17h14M5 17a2 2 0 1 0 4 0M5 17a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0M3 17V9l2-4h10l3 4h1a2 2 0 0 1 2 2v6M3 9h15']),
             $s('Workplace', 'Tempat Kerja', ['id' => 'assets', 'label' => 'Assets', 'label_ms' => 'Aset', 'icon' => 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z']),
@@ -119,6 +135,13 @@ class Amanahku
             // manager/management/HR (gated in ProjectController). Lives in Workplace
             // because it is a shared company reference list, not personal work.
             $s('Workplace', 'Tempat Kerja', ['id' => 'projects', 'label' => 'Projects', 'label_ms' => 'Projek', 'icon' => 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z']),
+
+            // ── Office Requests (CR-21) ──────────────────────────────────────
+            // A new top-level section, per the spec's own words ("new top-level left-panel
+            // item, below Workplace") — not a Workplace child. Single item, no module gate
+            // (see docs/build/OPEN.md S14 entry): always on, like the other un-toggleable
+            // core surfaces.
+            $s('Office Requests', 'Permintaan Pejabat', ['id' => 'office-requests', 'label' => 'Office Requests', 'label_ms' => 'Permintaan Pejabat', 'icon' => 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z']),
 
             // ── Pay & Benefits ────────────────────────────────────────────────
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8']),
@@ -164,9 +187,9 @@ class Amanahku
                 ['id' => 'reports', 'label' => 'Workforce Reports', 'label_ms' => 'Laporan Tenaga Kerja'],
                 ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
                 ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
-                // Management/HR only: the report carries salary-derived RM cost, so it is
-                // gated tighter than its siblings (AppController::screen mirrors this).
-                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'roles' => ['management', 'hr']],
+                // Same gate as its siblings since CR-02; the RM cost inside is hidden from
+                // managers by TimesheetController::MONEY_ROLES, not by the nav.
+                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
                 ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
                 // Read-only view of everyone's profile-test answers. Rows are scoped in
                 // ProfileTestController::resultsData — a manager sees only their own staff.
@@ -192,6 +215,10 @@ class Amanahku
             // People → Employees directory is view-only; data entry lives here.
             $s('Administration', 'Pentadbiran', ['id' => 'staff-load', 'label' => 'Add & Import Staff', 'label_ms' => 'Tambah & Import Staf', 'roles' => ['management', 'hr'], 'icon' => 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6M22 11h-6']),
             $s('Administration', 'Pentadbiran', ['id' => 'roles', 'label' => 'Roles & Permissions', 'label_ms' => 'Peranan & Kebenaran', 'roles' => ['management', 'hr'], 'icon' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4']),
+            // CR-18: recurring schedules are ongoing HR work, not a setup step.
+            $s('Administration', 'Pentadbiran', ['id' => 'recurring', 'label' => 'Recurring Tasks', 'label_ms' => 'Tugasan Berulang', 'roles' => ['management', 'hr'], 'icon' => 'M21 12a9 9 0 1 1-3-6.7M21 3v6h-6']),
+            // CR-34: meeting day/time, reminder recipients and the HR pause.
+            $s('Administration', 'Pentadbiran', ['id' => 'management-meeting', 'label' => 'Management Meeting', 'label_ms' => 'Mesyuarat Pengurusan', 'roles' => ['management', 'hr'], 'icon' => 'M12 8v4l3 3M12 2a10 10 0 1 0 .0001 0z']),
             $s('Administration', 'Pentadbiran', ['id' => 'profile-test-admin', 'label' => 'Profile Test Editor', 'label_ms' => 'Editor Ujian Profil', 'roles' => ['management', 'hr'], 'icon' => 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2']),
         ];
     }
@@ -211,9 +238,10 @@ class Amanahku
             'My Team' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75',
             'Insights' => 'M3 3v18h18M7 15l4-4 3 3 5-6',
             'Workplace' => 'M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01M9 18h.01',
+            'Office Requests' => 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z',
             'Pay & Benefits' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8',
             'Talent & Growth' => 'M12 3l9 5-9 5-9-5zM5 11v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5',
-            'Learning' => 'M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22zM8 7h8M8 11h5',
+            'The Playground' => 'M12 3l1.9 4.6 4.6 1.9-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9zM19 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7zM5 17l.6 1.4 1.4.6-1.4.6L5 21l-.6-1.4L3 19l1.4-.6z',
             'Compliance & Docs' => 'M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4zM9 12l2 2 4-4',
             'Administration' => 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
         ][$section] ?? 'M12 12h.01';
@@ -313,6 +341,8 @@ class Amanahku
             'attendance-admin' => ['title' => 'Attendance Setup', 'title_ms' => 'Tetapan Kehadiran', 'sub' => 'Geofences, client sites and work arrangements that drive attendance rules.', 'sub_ms' => 'Geofence, lokasi klien dan susunan kerja yang memacu peraturan kehadiran.', 'crumb' => ['Administration', 'Attendance Setup']],
             'attendance-report' => ['title' => 'Attendance Reports', 'title_ms' => 'Laporan Kehadiran', 'sub' => 'One row per person per working day, clocked in or not.', 'sub_ms' => 'Satu baris bagi setiap pekerja setiap hari bekerja, clock in atau tidak.', 'crumb' => ['Reports & Audit', 'Attendance Reports']],
             'leave-report' => ['title' => 'Leave Reports', 'title_ms' => 'Laporan Cuti', 'sub' => 'Leave taken by type and by person, with unplanned (emergency) leave flagged.', 'sub_ms' => 'Cuti diambil mengikut jenis dan individu, dengan cuti kecemasan (tidak dirancang) ditandakan.', 'crumb' => ['Reports & Audit', 'Leave Reports']],
+            'recurring' => ['title' => 'Recurring Tasks', 'title_ms' => 'Tugasan Berulang', 'sub' => 'Standing responsibilities that put a card on someone\'s board every period, owner and due date included.', 'sub_ms' => 'Tanggungjawab tetap yang meletakkan kad di papan seseorang setiap tempoh, lengkap dengan pemilik dan tarikh akhir.', 'crumb' => ['Administration', 'Recurring Tasks']],
+            'management-meeting' => ['title' => 'Management Meeting', 'title_ms' => 'Mesyuarat Pengurusan', 'sub' => 'When the Friday meeting is, who gets the "update Track" task and reminder, and pausing both for company-wide leave.', 'sub_ms' => 'Bila mesyuarat Jumaat diadakan, siapa menerima tugasan dan peringatan "kemas kini Track", dan menjeda kedua-duanya untuk cuti seluruh syarikat.', 'crumb' => ['Administration', 'Management Meeting']],
             'leave-setup' => ['title' => 'Leave Setup', 'title_ms' => 'Tetapan Cuti', 'sub' => 'Set each person\'s opening leave balance — carry forward balances from your previous system.', 'sub_ms' => 'Tetapkan baki cuti permulaan setiap orang — bawa ke hadapan baki daripada sistem terdahulu anda.', 'crumb' => ['Administration', 'Leave Setup']],
             'position' => ['title' => 'Position & Manday Rates', 'title_ms' => 'Pangkat & Kadar Manday', 'sub' => 'Salary bands per position — drive manday/manhour costing on timesheets.', 'sub_ms' => 'Jadual gaji mengikut pangkat — memacu kos manday/manhour pada timesheet.', 'crumb' => ['Administration', 'Position & Manday Rates']],
             'roster' => ['title' => 'Shift Roster', 'title_ms' => 'Jadual Syif', 'sub' => 'Weekly staff scheduling across branches.', 'sub_ms' => 'Penjadualan staf mingguan merentas cawangan.', 'crumb' => ['Roster']],
@@ -343,6 +373,7 @@ class Amanahku
             'probation' => ['title' => 'Probation Tracking', 'title_ms' => 'Penjejakan Percubaan', 'sub' => 'New-hire probation periods, check-ins and confirmation decisions.', 'sub_ms' => 'Tempoh percubaan pekerja baharu, semakan dan keputusan pengesahan jawatan.', 'crumb' => ['Probation']],
             'helpdesk' => ['title' => 'Helpdesk', 'title_ms' => 'Helpdesk', 'sub' => 'Raise and track IT, facilities and HR support tickets.', 'sub_ms' => 'Bangkitkan dan jejak tiket sokongan IT, fasiliti dan HR.', 'crumb' => ['Helpdesk']],
             'events' => ['title' => 'Company Events', 'title_ms' => 'Acara Syarikat', 'sub' => 'Town halls, training, holidays and socials — RSVP once per event.', 'sub_ms' => 'Town hall, latihan, cuti umum dan acara sosial — RSVP sekali setiap acara.', 'crumb' => ['Events']],
+            'office-requests' => ['title' => 'Office Requests', 'title_ms' => 'Permintaan Pejabat', 'sub' => 'Report an office issue or request an item — a shared wishlist and to-do for the Admin team.', 'sub_ms' => 'Laporkan isu pejabat atau mohon item — senarai hajat dan tugasan dikongsi untuk pasukan Admin.', 'crumb' => ['Office Requests']],
             'offboarding' => ['title' => 'Offboarding', 'title_ms' => 'Offboarding', 'sub' => 'Exit clearance and final sign-offs for departing staff.', 'sub_ms' => 'Penyelesaian exit dan pengesahan akhir bagi staf yang berhenti.', 'crumb' => ['Offboarding']],
             'goals' => ['title' => 'Goals & OKRs', 'title_ms' => 'Matlamat & OKR', 'sub' => 'Set objectives and track key-result progress.', 'sub_ms' => 'Tetapkan objektif dan jejak kemajuan key result.', 'crumb' => ['Performance', 'Goals & OKRs']],
             'recruitment' => ['title' => 'Recruitment', 'title_ms' => 'Pengambilan', 'sub' => 'Open job requisitions and track candidates through the hiring pipeline.', 'sub_ms' => 'Permohonan jawatan terbuka dan jejak calon melalui saluran pengambilan.', 'crumb' => ['Recruitment']],
@@ -368,6 +399,11 @@ class Amanahku
             'timesheet-reports' => ['title' => 'Timesheet Reports', 'title_ms' => 'Laporan Lembaran Masa', 'sub' => 'Staff time allocation by project and by person over a period.', 'sub_ms' => 'Peruntukan masa staf mengikut projek dan mengikut individu untuk satu tempoh.', 'crumb' => ['Reports & Audit', 'Timesheet Reports']],
             'reports' => ['title' => 'Workforce Reports', 'title_ms' => 'Laporan Tenaga Kerja', 'sub' => 'Workforce, capacity and leave summaries.', 'sub_ms' => 'Ringkasan tenaga kerja, kapasiti dan cuti.', 'crumb' => ['Insights', 'Workforce Reports']],
             'handbook' => ['title' => 'Employee Handbook', 'title_ms' => 'Buku Panduan Pekerja', 'sub' => 'Company policies, SOPs and required acknowledgements.', 'sub_ms' => 'Polisi syarikat, SOP dan pengakuan yang diperlukan.', 'crumb' => ['Handbook']],
+            'awards' => ['title' => 'Awards', 'title_ms' => 'Anugerah', 'sub' => "This month's winners, nominations and past winners.", 'sub_ms' => 'Pemenang bulan ini, pencalonan dan pemenang terdahulu.', 'crumb' => ['Awards']],
+            'wins' => ['title' => 'Wins', 'title_ms' => 'Kejayaan', 'sub' => 'Every Big Deal Alert ever raised, newest first.', 'sub_ms' => 'Setiap Big Deal Alert yang pernah diajukan, terkini dahulu.', 'crumb' => ['Wins']],
+            'wrapped' => ['title' => 'Wrapped', 'title_ms' => 'Wrapped', 'sub' => 'Your month, story-card style. Numbers and dates only.', 'sub_ms' => 'Bulan anda, gaya kad cerita. Nombor dan tarikh sahaja.', 'crumb' => ['The Playground', 'Wrapped']],
+            'plot-twist' => ['title' => "This Week's Plot Twist", 'title_ms' => 'Plot Twist Minggu Ini', 'sub' => 'One fun company poll a week. Anonymous — nobody sees who picked what.', 'sub_ms' => 'Satu tinjauan syarikat yang seronok setiap minggu. Tanpa nama — tiada siapa nampak siapa memilih apa.', 'crumb' => ['The Playground', 'Plot Twist']],
+            'side-quests' => ['title' => 'Side Quests', 'title_ms' => 'Side Quests', 'sub' => 'Small optional challenges with nothing to do with KPI. Finish one, post it, wear the badge.', 'sub_ms' => 'Cabaran pilihan kecil yang tiada kaitan dengan KPI. Selesaikan satu, pos, dan pakai lencana.', 'crumb' => ['The Playground', 'Side Quests']],
             'setup' => ['title' => 'Setup Wizard', 'title_ms' => 'Bestari Persediaan', 'sub' => 'Get your company workspace ready, step by step.', 'sub_ms' => 'Sediakan ruang kerja syarikat anda, langkah demi langkah.', 'crumb' => ['Administration', 'Setup Wizard']],
             'staff-load' => ['title' => 'Add & Import Staff', 'title_ms' => 'Tambah & Import Staf', 'sub' => 'Add employees one at a time, bulk-import from a CSV, and provision their logins.', 'sub_ms' => 'Tambah pekerja seorang demi seorang, import pukal daripada CSV, dan sediakan login mereka.', 'crumb' => ['Administration', 'Add & Import Staff']],
             'settings' => ['title' => 'Company Settings', 'title_ms' => 'Tetapan Syarikat', 'sub' => 'Workspace profile, branches and departments.', 'sub_ms' => 'Profil ruang kerja, cawangan dan jabatan.', 'crumb' => ['Administration', 'Company Settings']],

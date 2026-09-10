@@ -503,8 +503,9 @@ class DatabaseSeeder extends Seeder
             ['Aisyah Rahman', 'Updated company settings', 'Unijaya Resources', '2026-06-15 11:05:00'],
             ['Aisyah Rahman', 'Acknowledged policy', 'IT Acceptable Use v2.0', '2026-05-02 08:50:00'],
         ] as $a) {
-            $log = AuditLog::create(['tenant_id' => $tid, 'user_id' => $demo->id, 'actor_name' => $a[0], 'action' => $a[1], 'target' => $a[2]]);
-            $log->forceFill(['created_at' => Carbon::parse($a[3])])->save();
+            // Backdated at creation, not via a follow-up save(): audit_logs rows are
+            // append-only (AuditLog::booted()) and refuse a second write to the same row.
+            AuditLog::create(['tenant_id' => $tid, 'user_id' => $demo->id, 'actor_name' => $a[0], 'action' => $a[1], 'target' => $a[2], 'created_at' => Carbon::parse($a[3])]);
         }
 
         // A couple of unread notifications so the header bell has signal on first load.

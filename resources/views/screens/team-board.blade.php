@@ -138,12 +138,21 @@
                      data-overdue="{{ $p['overdue'] }}"
                      data-blocked="{{ $p['blocked'] }}"
                      data-review="{{ $p['in_review'] }}"
+                     data-helping="{{ $p['helping'] }}"
+                     data-reviewing="{{ $p['reviewing'] }}"
                      :data-active="win.show && win.person && win.person.id === {{ $p['id'] }} ? '' : null">
                     <span class="tb-strip-who">
                         <span class="tb-av" style="background:{{ $p['avatar_color'] ?? 'var(--muted)' }};">{{ $p['initials'] }}</span>
                         <span style="min-width:0;">
                             <span class="tb-strip-name">{{ $p['name'] }}</span>
                             <span class="tb-strip-sub">{{ trim(($p['position'] ?? '').' · '.($p['department'] ?? ''), ' ·') ?: '—' }}</span>
+                            {{-- CR-04: helper and reviewer load sits beside the counters, never inside them. --}}
+                            @if ($p['helping'] > 0 || $p['reviewing'] > 0)
+                                <span class="tb-strip-sub tb-strip-roles">{{ implode(' · ', array_filter([
+                                    $p['helping'] > 0 ? 'helping on '.$p['helping'] : null,
+                                    $p['reviewing'] > 0 ? 'reviewing '.$p['reviewing'] : null,
+                                ])) }}</span>
+                            @endif
                         </span>
                     </span>
                     <span class="tb-num {{ $p['open'] === 0 ? 'tb-num--zero' : '' }}">{{ $tbZero($p['open']) }}</span>
@@ -249,7 +258,7 @@
                             </div>
                             <div class="tb-win-col-cards">
                                 @foreach ($tbRowsByStatus->get($sk, collect()) as $row)
-                                    @include('partials.work-card', ['c' => $row['item'], 'compact' => true, 'owner' => ['id' => $row['owner_id']]])
+                                    @include('partials.work-card', ['c' => $row['item'], 'compact' => true, 'owner' => ['id' => $row['owner_id']], 'viewerId' => $row['owner_id']])
                                 @endforeach
                             </div>
                         </div>

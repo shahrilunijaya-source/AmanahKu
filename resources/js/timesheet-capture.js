@@ -95,6 +95,12 @@ export function registerTimesheetCapture(Alpine) {
         // Kept in sync with the "Show weekend" toggle, which flips between this and 7.
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
+        // First date still editable without a manager unlock (CR-03 edit window).
+        earliestEditable: cfg.earliestEditable,
+        // Per-day submit status ({status, late, resubmitted, zero_reason, return_reason,
+        // unlocked}), keyed by ISO date — refreshed from the server's response on every
+        // save() so a day just submitted/returned reads its new state without a reload.
+        dayStatuses: cfg.dayStatuses || {},
         locked: cfg.locked || {},
         categories: cfg.categories || [],
         projects: cfg.projects || [],
@@ -117,6 +123,10 @@ export function registerTimesheetCapture(Alpine) {
         savePromise: null,
         savedAt: null,
         error: '',
+        // Inline "why no lines" box for Submit day on a day with no lines (D7).
+        dayReasonOpen: false,
+        dayReason: '',
+        submittingDay: false,
 
         // Bilingual weekday names, indexed 0=Sun..6=Sat to match Date#getUTCDay().
         weekdayNames: {
@@ -292,11 +302,29 @@ export function registerTimesheetCapture(Alpine) {
             for (let i = ds.length - 1; i >= 0; i--) if (!this.isOffDay(ds[i])) return i;
             return ds.length - 1;
         },
+        // This day's CR-03 submit state ({status, late, resubmitted, zero_reason,
+        // return_reason, unlocked}), or null when nothing has ever been saved against it.
+        dayInfo(iso) {
+            return this.dayStatuses[iso] || null;
+        },
+        dayStatus(iso) {
+            return this.dayInfo(iso)?.status || 'draft';
+        },
+        // Frozen: submitted or approved (staff-locked either way — a returned day is
+        // editable again), or older than the edit window and not individually unlocked.
+        isFrozen(iso) {
+            const status = this.dayStatus(iso);
+            if (status === 'submitted' || status === 'approved') return true;
+
+            return iso < this.earliestEditable && !this.dayInfo(iso)?.unlocked;
+        },
         isEditable(iso) {
             // A partly locked (half-day) day is editable for the unlocked half. The Sunday
-            // rest day is never editable.
+            // rest day is never editable. A frozen day (submitted/approved, or beyond the
+            // edit window without an unlock) is never editable by the staffer — see
+            // isFrozen().
             return !this.readonly && !this.isFullyLocked(iso) && !this.isFuture(iso)
-                && !this.isOffDay(iso) && iso >= this.earliestWeek;
+                && !this.isOffDay(iso) && iso >= this.earliestWeek && !this.isFrozen(iso);
         },
         dayTotal(iso) {
             if (this.isFullyLocked(iso)) return this.capacityFor(iso);
@@ -857,8 +885,24 @@ export function registerTimesheetCapture(Alpine) {
                 .filter((d) => this.isEditable(d) && this.hasBlankRows(d))
                 .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
         },
+        // A working day with no lines at all (D7 — needs a reason before it can be
+        // submitted, via the Submit day zero-hour reason box). Named on its own so the
+        // message can point at Submit day rather than the ordinary "not filled yet".
+        emptyDays() {
+            const lang = this.$store.ui.lang === 'en' ? 'en' : 'ms';
+            return this.dayDates()
+                .filter((d) => this.isEditable(d) && this.dayState(d) === 'empty')
+                .map((d) => this.weekdayNames.long[lang][new Date(d + 'T00:00:00Z').getUTCDay()]);
+        },
+        // Editable working days that still need submitting — Submit week is disabled and
+        // has nothing to do once this is empty (every day is submitted, approved, or
+        // frozen without an unlock).
+        unsubmittedDays() {
+            return this.dayDates().filter((d) => this.isEditable(d) && !this.isOffDay(d));
+        },
         // The one sentence under the week strip: over-allocation first (it is an error the
-        // staffer must undo), then uncosted lines, then the ordinary "still to fill".
+        // staffer must undo), then uncosted lines, then an empty day (submit it on its own),
+        // then the ordinary "still to fill".
         blockingMessage() {
             const en = this.$store.ui.lang === 'en';
             const over = this.overDays();
@@ -869,13 +913,15 @@ export function registerTimesheetCapture(Alpine) {
             if (blank.length) {
                 return this.joinDays(blank) + (en ? ' has a line with no percentage yet.' : ' ada baris tanpa peratus lagi.');
             }
+            const empty = this.emptyDays();
+            if (empty.length) {
+                return this.joinDays(empty) + (en
+                    ? (empty.length > 1 ? ' have no lines. Submit each on its own with a reason, or add a line.' : ' has no lines. Submit it on its own with a reason, or add a line.')
+                    : ' tiada baris. Hantar secara berasingan dengan sebab, atau tambah baris.');
+            }
             const days = this.blockingDays();
             if (days.length) {
                 return this.joinDays(days) + (en ? ' not filled yet' : ' belum penuh');
-            }
-            if (!this.weekEndReached()) {
-                return en ? 'Week is still open — submit becomes available on ' + this.dayLong(this.weekEndsOn()) + '.'
-                    : 'Minggu masih dibuka — hantar boleh dibuat pada ' + this.dayLong(this.weekEndsOn()) + '.';
             }
 
             return '';
@@ -899,8 +945,12 @@ export function registerTimesheetCapture(Alpine) {
 
             return days.slice(0, -1).join(', ') + connector + days[days.length - 1];
         },
+        // No longer gated on weekEndReached() (CR-03): a day submits on its own as soon
+        // as it's done, so Submit week only needs every remaining editable day to be
+        // filled — and at least one day left to submit at all (unsubmittedDays()), or
+        // there is nothing for it to do.
         weekComplete() {
-            return this.blockingDays().length === 0 && this.weekEndReached();
+            return this.blockingDays().length === 0 && this.unsubmittedDays().length > 0;
         },
 
         // ---- persistence ---------------------------------------------------
@@ -1002,6 +1052,7 @@ export function registerTimesheetCapture(Alpine) {
                         return;
                     }
                     this.locked = body.locked || {};
+                    this.dayStatuses = body.days || this.dayStatuses;
                     this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                     // Submit reloads the page (the server re-renders the locked/submitted view),
                     // so only the manual draft save needs an in-place toast.
@@ -1017,6 +1068,80 @@ export function registerTimesheetCapture(Alpine) {
             })();
 
             return this.savePromise;
+        },
+        // Submit day (CR-03): posts this one day. An empty day needs a reason first — the
+        // first click opens the inline reason box (dayReasonOpen) instead of posting; the
+        // Confirm button in that box calls this again once dayReason is filled. No page
+        // reload: the day's own badge/lock state comes back in body.days and is applied
+        // in place, same as an ordinary draft save.
+        async submitDay(iso) {
+            if (this.readonly || this.submittingDay) return;
+
+            const zero = this.dayTotal(iso) === 0;
+            if (zero && !this.dayReasonOpen) {
+                this.dayReasonOpen = true;
+
+                return;
+            }
+            if (zero && !this.dayReason.trim()) return;
+
+            const wasReturned = this.dayStatus(iso) === 'returned';
+            const entries = this.flatRows();
+
+            this.submittingDay = true;
+            this.error = '';
+            try {
+                const res = await fetch('/app/timesheets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        week_start: this.weekStart,
+                        week_label: cfg.weekLabel || null,
+                        submit_day: iso,
+                        day_reason: zero ? this.dayReason : null,
+                        entries,
+                        dismissed: this.dismissedPayload(),
+                    }),
+                });
+                const body = await res.json();
+                if (!res.ok) {
+                    this.error = this.explainRefusal(body, entries);
+                    this.$store.toast.error(this.toastLine(this.error));
+
+                    return;
+                }
+                this.dayStatuses = body.days || this.dayStatuses;
+                this.locked = body.locked || this.locked;
+                this.dayReasonOpen = false;
+                this.dayReason = '';
+                this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                this.$store.toast.success(this.$store.ui.lang === 'en'
+                    ? (wasReturned ? 'Day resubmitted.' : 'Day submitted.')
+                    : (wasReturned ? 'Hari dihantar semula.' : 'Hari dihantar.'));
+            } catch (e) {
+                this.error = 'Could not reach the server. Your changes are still on screen.';
+                this.$store.toast.error(this.$store.ui.lang === 'en' ? 'Could not reach the server.' : 'Tak dapat hubungi pelayan.');
+            } finally {
+                this.submittingDay = false;
+            }
+        },
+        // Submit day / Resubmit day label — a returned day reads "Resubmit" once it is
+        // edited back to ready, everything else reads "Submit".
+        submitDayLabel() {
+            const en = this.$store.ui.lang === 'en';
+            if (this.dayStatus(this.selected) === 'returned') return en ? 'Resubmit day' : 'Hantar semula hari';
+
+            return en ? 'Submit day' : 'Hantar hari';
+        },
+        // Gate for the Submit day button: an editable, non-future working day, not
+        // already over 100%, with no uncosted line left on it.
+        canSubmitDay(iso) {
+            return this.isEditable(iso) && !this.isFuture(iso) && !this.isOffDay(iso)
+                && this.dayState(iso) !== 'over' && !this.hasBlankRows(iso);
         },
         /**
          * Turn a refused save into something that names the day it is about.

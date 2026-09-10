@@ -10,6 +10,7 @@ use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
 use App\Support\BoardRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
@@ -36,6 +37,10 @@ class WorkItemChildTest extends TestCase
 
     private User $stranger;
 
+    private User $assignee;
+
+    private Employee $assigneeEmp;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -45,6 +50,7 @@ class WorkItemChildTest extends TestCase
         [$this->owner, $this->ownerEmp] = $this->person('Owner', 'owner@example.com');
         [$this->participant, $this->participantEmp] = $this->person('Pat', 'pat@example.com');
         [$this->stranger] = $this->person('Stranger', 'stranger@example.com');
+        [$this->assignee, $this->assigneeEmp] = $this->person('Alex', 'alex@example.com');
     }
 
     /** @return array{0: User, 1: Employee} */
@@ -139,14 +145,14 @@ class WorkItemChildTest extends TestCase
     public function test_done_gate_refuses_a_parent_with_an_open_child(): void
     {
         $parent = $this->parent();
-        $this->child($parent);
+        $this->child($parent, ['title' => 'Open one']);
         $this->child($parent, ['status' => 'done']);
 
         try {
             app(BoardRules::class)->assertChildrenDoneForStatus($parent, 'done');
             $this->fail('expected a ValidationException');
         } catch (ValidationException $e) {
-            $this->assertSame('1 subtask still open. Tick it off before moving this card to Done.', $e->errors()['status'][0]);
+            $this->assertSame('Still open: Open one. Tick them off before moving this card to Done.', $e->errors()['status'][0]);
         }
 
         // Other columns carry no gate.
@@ -189,7 +195,7 @@ class WorkItemChildTest extends TestCase
     {
         $parent = $this->parent(['type' => 'adhoc']);
 
-        $res = $this->as($this->owner)->postJson('/app/board', ['title' => 'Step one', 'parent_id' => $parent->id]);
+        $res = $this->as($this->owner)->postJson('/app/board', ['title' => 'Step one', 'parent_id' => $parent->id, 'due_at' => '2026-07-01']);
 
         $res->assertCreated()->assertJsonPath('card.parent_id', $parent->id)->assertJsonStructure(['parent_html']);
         $child = WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'));
@@ -205,7 +211,7 @@ class WorkItemChildTest extends TestCase
         $parent = $this->parent(['due_at' => now()->addWeek()]);
         $parent->participants()->attach($this->participantEmp->id);
 
-        $res = $this->as($this->participant)->postJson('/app/board', ['title' => 'Mine', 'parent_id' => $parent->id]);
+        $res = $this->as($this->participant)->postJson('/app/board', ['title' => 'Mine', 'parent_id' => $parent->id, 'due_at' => '2026-07-01']);
 
         $res->assertCreated();
         $this->assertSame($this->ownerEmp->id, WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'))->employee_id);
@@ -215,7 +221,7 @@ class WorkItemChildTest extends TestCase
     {
         $parent = $this->parent();
 
-        $this->as($this->stranger)->postJson('/app/board', ['title' => 'Nope', 'parent_id' => $parent->id])->assertForbidden();
+        $this->as($this->stranger)->postJson('/app/board', ['title' => 'Nope', 'parent_id' => $parent->id, 'due_at' => '2026-07-01'])->assertForbidden();
     }
 
     public function test_a_child_cannot_have_children(): void
@@ -258,12 +264,12 @@ class WorkItemChildTest extends TestCase
     public function test_moving_a_parent_to_done_is_refused_while_a_child_is_open(): void
     {
         $parent = $this->parent();
-        $this->child($parent);
-        $this->child($parent);
+        $this->child($parent, ['title' => 'A']);
+        $this->child($parent, ['title' => 'B']);
 
         $this->as($this->owner)->postJson("/app/board/{$parent->id}/move", ['status' => 'done'])
             ->assertStatus(422)
-            ->assertJsonPath('errors.status.0', '2 subtasks still open. Tick them off before moving this card to Done.');
+            ->assertJsonPath('errors.status.0', 'Still open: A, B. Tick them off before moving this card to Done.');
         $this->assertSame('todo', $parent->fresh()->status);
 
         $this->as($this->owner)->postJson("/app/board/{$parent->id}/move", ['status' => 'review'])->assertOk();
@@ -327,5 +333,147 @@ class WorkItemChildTest extends TestCase
 
         $this->as($this->owner)->postJson("/app/board/{$parent->id}/restore")->assertOk();
         $this->assertNull(WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->archived_at);
+    }
+
+    // ───────── CR-05: owner/helpers, due date, auto In Review, Done-guard names ─────────
+
+    public function test_a_child_can_be_given_its_own_assignee_due_date_and_helpers_on_creation(): void
+    {
+        $parent = $this->parent();
+
+        $res = $this->as($this->owner)->postJson('/app/board', [
+            'title' => 'Do the thing',
+            'parent_id' => $parent->id,
+            'employee_id' => $this->assigneeEmp->id,
+            'due_at' => now()->addDays(3)->toDateString(),
+            'helper_ids' => [$this->participantEmp->id],
+        ])->assertCreated();
+
+        $child = WorkItem::withoutGlobalScope(ParentOnly::class)->find($res->json('card.id'));
+        $this->assertSame($this->assigneeEmp->id, $child->employee_id);
+        $this->assertNotNull($child->due_at);
+        $this->assertSame([$this->participantEmp->id], $child->participants()->pluck('employees.id')->all());
+    }
+
+    public function test_a_subtask_assigned_elsewhere_appears_on_the_assignees_board_not_duplicated_on_the_owners(): void
+    {
+        $parent = $this->parent(['title' => 'Big rock']);
+        $this->child($parent, ['title' => 'Farmed out', 'employee_id' => $this->assigneeEmp->id]);
+
+        // On the assignee's own board it shows as a normal card, muted-prefixed.
+        $assigneeView = $this->as($this->assignee)->get('/app/board')->assertOk();
+        $assigneeView->assertSee('Farmed out');
+        $assigneeView->assertSee('Subtask of Big rock');
+
+        // The owner's board never lists it as a standalone card (only the "1/1" badge on Big rock).
+        $ownerView = $this->as($this->owner)->get('/app/board')->assertOk();
+        $ownerView->assertDontSee('Farmed out');
+    }
+
+    public function test_a_child_left_at_the_parents_own_owner_still_never_appears_standalone(): void
+    {
+        $parent = $this->parent();
+        $this->child($parent, ['title' => 'Same owner child']);
+
+        $this->as($this->owner)->get('/app/board')->assertOk()->assertDontSee('Same owner child');
+    }
+
+    public function test_parent_face_shows_the_earliest_overdue_open_subtask_date_in_red(): void
+    {
+        $parent = $this->parent(['title' => 'Overdue parent']);
+        $this->child($parent, ['title' => 'Late one', 'due_at' => now()->subDays(5)]);
+        $this->child($parent, ['title' => 'Later one', 'due_at' => now()->subDays(1)]);
+        // Done subtasks past due don't count, neither does a future one.
+        $this->child($parent, ['title' => 'Done late', 'status' => 'done', 'due_at' => now()->subDays(9)]);
+        $this->child($parent, ['title' => 'Future', 'due_at' => now()->addDays(9)]);
+
+        $res = $this->as($this->owner)->get('/app/board')->assertOk();
+
+        $res->assertSee('wc-sub-overdue', false);
+        $res->assertSee(now()->subDays(5)->format('d M'));
+    }
+
+    public function test_last_child_done_moves_parent_to_review_and_notifies_owner_and_assigner(): void
+    {
+        $parent = $this->ownerEmp->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Assigned parent', 'type' => 'task',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0,
+            'assigned_by_id' => $this->assigneeEmp->id, 'assigned_at' => now(), 'due_at' => now()->addWeek(),
+        ]);
+        $this->child($parent, ['status' => 'done']);
+        $open = $this->child($parent);
+
+        $this->as($this->owner)->postJson("/app/board/{$open->id}/move", ['status' => 'done'])->assertOk();
+
+        $this->assertSame('review', $parent->fresh()->status);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $this->owner->id,
+            'title' => 'Owner finished the last subtask of: Assigned parent',
+        ]);
+        $this->assertDatabaseHas('app_notifications', [
+            'user_id' => $this->assignee->id,
+            'title' => 'Owner finished the last subtask of: Assigned parent',
+        ]);
+    }
+
+    public function test_a_parent_already_past_todo_prog_is_not_pulled_back_to_review(): void
+    {
+        $parent = $this->parent(['status' => 'review']);
+        $child = $this->child($parent);
+
+        $this->as($this->owner)->postJson("/app/board/{$child->id}/move", ['status' => 'done'])->assertOk();
+
+        $this->assertSame('review', $parent->fresh()->status);
+    }
+
+    public function test_deleting_the_last_open_child_does_not_move_the_parent_to_review(): void
+    {
+        $parent = $this->parent();
+        $child = $this->child($parent);
+
+        $this->as($this->owner)->deleteJson("/app/board/{$child->id}")->assertOk();
+
+        $this->assertSame('todo', $parent->fresh()->status);
+        $this->assertSame(0, DB::table('app_notifications')->where('title', 'like', '%finished the last subtask%')->count());
+    }
+
+    public function test_done_guard_message_lists_open_subtask_titles_capped_at_five(): void
+    {
+        $parent = $this->parent();
+        foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $t) {
+            $this->child($parent, ['title' => $t]);
+        }
+
+        try {
+            app(BoardRules::class)->assertChildrenDoneForStatus($parent, 'done');
+            $this->fail('expected a ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertSame(
+                'Still open: A, B, C, D, E, +1 more. Tick them off before moving this card to Done.',
+                $e->errors()['status'][0],
+            );
+        }
+    }
+
+    public function test_deleting_a_subtask_writes_an_audit_log_entry(): void
+    {
+        $parent = $this->parent(['title' => 'Parent card']);
+        $child = $this->child($parent, ['title' => 'Doomed subtask']);
+
+        $this->as($this->owner)->deleteJson("/app/board/{$child->id}")->assertOk();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'Deleted subtask',
+            'target' => 'Doomed subtask (of Parent card)',
+        ]);
+    }
+
+    public function test_a_participant_of_the_parent_can_move_a_subtask_assigned_to_them(): void
+    {
+        $parent = $this->parent(['due_at' => now()->addWeek()]);
+        $child = $this->child($parent, ['employee_id' => $this->assigneeEmp->id]);
+
+        $this->as($this->assignee)->postJson("/app/board/{$child->id}/move", ['status' => 'done'])->assertOk();
+        $this->assertSame('done', WorkItem::withoutGlobalScope(ParentOnly::class)->find($child->id)->status);
     }
 }

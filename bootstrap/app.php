@@ -66,6 +66,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // a fixed daily tick. Idempotent: archived_at is only ever set once.
         $schedule->command('work:archive-done')->hourly()
             ->withoutOverlapping()->onFailure($onFailure('work:archive-done'));
+        // CR-18: recurring schedules spawn their card on the first working day of each
+        // period. Daily at 06:00 so the card is on the board before anyone starts; a
+        // period is keyed unique, so a second run the same day makes nothing.
+        $schedule->command('work:recurring')->dailyAt('06:00')
+            ->withoutOverlapping()->onFailure($onFailure('work:recurring'));
         // Clock nudges: every 5 minutes across the working day. The cadence has to be
         // this short because one of the four nudges fires 5 minutes BEFORE the shift
         // boundary — a 15-minute tick would miss that window. Each bell carries its own
@@ -73,16 +78,62 @@ return Application::configure(basePath: dirname(__DIR__))
         // per staffer per type per day regardless of how many ticks fire.
         $schedule->command('attendance:remind')->everyFiveMinutes()->between('6:00', '22:00')
             ->withoutOverlapping()->onFailure($onFailure('attendance:remind'));
+        // CR-01: calendar pull, every five minutes so a Google-side change lands within
+        // the spec's minute-ish window. Each connection is one unique queued job.
+        $schedule->command('calendar:pull')->everyFiveMinutes()
+            ->withoutOverlapping()->onFailure($onFailure('calendar:pull'));
+        // CR-20: holiday-eve greeting for whoever never clocked out. Dedupes against the
+        // clock-out card, so it only reaches the people the card did not.
+        $schedule->command('attendance:holiday-eve')->weekdays()->at('17:30')
+            ->withoutOverlapping()->onFailure($onFailure('attendance:holiday-eve'));
         // TOT reminders: 14 days out when the topic is blank, 7 days out for the presenter,
         // 1 day out for everybody. Every send is deduped, so a retry is harmless.
         $schedule->command('tot:remind')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('tot:remind'));
+        // Birthday notice (CR-13): everyone but the celebrant, including the advance
+        // case shown early on the last working day before a weekend/holiday.
+        $schedule->command('birthday:notify')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('birthday:notify'));
+        // CR-17: management digest — lateness today + overdue by Primary Owner, one
+        // MailPort intent per tenant. Idempotent per tenant per day, so a retry is safe.
+        $schedule->command('management:digest')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:digest'));
+        // CR-34: Friday morning T.A.A. task, one per manager/attendee, moved to Thursday on
+        // a holiday Friday. Runs daily; the command itself decides whether today is the day.
+        $schedule->command('management:meeting-tasks')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:meeting-tasks'));
+        // CR-34: the deferred 3 PM reminder — one MailPort intent per tenant, same trigger
+        // day as the task above.
+        $schedule->command('management:meeting-reminder')->dailyAt('15:00')
+            ->withoutOverlapping()->onFailure($onFailure('management:meeting-reminder'));
         // Close punches nobody clocked out of, stamped at the shift end. Last thing at
         // night so the whole working day has had its chance to clock out honestly, and
         // late enough that an overnight shift started this evening is still inside its
         // own hours and gets left alone until tomorrow's run.
         $schedule->command('attendance:auto-clock-out')->dailyAt('23:59')
             ->withoutOverlapping()->onFailure($onFailure('attendance:auto-clock-out'));
+        // CR-14a / Global Clause: freeze this month's award snapshot at 23:59, acting only
+        // on the last calendar day of the month (the command itself gates the day).
+        $schedule->command('awards:freeze')->dailyAt('23:59')
+            ->withoutOverlapping()->onFailure($onFailure('awards:freeze'));
+        // CR-14a: publish last month's awards from the frozen snapshot, acting only on the
+        // first working day of the month.
+        $schedule->command('awards:publish')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('awards:publish'));
+        // CR-14b: create the monthly Nominate/Select award cards, acting only on the
+        // last Monday of the month.
+        $schedule->command('awards:tasks')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('awards:tasks'));
+        // CR-22: build last month's Amanahku Wrapped stories, acting only on the first
+        // working day of the month (same trigger day as awards:publish, so Wrapped's
+        // frozen-snapshot numbers are always available by the time it runs).
+        $schedule->command('wrapped:build')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('wrapped:build'));
+        // CR-19: ships FLAGGED OFF (config('services.auto_done.enabled'), env
+        // AMANAHKU_AUTO_DONE) — prompts the organiser once an event's attendance is
+        // pending, archives an unsubmitted awards nomination once its window closes.
+        $schedule->command('board:auto-done')->everyFifteenMinutes()
+            ->withoutOverlapping()->onFailure($onFailure('board:auto-done'));
         // Captured faults are a debugging aid, not a record to keep. Without this the
         // table only grows, and one exception inside a loop can fill it in a day.
         $schedule->call(fn () => ErrorEvent::where('created_at', '<', now()->subDays(30))->delete())

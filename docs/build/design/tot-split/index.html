@@ -1,0 +1,73 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>TOT drawer, two panes</title>
+<style>
+:root{--ink:#26251e;--body:#5a5852;--muted:#8b887e;--hair:#e8e6df;--soft:#f4f3ee;--red:#d6232b;--tint:#fcebec;--card:#fff;font-family:Poppins,system-ui,sans-serif}
+body{margin:0;background:#efede6;color:var(--ink);font-size:13.5px}
+.app{display:flex;height:100vh;overflow:hidden}
+.side{width:248px;background:#26251e;color:#ddd;padding:24px 20px;font-size:14px}
+.side b{color:#fff;display:block;margin-bottom:28px;font-size:18px}.side div{padding:9px 0;opacity:.8}
+.main{flex:1;padding:36px 44px;filter:blur(1px);opacity:.55}
+.main h1{margin:0 0 6px;font-size:24px}.band{background:var(--red);color:#fff;border-radius:16px;padding:28px 32px;margin:26px 0 0;font-size:44px;font-weight:600}
+.row{background:#fff;border-bottom:1px solid var(--hair);padding:18px 32px;font-weight:600}
+.scrim{position:fixed;inset:0;background:rgba(31,30,26,.25)}
+.wd{position:fixed;top:0;right:0;height:100vh;width:1040px;max-width:96vw;background:var(--card);border-left:1px solid var(--hair);box-shadow:-14px 0 44px rgba(31,30,26,.12);display:flex;flex-direction:column}
+.head{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--hair);font-weight:600}
+.head span.x{margin-left:auto;color:var(--muted);font-size:20px}
+.panes{flex:1;min-height:0;display:grid;grid-template-columns:1fr 420px}
+.pane{min-height:0;overflow-y:auto;padding:18px 22px 24px}
+.pane.room{border-left:1px solid var(--hair);background:#fbfaf7;display:flex;flex-direction:column;padding:0}
+.room .scroll{flex:1;overflow-y:auto;padding:18px 20px}
+.room .foot{border-top:1px solid var(--hair);padding:12px 16px;display:flex;gap:10px;background:#fff}
+.room .foot input{flex:1;border:1px solid var(--hair);border-radius:10px;padding:11px 14px;font:inherit}
+.btn{border:1px solid var(--hair);background:#fff;border-radius:9999px;padding:7px 14px;font-weight:500;display:inline-block;font-size:12.5px}
+.btn.p{background:var(--red);color:#fff;border-color:var(--red)}
+.sech{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+.sech:first-child{margin-top:0}
+h2{font-size:20px;margin:6px 0 10px}
+.chip{display:inline-block;border:1px solid var(--hair);border-radius:9999px;padding:5px 11px;margin:0 6px 6px 0;font-size:12.5px;background:#fff}
+.slot{border:1px solid var(--hair);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff}
+.tag{border:1px solid var(--red);color:var(--red);font-size:10px;font-weight:700;letter-spacing:.8px;padding:2px 8px;border-radius:9999px;text-transform:uppercase}
+.mut{color:var(--muted)}.tb{width:100%;border:1px solid var(--hair);border-radius:10px;height:56px;margin:6px 0 8px;background:#fff}
+.cmt{display:flex;gap:10px;margin-bottom:16px}.av{width:30px;height:30px;border-radius:50%;background:#7d5ba6;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:600;flex-shrink:0}
+.cmt b{font-size:13px}.cmt small{color:var(--muted);margin-left:6px}.cmt p{margin:3px 0 0;color:var(--body);line-height:1.55}
+.rate{display:flex;gap:26px;font-size:20px;color:var(--muted);padding:2px 0 14px;border-bottom:1px solid var(--hair);margin-bottom:14px}
+.att{display:flex;align-items:center;gap:12px;margin-bottom:14px}.att .n{font-size:22px;font-weight:600}
+.pres{display:flex;align-items:center;gap:10px;margin-bottom:6px}.pres .av{background:#8bb84a}
+@media (max-width:1199px){.wd{width:560px}.panes{grid-template-columns:1fr}.pane.room{border-left:0;border-top:1px solid var(--hair)}}
+</style></head><body>
+<div class="app">
+ <aside class="side"><b>Amanahku</b><div>Dashboard</div><div>My Work</div><div>My Team</div><div style="color:#fff">The Playground</div><div>Projects</div><div>Office Requests</div></aside>
+ <div class="main"><h1>TOT Sessions</h1><div class="mut">Transfer of Technology, first Saturday of every month.</div><div class="band">2026</div>
+ <div class="row">JAN 03 · Solehin</div><div class="row">FEB 07 · Hidayah</div><div class="row">MAR 07 · Nabil</div><div class="row">APR 04 · Company Event</div></div>
+</div>
+<div class="scrim"></div>
+<aside class="wd">
+ <div class="head">January 2026 <span class="x">×</span></div>
+ <div class="panes">
+  <div class="pane">
+   <div class="att"><div><div class="sech" style="margin:0">Pengerusi</div><div>Kussairi</div></div><div style="margin-left:18px"><div class="sech" style="margin:0">Hadir</div><div class="n">19</div></div><span class="btn" style="margin-left:auto">Edit chair &amp; attendance</span></div>
+   <div class="pres"><span class="av">S</span><div><b>Solehin</b><div class="mut" style="font-size:12px">Saturday 3 January 2026</div></div></div>
+   <h2>Google AI Antigravity</h2>
+   <span class="chip">Slide</span>
+   <div class="sech">Nota Perbincangan</div><div class="mut">No link yet.</div>
+   <div class="sech">Session slots</div>
+   <div class="slot"><span class="tag">Pembentangan</span> &nbsp;<b>Google AI Antigravity</b><div class="mut" style="font-size:12px;margin:2px 0 8px 0">Solehin</div>
+    <span class="chip">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">😨 Noted With Fear</span><span class="chip">🆘 Send Help</span><span class="chip">🫡 Respect</span><span class="chip">Discussion</span></div>
+   <span class="btn">Add slot</span>
+   <div class="sech">Tindakan</div><div class="mut" style="margin-bottom:8px">No tindakan yet.</div><span class="btn">Add tindakan</span>
+   <div class="sech">Next-month agenda</div><div class="tb"></div><span class="btn">Save agenda</span>
+   <div class="sech">Session</div><span class="btn">✎ Edit session</span>
+  </div>
+  <div class="pane room">
+   <div class="scroll">
+    <div class="rate"><span>♡</span><span>👁</span><span>☆</span><span class="mut" style="font-size:12px;margin-left:auto;align-self:center">Rate · watched · save</span></div>
+    <div class="sech">Anonymous notes from raters</div><div class="mut" style="margin-bottom:14px">Demo was too fast at the end.</div>
+    <div class="sech">Discussion · 3</div>
+    <div class="cmt"><span class="av">HD</span><div><b>Hidayah</b><small>Sat 10:42</small><p>Does Antigravity work with our GitLab or only GitHub?</p></div></div>
+    <div class="cmt"><span class="av" style="background:#8bb84a">S</span><div><b>Solehin</b> <span class="tag" style="border-color:#8bb84a;color:#8bb84a">Presenter</span><small>Sat 10:50</small><p>Both. GitLab needs the token set once in settings.</p></div></div>
+    <div class="cmt"><span class="av" style="background:#d98b2b">NB</span><div><b>Nabil</b><small>Sat 11:03</small><p>Noted with fear. Trying it on the payroll repo Monday.</p></div></div>
+   </div>
+   <div class="foot"><input placeholder="Ask a question or add what you learned"><span class="btn p">Post</span></div>
+  </div>
+ </div>
+</aside>
+</body></html>

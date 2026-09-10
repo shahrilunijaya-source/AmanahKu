@@ -1,0 +1,443 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support;
+
+use App\Attendance\HolidayEve;
+use App\Models\BigDeal;
+use App\Models\Employee;
+use App\Models\VictoryBell;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
+
+/**
+ * The full-width bands above the dashboard grid (CR-32). Three slots in a fixed
+ * order, each rendered only when it has something to say, so on an ordinary day
+ * the dashboard opens exactly as it did before any of them existed:
+ *
+ *   moments     one at a time — birthday, holiday eve, big deal, wrapped, bell.
+ *               Several active → rotate by day, not by timer (nothing slides
+ *               away while you read it).
+ *   management  director / HR / senior manager only (CR-17 fills it).
+ *   awards      1st working day to the 7th (CR-14 fills it).
+ *
+ * Bands are not widgets: they are not in the picker, not draggable and not
+ * hideable. "Keep it plain" strips their ornament in the view, not here.
+ *
+ * @phpstan-type Moment array{kind: string, kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}, cta: array{label: array{en: string, ms: string}, url: string}|null, art: string|null, date?: string, employee?: array<string, mixed>}
+ */
+final class DashboardBands
+{
+    public const SLOTS = ['moments', 'management', 'awards'];
+
+    /**
+     * @param  list<Moment>  $moments
+     * @param  list<array{name: string, date: string}>  $upcoming
+     * @return array{moments: list<Moment>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null, upcoming: list<array{name: string, date: string}>}
+     */
+    public static function compose(array $moments, ?array $management, ?array $awards, CarbonImmutable $today, array $upcoming = []): array
+    {
+        return [
+            'moments' => $moments,
+            // Which one opens today. Every moment is in the page; the pill steps through the rest.
+            'moments_start' => $moments === [] ? 0 : $today->dayOfYear % count($moments),
+            'management' => $management,
+            'awards' => $awards,
+            'upcoming' => $upcoming,
+        ];
+    }
+
+    /**
+     * The calendar dates (this run) whose birthdays show today (CR-13).
+     *
+     * A birthday always shows on its own actual day. On top of that, when today is a
+     * working day, any birthday that falls in the non-working run immediately after
+     * today (a weekend and/or public holidays) shows early too — so it always lands
+     * on the last working day before it, never lost inside days nobody is at work.
+     *
+     * @return list<CarbonImmutable>
+     */
+    public static function celebratedOn(CarbonImmutable $today, callable $isWorkingDay): array
+    {
+        $dates = [$today];
+
+        if ($isWorkingDay($today)) {
+            $cursor = $today->addDay();
+            while (! $isWorkingDay($cursor)) {
+                $dates[] = $cursor;
+                $cursor = $cursor->addDay();
+            }
+        }
+
+        return $dates;
+    }
+
+    /**
+     * One moment per colleague celebrated today (CR-13, see celebratedOn()). Each
+     * moment carries the real birthday date and a slimmed-down employee payload so
+     * the band can show an avatar/role and the wishes composer can target the right
+     * person, even on the advance (weekend/holiday) case.
+     *
+     * @param  iterable<Employee>  $people
+     * @param  list<CarbonImmutable>  $celebratedDates  from celebratedOn(), same $today
+     * @return list<Moment&array{date: string, employee: array<string, mixed>}>
+     */
+    public static function birthdayMoments(iterable $people, CarbonImmutable $today, array $celebratedDates, string $tenantName, ?int $selfId = null): array
+    {
+        $out = [];
+        foreach ($people as $person) {
+            if ($person->date_of_birth === null) {
+                continue;
+            }
+
+            $on = null;
+            foreach ($celebratedDates as $date) {
+                if ((int) $person->date_of_birth->format('n') === $date->month
+                    && (int) $person->date_of_birth->format('j') === $date->day) {
+                    $on = $date;
+
+                    break;
+                }
+            }
+            if ($on === null) {
+                continue;
+            }
+
+            $name = $person->display_name;
+            $employeePayload = [
+                'id' => $person->id,
+                'display_name' => $name,
+                'position' => $person->position,
+                'initials' => $person->initials,
+                'avatar_color' => $person->avatar_color,
+            ];
+
+            if (! $on->isSameDay($today)) {
+                $formatted = $on->format('D j M');
+                $out[] = [
+                    'kind' => 'birthday',
+                    'kicker' => ['en' => 'This weekend', 'ms' => 'Hujung minggu ini'],
+                    'title' => [
+                        'en' => "{$name}'s birthday is on {$formatted}",
+                        'ms' => "Hari lahir {$name} pada {$formatted}",
+                    ],
+                    'sub' => ['en' => 'Wish them before the weekend.', 'ms' => 'Ucapkan sebelum hujung minggu.'],
+                    'cta' => null,
+                    'art' => 'cake',
+                    'date' => $on->toDateString(),
+                    'employee' => $employeePayload,
+                ];
+
+                continue;
+            }
+
+            if ($person->id === $selfId) {
+                $out[] = [
+                    'kind' => 'birthday',
+                    'kicker' => ['en' => 'Today', 'ms' => 'Hari ini'],
+                    'title' => ['en' => "Happy birthday, {$name}!", 'ms' => "Selamat hari lahir, {$name}!"],
+                    'sub' => ['en' => 'From everyone here. Have a good one.', 'ms' => 'Daripada kami semua. Semoga ceria.'],
+                    'cta' => null,
+                    'art' => 'cake',
+                    'date' => $on->toDateString(),
+                    'employee' => $employeePayload,
+                ];
+
+                continue;
+            }
+
+            $out[] = [
+                'kind' => 'birthday',
+                'kicker' => ['en' => 'Today', 'ms' => 'Hari ini'],
+                'title' => ['en' => "It's {$name}'s birthday", 'ms' => "Hari lahir {$name}"],
+                'sub' => [
+                    'en' => "Happy birthday, {$name}! \u{2013} from all of us at {$tenantName}",
+                    'ms' => "Selamat Hari Lahir, {$name}! \u{2013} daripada kami semua di {$tenantName}",
+                ],
+                'cta' => null,
+                'art' => 'cake',
+                'date' => $on->toDateString(),
+                'employee' => $employeePayload,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The holiday-eve moment for the day, or null when the day is not an eve.
+     * Same resolver and copy as the clock-out greeting (CR-20).
+     *
+     * @return Moment|null
+     */
+    public static function holidayEveMoment(HolidayEve $eve, CarbonImmutable $today): ?array
+    {
+        $found = $eve->forDay($today);
+        if ($found === null) {
+            return null;
+        }
+        $payload = $eve->payload($found['holiday'], $found['next_working_day']);
+        $tomorrow = $found['holiday']->date->isSameDay($today->addDay());
+        $back = $found['next_working_day'];
+
+        return [
+            'kind' => 'holiday-eve',
+            'kicker' => ['en' => 'Holiday eve', 'ms' => 'Malam cuti'],
+            'title' => [
+                'en' => $payload['name'].($tomorrow ? ' tomorrow' : ' on '.$found['holiday']->date->format('D j M')),
+                'ms' => $payload['name'].($tomorrow ? ' esok' : ' pada '.$found['holiday']->date->format('D j M')),
+            ],
+            'sub' => [
+                'en' => $payload['greeting_en'].' See you '.$back->format('D j M').'.',
+                'ms' => $payload['greeting_ms'].' Jumpa '.$back->format('D j M').'.',
+            ],
+            'cta' => null,
+            'art' => 'stamp',
+        ];
+    }
+
+    /**
+     * One moment per Big Deal still inside its 3-day dashboard window (CR-24,
+     * `BigDeal::isActive()`). Team avatars, the split "one-liner / what it took"
+     * story, photo ids and the meta line are all built here so the view stays a
+     * dumb renderer; `reactHtml` (the CR-30 picker/tally region) is stitched in
+     * by the caller afterward, same as `wishesHtml` on a birthday moment, since
+     * it needs the controller's reaction-partial renderer.
+     *
+     * @param  iterable<BigDeal>  $deals  eager-loaded raisedBy, project, workItem
+     * @return list<Moment&array{big_deal_id:int, team:list<array<string,mixed>>, photos:list<int>, story_lines:list<string>, meta:string, client_contact:?string}>
+     */
+    public static function bigDealMoments(iterable $deals, CarbonImmutable $today): array
+    {
+        $out = [];
+        foreach ($deals as $deal) {
+            if (! $deal->isActive()) {
+                continue;
+            }
+
+            [$oneLiner, $storyLines] = $deal->storyParts();
+
+            $team = $deal->members->map(fn (Employee $e) => [
+                'id' => $e->id, 'display_name' => $e->display_name,
+                'initials' => $e->initials, 'avatar_color' => $e->avatar_color,
+            ])->all();
+
+            $metaBits = ['Raised by '.($deal->raisedBy->display_name ?? '—')];
+            if ($deal->project) {
+                $metaBits[] = $deal->project->name;
+            }
+            if ($deal->track_ref) {
+                $metaBits[] = 'Track '.$deal->track_ref;
+            }
+            $metaBits[] = 'on the dashboard until '.$deal->published_at->addDays(3)->format('D j M');
+
+            $out[] = [
+                'kind' => 'big-deal',
+                'big_deal_id' => $deal->id,
+                'kicker' => ['en' => 'BIG DEAL ALERT', 'ms' => 'BIG DEAL ALERT'],
+                'title' => ['en' => $deal->title, 'ms' => $deal->title],
+                'sub' => ['en' => $oneLiner, 'ms' => $oneLiner],
+                'cta' => null,
+                'art' => 'deal',
+                'team' => $team,
+                'photos' => $deal->photos->pluck('id')->all(),
+                'story_lines' => $storyLines,
+                'meta' => implode(' · ', $metaBits),
+                'client_contact' => $deal->names_approved ? $deal->client_contact : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One moment per Victory Bell still inside its 24-hour dashboard window (CR-28,
+     * `VictoryBell::isActive()`). Team is the card's owner plus tagged participants
+     * (no separate members pivot, unlike Big Deal — the card already names its
+     * people). `art` is left null so the generic confetti-burst art box never
+     * fires; the view renders its own confetti directly for this kind, gated on
+     * "Keep it plain" the same way. `reactHtml` is stitched in by the caller
+     * afterward, same as bigDealMoments().
+     *
+     * @param  iterable<VictoryBell>  $bells  eager-loaded workItem.participants, workItem.employee, project, rungBy
+     * @return list<Moment&array{victory_bell_id:int, team:list<array<string,mixed>>, meta:string}>
+     */
+    public static function victoryBellMoments(iterable $bells, CarbonImmutable $today): array
+    {
+        $out = [];
+        foreach ($bells as $bell) {
+            if (! $bell->isActive() || $bell->workItem === null) {
+                continue;
+            }
+
+            $card = $bell->workItem;
+            $team = collect([$card->employee])
+                ->merge($card->participants)
+                ->filter()
+                ->unique('id')
+                ->map(fn (Employee $e) => [
+                    'id' => $e->id, 'display_name' => $e->display_name,
+                    'initials' => $e->initials, 'avatar_color' => $e->avatar_color,
+                ])->values()->all();
+
+            $metaBits = ['Rung by '.($bell->rungBy->display_name ?? '—')];
+            if ($bell->project) {
+                $metaBits[] = $bell->project->name;
+            }
+            $metaBits[] = 'on the dashboard until '.$bell->rung_at->addHours(24)->format('D j M, H:i');
+
+            $out[] = [
+                'kind' => 'victory-bell',
+                'victory_bell_id' => $bell->id,
+                'kicker' => ['en' => 'WE HAVE MOVEMENT', 'ms' => 'WE HAVE MOVEMENT'],
+                'title' => [
+                    'en' => $card->title.' is officially Done.',
+                    'ms' => $card->title.' rasmi Selesai.',
+                ],
+                // The optional line rides the shared uj-db-s span (mockup CSS styles
+                // it italic for this kind); empty means the view omits the span.
+                'sub' => ['en' => (string) ($bell->line ?? ''), 'ms' => (string) ($bell->line ?? '')],
+                'cta' => null,
+                'art' => null,
+                'team' => $team,
+                'meta' => implode(' · ', $metaBits).' · then on the Wins page',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * "Coming up" line under the moments block: non-private active staff whose
+     * birthday falls tomorrow..+7 days, excluding anyone already celebrated today
+     * (they are in the band, not the coming-up line). Chronological order.
+     *
+     * @param  iterable<Employee>  $people
+     * @param  array<int, bool>  $celebratedTodayIds  employee id => true, for exclusion
+     * @return list<array{name: string, date: string}>
+     */
+    public static function upcomingBirthdays(iterable $people, CarbonImmutable $today, array $celebratedTodayIds = []): array
+    {
+        $out = [];
+        foreach (range(1, 7) as $offset) {
+            $day = $today->addDays($offset);
+            foreach ($people as $person) {
+                if ($person->date_of_birth === null || isset($celebratedTodayIds[$person->id])) {
+                    continue;
+                }
+                if ((int) $person->date_of_birth->format('n') === $day->month
+                    && (int) $person->date_of_birth->format('j') === $day->day) {
+                    $out[] = ['name' => $person->display_name, 'date' => $day->toDateString()];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The management slot (CR-32 owns the slot, CR-17 fills it): director, HR and
+     * senior management, every day. Until CR-17 lands it names what will be here.
+     *
+     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}}
+     */
+    /**
+     * CR-17: lateness today and overdue-by-Primary-Owner, always rendered for
+     * FINAL_APPROVAL_ROLES (CR32Test pins exactly one band, quiet day or not) — an
+     * empty panel just shows its own "nothing to show" line.
+     *
+     * @param  list<array{employee_id:int,name:string,status_en:string,status_ms:string}>  $lateness
+     * @param  list<array{owner_id:int,owner_name:string,cards:list<array{id:int,title:string,days_overdue:int}>}>  $overdue
+     */
+    public static function managementSlot(array $lateness, array $overdue, string $scope = 'company'): array
+    {
+        return [
+            'kicker' => ['en' => 'Management', 'ms' => 'Pengurusan'],
+            'title' => ['en' => 'Lateness today and overdue tasks', 'ms' => 'Lewat hari ini dan tugasan tertunggak'],
+            'sub' => ['en' => 'Excludes leave, WFH and client-site staff. No grace applied.', 'ms' => 'Tidak termasuk cuti, WFH dan lapangan pelanggan. Tiada tempoh bertolak ansur.'],
+            'lateness' => $lateness,
+            'overdue' => $overdue,
+            'scope' => $scope,
+        ];
+    }
+
+    /**
+     * The awards slot (CR-32 owns the window, CR-14b fills it): everyone, from the
+     * first working day of the month to the 7th inclusive, every day in that window —
+     * CR32Test pins the band itself as unconditional on the window, regardless of
+     * whether last month has published results yet. An empty `$slides` renders the
+     * band with its own "nothing published yet" line instead of disappearing.
+     *
+     * @param  Collection  $slides  App\Support\AwardBoard::slidesForMonth() for the previous month
+     * @return array{kicker: array{en: string, ms: string}, title: array{en: string, ms: string}, sub: array{en: string, ms: string}, slides: Collection}
+     */
+    public static function awardsSlot(CarbonImmutable $today, Collection $slides): array
+    {
+        $month = $today->copy()->subMonthNoOverflow();
+
+        return [
+            'kicker' => ['en' => 'Awards', 'ms' => 'Anugerah'],
+            'title' => ['en' => "{$month->format('F')}'s awards", 'ms' => "Anugerah {$month->locale('ms')->translatedFormat('F')}"],
+            'sub' => ['en' => 'This month\'s winners, one award per slide.', 'ms' => 'Pemenang bulan ini, satu anugerah setiap slaid.'],
+            'slides' => $slides,
+        ];
+    }
+
+    /**
+     * CR-22 (session S28): the company Wrapped moment, shown from the month's first
+     * working day through the 7th (same window as the awards slot — `awardsWindowOpen()`
+     * is reused rather than re-implemented) whenever last month's company story exists.
+     * The sentence is rendered as flat, unstyled text (numbers inline, no wrapping tag)
+     * because `CR22Test::test_acceptance_3` asserts the literal substrings
+     * ("9 cards closed", etc.) directly against raw HTML with no `strip_tags` — any tag
+     * between a number and the following word breaks that contiguous match. The four
+     * `[data-wrapped-stat]` carriers the same test's `stat()` helper needs are a separate
+     * concern, rendered as hidden spans by the view, not by this builder.
+     *
+     * $companyStory is a `WrappedStory` (typed as plain `object` here, matching this
+     * file's existing convention for Eloquent-model params — see `bigDealMoments()` /
+     * `victoryBellMoments()` — since Larastan can't resolve a method-based `casts()`
+     * array cast into a static property type for a stricter shape annotation).
+     *
+     * @return Moment&array{wrapped_story_id:int, stats:array{cards_closed:int, lessons_shared:int, fires:int, urgent:int}}
+     */
+    public static function wrappedMoment(object $companyStory, CarbonImmutable $month): array
+    {
+        $stats = $companyStory->cards;
+        $monthName = $month->format('F');
+        $sentence = "{$stats['cards_closed']} cards closed, {$stats['lessons_shared']} lessons shared, "
+            ."{$stats['fires']} fires extinguished and only {$stats['urgent']} \"urgent\" tasks.";
+
+        return [
+            'kind' => 'wrapped',
+            'wrapped_story_id' => $companyStory->id,
+            'kicker' => ['en' => strtoupper($monthName).', WRAPPED', 'ms' => strtoupper($month->locale('ms')->translatedFormat('F')).', WRAPPED'],
+            'title' => ['en' => "Unijaya's {$monthName} in one breath", 'ms' => "{$monthName} Unijaya dalam satu nafas"],
+            'sub' => ['en' => $sentence, 'ms' => $sentence],
+            'cta' => ['label' => ['en' => 'My Wrapped', 'ms' => 'Wrapped Saya'], 'url' => '/app/wrapped'],
+            'art' => null,
+            'stats' => $stats,
+        ];
+    }
+
+    /**
+     * Whether today falls in the awards window: from the month's first working day
+     * (weekends and public holidays are not working days) through the 7th.
+     *
+     * @param  callable(CarbonImmutable): bool  $isWorkingDay
+     */
+    public static function awardsWindowOpen(CarbonImmutable $today, callable $isWorkingDay): bool
+    {
+        if ($today->day > 7) {
+            return false;
+        }
+
+        $first = $today->startOfMonth();
+        while (! $isWorkingDay($first) && $first->day <= 7) {
+            $first = $first->addDay();
+        }
+
+        return $today->day >= $first->day;
+    }
+}

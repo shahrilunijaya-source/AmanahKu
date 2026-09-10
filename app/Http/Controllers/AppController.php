@@ -13,6 +13,7 @@ use App\Http\Controllers\Concerns\BuildsWorkData;
 use App\Http\Controllers\Concerns\RoutesApprovalsByReportingLine;
 use App\Http\Requests\UpdateDashboardPrefsRequest;
 use App\Models\AuditLog;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Timesheet;
@@ -24,13 +25,18 @@ use App\Support\DashboardWidgets;
 use App\Support\Permissions;
 use App\Support\ProfileCompletion;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\DayCapacity;
+use App\Timesheet\DayRules;
+use App\Timesheet\LockedDays;
 use App\Timesheet\TimesheetCompliance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\View;
 use Illuminate\View\View as ViewContract;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Workspace entry (branded login → tenant select → enter) and the shared
@@ -153,16 +159,14 @@ class AppController extends Controller
         }
 
         // Administration screens are restricted to privileged roles.
-        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load'], true)) {
+        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load', 'recurring', 'management-meeting'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
-        // The all-staff timesheet view is narrower than the rest of the oversight surface:
-        // it is a salary-derived cost report, so it is management/HR only. canSeeAll would
-        // also admit the manager role and any employee with one direct report, which is too
-        // wide for money. Keep it above the canSeeAll block so the tighter gate wins.
-        if ($screen === 'timesheet-reports') {
-            $this->authorizeTenantRole($request, ['management', 'hr']);
-        }
+        // The all-staff timesheet view used to sit behind a tighter management/HR gate
+        // because it carries RM cost. Money is gated separately (TimesheetController
+        // MONEY_ROLES hides RM from managers) and DataScope narrows the roster to the
+        // viewer's branch/department, so the canSeeAll block below is enough (CR-02):
+        // a line manager sees their people's time, never their money.
         // Reports & Audit oversight surface + company-wide "see all" views (reachable
         // from the quick-action dock) open to management, HR, and immediate superiors —
         // anyone who oversees other staff. 'audit' moved here from admin-only so the
@@ -196,7 +200,7 @@ class AppController extends Controller
             // Legacy title/sub kept in sync from $head so anything still reading
             // pageTitle/pageSub (the shared layout's <title> tag, breadcrumb h1) shows the
             // real greeting rather than the static "Dashboard" placeholder.
-            $page = array_merge($page, ['title' => $dashData['head']['h1'], 'title_ms' => $dashData['head']['h1'], 'sub' => $dashData['head']['sub'], 'sub_ms' => $dashData['head']['sub']]);
+            $page = array_merge($page, ['title' => $dashData['head']['h1'], 'title_ms' => $dashData['head']['h1_ms'] ?? $dashData['head']['h1'], 'sub' => $dashData['head']['sub'], 'sub_ms' => $dashData['head']['sub']]);
         }
         // Profile header reflects the actual employee being viewed.
         if ($screen === 'profile' && ! empty($data['profile'])) {
@@ -208,15 +212,32 @@ class AppController extends Controller
             ];
         }
 
+        return $this->wrapScreen($request, $screen, $role, $persona, $employee, $tenant, $page, $data);
+    }
+
+    /**
+     * The page chrome every screen shares: nav, persona strip, quick actions, the
+     * Knowledge/Message header context, and the view resolution (a legacy slug that
+     * was merged into another screen, a `$viewOverride` for a screen rendered from a
+     * route that isn't the `/app/{screen}` catch-all, or `screens.$screen`/`screens.empty`).
+     * Split out of screen() so a one-off page — e.g. the CR-11 event detail page, which
+     * needs its own `/app/events/{event}` route rather than a screen slug — gets exactly
+     * the same shell without duplicating this assembly.
+     *
+     * @param  array{title: string, sub: string, title_ms?: string, sub_ms?: string, crumb?: list<string>}  $page
+     * @param  array<string, mixed>  $data
+     */
+    private function wrapScreen(Request $request, string $screen, string $role, string $persona, ?Employee $employee, Tenant $tenant, array $page, array $data, ?string $viewOverride = null): ViewContract
+    {
         // claim-approvals was merged into the unified claims screen, and
         // project-quick-create into the Projects register; both slugs still resolve
         // (deep links, bookmarks) and land on the screen that replaced them.
-        $viewScreen = match ($screen) {
+        $viewScreen = $viewOverride ?? match ($screen) {
             'claim-approvals' => 'claims',
             'project-quick-create' => 'projects',
             default => $screen,
         };
-        $view = View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty';
+        $view = View::exists($viewScreen) ? $viewScreen : (View::exists("screens.$viewScreen") ? "screens.$viewScreen" : 'screens.empty');
 
         return view($view, array_merge([
             'screen' => $screen,
@@ -251,6 +272,102 @@ class AppController extends Controller
             // the signed-in user has no employee record in this workspace.
             'profileCompletion' => $employee ? app(ProfileCompletion::class)->summary($employee) : null,
         ], $this->quickActions($employee, $role), app(KnowledgeController::class)->context($employee), app(MessageController::class)->context($employee), $data));
+    }
+
+    /**
+     * CR-11: one event's detail page — attendee list, and (once
+     * CompanyEvent::isOver()) the Photos/Comments/Lessons learnt sections. Same shell
+     * as the `events` screen; nav highlighting and the module gate both key off
+     * 'events' even though the URL carries an id, not a screen slug.
+     */
+    public function eventShow(Request $request, CompanyEvent $event): ViewContract
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        abort_unless($event->tenant_id === $tenant?->id, 404);
+        abort_unless(app(FeatureManager::class)->screenAllowed($tenant, 'events'), 404);
+
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $data = app(EventController::class)->show($request, $event, $employee);
+
+        $page = [
+            'title' => $event->title,
+            'sub' => 'Company event',
+            'crumb' => ['Events', $event->title],
+        ];
+
+        return $this->wrapScreen($request, 'events', $role, $persona, $employee, $tenant, $page, $data, 'screens.event-show');
+    }
+
+    /**
+     * CR-21: Office Requests Insights — requests per month, average days to close and the
+     * top-voted items. PM and above only (`Permissions::effectiveRole` in manager/hr/
+     * management, director collapses into management). JSON for an API/AJAX caller, the
+     * same numbers rendered as HTML otherwise — same shell as the `office-requests` screen.
+     */
+    public function officeRequestInsights(Request $request): ViewContract|JsonResponse
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        abort_unless(in_array($role, ['manager', 'hr', 'management'], true), 403);
+
+        $data = app(OfficeRequestController::class)->insightsData($request);
+
+        if ($request->wantsJson()) {
+            return response()->json($data);
+        }
+
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $page = [
+            'title' => 'Office Requests — Insights',
+            'title_ms' => 'Permintaan Pejabat — Wawasan',
+            'sub' => 'Requests per month, average time to close, and the top-voted items.',
+            'sub_ms' => 'Permintaan setiap bulan, purata masa untuk selesai, dan item paling banyak undian.',
+            'crumb' => ['Office Requests', 'Insights'],
+        ];
+
+        return $this->wrapScreen($request, 'office-requests', $role, $persona, $employee, $tenant, $page, $data, 'screens.office-requests-insights');
+    }
+
+    /**
+     * CR-17: the dedicated page for a branch/company-scope manager (dashboard-slots.md
+     * keeps the `management` band FINAL_APPROVAL_ROLES-only; CR32Test pins that a manager
+     * never sees it). FINAL_APPROVAL_ROLES read the same page company-wide. Authorization
+     * and scope resolution live in ManagementExceptionsController::pageData(), which
+     * aborts 403 itself for anyone the screen is not for.
+     */
+    public function managementExceptions(Request $request): ViewContract
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+
+        $data = app(ManagementExceptionsController::class)->pageData($request);
+
+        $employee = $request->attributes->get('employee');
+        $persona = Permissions::effectiveRole(session('persona', $role));
+        if (! in_array($persona, Amanahku::personaIdsFor($role), true)) {
+            $persona = $role;
+        }
+
+        $page = [
+            'title' => 'Management Exceptions',
+            'title_ms' => 'Pengecualian Pengurusan',
+            'sub' => 'Lateness today and overdue tasks, grouped by owner.',
+            'sub_ms' => 'Lewat hari ini dan tugasan tertunggak, mengikut pemilik.',
+            'crumb' => ['Management Exceptions'],
+        ];
+
+        return $this->wrapScreen($request, 'management-exceptions', $role, $persona, $employee, $tenant, $page, $data, 'screens.management-exceptions');
     }
 
     /**
@@ -299,10 +416,50 @@ class AppController extends Controller
             $user->dashboard_prefs,
             $request->input('hidden', []),
             $request->input('order', []),
+            $request->has('plain') ? $request->boolean('plain') : null,
         );
         $user->save();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * CSV export of the tenant's audit log, newest first. Management-tier and HR only —
+     * the same tier that gets final approval on requests (Permissions::FINAL_APPROVAL_ROLES
+     * minus the distinction between them here: both may see the whole company's ledger).
+     */
+    public function auditExport(Request $request): StreamedResponse
+    {
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        abort_unless(in_array($role, ['management', 'hr'], true), 403);
+
+        $columns = ['id', 'created_at', 'actor_name', 'action', 'target', 'subject_type', 'subject_id', 'field', 'old_value', 'new_value', 'reason', 'source'];
+
+        return response()->streamDownload(function () use ($columns) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, $columns);
+
+            AuditLog::query()->latest('id')->chunk(500, function ($rows) use ($out) {
+                foreach ($rows as $row) {
+                    fputcsv($out, [
+                        $row->id,
+                        $row->created_at?->timezone('Asia/Kuala_Lumpur')->format('Y-m-d H:i:s'),
+                        $row->actor_name,
+                        $row->action,
+                        $row->target,
+                        $row->subject_type,
+                        $row->subject_id,
+                        $row->field,
+                        $row->old_value,
+                        $row->new_value,
+                        $row->reason,
+                        $row->source,
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, 'audit-log.csv', ['Content-Type' => 'text/csv']);
     }
 
     /**
@@ -324,20 +481,33 @@ class AppController extends Controller
         $today = $employee->attendanceRecords()->openPunch(now())->first()
             ?? $employee->attendanceRecords()->onDate(now())->first();
 
-        // This week's allocated % for today, surfaced as the timesheet tile's progress.
+        // CR-03: approved days divided by working days from Monday to today (this
+        // week), excluding days fully locked by leave/holiday — the sidebar's only
+        // "Timesheet %" figure.
         $tsEnabled = app(FeatureManager::class)->screenAllowed($tenant, 'timesheets');
         $tsPct = 0.0;
         $ts = null;
         if ($tsEnabled) {
-            $ts = Timesheet::with('entries')
+            $ts = Timesheet::with(['entries', 'days'])
                 ->where('employee_id', $employee->id)
                 ->forWeek(now()->startOfWeek())
                 ->first();
-            if ($ts) {
-                $todayStr = now()->toDateString();
-                $tsPct = (float) $ts->entries
-                    ->filter(fn ($e) => $e->entry_date->toDateString() === $todayStr)
-                    ->sum(fn ($e) => (float) $e->percentage);
+
+            $weekStart = now()->startOfWeek();
+            $locked = app(LockedDays::class)->forWeek($employee, $weekStart);
+            $rules = app(DayRules::class);
+            $todayDate = now()->startOfDay();
+
+            $workingDays = array_filter(
+                $rules->weekWorkingDays($weekStart),
+                fn (string $iso) => Carbon::parse($iso)->lte($todayDate) && ($locked[$iso]['percentage'] ?? 0) < DayCapacity::for($iso),
+            );
+
+            if ($workingDays !== []) {
+                $approved = $ts
+                    ? $ts->days->filter(fn ($d) => $d->status === 'approved' && in_array($d->entry_date->toDateString(), $workingDays, true))->count()
+                    : 0;
+                $tsPct = round($approved / count($workingDays) * 100, 1);
             }
         }
 
@@ -397,6 +567,8 @@ class AppController extends Controller
             'settings' => $this->settingsData($request),
             'attendance-admin' => app(AttendanceAdminController::class)->screenData($request),
             'leave-setup' => app(LeaveSetupController::class)->screenData($request),
+            'recurring' => app(RecurringTaskController::class)->screenData($request),
+            'management-meeting' => app(ManagementMeetingController::class)->screenData($request),
             'attendance-report' => app(AttendanceReportController::class)->screenData($request),
             'leave-report' => app(LeaveReportController::class)->screenData($request),
             'position' => app(PositionController::class)->screenData($request),
@@ -409,6 +581,7 @@ class AppController extends Controller
             'surveys' => app(SurveyController::class)->screenData($request, $employee),
             'helpdesk' => app(HelpdeskController::class)->screenData($request, $employee),
             'events' => app(EventController::class)->screenData($request, $employee),
+            'office-requests' => app(OfficeRequestController::class)->screenData($request, $employee),
             'shared-resources' => app(SharedResourceController::class)->screenData($request),
             'offboarding' => app(OffboardingController::class)->screenData($request, $employee),
             'goals' => app(GoalController::class)->screenData($request, $employee),
@@ -419,6 +592,11 @@ class AppController extends Controller
             'cases' => app(CaseController::class)->screenData($request, $employee),
             'ideas' => app(IdeaController::class)->screenData($request, $employee),
             'knowledge-bank' => app(KnowledgeController::class)->screenData($request, $employee),
+            'awards' => app(AwardController::class)->screenData($request, $employee),
+            'wins' => $this->winsData($request, $employee),
+            'wrapped' => app(WrappedController::class)->screenData($request, $employee),
+            'plot-twist' => app(PlotTwistController::class)->screenData($request, $employee),
+            'side-quests' => app(SideQuestController::class)->screenData($request, $employee),
             'tot' => app(TotController::class)->screenData($request, $employee),
             'tot-roster' => app(TotController::class)->rosterData($request, $employee),
             'messages' => app(MessageController::class)->screenData($request, $employee),
@@ -445,6 +623,29 @@ class AppController extends Controller
         };
     }
 
+    /**
+     * Wins page (The Playground): Big Deals, Victory Bells and shared Amanahku Wrapped
+     * stories interleaved newest-first, an archive not a window (CR-24 + CR-28 + CR-22).
+     *
+     * @return array{deals: Collection, bells: Collection, rows: Collection}
+     */
+    private function winsData(Request $request, ?Employee $employee): array
+    {
+        $bigDeal = app(BigDealController::class)->screenData($request, $employee);
+        $victoryBell = app(VictoryBellController::class)->screenData($request, $employee);
+
+        // CR-22: shared Wrapped stories join the same archive, newest-shared first.
+        $wrapped = app(WrappedController::class)->winsRows();
+
+        $rows = $bigDeal['deals']->map(fn (array $row) => $row + ['kind' => 'big-deal', 'at' => $row['deal']->published_at])
+            ->concat($victoryBell['bells']->map(fn (array $row) => $row + ['kind' => 'victory-bell', 'at' => $row['bell']->rung_at]))
+            ->concat($wrapped)
+            ->sortByDesc('at')
+            ->values();
+
+        return $bigDeal + $victoryBell + ['rows' => $rows];
+    }
+
     private function auditLogsData(): Collection
     {
         $logs = AuditLog::latest()->take(50)->get();
@@ -462,6 +663,10 @@ class AppController extends Controller
                 'target' => $log->target,
                 'actor_name' => $emp?->display_name ?? $log->actor_name,
                 'created_at' => $log->created_at,
+                'field' => $log->field,
+                'old' => $log->displayValue('old_value'),
+                'new' => $log->displayValue('new_value'),
+                'reason' => $log->reason,
             ];
         });
     }

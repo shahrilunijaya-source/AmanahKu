@@ -4,10 +4,14 @@
      edit path into another person's sheet).
 
      $weeks   list of week blocks from TimesheetController::buildWeekBlocks()
-     $baseUrl the timesheet screen to link an entry back to, or null for no links --}}
+     $baseUrl the timesheet screen to link an entry back to, or null for no links
+     $manage  the employee id the viewer may act on as a manager (return/approve/
+              unlock/approve-week, CR-03), or null when this is the personal Review
+              tab / the viewer isn't a manager for this person --}}
 <div x-data="timesheetReview({
         baseUrl: @js($baseUrl ?? null),
         weeks: @js($weeks),
+        manage: @js($manage ?? null),
      })">
         <template x-if="weeks.length === 0">
             <div class="uj-tr-panel">
@@ -61,6 +65,70 @@
                             <button type="button" class="uj-tr-weeknav-btn" @click="nextWeek()" :disabled="weekIdx === weeks.length - 1"
                                 :aria-label="$store.ui.lang==='en' ? 'Next week' : 'Minggu seterusnya'">&rsaquo;</button>
                         </div>
+
+                        {{-- Manager actions (CR-03): only rendered for a viewer who manages this
+                             person's timesheet days (cfg.manage set — see person-weeks.blade.php). --}}
+                        <div x-show="manage && anySubmitted()" x-cloak style="margin:8px 0;">
+                            <button type="button" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" :disabled="dayBusy" @click="approveWeek()">
+                                <span x-text="$store.ui.lang==='en' ? 'Approve week' : 'Luluskan minggu'">Approve week</span>
+                            </button>
+                        </div>
+
+                        {{-- Per-day status strip (CR-03): submit status, late/resubmitted flags,
+                             return reason, zero-hour reason, unlocked note, plus manager actions. --}}
+                        <template x-if="dayList(wk).length">
+                            <div class="uj-tr-day-status-strip" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+                                <template x-for="d in dayList(wk)" :key="d.iso">
+                                    <div style="border:1px solid var(--hairline);border-radius:9px;padding:8px 10px;">
+                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                            <span style="font-size:12px;font-weight:600;" x-text="d.label"></span>
+                                            <span class="uj-tr-status-badge" :data-status="d.status" x-text="
+                                                d.status === 'submitted' ? ($store.ui.lang==='en' ? 'Submitted' : 'Dihantar')
+                                                : d.status === 'approved' ? ($store.ui.lang==='en' ? 'Approved' : 'Diluluskan')
+                                                : d.status === 'returned' ? ($store.ui.lang==='en' ? 'Returned' : 'Dikembalikan')
+                                                : ($store.ui.lang==='en' ? 'Draft' : 'Draf')"></span>
+                                            <span x-show="d.late" x-cloak style="font-size:11px;font-weight:600;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Late submission' : 'Lewat dihantar'"></span>
+                                            <span x-show="d.resubmitted" x-cloak style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Resubmitted' : 'Dihantar semula'"></span>
+                                            <span x-show="d.unlocked" x-cloak style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Unlocked' : 'Dibuka kunci'"></span>
+
+                                            <div x-show="manage" x-cloak style="display:flex;gap:6px;margin-left:auto;">
+                                                <button type="button" x-show="canReturn(d)" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="openReason('return', d.iso)">
+                                                    <span x-text="$store.ui.lang==='en' ? 'Return' : 'Kembalikan'">Return</span>
+                                                </button>
+                                                <button type="button" x-show="canApprove(d)" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" :disabled="dayBusy" @click="approveDay(d.iso)">
+                                                    <span x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</span>
+                                                </button>
+                                                <button type="button" x-show="canUnlock(d)" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="openReason('unlock', d.iso)">
+                                                    <span x-text="$store.ui.lang==='en' ? 'Unlock' : 'Buka kunci'">Unlock</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div x-show="d.status === 'returned' && d.return_reason" x-cloak style="font-size:11.5px;color:var(--muted);margin-top:4px;" x-text="d.return_reason"></div>
+                                        <div x-show="d.zero_reason" x-cloak style="font-size:11.5px;color:var(--muted);margin-top:4px;" x-text="($store.ui.lang==='en' ? 'No lines: ' : 'Tiada baris: ') + d.zero_reason"></div>
+
+                                        {{-- One inline reason box (Return / Unlock), same pattern as
+                                             the capture screen's zero-hour reason box. --}}
+                                        <div x-show="isReasonOpen('return', d.iso) || isReasonOpen('unlock', d.iso)" x-cloak
+                                            style="margin-top:8px;padding:10px;border:1px solid var(--hairline);border-radius:8px;background:var(--canvas);">
+                                            <textarea x-model="reasonText" rows="2"
+                                                :placeholder="$store.ui.lang==='en' ? 'Reason' : 'Sebab'"
+                                                style="width:100%;padding:7px 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12px;font-family:inherit;resize:vertical;outline:none;"></textarea>
+                                            <div style="display:flex;gap:8px;margin-top:6px;">
+                                                <button type="button" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" :disabled="!reasonText.trim() || dayBusy"
+                                                    @click="isReasonOpen('return', d.iso) ? returnDay(d.iso) : unlockDay(d.iso)">
+                                                    <span x-text="$store.ui.lang==='en' ? 'Confirm' : 'Sahkan'">Confirm</span>
+                                                </button>
+                                                <button type="button" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:11.5px;" @click="closeReason()">
+                                                    <span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div x-show="dayError" x-cloak class="uj-tr-empty" style="padding:8px;" x-text="dayError"></div>
+                            </div>
+                        </template>
+
                         <template x-if="wk.lines.length === 0">
                             <div class="uj-tr-empty" x-text="$store.ui.lang==='en' ? 'No entries this week.' : 'Tiada entri minggu ini.'"></div>
                         </template>

@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Timesheet;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Support\HtmlSanitizer;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -46,46 +49,187 @@ final class WeekWriter
      */
     public const BACKFILL_WEEKS = 6;
 
-    public function __construct(private LockedDays $lockedDays, private WeekReconciler $reconciler) {}
+    public function __construct(private LockedDays $lockedDays, private WeekReconciler $reconciler, private DayRules $dayRules) {}
 
     /**
      * Save (or refresh) a week as a draft from a full per-day grid, replacing whatever
-     * is currently stored for that week. Optionally submit in the same call once every
-     * populated day totals 100%.
+     * is currently stored for that week. Optionally submit one day ($submitDay, plus
+     * $dayReason for a day with no lines) or every remaining working day up to today
+     * ($submitNow) in the same call — see class docs and OPEN "QA / CR-03" for the
+     * per-day rules this enforces: frozen days (submitted/approved, or beyond the
+     * backdate window without an unlock) keep their stored lines, and a changed line on
+     * a frozen day is refused.
      *
      * @param  array<int, array{entry_date:string, category_id:int, project_id?:?int, sub_pillar_id?:?int, percentage:float|int|string, description?:?string}>  $rawEntries  validated, not yet normalised
      * @return array{timesheet: Timesheet, entries: array<int, array<string, mixed>>, locked: array<string, mixed>}
      */
-    public function save(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries, ?string $weekLabel, bool $submitNow, ?array $dismissed = null): array
-    {
+    public function save(
+        Employee $employee,
+        CarbonInterface|string $weekStart,
+        array $rawEntries,
+        ?string $weekLabel,
+        bool $submitNow,
+        ?array $dismissed = null,
+        ?string $submitDay = null,
+        ?string $dayReason = null,
+    ): array {
         $weekStartCarbon = Carbon::parse($weekStart)->startOfDay();
+        $today = Carbon::now()->startOfDay();
 
         $resolved = $this->resolveWeek($employee, $weekStartCarbon, $rawEntries);
         $entries = $resolved['entries'];
         $locked = $resolved['locked'];
-
-        // A fully-locked week may submit with no user rows, but a genuinely empty week
-        // must not: mirror submit()'s invariant so a submit_now save can't create a
-        // submitted timesheet with zero entries (which would land in the cost report).
-        abort_if($submitNow && count($entries) === 0, 422, 'Cannot submit an empty timesheet.');
-        if ($submitNow) {
-            $this->assertWeekEnded($weekStartCarbon);
-            $this->assertNoBlankLines($entries);
-            $this->assertDayTotals($entries);
+        $userByDate = [];
+        foreach ($resolved['userEntries'] as $e) {
+            $userByDate[$e['entry_date']][] = $e;
         }
 
         $timesheet = Timesheet::firstOrNew([
             'employee_id' => $employee->id,
             'week_start' => $weekStartCarbon,
         ]);
-        abort_if(
-            $timesheet->exists && $timesheet->status !== 'draft',
-            422,
-            'This week has already been submitted and cannot be edited.'
-        );
 
-        DB::transaction(function () use ($timesheet, $weekLabel, $entries, $submitNow, $dismissed) {
-            $timesheet->fill(['week_label' => $weekLabel, 'status' => 'draft'])->save();
+        $existingDays = $timesheet->exists
+            ? $timesheet->days()->get()->keyBy(fn (TimesheetDay $d) => $d->entry_date->toDateString())
+            : collect();
+        $storedRowsByDate = $this->storedEntryRowsByDate($timesheet);
+        $earliestEditable = $this->dayRules->earliestEditable($today);
+
+        // Every working day that is frozen for the staff — submitted/approved, or
+        // beyond the backdate window with no unlock — either keeps its stored lines
+        // (grid omitted it) or refuses a changed line (grid resent it differently).
+        //
+        // The backdate window only bites once this week's Timesheet row already
+        // exists: the very first save of a week (catching up a whole week's grid in
+        // one go, possibly Friday) is creating the draft, not editing an old one, so
+        // nothing is "frozen" yet to protect. A second save against an existing draft
+        // is what the window guards.
+        $frozenMessages = [];
+        foreach ($this->dayRules->weekWorkingDays($weekStartCarbon) as $iso) {
+            $dayRow = $existingDays->get($iso);
+            $lockedByStatus = $dayRow !== null && $dayRow->isLockedForStaff();
+            $lockedByWindow = $timesheet->exists && Carbon::parse($iso)->lt($earliestEditable) && ($dayRow === null || $dayRow->unlocked_at === null);
+
+            if (! $lockedByStatus && ! $lockedByWindow) {
+                continue;
+            }
+
+            $storedLines = $storedRowsByDate[$iso] ?? [];
+
+            if (array_key_exists($iso, $userByDate)
+                && $this->dayRules->lineSignature($userByDate[$iso]) !== $this->dayRules->lineSignature($storedLines)) {
+                $frozenMessages[] = $lockedByStatus
+                    ? Carbon::parse($iso)->format('D, j M').' is submitted and locked — ask your manager to return it for correction.'
+                    : Carbon::parse($iso)->format('D, j M').' is more than '.((int) config('manday.edit_window_working_days', 3)).' working days back — ask your manager to unlock it.';
+
+                continue;
+            }
+
+            // Frozen and unchanged (or omitted from the grid entirely): the day is locked
+            // solid — its stored lines are what get persisted, full stop. Anything the
+            // reconciler generated for this date (e.g. a leave row backfilled by a later
+            // approval) never overrides a day that's already submitted/approved or beyond
+            // the edit window.
+            $entries = array_values(array_filter($entries, fn (array $row) => $row['entry_date'] !== $iso));
+            foreach ($storedLines as $row) {
+                $entries[] = $row;
+            }
+        }
+
+        if ($frozenMessages !== []) {
+            throw ValidationException::withMessages(['entries' => $frozenMessages]);
+        }
+
+        // Days to mark submitted once the transaction commits: iso => zero_reason (or
+        // null when the day carries real lines). Validated fully before anything is
+        // persisted — a refused submit_day / submit_now must change nothing.
+        $daysToSubmit = [];
+
+        if ($submitDay !== null) {
+            $iso = Carbon::parse($submitDay)->toDateString();
+            $this->assertCanSubmitDay($iso, $today, $existingDays, $locked);
+
+            $dayLines = self::linesForDate($entries, $iso);
+            if ($dayLines === []) {
+                if (! filled($dayReason)) {
+                    throw ValidationException::withMessages([
+                        'submit' => Carbon::parse($iso)->format('D, j M').' has no lines — give a reason (no allocation, training, offsite) or add a line.',
+                    ]);
+                }
+                $daysToSubmit[$iso] = $dayReason;
+            } else {
+                // Totals and blank-line checks run against the day's FULL row set — user
+                // lines plus a generated locked row (e.g. a half-day leave's 50%) — since
+                // capacity is only reached once both are counted; "has no lines" above
+                // stays user-lines-only, since a half-day leave alone must not count as
+                // the staffer having logged anything.
+                $fullDayLines = self::fullLinesForDate($entries, $iso);
+                $this->assertNoBlankLines($fullDayLines);
+                $this->assertDayTotals($fullDayLines);
+                $daysToSubmit[$iso] = null;
+            }
+        } elseif ($submitNow) {
+            $weekEnd = $weekStartCarbon->copy()->addDays(5);
+            $upTo = $today->lt($weekEnd) ? $today : $weekEnd;
+
+            $candidates = array_filter(
+                $this->dayRules->weekWorkingDays($weekStartCarbon),
+                function (string $iso) use ($upTo, $locked, $existingDays) {
+                    if (Carbon::parse($iso)->gt($upTo)) {
+                        return false;
+                    }
+                    if (($locked[$iso]['percentage'] ?? 0) >= DayCapacity::for($iso)) {
+                        return false;
+                    }
+                    $status = $existingDays->get($iso)?->status;
+
+                    return ! in_array($status, [TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED], true);
+                }
+            );
+
+            abort_if($candidates === [], 422, 'Nothing left to submit this week.');
+
+            $messages = [];
+            foreach ($candidates as $iso) {
+                $dayLines = self::linesForDate($entries, $iso);
+                if ($dayLines === []) {
+                    $messages[] = Carbon::parse($iso)->format('D, j M').' has no lines — submit it on its own with a reason, or add a line.';
+
+                    continue;
+                }
+                $fullDayLines = self::fullLinesForDate($entries, $iso);
+                $messages = [...$messages, ...$this->blankLineMessages($fullDayLines), ...$this->dayTotalMessages($fullDayLines)];
+            }
+
+            if ($messages !== []) {
+                throw ValidationException::withMessages(['submit' => $messages]);
+            }
+
+            foreach ($candidates as $iso) {
+                $daysToSubmit[$iso] = null;
+            }
+        }
+
+        // Line-change audit: every working day whose user-line signature differs from
+        // what is currently stored, {category_id, project_id, percentage} per line.
+        $lineAudits = [];
+        foreach ($this->dayRules->weekWorkingDays($weekStartCarbon) as $iso) {
+            $oldLines = $storedRowsByDate[$iso] ?? [];
+            $newLines = self::linesForDate($entries, $iso);
+
+            if ($this->dayRules->lineSignature($oldLines) !== $this->dayRules->lineSignature($newLines)) {
+                $lineAudits[$iso] = [
+                    'old' => $oldLines === [] ? null : array_map([self::class, 'auditLine'], $oldLines),
+                    'new' => $newLines === [] ? null : array_map([self::class, 'auditLine'], $newLines),
+                ];
+            }
+        }
+
+        DB::transaction(function () use ($timesheet, $weekLabel, $entries, $dismissed, $daysToSubmit, $existingDays, $lineAudits) {
+            // Status is not set here — it is entirely derived from timesheet_days by
+            // refreshStatusFromDays() below. A brand new row inserts with the column's
+            // own 'draft' default.
+            $timesheet->fill(['week_label' => $weekLabel])->save();
 
             // Null means "whoever called me does not know about dismissals" — the MCP
             // tool and the leave/holiday reconcile both save whole weeks without ever
@@ -102,12 +246,129 @@ final class WeekWriter
             }
             $timesheet->recomputeTotal();
 
-            if ($submitNow) {
-                $timesheet->update(['status' => 'submitted', 'submitted_at' => now()]);
+            foreach ($lineAudits as $iso => $sides) {
+                AuditLog::change($timesheet, "day.{$iso}.entries", $sides['old'], $sides['new']);
+            }
+
+            foreach ($daysToSubmit as $iso => $reason) {
+                $dayRow = $existingDays->get($iso);
+                $oldStatus = $dayRow?->status;
+
+                $day = TimesheetDay::firstOrNew(['timesheet_id' => $timesheet->id, 'entry_date' => $iso]);
+                $day->tenant_id = $timesheet->tenant_id;
+                $day->status = TimesheetDay::STATUS_SUBMITTED;
+                $day->submitted_at = now();
+                $day->late = now()->gt($this->dayRules->deadlineFor(Carbon::parse($iso)));
+                $day->resubmitted = $oldStatus === TimesheetDay::STATUS_RETURNED;
+                $day->zero_reason = $reason;
+                $day->save();
+
+                AuditLog::change($timesheet, "day.{$iso}.status", $oldStatus, TimesheetDay::STATUS_SUBMITTED);
             }
         });
 
+        $timesheet->refresh();
+        $timesheet->refreshStatusFromDays();
+
         return ['timesheet' => $timesheet, 'entries' => $entries, 'locked' => $locked];
+    }
+
+    /**
+     * A day may be submitted (via $submitDay) only when it has actually happened,
+     * is not already accounted for by leave/holiday, and is not already submitted
+     * or approved (a returned day may be resubmitted).
+     *
+     * @param  Collection<string, TimesheetDay>  $existingDays
+     * @param  array<string, array{percentage: float}>  $locked
+     */
+    private function assertCanSubmitDay(string $iso, Carbon $today, Collection $existingDays, array $locked): void
+    {
+        $date = Carbon::parse($iso);
+
+        if ($date->gt($today)) {
+            throw ValidationException::withMessages(['submit' => $date->format('D, j M').' has not happened yet.']);
+        }
+
+        if (($locked[$iso]['percentage'] ?? 0) >= DayCapacity::for($iso)) {
+            throw ValidationException::withMessages(['submit' => $date->format('D, j M').' is leave or a public holiday — nothing to submit.']);
+        }
+
+        $status = $existingDays->get($iso)?->status;
+        if (in_array($status, [TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED], true)) {
+            throw ValidationException::withMessages(['submit' => $date->format('D, j M').' has already been submitted.']);
+        }
+    }
+
+    /**
+     * The user-typed rows (never a generated locked row — those always carry a
+     * 'source' key) for one date out of a resolved entries list.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<int, array<string, mixed>>
+     */
+    private static function linesForDate(array $entries, string $iso): array
+    {
+        return array_values(array_filter(
+            $entries,
+            fn (array $e) => $e['entry_date'] === $iso && ! isset($e['source']),
+        ));
+    }
+
+    /**
+     * Every row for one date, user-typed AND generated (a half-day leave's locked 50%,
+     * a shrunk Public Holiday row). Used for capacity checks — a half-day leave day
+     * only reaches 100% by counting both — never for the "has this day got a real
+     * line" check, which stays linesForDate()'s user-only definition.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     * @return array<int, array<string, mixed>>
+     */
+    private static function fullLinesForDate(array $entries, string $iso): array
+    {
+        return array_values(array_filter($entries, fn (array $e) => $e['entry_date'] === $iso));
+    }
+
+    /** @return array{category_id:int, project_id:?int, percentage:float} */
+    private static function auditLine(array $line): array
+    {
+        return [
+            'category_id' => (int) $line['category_id'],
+            'project_id' => isset($line['project_id']) ? (int) $line['project_id'] : null,
+            'percentage' => round((float) $line['percentage'], 2),
+        ];
+    }
+
+    /**
+     * The currently stored user-typed rows (source null) of $timesheet, shaped exactly
+     * like normaliseEntries()'s output and grouped by date — ready either to compare
+     * against the incoming grid, or to be spliced straight back into $entries when a
+     * frozen day is omitted from it.
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function storedEntryRowsByDate(Timesheet $timesheet): array
+    {
+        if (! $timesheet->exists) {
+            return [];
+        }
+
+        return TimesheetEntry::where('timesheet_id', $timesheet->id)
+            ->whereNull('source')
+            ->get()
+            ->map(fn (TimesheetEntry $e) => [
+                'entry_date' => Carbon::parse($e->entry_date)->toDateString(),
+                'category_id' => $e->category_id,
+                'project_id' => $e->project_id,
+                'sub_pillar_id' => $e->sub_pillar_id,
+                'percentage' => (float) $e->percentage,
+                'description' => $e->description,
+                'work_item_id' => $e->work_item_id,
+                'project' => $e->project,
+                'hours' => (float) $e->hours,
+            ])
+            ->groupBy('entry_date')
+            ->map(fn ($rows) => $rows->all())
+            ->all();
     }
 
     /**
@@ -120,7 +381,7 @@ final class WeekWriter
      * about it.
      *
      * @param  array<int, array{entry_date:string, category_id:int, project_id?:?int, sub_pillar_id?:?int, percentage:float|int|string, description?:?string}>  $rawEntries  the full week's grid, validated, not yet normalised
-     * @return array{entries: array<int, array<string, mixed>>, dropped: array<int, array<string, mixed>>, locked: array<string, mixed>}
+     * @return array{entries: array<int, array<string, mixed>>, dropped: array<int, array<string, mixed>>, locked: array<string, mixed>, userEntries: array<int, array<string, mixed>>}
      */
     public function resolveWeek(Employee $employee, CarbonInterface|string $weekStart, array $rawEntries): array
     {
@@ -174,7 +435,7 @@ final class WeekWriter
 
         $entries = $this->reconciler->mergeEntries($employee, $weekStartCarbon, $normalised);
 
-        return ['entries' => $entries, 'dropped' => $dropped, 'locked' => $locked];
+        return ['entries' => $entries, 'dropped' => $dropped, 'locked' => $locked, 'userEntries' => $normalised];
     }
 
     /**
@@ -499,6 +760,22 @@ final class WeekWriter
      */
     private function assertNoBlankLines(array $entries): void
     {
+        $messages = $this->blankLineMessages($entries);
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['submit' => $messages]);
+        }
+    }
+
+    /**
+     * Same rule as assertNoBlankLines(), but returns the messages instead of throwing —
+     * submit_now needs to gather every candidate day's problems before refusing the
+     * whole batch in one go.
+     *
+     * @param  array<int, array{entry_date:string, percentage:float|string}>  $entries
+     * @return array<int, string>
+     */
+    private function blankLineMessages(array $entries): array
+    {
         // Every offending day, not the first. Throwing inside the loop made a week with
         // three bad days cost three round trips: fix one, submit, be told about the next.
         $days = [];
@@ -508,14 +785,10 @@ final class WeekWriter
             }
         }
 
-        if ($days !== []) {
-            throw ValidationException::withMessages([
-                'submit' => array_map(
-                    fn (string $date) => Carbon::parse($date)->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
-                    array_keys($days),
-                ),
-            ]);
-        }
+        return array_map(
+            fn (string $date) => Carbon::parse($date)->format('D, j M').' has a line with no percentage — fill it in or remove it before submitting.',
+            array_keys($days),
+        );
     }
 
     /**
@@ -550,26 +823,27 @@ final class WeekWriter
     }
 
     /**
-     * Blocks submission before the week is over (Timesheet::weekEndsOn()). Without this, a
-     * staffer whose days-so-far already total 100% could submit mid-week.
-     */
-    private function assertWeekEnded(Carbon $weekStart): void
-    {
-        $endsOn = Timesheet::computeWeekEndsOn($weekStart);
-        if (Carbon::now()->startOfDay()->lessThan($endsOn)) {
-            throw ValidationException::withMessages([
-                'submit' => 'This week is not over yet — submit becomes available on '.$endsOn->format('D, j M').'.',
-            ]);
-        }
-    }
-
-    /**
      * Every day that has entries must total exactly 100% (float tolerance). Empty days
      * are allowed. Throws a ValidationException keyed by the offending date.
      *
      * @param  array<int, array{entry_date:string, percentage:float}>  $entries
      */
     private function assertDayTotals(array $entries): void
+    {
+        $messages = $this->dayTotalMessages($entries);
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['submit' => $messages]);
+        }
+    }
+
+    /**
+     * Same rule as assertDayTotals(), but returns the messages instead of throwing —
+     * see blankLineMessages() for why submit_now needs this shape.
+     *
+     * @param  array<int, array{entry_date:string, percentage:float}>  $entries
+     * @return array<int, string>
+     */
+    private function dayTotalMessages(array $entries): array
     {
         $byDay = [];
         foreach ($entries as $e) {
@@ -586,9 +860,7 @@ final class WeekWriter
             }
         }
 
-        if ($messages !== []) {
-            throw ValidationException::withMessages(['submit' => $messages]);
-        }
+        return $messages;
     }
 
     /**

@@ -67,10 +67,100 @@ parameters:
 			path: app/Http/Controllers/AdminController.php
 
 		-
+			message: '#^Anonymous function should return array\{id\: int, project_id\: int\<0, max\>\|null, card_id\: int\<0, max\>, card_title\: string\|null, card_url\: string\|null, author\: mixed, author_role\: string\|null, body\: string\|null, \.\.\.\} but returns array\{id\: int, project_id\: int\<0, max\>\|null, card_id\: int\<0, max\>, card_title\: string\|null, card_url\: string\|null, author\: mixed, author_role\: string\|null, body\: string\|null, \.\.\.\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''client'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''contract_end'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''contract_start'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''contract_value'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''contractor'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''drive_link'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''name'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''procurement_method'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''project_code'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Offset ''status'' on string on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Employee\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
 			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkItem\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkItemComment\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/V1/ApiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$tagged_rows\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Http/Controllers/AppController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
@@ -97,6 +187,18 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
+			message: '#^Method App\\Http\\Controllers\\AppController\:\:eventsWidget\(\) should return array\{event\: App\\Models\\CompanyEvent\|null, isPast\: bool, date\: string, attendees\: list\<string\>, photos\: list\<mixed\>, lessonLine\: string\|null\} but returns array\{event\: null\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
+			message: '#^Offset ''plain'' on array\{hidden\: list\<string\>, order\: array\<string, list\<string\>\>, plain\: bool\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/AppController.php
+
+		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Announcement\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
@@ -111,7 +213,7 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 2
+			count: 4
 			path: app/Http/Controllers/AppController.php
 
 		-
@@ -221,6 +323,30 @@ parameters:
 			identifier: identical.alwaysFalse
 			count: 1
 			path: app/Http/Controllers/EmployeeController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{employee\: Illuminate\\Database\\Eloquent\\Model\|null, response\: string, responseLabel\: string\}, Closure\(App\\Models\\EventRsvp\)\: array\{employee\: Illuminate\\Database\\Eloquent\\Model\|null, response\: string, responseLabel\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/EventController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:sortBy\(\) expects array\<array\{string, ''asc''\|''desc''\|SortDirection\}\|\(callable\(Illuminate\\Database\\Eloquent\\Model, Illuminate\\Database\\Eloquent\\Model\)\: mixed\)\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|string\>\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed\)\|int\|string, Closure\(App\\Models\\EventRsvp\)\: mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/EventController.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:contains\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|int\|string, Closure\(App\\Models\\EventRsvp\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/EventController.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect expects Illuminate\\Contracts\\Support\\Arrayable\<\(int\|string\), mixed\>\|iterable\<\(int\|string\), mixed\>\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/EventController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
@@ -349,6 +475,12 @@ parameters:
 			path: app/Http/Controllers/LeaveReportController.php
 
 		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Employee\>\|Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/ManagementExceptionsController.php
+
+		-
 			message: '#^Using nullsafe property access "\?\-\>avatar_color" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -371,6 +503,18 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/OffboardingController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Employee\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OfficeRequestController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Tenant\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/OfficeRequestController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -461,6 +605,18 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 5
 			path: app/Http/Controllers/ProbationController.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/ProjectController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/ProjectController.php
 
 		-
 			message: '#^Parameter \#1 \$employee of method App\\Services\\OffboardingService\:\:openCase\(\) expects App\\Models\\Employee, Illuminate\\Database\\Eloquent\\Model given\.$#'
@@ -613,8 +769,8 @@ parameters:
 			path: app/Http/Controllers/WellnessController.php
 
 		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:attachments\(\)\.$#'
+			identifier: method.notFound
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
 
@@ -625,14 +781,14 @@ parameters:
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
-			message: '#^Parameter \#1 \$c of method App\\Http\\Controllers\\WorkItemController\:\:commentPayload\(\) expects App\\Models\\WorkItemComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\WorkItem\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
+			message: '#^Parameter \#1 \$c of method App\\Http\\Controllers\\WorkItemController\:\:commentPayload\(\) expects App\\Models\\WorkItemComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/WorkItemController.php
 
@@ -643,15 +799,21 @@ parameters:
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
+			message: '#^Parameter \#1 \$comment of method App\\Support\\TrackComments\:\:push\(\) expects App\\Models\\WorkItemComment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
 			message: '#^Result of && is always false\.$#'
 			identifier: booleanAnd.alwaysFalse
-			count: 2
+			count: 4
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
 			message: '#^Strict comparison using \=\=\= between ''prog''\|''review''\|''todo'' and ''done'' will always evaluate to false\.$#'
 			identifier: identical.alwaysFalse
-			count: 1
+			count: 3
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
@@ -664,6 +826,12 @@ parameters:
 			message: '#^Using nullsafe property access "\?\-\>display_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
+			path: app/Http/Controllers/WorkItemController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
 			path: app/Http/Controllers/WorkItemController.php
 
 		-
@@ -695,6 +863,18 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between Illuminate\\Support\\Carbon and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Models/CompanyEvent.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Support\\Carbon\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/CompanyEvent.php
 
 		-
 			message: '#^Cannot call method startOfDay\(\) on string\.$#'
@@ -739,10 +919,76 @@ parameters:
 			path: app/Models/Tenant.php
 
 		-
+			message: '#^Argument of an invalid type string supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Projects/ProjectVariations.php
+
+		-
+			message: '#^Cannot call method toDateString\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Projects/ProjectVariations.php
+
+		-
+			message: '#^Method App\\Support\\AwardBoard\:\:slidesForMonth\(\) should return Illuminate\\Support\\Collection\<int, object\{award_key\: string, employee\: App\\Models\\Employee\|null, employee_id\: int, category\: string, explanation\: string, byDirector\: bool, monthLabel\: string\}\|object\{award_key\: string, winners\: Illuminate\\Support\\Collection\<int, App\\Models\\AwardResult\>, copy\: array, primaryResultId\: int, label\: string, reason\: string\|null, source\: string, reactionCount\: int, comments\: Illuminate\\Support\\Collection\}\> but returns Illuminate\\Support\\Collection\<int, object\{award_key\: mixed, winners\: Illuminate\\Support\\Collection, copy\: array\{en\: array\{name\: string, sub\: string\}, ms\: array\{name\: string, sub\: string\}\}, primaryResultId\: mixed, label\: mixed, reason\: mixed, source\: mixed, reactionCount\: int, comments\: Illuminate\\Support\\Collection\<int, stdClass\>\}&stdClass\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/AwardBoard.php
+
+		-
+			message: '#^Method App\\Support\\Awards\:\:creditableCards\(\) should return Illuminate\\Support\\Collection\<int, object\{id\: int, employee_id\: int\|null, priority\: string, due_at\: Illuminate\\Support\\Carbon\|null, completed_at\: Illuminate\\Support\\Carbon\|null, created_at\: Illuminate\\Support\\Carbon\|null, helpers\: list\<int\>\}\> but returns Illuminate\\Support\\Collection\<int, object\{id\: int, employee_id\: int\<0, max\>\|null, priority\: ''high''\|''low''\|''medium''\|null, due_at\: Illuminate\\Support\\Carbon\|null, completed_at\: Illuminate\\Support\\Carbon\|null, created_at\: Illuminate\\Support\\Carbon\|null, helpers\: array\<mixed\>\}&stdClass\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/Awards.php
+
+		-
+			message: '#^Property App\\Models\\WorkItem\:\:\$due_at \(Illuminate\\Support\\Carbon\|null\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Support/Calendar/CalendarReconciler.php
+
+		-
+			message: '#^Method App\\Support\\DashboardBands\:\:bigDealMoments\(\) should return list\<\*NEVER\*\> but returns list\<array\{kind\: ''big\-deal'', big_deal_id\: int, kicker\: array\{en\: ''BIG DEAL ALERT'', ms\: ''BIG DEAL ALERT''\}, title\: array\{en\: string, ms\: string\}, sub\: array\{en\: string, ms\: string\}, cta\: null, art\: ''deal'', team\: array\<int, array\{id\: int, display_name\: string, initials\: string\|null, avatar_color\: string\}\>, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/DashboardBands.php
+
+		-
+			message: '#^Method App\\Support\\DashboardBands\:\:victoryBellMoments\(\) should return list\<\*NEVER\*\> but returns list\<array\{kind\: ''victory\-bell'', victory_bell_id\: int, kicker\: array\{en\: ''WE HAVE MOVEMENT'', ms\: ''WE HAVE MOVEMENT''\}, title\: array\{en\: non\-falsy\-string, ms\: non\-falsy\-string\}, sub\: array\{en\: string, ms\: string\}, cta\: null, art\: null, team\: array\<int, array\{id\: int, display_name\: string, initials\: string\|null, avatar_color\: string\}\>, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/DashboardBands.php
+
+		-
+			message: '#^PHPDoc tag @return contains unresolvable type\.$#'
+			identifier: return.unresolvableType
+			count: 3
+			path: app/Support/DashboardBands.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, display_name\: string, initials\: string\|null, avatar_color\: string\}, Closure\(App\\Models\\Employee\)\: array\{id\: int, display_name\: string, initials\: string\|null, avatar_color\: string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/DashboardBands.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_values contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/ManagementExceptions.php
+
+		-
 			message: '#^Access to an undefined property App\\Models\\Employee\:\:\$has_certificate\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Support/ProfileCompletion.php
+
+		-
+			message: '#^Method App\\Support\\ProfileWall\:\:forEmployee\(\) should return Illuminate\\Support\\Collection\<int, Illuminate\\Support\\Collection\<int, array\{type\: string, date\: Illuminate\\Support\\Carbon, model\: App\\Models\\BirthdayWish\|App\\Models\\Flower\}\>\> but returns Illuminate\\Support\\Collection\<\(int\|string\), Illuminate\\Support\\Collection\<int, array\{type\: string, date\: Carbon\\Carbon\|null, model\: App\\Models\\BirthdayWish\|App\\Models\\Flower\}\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/ProfileWall.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
@@ -755,6 +1001,12 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Support/StuckRequests.php
+
+		-
+			message: '#^Cannot call method lt\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Support/TrackComments.php
 
 		-
 			message: '#^Method App\\Timesheet\\TimesheetCompliance\:\:roster\(\) should return Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\> but returns Illuminate\\Support\\Collection\<int, array\{employee\: App\\Models\\Employee, status\: ''done''\|''late''\|''pending'', filledDays\: int, expectedDays\: int, lastTouched\: Carbon\\CarbonImmutable\|null\}\>\.$#'

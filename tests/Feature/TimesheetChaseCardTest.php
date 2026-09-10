@@ -111,15 +111,19 @@ class TimesheetChaseCardTest extends TestCase
         $this->assertSame(1, $count);
     }
 
-    public function test_a_manager_cannot_nudge(): void
+    public function test_a_manager_can_nudge(): void
     {
+        // CR-02: managers reach the report (and its chase card) now, so the nudge button
+        // they see there has to work. Same canSeeAll gate as the screen; DataScope still
+        // fences which people they may nudge.
         $mgrUser = User::create(['name' => 'Mgr', 'email' => 'mgr@example.com', 'password' => Hash::make('password')]);
         $mgrUser->tenants()->attach($this->tenant->id, ['role' => 'manager']);
 
-        $response = $this->actingInTenant($mgrUser)
-            ->post("/app/timesheet-reports/nudge/{$this->targetEmployee->id}");
+        $this->actingInTenant($mgrUser)
+            ->post("/app/timesheet-reports/nudge/{$this->targetEmployee->id}")
+            ->assertRedirect();
 
-        $response->assertStatus(403);
+        $this->assertSame(1, AppNotification::where('user_id', $this->targetEmployee->user_id)->count());
     }
 
     public function test_a_plain_employee_cannot_nudge(): void

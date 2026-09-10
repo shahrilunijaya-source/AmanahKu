@@ -1,4 +1,63 @@
+/**
+ * Post a drawer form without leaving the page. Every drawer form redirects back to
+ * /app/tot, so the response IS the fresh page: pick this month's card out of it and
+ * swap it in. Alpine's MutationObserver tears the old card (and its teleported drawer)
+ * down and boots the new one; then the drawer is reopened so the user stays where
+ * they were. A validation failure comes back the same way (old input + $errors baked
+ * into the card, drawerOpen seeded true), so it shows exactly as a full reload would.
+ *
+ * ponytail: throws the rest of the page away, same trade partial-nav makes. No
+ * fragment route until payload size shows up in a profile.
+ */
+async function submitTotForm(Alpine, event, root) {
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    const form = event.target;
+    const month = root.dataset.totMonth;
+    const submit = form.querySelector('[type=submit]');
+    if (submit) submit.disabled = true;
+    try {
+        const res = await // getAttribute: a field named "action" shadows form.action.
+        fetch(form.getAttribute('action'), { method: 'POST', body: new FormData(form) });
+        if (!res.ok) throw new Error(res.status);
+        const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+        const fresh = doc.querySelector(`[data-tot-month="${month}"]`);
+        if (!fresh) throw new Error('no card');
+        const failed = fresh.hasAttribute('data-tot-failed');
+        // Keep each pane where the user had it scrolled; the swap builds a fresh drawer.
+        const scrolls = [...document.querySelectorAll('.wd[data-open] .tot-pane')].map((el) => el.scrollTop);
+        const next = document.importNode(fresh, true);
+        root.replaceWith(next);
+        await new Promise((r) => setTimeout(r, 0));
+        const data = Alpine.$data(next);
+        if (data && typeof data.openDrawer === 'function') {
+            data.openDrawer();
+            await Alpine.nextTick();
+            document.querySelectorAll('.wd[data-open] .tot-pane').forEach((el, i) => { el.scrollTop = scrolls[i] ?? 0; });
+        }
+        const lang = Alpine.store('ui').lang;
+        if (failed) {
+            Alpine.store('toast').error(lang === 'en' ? 'Check the form and try again.' : 'Semak borang dan cuba lagi.');
+        } else {
+            Alpine.store('toast').success(lang === 'en' ? 'Saved.' : 'Disimpan.');
+        }
+    } catch (e) {
+        if (submit) submit.disabled = false;
+        Alpine.store('toast').error(
+            Alpine.store('ui').lang === 'en' ? 'That did not save. Try again.' : 'Tidak berjaya disimpan. Cuba lagi.'
+        );
+    }
+}
+
 export function registerTotCard(Alpine) {
+    // The empty-month card: only the "open this month" form lives in its drawer.
+    Alpine.data('totMonth', () => ({
+        drawerOpen: false,
+        submitForm(event) {
+            return submitTotForm(Alpine, event, this.$root);
+        },
+    }));
+
     Alpine.data('totCard', (seed) => ({
         ...seed,
         flyout: null,
@@ -6,6 +65,12 @@ export function registerTotCard(Alpine) {
         thread: null,
         notes: [],
         busy: false,
+        // A slot's own thread, shown in the room pane in place of the session thread.
+        slotRoom: null,
+
+        get roomThread() {
+            return this.slotRoom ? this.slotRoom.thread : this.thread;
+        },
 
         // Total across every emoji, which is what the heart shows.
         get reactionTotal() {
@@ -40,8 +105,8 @@ export function registerTotCard(Alpine) {
             }
         },
 
-        react(emoji) {
-            return this.act(`/app/tot/${this.id}/react`, { emoji });
+        react(reaction) {
+            return this.act(`/app/tot/${this.id}/react`, { reaction });
         },
 
         // The outer icon is the toggle; the flyout is only for choosing. With a
@@ -87,6 +152,10 @@ export function registerTotCard(Alpine) {
             return this.act(`/app/tot/${this.id}/rate`, { score: this.myScore, note });
         },
 
+        submitForm(event) {
+            return submitTotForm(Alpine, event, this.$root);
+        },
+
         openDrawer() {
             this.drawerOpen = true;
 
@@ -116,9 +185,59 @@ export function registerTotCard(Alpine) {
 
         async postComment(body) {
             if (!body.trim()) return;
+            if (this.slotRoom) return this.postSlotComment(body);
             await this.act(`/app/tot/${this.id}/comment`, { body });
             this.thread = null;
             await this.openThread();
+        },
+
+        async openSlotRoom(slot) {
+            if (this.slotRoom && this.slotRoom.id === slot.id) return this.closeSlotRoom();
+            this.slotRoom = { ...slot, thread: null };
+            this.$nextTick(() => {
+                this.$refs.room?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                this.$refs.composer?.focus();
+            });
+            try {
+                const res = await fetch(`/app/tot/${this.id}/slots/${slot.id}/comments`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!res.ok) throw new Error(String(res.status));
+                if (this.slotRoom?.id === slot.id) this.slotRoom.thread = (await res.json()).comments;
+            } catch (e) {
+                if (this.slotRoom?.id === slot.id) this.slotRoom.thread = [];
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en' ? 'Could not load the discussion.' : 'Tidak dapat memuatkan perbincangan.'
+                );
+            }
+        },
+
+        closeSlotRoom() {
+            this.slotRoom = null;
+        },
+
+        async postSlotComment(body) {
+            if (this.busy) return;
+            this.busy = true;
+            try {
+                const res = await fetch(`/app/tot/${this.id}/slots/${this.slotRoom.id}/comment`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ body }),
+                });
+                if (!res.ok) throw new Error(String(res.status));
+                this.slotRoom.thread = (await res.json()).comments;
+            } catch (e) {
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en' ? 'That did not save. Try again.' : 'Tidak berjaya disimpan. Cuba lagi.'
+                );
+            } finally {
+                this.busy = false;
+            }
         },
 
         async removeComment(id) {

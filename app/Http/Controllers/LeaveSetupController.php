@@ -295,8 +295,12 @@ class LeaveSetupController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'date' => ['required', 'date'],
             'state' => ['nullable', 'string', 'max:80'],
+            'greeting_en' => ['nullable', 'string', 'max:200'],
+            'greeting_ms' => ['nullable', 'string', 'max:200'],
         ]);
         $data['state'] = ($data['state'] ?? null) ?: null;
+        $data['greeting_en'] = ($data['greeting_en'] ?? null) ?: null;
+        $data['greeting_ms'] = ($data['greeting_ms'] ?? null) ?: null;
 
         $holiday = PublicHoliday::create($data + ['tenant_id' => app(CurrentTenant::class)->id()]);
 
@@ -309,6 +313,30 @@ class LeaveSetupController extends Controller
         AuditLog::record('Added public holiday', $holiday->name.' '.$holiday->date->toDateString().' · '.$reconciled.' timesheet weeks reconciled');
 
         return back()->with('ok', $holiday->name.' added.');
+    }
+
+    /**
+     * The one-line clock-out greeting (CR-20), one per language. Blank falls back to
+     * the generic line in HolidayEve, so HR only writes the ones worth writing.
+     */
+    public function updateHolidayGreeting(Request $request, PublicHoliday $holiday): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, self::PRIVILEGED_ROLES);
+        abort_unless($holiday->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $data = $request->validate([
+            'greeting_en' => ['nullable', 'string', 'max:200'],
+            'greeting_ms' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $holiday->update([
+            'greeting_en' => ($data['greeting_en'] ?? null) ?: null,
+            'greeting_ms' => ($data['greeting_ms'] ?? null) ?: null,
+        ]);
+
+        AuditLog::record('Updated holiday greeting', $holiday->name.' '.$holiday->date->toDateString());
+
+        return back()->with('ok', $holiday->name.' greeting saved.');
     }
 
     public function deleteHoliday(Request $request, PublicHoliday $holiday): RedirectResponse

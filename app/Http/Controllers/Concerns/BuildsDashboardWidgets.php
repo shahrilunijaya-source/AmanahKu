@@ -4,16 +4,36 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Attendance\HolidayEve;
+use App\Http\Controllers\BigDealController;
+use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\CalendarNoteController;
+use App\Http\Controllers\FridayController;
+use App\Http\Controllers\VictoryBellController;
+use App\Http\Controllers\WrappedController;
 use App\Models\AttendanceRecord;
+use App\Models\BigDeal;
+use App\Models\CalendarNote;
 use App\Models\Claim;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
+use App\Models\Flower;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
+use App\Models\VictoryBell;
+use App\Models\WorkItem;
+use App\Models\WrappedStory;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Support\ArchetypeCatalog;
+use App\Support\ArchetypeScorer;
+use App\Support\AwardBoard;
+use App\Support\DashboardBands;
 use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
+use App\Support\ManagementExceptions;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
@@ -38,7 +58,7 @@ trait BuildsDashboardWidgets
      * The whole dashboard view-model: greeting, the picker catalog, the two-column
      * layout, and a payload per visible widget.
      *
-     * @return array{head: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
+     * @return array{head: array, egg: array|null, bands: array, widgetCatalog: array, widgetLayout: array, widgetPrefs: array, widgets: array}
      */
     private function dashboardData(Request $request, ?Employee $employee, string $role): array
     {
@@ -48,9 +68,20 @@ trait BuildsDashboardWidgets
         // Role gate first, then the tenant's module switches: a widget whose module
         // is off reads as absent rather than as empty, the same rule screen() applies
         // to whole screens.
+        $now = CarbonImmutable::now();
         $available = array_values(array_filter(
             DashboardWidgets::forRole($role),
-            function (string $id) use ($features, $tenant): bool {
+            function (string $id) use ($features, $tenant, $now): bool {
+                // The Friday sign-off (CR-32 slot) is a card only inside its window;
+                // outside it the card is absent, not empty, so it leaves the picker too.
+                if ($id === 'friday' && ! DashboardWidgets::fridaySignOffOpen($now)) {
+                    return false;
+                }
+                // Same idea for 'events': absent on any day without a same-day company
+                // event carrying attendees, not just empty.
+                if ($id === 'events' && $this->todaysDashboardEvent($now) === null) {
+                    return false;
+                }
                 $screen = DashboardWidgets::gatingScreen($id);
 
                 return $screen === null || $features->screenAllowed($tenant, $screen);
@@ -67,13 +98,138 @@ trait BuildsDashboardWidgets
             }
         }
 
+        // Flowers (CR-23) doesn't exist as a card when nobody has been given one this
+        // month — unlike every other widget here, it has no useful empty state.
+        if (($widgets['flowers']['rows'] ?? null) === []) {
+            unset($widgets['flowers']);
+            foreach (DashboardWidgets::COLUMNS as $column) {
+                $layout[$column] = array_values(array_diff($layout[$column], ['flowers']));
+            }
+        }
+
         return [
-            'head' => $this->meHead($employee),
+            'head' => $this->meHead($request, $employee),
+            'egg' => $this->dashboardEgg($employee, $now, (bool) ($prefs['plain'] ?? false)),
+            'bands' => $this->dashboardBands($employee, $role),
             'widgetCatalog' => DashboardWidgets::catalog($available),
             'widgetLayout' => $layout,
             'widgetPrefs' => $prefs,
             'widgets' => $widgets,
         ];
+    }
+
+    /**
+     * The three full-width bands above the grid (CR-32). Each slot is null when
+     * nothing is active; the view renders nothing for a null slot. The moments
+     * list grows as CR-13/22/24/28 land; the management and awards slots stay
+     * null until CR-17 and CR-14.
+     *
+     * @return array{moments: list<array<string, mixed>>, moments_start: int, management: array<string, mixed>|null, awards: array<string, mixed>|null, upcoming: list<array{name: string, date: string}>}
+     */
+    private function dashboardBands(?Employee $employee, string $role): array
+    {
+        $today = CarbonImmutable::now();
+        $moments = [];
+        $upcoming = [];
+        $management = null;
+        $awards = null;
+
+        if ($employee !== null) {
+            $eve = DashboardBands::holidayEveMoment(app(HolidayEve::class), $today);
+            if ($eve !== null) {
+                $moments[] = $eve;
+            }
+
+            // Weekend or a public-holiday row for this tenant — the only two ways a day
+            // is not a working day (CR-13's celebratedOn()).
+            $isWorkingDay = fn (CarbonImmutable $day): bool => ! $day->isWeekend()
+                && ! PublicHoliday::whereDate('date', $day->toDateString())->exists();
+
+            $celebratedDates = DashboardBands::celebratedOn($today, $isWorkingDay);
+            $monthDayPairs = collect($celebratedDates)->map(fn (CarbonImmutable $d) => [$d->month, $d->day]);
+
+            $people = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')
+                ->where(function ($q) use ($monthDayPairs) {
+                    foreach ($monthDayPairs as [$month, $day]) {
+                        $q->orWhere(fn ($sub) => $sub->whereMonth('date_of_birth', $month)->whereDay('date_of_birth', $day));
+                    }
+                })
+                ->get();
+            // The trading name reads better in a wish than the registered one ("Unijaya", not "Unijaya Resources Sdn Bhd").
+            $tenantName = trim((string) preg_replace('/\s+(Resources|Holdings|Enterprise|Group)?\s*(Sdn\.?\s*Bhd\.?|Berhad|Bhd\.?)$/i', '', (string) (app(CurrentTenant::class)->get()->name ?? '')));
+            $birthdayMoments = DashboardBands::birthdayMoments($people, $today, $celebratedDates, $tenantName, $employee->id);
+
+            // Each birthday moment carries its wishes region pre-rendered, so the band
+            // shows the composer/list on first paint rather than an extra round trip.
+            $wishController = app(BirthdayWishController::class);
+            $peopleById = $people->keyBy('id');
+            foreach ($birthdayMoments as &$moment) {
+                $celebrant = $peopleById->get($moment['employee']['id']);
+                if ($celebrant !== null) {
+                    $moment['wishesHtml'] = $wishController->wishesPartial($celebrant, $employee);
+                }
+            }
+            unset($moment);
+
+            $moments = [...$moments, ...$birthdayMoments];
+
+            // CR-24: every Big Deal still inside its 3-day window, one moment each.
+            // The reaction region is stitched in afterward, same as a birthday
+            // moment's wishesHtml, since it needs the controller's partial renderer.
+            $bigDeals = BigDeal::with(['members', 'photos', 'raisedBy', 'project'])->get()->keyBy('id');
+            $bigDealMoments = DashboardBands::bigDealMoments($bigDeals, $today);
+            $bigDealController = app(BigDealController::class);
+            foreach ($bigDealMoments as &$moment) {
+                $moment['reactHtml'] = $bigDealController->reactPartial($bigDeals[$moment['big_deal_id']], $employee);
+            }
+            unset($moment);
+            $moments = [...$moments, ...$bigDealMoments];
+
+            // CR-28: every Victory Bell still inside its 24-hour window, one moment
+            // each, appended after Big Deal moments (docs/build/OPEN.md — arbitrary,
+            // reversible ordering, nothing in the spec or test pins it).
+            $bells = VictoryBell::with(['workItem.participants', 'workItem.employee', 'project', 'rungBy'])->get()->keyBy('id');
+            $bellMoments = DashboardBands::victoryBellMoments($bells, $today);
+            $bellController = app(VictoryBellController::class);
+            foreach ($bellMoments as &$moment) {
+                $moment['reactHtml'] = $bellController->reactPartial($bells[$moment['victory_bell_id']], $employee);
+            }
+            unset($moment);
+            $moments = [...$moments, ...$bellMoments];
+
+            // CR-22: the company Wrapped moment, same window as the awards slot below,
+            // appended after Victory Bell moments (docs/build/OPEN.md — arbitrary,
+            // reversible ordering, nothing in the spec or test pins it).
+            if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
+                $companyStory = WrappedStory::whereDate('month', $today->copy()->subMonthNoOverflow()->startOfMonth()->toDateString())
+                    ->whereNull('employee_id')->first();
+                if ($companyStory !== null) {
+                    $wrappedMoment = DashboardBands::wrappedMoment($companyStory, $today->copy()->subMonthNoOverflow());
+                    $wrappedMoment['reactHtml'] = app(WrappedController::class)->reactPartial($companyStory, $employee);
+                    $moments[] = $wrappedMoment;
+                }
+            }
+
+            $celebratedTodayIds = collect($birthdayMoments)->mapWithKeys(fn (array $m) => [$m['employee']['id'] => true])->all();
+            $upcomingPeople = Employee::active()->where('birthday_private', false)->whereNotNull('date_of_birth')->get();
+            $upcoming = DashboardBands::upcomingBirthdays($upcomingPeople, $today, $celebratedTodayIds);
+
+            // CR-32 slots: management for the final-approval roles every day (CR-17
+            // fills it), awards from the first working day to the 7th (CR-14 fills it).
+            if (in_array($role, Permissions::FINAL_APPROVAL_ROLES, true)) {
+                $exceptions = app(ManagementExceptions::class);
+                $management = DashboardBands::managementSlot(
+                    $exceptions->lateness(null),
+                    $exceptions->withReassignFlags($exceptions->overdue(null), $employee, $role),
+                );
+            }
+            if (DashboardBands::awardsWindowOpen($today, $isWorkingDay)) {
+                $previousMonth = $today->copy()->subMonthNoOverflow()->startOfMonth()->toDateString();
+                $awards = DashboardBands::awardsSlot($today, AwardBoard::slidesForMonth($previousMonth));
+            }
+        }
+
+        return DashboardBands::compose($moments, $management, $awards, $today, $upcoming);
     }
 
     /**
@@ -103,9 +259,13 @@ trait BuildsDashboardWidgets
             'calendar' => $this->calendarWidget($request, $employee, $when),
             'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
+            'flowers' => $this->flowersWidget($request),
+            'friday' => app(FridayController::class)->widgetData($request, $employee) + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             'claims' => $this->claimsWidget($employee, $when),
             'work' => $this->workWidget($employee, $when),
+            'style' => $this->styleWidget($employee),
             'pulse' => $this->pulseWidget(),
+            'events' => $this->eventsWidget() + ['plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain']],
             default => [],
         };
 
@@ -201,7 +361,25 @@ trait BuildsDashboardWidgets
             );
         }
 
-        return $data + $this->calendarDays($data['weeks'], $employee, $data['leaveTypeIds']);
+        $days = $this->calendarDays($data['weeks'], $employee, $data['leaveTypeIds']);
+
+        // A note or pin just saved answers with this same card; land on the day
+        // that was touched rather than snapping back to today.
+        $sel = $request->query('sel');
+        if (is_string($sel) && isset($days['days'][$sel])) {
+            $days['selected'] = $sel;
+        }
+
+        $days['pinnable'] = $employee === null ? [] : CalendarNoteController::pinnable($employee)
+            ->get(['id', 'title', 'due_at'])
+            ->map(fn (WorkItem $card): array => [
+                'id' => $card->id,
+                'title' => (string) $card->title,
+                'due' => $card->due_at?->format('j M'),
+            ])
+            ->all();
+
+        return $data + $days;
     }
 
     /**
@@ -223,6 +401,7 @@ trait BuildsDashboardWidgets
     {
         $reports = $this->dashboardTeamIds($employee);
         $ownPending = $this->ownPendingLeave($weeks, $employee);
+        $ownNotes = $this->ownCalendarNotes($weeks, $employee);
 
         $days = [];
         $selected = null;
@@ -235,6 +414,7 @@ trait BuildsDashboardWidgets
 
                 $key = $day['date']->toDateString();
                 $entries = $this->calendarEntries($day, $employee, $reports, $ownPending, $leaveTypeIds);
+                $entries = array_merge($entries, $this->calendarNoteEntries($ownNotes->get($key) ?? new \Illuminate\Database\Eloquent\Collection));
 
                 $days[$key] = [
                     'label' => $day['date']->format('j F'),
@@ -361,6 +541,71 @@ trait BuildsDashboardWidgets
             ->whereDate('date_from', '<=', $last->toDateString())
             ->whereDate('date_to', '>=', $first->toDateString())
             ->get();
+    }
+
+    /**
+     * The viewer's private notes and pinned cards across the visible grid, keyed
+     * by date. Loaded once for the month, like the pending leave.
+     *
+     * @param  list<list<array<string, mixed>>>  $weeks
+     * @return Collection<int|string, \Illuminate\Database\Eloquent\Collection<int, CalendarNote>>
+     */
+    private function ownCalendarNotes(array $weeks, ?Employee $employee): Collection
+    {
+        if ($employee === null || $weeks === []) {
+            return collect();
+        }
+
+        $first = $weeks[0][0]['date'];
+        $lastWeek = $weeks[count($weeks) - 1];
+        $last = $lastWeek[count($lastWeek) - 1]['date'];
+
+        return CalendarNote::with('workItem')
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', '>=', $first->toDateString())
+            ->whereDate('date', '<=', $last->toDateString())
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (CalendarNote $note): string => $note->date->toDateString());
+    }
+
+    /**
+     * Notes and pins as day entries. Always level 0: nobody but the owner sees
+     * them, on any tab. A pin whose card has since been archived falls away
+     * rather than pointing at nothing.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, CalendarNote>  $notes
+     * @return list<array{level: int, kind: string, who: string, short: string, title: string, sub: string, id: int, starts_at: string|null, ends_at: string|null, body: string|null}>
+     */
+    private function calendarNoteEntries(Collection $notes): array
+    {
+        $entries = [];
+
+        foreach ($notes as $note) {
+            if ($note->isPin()) {
+                $card = $note->workItem;
+                if ($card === null || $card->archived_at !== null || $card->cancelled_at !== null) {
+                    continue;
+                }
+
+                $entries[] = ['level' => 0, 'kind' => 'task', 'who' => 'Me', 'id' => $note->id,
+                    'short' => (string) $card->title, 'title' => (string) $card->title,
+                    'sub' => $card->due_at !== null ? 'Due '.$card->due_at->format('j M') : 'On your board',
+                    'starts_at' => null, 'ends_at' => null, 'body' => null];
+
+                continue;
+            }
+
+            $entries[] = ['level' => 0, 'kind' => 'note', 'who' => 'Me', 'id' => $note->id,
+                'short' => (string) $note->title, 'title' => (string) $note->title,
+                'sub' => $note->timeLabel() ?? ($note->body !== null && $note->body !== '' ? Str::limit($note->body, 60) : 'All day'),
+                'starts_at' => $note->starts_at === null ? null : substr($note->starts_at, 0, 5),
+                'ends_at' => $note->ends_at === null ? null : substr($note->ends_at, 0, 5),
+                'body' => $note->body];
+        }
+
+        return $entries;
     }
 
     /**
@@ -766,6 +1011,68 @@ trait BuildsDashboardWidgets
     }
 
     /**
+     * The viewer's Profile Test outcome (CR-15): the sidebar entry is gone, so this
+     * card is where the test is discovered and where its result is read back.
+     *
+     * @return array{archetype: ?string, label: string, emoji: string, tagline: string, bars: list<array{key: string, label: string, emoji: string, pct: int, accent: string}>, url: string}
+     */
+    private function styleWidget(?Employee $employee): array
+    {
+        $result = $employee?->profileTestResult;
+        $key = $result?->animal_archetype;
+        $totals = is_array($result?->totals) ? $result->totals : [];
+        $answered = array_sum($totals);
+        $meta = ArchetypeCatalog::get($key);
+
+        $bars = [];
+        foreach (ArchetypeScorer::ORDER as $animal) {
+            $bars[] = [
+                'key' => $animal,
+                'label' => ArchetypeCatalog::get($animal)['label'],
+                'emoji' => ArchetypeCatalog::emoji($animal),
+                'pct' => $answered ? (int) round(($totals[$animal] ?? 0) / $answered * 100) : 0,
+                'accent' => ArchetypeCatalog::get($animal)['accent'],
+            ];
+        }
+
+        return [
+            'archetype' => $key,
+            'label' => $key ? $meta['label'] : '',
+            'emoji' => ArchetypeCatalog::emoji($key),
+            'tagline' => $key ? $meta['tagline_en'] : '',
+            'bars' => $bars,
+            'url' => route('app.screen', 'profile-test'),
+        ];
+    }
+
+    /**
+     * Latest 10 "Caught Being Brilliant" flowers given anywhere in the tenant
+     * this month (CR-23), newest first. Absent as a card entirely when there
+     * are none to show — see dashboardData(), which strips it before layout.
+     *
+     * @return array{rows: list<array{title: string, sub: string, meta: string}>, plain: bool}
+     */
+    private function flowersWidget(Request $request): array
+    {
+        $rows = Flower::with(['giver', 'recipient'])->visible()
+            ->where('month', now()->format('Y-m'))
+            ->orderByDesc('created_at')
+            ->take(10)
+            ->get()
+            ->map(fn (Flower $f): array => [
+                'title' => ($f->giver?->display_name ?? '—').' → '.($f->recipient?->display_name ?? '—'),
+                'sub' => (string) $f->note,
+                'meta' => (string) $f->created_at?->diffForHumans(),
+            ])->all();
+
+        return [
+            'rows' => $rows,
+            // "Keep it plain": text still shows, the card just drops the emoji burst.
+            'plain' => (bool) DashboardPrefs::forUser($request->user()?->dashboard_prefs)['plain'],
+        ];
+    }
+
+    /**
      * Four company-wide figures for the people who answer for them.
      *
      * @return array{stats: list<array{v: string, label: string, hot: bool}>}
@@ -788,6 +1095,60 @@ trait BuildsDashboardWidgets
                 ['v' => (string) Employee::active()->where('status', 'on_leave')->count(), 'label' => 'On leave today', 'hot' => false],
                 ['v' => 'RM '.number_format($owed, 0), 'label' => 'Claims awaiting payout', 'hot' => false],
             ],
+        ];
+    }
+
+    /**
+     * The company event the 'events' widget shows, if any: one with attendees that
+     * either starts within the next 30 days or ended within the last 7 — the window
+     * OPEN.md's "QA / CR-11" entry pins for dashboard-slots.md's "upcoming or
+     * just-past". The date filter is a coarse pre-filter; the exact boundary is
+     * checked against starts_at/ends_at in PHP.
+     */
+    private function todaysDashboardEvent(CarbonImmutable $now): ?CompanyEvent
+    {
+        return CompanyEvent::with(['rsvps.employee:id,name,nickname', 'photos', 'lessons.employee:id,name,nickname'])
+            ->whereDate('event_date', '>=', $now->subDays(8)->toDateString())
+            ->whereDate('event_date', '<=', $now->addDays(31)->toDateString())
+            ->orderBy('event_date')
+            ->orderBy('start_time')
+            ->get()
+            ->first(function (CompanyEvent $e) use ($now) {
+                if ($e->rsvps->isEmpty()) {
+                    return false;
+                }
+                $start = $e->startsAtOrDate();
+                $end = $e->endsAtOrDate();
+
+                return $now->between($start, $end)
+                    || $start->between($now, $now->addDays(30))
+                    || $end->between($now->subDays(7), $now);
+            });
+    }
+
+    /**
+     * The upcoming-or-just-past company event card: who's going before it happens,
+     * a few photos and the newest lesson line once it's over. Absent entirely (see
+     * dashboardData()'s 'events' filter) rather than empty when there is none.
+     *
+     * @return array{event: ?CompanyEvent, isPast: bool, date: string, attendees: list<string>, photos: list<mixed>, lessonLine: ?string}
+     */
+    private function eventsWidget(): array
+    {
+        $event = $this->todaysDashboardEvent(CarbonImmutable::now());
+        if (! $event) {
+            return ['event' => null];
+        }
+
+        $isPast = $event->isOver();
+
+        return [
+            'event' => $event,
+            'isPast' => $isPast,
+            'date' => $event->startsAtOrDate()->format('j M Y'),
+            'attendees' => $event->rsvps->map(fn ($r) => (string) $r->employee?->display_name)->filter()->values()->all(),
+            'photos' => $isPast ? $event->photos->take(4)->values()->all() : [],
+            'lessonLine' => $isPast ? $event->lessons->sortByDesc('id')->first()?->learnt : null,
         ];
     }
 }

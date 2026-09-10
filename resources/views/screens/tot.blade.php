@@ -186,9 +186,10 @@
                     editing: {{ $slotFailed ? 'true' : 'false' }},
                     drawerOpen: {{ $slotFailed ? 'true' : 'false' }},
                 })"
+                     data-tot-month="{{ $session->month }}" @if ($errors->any()) data-tot-failed @endif
                      @tot-open.window="if ($event.detail.month === {{ $session->month }}) { openDrawer() }">
             @else
-                <div x-data="{ drawerOpen: false }"
+                <div x-data="totMonth()" data-tot-month="{{ $session->month }}" @if ($errors->any()) data-tot-failed @endif
                      @tot-open.window="if ($event.detail.month === {{ $session->month }}) { drawerOpen = true }">
             @endif
                 <button type="button" class="tot-row" @if ($rm['kind']) data-kind="{{ $rm['kind'] }}" @endif
@@ -206,7 +207,8 @@
                         @if ($session->exists)
                             <div class="tot-meta-mobile">
                                 @foreach ($top3 as $emoji => $count)
-                                    <span>{{ $emoji }}<b>{{ $count }}</b></span>
+                                    @php $rd = \App\Models\Reaction::describe($emoji); @endphp
+                                    <span title="{{ $rd['label'] }}">{{ $rd['icon'] }}<b>{{ $count }}</b></span>
                                 @endforeach
                                 @if ($watched > 0)
                                     <span x-text="$store.ui.lang==='en' ? @js($watched.' watched') : @js($watched.' sudah tonton')">{{ $watched }} watched</span>
@@ -219,7 +221,8 @@
                     <div class="tot-meta">
                         @if ($session->exists)
                             @foreach ($top3 as $emoji => $count)
-                                <span class="tot-rx">{{ $emoji }}<b>{{ $count }}</b></span>
+                                @php $rd = \App\Models\Reaction::describe($emoji); @endphp
+                                <span class="tot-rx" title="{{ $rd['label'] }}">{{ $rd['icon'] }}<b>{{ $count }}</b></span>
                             @endforeach
                             @if ($watched > 0)
                                 <span class="tot-wt" x-text="$store.ui.lang==='en' ? @js($watched.' watched') : @js($watched.' sudah tonton')">{{ $watched }} watched</span>

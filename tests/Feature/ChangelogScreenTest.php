@@ -148,15 +148,21 @@ class ChangelogScreenTest extends TestCase
 
     public function test_the_newest_release_announces_subtasks(): void
     {
-        $newest = Changelog::releases()[0];
+        $releases = Changelog::releases();
 
-        $this->assertSame('1.7.4', $newest['version']);
+        // 2.0 is open at the top of the file and collects fixes as they land; the
+        // subtask/leave/dashboard copy this test guards belongs to 1.7.4 below it.
+        $this->assertSame('2.0', $releases[0]['version']);
+
+        $newest = collect($releases)->firstWhere('version', '1.7.4');
+        $this->assertNotNull($newest);
 
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/changelog');
 
         $response->assertOk();
+        $response->assertSee('Tick Push to Track on a card comment', false);
         $response->assertSee('cannot reach Done until every one of them is done', false);
         $response->assertSee('HR gives you the quota, and you apply for the days yourself', false);
         $response->assertSee('goes straight into Done now shows up on your timesheet', false);
@@ -168,7 +174,7 @@ class ChangelogScreenTest extends TestCase
         // Every entry in the release must carry its own Malay copy. A missing text_ms
         // silently falls back to English, which reads as a translation gap in the UI.
         foreach ($newest['entries'] as $entry) {
-            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 1.8 entry has no Malay copy of its own.');
+            $this->assertNotSame($entry['text'], $entry['text_ms'], 'A 2.0 entry has no Malay copy of its own.');
         }
     }
 

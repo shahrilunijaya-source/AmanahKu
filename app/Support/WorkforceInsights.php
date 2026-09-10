@@ -72,6 +72,8 @@ class WorkforceInsights
         return WorkItem::whereNotNull('due_at')
             ->whereDate('due_at', '<', now()->toDateString())
             ->whereNotIn('status', ['done'])
+            ->where('type', '!=', 'event')
+            ->whereNull('cancelled_at')
             ->with('employee.reportsTo')
             ->get();
     }

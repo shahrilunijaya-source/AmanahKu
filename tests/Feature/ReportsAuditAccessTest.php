@@ -81,26 +81,24 @@ class ReportsAuditAccessTest extends TestCase
         $this->get('/app/dash')->assertOk()->assertSee('Oversight');
     }
 
-    public function test_only_management_and_hr_reach_the_all_staff_timesheet_report(): void
+    public function test_overseers_reach_the_all_staff_timesheet_report(): void
     {
-        foreach (['management', 'hr'] as $role) {
+        // CR-02: a line manager (Sr Project Manager) reviews staff time for manday tracking.
+        // RM cost stays hidden from them (TimesheetCostTest); the gate matches its siblings.
+        foreach (['management', 'hr', 'manager'] as $role) {
             $this->actAs($this->userWithRole($role), $role);
             $this->get('/app/timesheet-reports')->assertOk();
         }
 
-        foreach (['manager', 'employee'] as $role) {
-            $this->actAs($this->userWithRole($role), $role);
-            $this->get('/app/timesheet-reports')->assertForbidden();
-        }
+        $this->actAs($this->userWithRole('employee'), 'employee');
+        $this->get('/app/timesheet-reports')->assertForbidden();
     }
 
-    public function test_manager_sidebar_hides_the_timesheet_report_link(): void
+    public function test_manager_sidebar_shows_the_timesheet_report_link(): void
     {
         $this->actAs($this->userWithRole('manager'), 'manager');
 
-        // The Oversight group still shows (attendance + audit remain reachable), but the
-        // one money-bearing child is filtered out by its nav 'roles' allowlist.
-        $this->get('/app/dash')->assertOk()->assertSee('Oversight')->assertDontSee('Timesheet Reports');
+        $this->get('/app/dash')->assertOk()->assertSee('Timesheet Reports');
     }
 
     public function test_plain_employee_is_blocked_from_every_reports_and_audit_screen(): void

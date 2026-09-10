@@ -17,6 +17,158 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "2.0"
+  date: "2026-09-10"
+  entries:
+    - tag: added
+      major: true
+      text: "Tick Push to Track on a card comment to make it an official project record. Mentions become plain names, files go only if you tick each one, and a confidential file never leaves the card."
+      text_ms: "Tanda Hantar ke Track pada komen kad untuk menjadikannya rekod rasmi projek. Sebutan jadi nama biasa, fail dihantar hanya jika anda tanda setiap satu, dan fail sulit tidak pernah keluar dari kad."
+      link: "/app/board"
+      link_text: "Open My Work"
+      link_text_ms: "Buka Kerja Saya"
+    - tag: added
+      major: true
+      text: "Submit your timesheet one day at a time. A submitted day locks, your manager approves it or sends it back with a reason, and anything after 10 AM the next working day is marked late."
+      text_ms: "Hantar timesheet anda sehari demi sehari. Hari yang dihantar dikunci, pengurus anda meluluskannya atau memulangkannya dengan sebab, dan apa-apa selepas 10 pagi hari bekerja berikutnya ditanda lewat."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: added
+      major: true
+      text: "Connect your Google Calendar from your account and every card with a due date appears there. Events you add to the Amanahku calendar show up in My Work too."
+      text_ms: "Sambungkan Google Calendar anda dari akaun dan setiap kad yang ada tarikh akhir muncul di sana. Acara yang anda tambah dalam kalendar Amanahku muncul dalam Kerja Saya juga."
+    - tag: added
+      major: true
+      text: "Directors, HR and senior managers see a lateness panel and an overdue tasks panel at the top of the dashboard, with Nudge and Reassign on every card and an 8 AM digest."
+      text_ms: "Pengarah, HR dan pengurus kanan melihat panel kelewatan dan panel tugasan tertunggak di atas papan pemuka, dengan Nudge dan Reassign pada setiap kad dan ringkasan 8 pagi."
+      link: "/app/dash"
+      link_text: "Open Dashboard"
+      link_text_ms: "Buka Papan Pemuka"
+    - tag: added
+      major: true
+      text: "Monthly awards: winners appear in a carousel on the dashboard for the first week of the month, and you can nominate a colleague in The Playground."
+      text_ms: "Anugerah bulanan: pemenang muncul dalam karusel di papan pemuka pada minggu pertama bulan, dan anda boleh mencalonkan rakan sekerja di The Playground."
+    - tag: added
+      major: true
+      text: "Office Requests: raise a facilities issue, a pantry wish or an admin to-do from the left panel, upvote others', and watch it move to Done."
+      text_ms: "Permintaan Pejabat: buat aduan kemudahan, hajat pantri atau tugasan admin dari panel kiri, undi milik orang lain, dan lihat ia bergerak ke Done."
+    - tag: added
+      major: true
+      text: "A project now carries its full contract: client, value, bond, dates, PM and PE. Every change is versioned with an effective date, and a Director approves variations before they count. Track pulls it automatically."
+      text_ms: "Projek kini membawa kontrak penuhnya: klien, nilai, bon, tarikh, PM dan PE. Setiap perubahan diversikan dengan tarikh berkuat kuasa, dan Pengarah meluluskan variasi sebelum ia dikira. Track menariknya secara automatik."
+    - tag: added
+      text: "Your own notes on the dashboard calendar. Pick a day on the Personal tab, add a note with a title, an optional time and a few words, or pin one of your open cards to that day. Only you see them."
+      text_ms: "Nota anda sendiri pada kalendar papan pemuka. Pilih hari pada tab Peribadi, tambah nota dengan tajuk, masa pilihan dan beberapa patah kata, atau sematkan satu kad terbuka anda pada hari itu. Hanya anda yang nampak."
+      link: "/app/dash"
+      link_text: "Open Dashboard"
+      link_text_ms: "Buka Papan Pemuka"
+    - tag: added
+      text: "TOT sessions have a chair, an attendance list, several slots and follow-up actions. Each action becomes a T.A.A. card due on the next TOT Saturday."
+      text_ms: "Sesi TOT ada pengerusi, senarai kehadiran, beberapa slot dan tindakan susulan. Setiap tindakan menjadi kad T.A.A. dengan tarikh akhir pada Sabtu TOT seterusnya."
+    - tag: added
+      text: "Pick attendees for an event instead of mentioning them. Each one gets a card and a calendar entry, and after the event a page for photos, comments and lessons learnt."
+      text_ms: "Pilih peserta untuk acara dan bukan menyebut mereka. Setiap seorang mendapat kad dan entri kalendar, dan selepas acara satu halaman untuk foto, komen dan pengajaran."
+    - tag: added
+      text: "Add a Helper, an FYI or a Reviewer to a card. Only the Reviewer can move it from In Review to Done, and everyone tagged sees it on their board."
+      text_ms: "Tambah Pembantu, FYI atau Penyemak pada kad. Hanya Penyemak boleh menggerakkannya dari In Review ke Done, dan semua yang ditanda melihatnya di papan mereka."
+    - tag: added
+      text: "A subtask can carry its own person and due date, and the parent moves to In Review by itself when the last one is ticked."
+      text_ms: "Subtugas boleh ada orang dan tarikh akhir sendiri, dan kad induk bergerak ke In Review dengan sendirinya apabila yang terakhir ditanda."
+    - tag: added
+      text: "A card's due date locks after the first save. If the work has moved, cancel the card with a reason and make a new one."
+      text_ms: "Tarikh akhir kad dikunci selepas simpanan pertama. Jika kerja sudah beralih, batalkan kad dengan sebab dan buat yang baharu."
+    - tag: added
+      text: "Every change to a request, a card or a project is written to an audit log that nobody can edit."
+      text_ms: "Setiap perubahan pada permohonan, kad atau projek ditulis ke log audit yang tiada sesiapa boleh sunting."
+    - tag: added
+      text: "Managers can open the all-staff timesheet report for their own team."
+      text_ms: "Pengurus boleh membuka laporan timesheet semua staf untuk pasukan mereka sendiri."
+    - tag: added
+      text: "Track's weekly report shows what happened on your cards each day, straight from the board."
+      text_ms: "Laporan mingguan Track menunjukkan apa yang berlaku pada kad anda setiap hari, terus dari papan."
+    - tag: added
+      text: "HR can set up recurring tasks, like a quarterly fire drill, owned by a role rather than a person. Holidays shift them and nothing is created twice."
+      text_ms: "HR boleh menetapkan tugasan berulang, seperti latihan kebakaran suku tahunan, dimiliki oleh peranan bukan individu. Cuti menganjakkannya dan tiada yang dibuat dua kali."
+    - tag: added
+      text: "Cards Amanahku creates for you close by themselves once their source is done, and carry an Auto badge."
+      text_ms: "Kad yang Amanahku buat untuk anda ditutup sendiri apabila sumbernya selesai, dan membawa lencana Auto."
+    - tag: added
+      text: "Every Friday at 8 AM each manager gets an Update Track card, with a reminder at 3 PM before the 5 PM management meeting."
+      text_ms: "Setiap Jumaat jam 8 pagi setiap pengurus mendapat kad Update Track, dengan peringatan jam 3 petang sebelum mesyuarat pengurusan jam 5 petang."
+    - tag: added
+      text: "The dashboard opens with a band: a birthday, a holiday eve, a big win or a company moment. Ordinary days look the same as before."
+      text_ms: "Papan pemuka dibuka dengan jalur: hari lahir, malam sebelum cuti, kemenangan besar atau detik syarikat. Hari biasa kelihatan sama seperti dahulu."
+      link: "/app/dash"
+      link_text: "Open Dashboard"
+      link_text_ms: "Buka Papan Pemuka"
+    - tag: added
+      text: "Wish a colleague happy birthday from the dashboard. Make your birthday private from your profile if you prefer."
+      text_ms: "Ucap selamat hari lahir kepada rakan sekerja dari papan pemuka. Jadikan hari lahir anda peribadi dari profil jika anda mahu."
+    - tag: added
+      text: "Send flowers: three a month, on a colleague's Wall and the dashboard."
+      text_ms: "Hantar bunga: tiga sebulan, pada Wall rakan sekerja dan papan pemuka."
+    - tag: added
+      text: "Mark a go-live, a tender won or a client compliment as a Big Deal. It sits on the dashboard for three days, then lives on the Wins page."
+      text_ms: "Tandakan go-live, tender dimenangi atau pujian klien sebagai Big Deal. Ia duduk di papan pemuka selama tiga hari, kemudian kekal di halaman Wins."
+    - tag: added
+      text: "Ring the Victory Bell when a Milestone card hits Done."
+      text_ms: "Bunyikan Victory Bell apabila kad Milestone mencapai Done."
+    - tag: added
+      text: "Your month, Wrapped: a personal recap on the first of the month, private unless you share it."
+      text_ms: "Bulan anda, Wrapped: imbasan peribadi pada satu haribulan, peribadi melainkan anda kongsikannya."
+    - tag: added
+      text: "This Week's Plot Twist: an anonymous fun poll every Monday, results on Friday."
+      text_ms: "Plot Twist Minggu Ini: undian santai tanpa nama setiap Isnin, keputusan pada Jumaat."
+    - tag: added
+      text: "Side Quests in The Playground: optional challenges with a badge that lasts 30 days and counts for nothing."
+      text_ms: "Side Quests di The Playground: cabaran pilihan dengan lencana yang bertahan 30 hari dan tidak dikira di mana-mana."
+    - tag: added
+      text: "A Mystery Award closes the monthly carousel: one surprise pick with a kind reason."
+      text_ms: "Mystery Award menutup karusel bulanan: satu pilihan kejutan dengan sebab yang baik."
+    - tag: added
+      text: "Friday Sign-Off: one tap for your week's mood and your win. The company mood is shown anonymously."
+      text_ms: "Friday Sign-Off: satu ketikan untuk mood minggu anda dan kemenangan anda. Mood syarikat dipaparkan tanpa nama."
+    - tag: added
+      text: "Unijaya's own reactions everywhere: Power, Legend, Noted With Fear, Claim Bila? HR keeps the set. Request Help on a card asks a named person directly."
+      text_ms: "Reaksi Unijaya sendiri di mana-mana: Power, Legend, Noted With Fear, Claim Bila? HR menjaga setnya. Minta Bantuan pada kad bertanya terus kepada orang yang dinamakan."
+    - tag: added
+      text: "The dashboard greets you with a line that knows the day. Cheeky messages appear now and then; switch on Keep it plain in your profile to silence all of it."
+      text_ms: "Papan pemuka menyapa anda dengan baris yang tahu harinya. Mesej nakal muncul sekali-sekala; hidupkan Keep it plain dalam profil untuk mendiamkan semuanya."
+    - tag: added
+      text: "Clocking out on the eve of a holiday wishes you a good break."
+      text_ms: "Daftar keluar pada malam sebelum cuti mengucapkan selamat bercuti."
+    - tag: added
+      text: "Learning is now The Playground, with Events under it, and a My working style card sits on the dashboard."
+      text_ms: "Learning kini The Playground, dengan Acara di bawahnya, dan kad Gaya kerja saya duduk di papan pemuka."
+    - tag: improved
+      text: "Hover any field, chip or button on the board, Office Requests and TOT to see what it does."
+      text_ms: "Letak tetikus pada mana-mana medan, cip atau butang di papan, Permintaan Pejabat dan TOT untuk melihat fungsinya."
+    - tag: improved
+      text: "The TOT drawer splits into a record pane and a discussion pane on wide screens, and forms save in place."
+      text_ms: "Laci TOT terbahagi kepada pane rekod dan pane perbincangan pada skrin lebar, dan borang disimpan di tempat."
+    - tag: improved
+      text: "Reactions hide behind a heart until you need them. Awards tabs, the documents vault and the management exceptions page gained filters."
+      text_ms: "Reaksi tersembunyi di sebalik hati sehingga anda memerlukannya. Tab anugerah, peti dokumen dan halaman pengecualian pengurusan mendapat penapis."
+    - tag: improved
+      text: "Timesheet shows one submit button at a time: Submit week replaces Submit day at the cutoff."
+      text_ms: "Timesheet menunjukkan satu butang hantar pada satu masa: Hantar minggu menggantikan Hantar hari pada waktu tutup."
+    - tag: fixed
+      text: "An open tab reloads by itself once the day rolls over, so yesterday's dashboard never lingers."
+      text_ms: "Tab yang terbuka dimuat semula sendiri apabila hari bertukar, jadi papan pemuka semalam tidak tertinggal."
+    - tag: fixed
+      text: "The attendance report drawer could not reverse or amend a record. It can now."
+      text_ms: "Laci laporan kehadiran tidak dapat membalikkan atau meminda rekod. Kini boleh."
+    - tag: fixed
+      text: "The card drawer no longer shows Reviewer and Milestone rows to people who cannot set them."
+      text_ms: "Laci kad tidak lagi menunjukkan baris Penyemak dan Milestone kepada orang yang tidak boleh menetapkannya."
+    - tag: fixed
+      text: "The clock in / clock out window could freeze after the server asked for a reason: the Confirm button stayed greyed out and nothing happened when tapped. It works again."
+      text_ms: "Tetingkap masuk / keluar kerja boleh terhenti selepas pelayan meminta sebab: butang Sahkan kekal kelabu dan tiada apa berlaku apabila ditekan. Ia berfungsi semula."
+      link: "/app/attendance"
+      link_text: "Open Attendance"
+      link_text_ms: "Buka Kehadiran"
+
 - version: "1.7.4"
   date: "2026-09-03"
   entries:

@@ -84,6 +84,34 @@ Staging and production login credentials are **not** in this repo (it is public)
 
 `ecosystem.config.cjs` is a leftover from the previous maintainer's Windows/Laragon setup (hardcoded `C:/laragon/...` PHP path) and does not run on this machine. Unused, kept for reference.
 
+## Amanahku autonomous build, standing rules
+
+This repository is being built by an unattended multi-session agent run. Shazwan is not available. Read `docs/build/RULES.md` in full before any work.
+
+**Every session, without exception:**
+
+- Read `docs/build/RULES.md`, all of `docs/build/contracts/`, the CR spec file, `docs/specs/global-clause.md`, `docs/specs/date-calendar-rules.md`, `docs/build/OPEN.md`, and the previous session's handoff.
+- Never block on a question. Safest reversible option, log to `docs/build/OPEN.md`, continue.
+- Never call an external service. Google, Track and mail go through ports in `docs/build/contracts/ports.md`.
+- One CR per session. No adjacent work, no refactoring outside the CR's files.
+- Never edit `CLAUDE.md`, `docs/build/RULES.md`, `docs/build/contracts/*` or `tests/Acceptance/*`. Those are input.
+- Work-item due dates are immutable after first save, in UI and API. Event dates are not.
+- Roles come from `docs/build/contracts/roles.md`. One role model only.
+- Dashboard changes go into the slots in `docs/build/contracts/dashboard-slots.md`. Never build a new dashboard. Never move or rename an existing card.
+- Every state change listed in `docs/specs/global-clause.md` writes an audit entry.
+- End with `docs/build/sessions/<id>/handoff.md`, then stop.
+
+**Hard stops:** no migrations outside dev, the CR-19 scheduler ships flagged off, nothing writes to attendance/timesheet/claim tables before S01, no real email or calendar or Track write, no audit-log row is ever deleted or rewritten.
+
+**This repo, for the run:**
+
+- Tests: `php artisan test --compact tests/Acceptance/<CRID>Test.php` on the host (PHP 8.5, sqlite test DB, separate from the dev DB). Whole suite: `php artisan test --compact`. Full-suite red blocks the staging pipeline (80% coverage floor).
+- Dev DB migrate: `lerd artisan migrate` (runs inside the lerd container against the dev MySQL). That is the only database a session may migrate.
+- Browser checks: app at `http://localhost:9100`, quick-login buttons on the login page, password `password`. Use the integrated browser MCP.
+- Format PHP before finishing: `vendor/bin/pint --dirty --format agent`.
+- Assets: only if Blade/CSS/JS changed, `lerd artisan view:clear && lerd artisan view:cache && bun run build`, commit `public/build` with the change.
+- Session files: `docs/build/sessions/<id>/contract.md` before code, `docs/build/sessions/<id>/handoff.md` after. Specs live in `docs/specs/`, contracts in `docs/build/contracts/`.
+
 ===
 
 <laravel-boost-guidelines>

@@ -130,6 +130,24 @@ class TimesheetReportStaffWeekTest extends TestCase
         $this->assertSame('2026-06-08', $weeks[0]['weekStart']);
     }
 
+    public function test_a_manager_can_read_a_staff_members_sheet(): void
+    {
+        // CR-02: the fragment shares the report screen's canSeeAll gate, so the manager who
+        // can open the chase tab can also open the person it lists.
+        $this->draftWithOneLine('2026-06-15', '2026-06-16');
+
+        $mgrUser = User::create(['name' => 'Mgr', 'email' => 'mgr@example.com', 'password' => Hash::make('password')]);
+        $mgrUser->tenants()->attach($this->tenant->id, ['role' => 'manager']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $mgrUser->id,
+            'name' => 'Mgr', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingAs($mgrUser)->withSession(['current_tenant' => $this->tenant->id])
+            ->get("/app/timesheet-reports/person/{$this->staff->id}")
+            ->assertOk();
+    }
+
     public function test_a_plain_employee_cannot_read_a_colleagues_sheet(): void
     {
         $this->draftWithOneLine('2026-06-15', '2026-06-16');

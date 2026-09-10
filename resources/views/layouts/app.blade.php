@@ -15,8 +15,17 @@
     {{-- Reveals the mobile-only camera-capture trigger in the messages composer (side panel is
          global, so this lives in the layout rather than a single screen). --}}
     <style>@media (hover: none) and (pointer: coarse) { .uj-cam-only { display:inline-flex !important; } }</style>
+    {{-- The browser's idea of "now". Under the local dev clock injector the server is faked
+         but the device is not, so tickers and the day-rollover check ran on real time and
+         fought the injected date. Offset by the gap this render was served with. --}}
+    <script>
+        window.ujNow = (() => {
+            const offset = @js(app()->isLocal() && session('dev_now') ? now()->getTimestampMs() - (int) round(microtime(true) * 1000) : 0);
+            return () => new Date(Date.now() + offset);
+        })();
+    </script>
 </head>
-<body>
+<body {{ \App\Support\DashboardPrefs::forUser(auth()->user()?->dashboard_prefs)['plain'] ? 'data-plain' : '' }}>
 @php
     $embed = $embed ?? false;
     // Notices that hang off the header rather than scrolling with the page.
@@ -180,7 +189,7 @@
             // screens (tables, boards, the org canvas) in a wider centred cap.
             $wideScreens = ['directory', 'team-board', 'staff-load', 'reports',
                 'roles', 'calendar', 'dash', 'attendance-admin', 'attendance-report', 'timesheet-reports',
-                'messages', 'orgchart', 'board'];
+                'messages', 'orgchart', 'board', 'side-quests'];
             $isWide = ! $embed && in_array($screen ?? null, $wideScreens, true);
         @endphp
         <main class="uj-main {{ $embed ? '' : 'uj-measured' }} {{ $isWide ? 'uj-main--wide' : '' }} {{ $hasPins ? 'uj-main--pinned' : '' }}" style="{{ $embed ? 'padding:16px 18px 24px;' : 'flex:1;overflow-y:auto;padding:0 28px 48px;' }}">
@@ -309,7 +318,7 @@
                 fetch('{{ route('knowledge.read') }}', {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'Accept': 'application/json',
                     },
                 }).catch(() => {});
@@ -375,7 +384,7 @@
                     method: 'POST',
                     keepalive: true,
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'X-CSRF-TOKEN': @js(csrf_token()),
                         'Accept': 'application/json',
                     },
                 }).catch(() => {});
@@ -404,7 +413,7 @@
             error: '',
             lastMessageId: 0,
             pollTimer: null,
-            csrf() { return document.querySelector('meta[name=csrf-token]').content; },
+            csrf() { return @js(csrf_token()); },
 
             /** Fetch the thread fragment and drop it into the panel's pane. */
             async swap(query) {
@@ -510,6 +519,10 @@
         // redirect result appears once, as a toast, instead of an in-page banner.
         @if (session('error'))
         Alpine.store('toast').error(@js(session('error')));
+        @elseif ($errors->any())
+        {{-- A plain (non-AJAX) form that failed validation lands back here with the
+             error bag and nothing else; without this the page just reloads in silence. --}}
+        Alpine.store('toast').error(@js($errors->first()));
         @endif
         @if (session('ok'))
         Alpine.store('toast').success(@js(session('ok')));
@@ -547,9 +560,60 @@
             setInterval(check, 300000);
             document.addEventListener('visibilitychange', () => { if (! document.hidden) { check(); } });
         })();
+
+        // CR-12: a tab left open overnight still shows yesterday in the sidebar's TODAY
+        // widget (date, clock-in state, timesheet %) — all server-rendered. The date is
+        // stamped in the app's timezone (not the device's) so it matches what the widget
+        // shows; when the tab comes back into view on a later day, reload the page.
+        (() => {
+            const renderedDay = @js(now()->toDateString());
+            const tz = @js(config('app.timezone'));
+            const today = () => window.ujNow().toLocaleDateString('en-CA', { timeZone: tz });
+            const rollover = () => {
+                if (! document.hidden && today() !== renderedDay) { window.location.reload(); }
+            };
+            document.addEventListener('visibilitychange', rollover);
+            window.addEventListener('focus', rollover);
+            setInterval(rollover, 60000);
+        })();
     });
 </script>
 @include('partials.toast-host')
+{{-- CR-31 tab_collector: 20+ Amanahku tabs open (this browser only — it can't see other
+     sites), the line shows once a day, via a localStorage heartbeat. Never under Keep it
+     plain, never with sound. Human check (CR31Test item 6). --}}
+<script>
+(function () {
+    try {
+        if (document.body.hasAttribute('data-plain')) return;
+        var KEY = 'uj-tabs', id = Math.random().toString(36).slice(2);
+        var beat = function () {
+            try {
+                var tabs = JSON.parse(localStorage.getItem(KEY) || '{}');
+                var now = Date.now();
+                tabs[id] = now;
+                Object.keys(tabs).forEach(function (k) { if (now - tabs[k] > 10000) delete tabs[k]; });
+                localStorage.setItem(KEY, JSON.stringify(tabs));
+                var seenKey = 'uj-tab-collector-' + new Date().toISOString().slice(0, 10);
+                if (Object.keys(tabs).length >= 20 && !localStorage.getItem(seenKey) && window.Alpine?.store('toast')) {
+                    localStorage.setItem(seenKey, '1');
+                    var lang = Alpine.store('ui')?.lang;
+                    Alpine.store('toast').success(lang === 'ms' ? 'Pengumpul Tab Profesional dikesan.' : 'Professional Tab Collector detected.');
+                }
+            } catch (e) {}
+        };
+        beat();
+        setInterval(beat, 4000);
+        window.addEventListener('beforeunload', function () {
+            try {
+                var tabs = JSON.parse(localStorage.getItem(KEY) || '{}');
+                delete tabs[id];
+                localStorage.setItem(KEY, JSON.stringify(tabs));
+            } catch (e) {}
+        });
+    } catch (e) {}
+})();
+</script>
 @if (app()->isLocal())
 <form method="POST" action="{{ route('dev.clock') }}" style="position:fixed;bottom:8px;left:8px;z-index:9999;background:#fde68a;color:#111;padding:4px 8px;border-radius:6px;font:var(--t-micro) var(--font-mono);display:flex;gap:6px;align-items:center">
     @csrf

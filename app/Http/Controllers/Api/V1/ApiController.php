@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Payslip;
@@ -12,10 +13,16 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
+use App\Models\User;
+use App\Models\WorkItem;
+use App\Models\WorkItemComment;
 use App\Support\ApiCaller;
+use App\Support\ManagementMeeting;
+use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -132,29 +139,103 @@ class ApiController extends Controller
     }
 
     /** GET /api/v1/projects — the tenant's active projects and their category tags. */
+    /**
+     * GET /api/v1/projects — optionally `as_of=YYYY-MM-DD` for a reporting-period
+     * read (CR-06b §E3, E5): each project's master figures come from the version
+     * effective on that date, not the current row, so re-running an old report
+     * reproduces the old figures. A project with no version effective by then is
+     * left out entirely. Every row also carries `awaiting_approval`, the count of
+     * pending Variations Track shows as a caveat on the figure.
+     */
     public function projects(Request $request): JsonResponse
     {
         if (! $this->tokenCan($request, 'projects:read')) {
             return $this->denyScope('projects:read');
         }
 
+        $asOf = $request->validate(['as_of' => ['nullable', 'date']])['as_of'] ?? null;
+
         // Eager-loaded: without it the map below fires one query per project.
         $projects = Project::where('is_active', true)
-            ->with('categories:id,name')
+            ->with([
+                'categories:id,name',
+                'pm:id,name,nickname',
+                'pe:id,name,nickname',
+                'versions:id,project_id,version_no,effective_date,snapshot',
+                'variations:id,project_id,status',
+            ])
             ->orderBy('sort')
             ->orderBy('name')
             ->get()
-            ->map(fn (Project $p) => [
-                'id' => $p->id,
-                'code' => $p->code,
-                'name' => $p->name,
-                // Names, not ids: a category id means nothing outside AmanahKu, and a
-                // consumer matching on "Development" needs no second lookup.
-                // Sorted: Project::categories() carries no ORDER BY, so unsorted order
-                // depends on MySQL's query plan — a consumer diffing this array would
-                // see phantom changes between otherwise-identical calls.
-                'categories' => $p->categories->pluck('name')->sort()->values()->all(),
-            ]);
+            ->map(function (Project $p) use ($asOf) {
+                $awaitingApproval = $p->variations->where('status', 'pending')->count();
+
+                if ($asOf !== null) {
+                    // Computed off the already-eager-loaded versions collection, not
+                    // Project::versionEffectiveOn() (a fresh query per call) — this
+                    // runs inside a map() over every project, so a query-builder call
+                    // here would be an N+1 the eager-load above was meant to avoid.
+                    $version = $p->versions
+                        ->filter(fn ($v) => $v->effective_date->toDateString() <= $asOf)
+                        ->sort(fn ($a, $b) => [$b->effective_date->toDateString(), $b->version_no] <=> [$a->effective_date->toDateString(), $a->version_no])
+                        ->first();
+                    if ($version === null) {
+                        return null;
+                    }
+                    $s = $version->snapshot;
+
+                    return [
+                        'id' => $p->id,
+                        'code' => $p->code,
+                        'name' => $s['name'] ?? $p->name,
+                        'categories' => $p->categories->pluck('name')->sort()->values()->all(),
+                        'project_code' => $s['project_code'] ?? $p->project_code,
+                        'client' => $s['client'] ?? null,
+                        'status' => $s['status'] ?? null,
+                        'contract_value' => $s['contract_value'] ?? null,
+                        'contract_start' => $s['contract_start'] ?? null,
+                        'contract_end' => $s['contract_end'] ?? null,
+                        'procurement_method' => $s['procurement_method'] ?? null,
+                        'contractor' => $s['contractor'] ?? null,
+                        'drive_link' => $s['drive_link'] ?? null,
+                        'pm' => $p->pm?->display_name,
+                        'pe' => $p->pe?->display_name,
+                        'version' => $version->version_no,
+                        'awaiting_approval' => $awaitingApproval,
+                    ];
+                }
+
+                return [
+                    'id' => $p->id,
+                    'code' => $p->code,
+                    'name' => $p->name,
+                    // Names, not ids: a category id means nothing outside AmanahKu, and a
+                    // consumer matching on "Development" needs no second lookup.
+                    // Sorted: Project::categories() carries no ORDER BY, so unsorted order
+                    // depends on MySQL's query plan — a consumer diffing this array would
+                    // see phantom changes between otherwise-identical calls.
+                    'categories' => $p->categories->pluck('name')->sort()->values()->all(),
+                    // CR-06a master fields: this is what Track pulls instead of re-keying
+                    // the same details a second time (docs/specs/CR-06.md §B).
+                    'project_code' => $p->project_code,
+                    'client' => $p->client,
+                    'status' => $p->status,
+                    'contract_value' => $p->contract_value,
+                    // Plain dates: a Carbon here would serialise as a UTC timestamp and read
+                    // as the previous day in Malaysia.
+                    'contract_start' => $p->contract_start?->toDateString(),
+                    'contract_end' => $p->contract_end?->toDateString(),
+                    'procurement_method' => $p->procurement_method,
+                    'contractor' => $p->contractor,
+                    'drive_link' => $p->drive_link,
+                    'pm' => $p->pm?->display_name,
+                    'pe' => $p->pe?->display_name,
+                    'version' => $p->versions->max('version_no'),
+                    'awaiting_approval' => $awaitingApproval,
+                ];
+            })
+            ->filter()
+            ->values();
 
         return $this->ok($projects);
     }
@@ -255,6 +336,125 @@ class ApiController extends Controller
     }
 
     /**
+     * One week of board activity for every project, keyed by project and day, so
+     * Track can fill its Last Week card without a PM retyping what the board knows.
+     *
+     * Per day: `planned` is every card or subtask due that day, `happened` is what
+     * changed that day (created, moved between columns, done, or timesheet time
+     * logged against it), `events` is every Event card dated that day.
+     */
+    public function boardWeek(Request $request): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'board-week:read')) {
+            return $this->denyScope('board-week:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $weekStart = CarbonImmutable::parse($request->validate(['week_start' => ['required', 'date']])['week_start'])->startOfDay();
+        if (! $weekStart->isMonday()) {
+            return $this->error('week_start must be a Monday.', 422);
+        }
+        $weekEnd = $weekStart->addDays(6)->endOfDay();
+
+        $link = fn (WorkItem $item): array => [
+            'card_id' => $item->id,
+            'title' => $item->title,
+            'status' => $item->status,
+            'type' => $item->type,
+            'parent_id' => $item->parent_id,
+            'owner' => $item->employee?->name,
+            'url' => route('work.show', $item),
+        ];
+
+        $projects = [];
+        $push = function (int|string $projectId, string $date, string $kind, array $row) use (&$projects): void {
+            $projects[$projectId]['project_id'] = (int) $projectId;
+            $projects[$projectId]['days'][$date][$kind][] = $row;
+        };
+
+        $items = WorkItem::query()
+            ->whereNotNull('project_id')
+            ->whereNull('archived_at')
+            ->with('employee')
+            ->where(function ($q) use ($weekStart, $weekEnd) {
+                $q->whereBetween('due_at', [$weekStart->toDateString(), $weekEnd->toDateTimeString()])
+                    ->orWhereBetween('created_at', [$weekStart, $weekEnd])
+                    ->orWhereBetween('done_at', [$weekStart, $weekEnd]);
+            })
+            ->get();
+
+        foreach ($items as $item) {
+            $pid = $item->project_id;
+            if ($item->type === 'event') {
+                if ($item->due_at && $item->due_at->between($weekStart, $weekEnd)) {
+                    $push($pid, $item->due_at->toDateString(), 'events', $link($item));
+                }
+
+                continue;
+            }
+            if ($item->due_at && $item->due_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->due_at->toDateString(), 'planned', $link($item));
+            }
+            if ($item->created_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->created_at->toDateString(), 'happened', $link($item) + ['what' => 'created', 'at' => $item->created_at->toDateTimeString()]);
+            }
+            if ($item->done_at && $item->done_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->done_at->toDateString(), 'happened', $link($item) + ['what' => 'done', 'at' => $item->done_at->toDateTimeString()]);
+            }
+        }
+
+        $moves = AuditLog::query()
+            ->where('subject_type', (new WorkItem)->getMorphClass())
+            ->where('field', 'status')
+            ->whereBetween('created_at', [$weekStart, $weekEnd])
+            ->get();
+        $movedItems = WorkItem::query()->whereNotNull('project_id')->with('employee')->whereIn('id', $moves->pluck('subject_id'))->get()->keyBy('id');
+        foreach ($moves as $move) {
+            $item = $movedItems->get($move->subject_id);
+            $to = json_decode((string) $move->new_value, true);
+            $from = json_decode((string) $move->old_value, true);
+            if (! $item || $from === null || $to === 'done') {
+                continue; // creation and completion are already listed from the card itself
+            }
+            $push($item->project_id, $move->created_at->toDateString(), 'happened', $link($item) + ['what' => 'moved', 'from' => $from, 'to' => $to, 'at' => $move->created_at->toDateTimeString()]);
+        }
+
+        $logged = TimesheetEntry::query()
+            ->whereNotNull('work_item_id')
+            ->whereNotNull('project_id')
+            ->whereBetween('entry_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->with(['timesheet.employee', 'workItem'])
+            ->get();
+        foreach ($logged as $entry) {
+            if (! $entry->workItem) {
+                continue;
+            }
+            $push($entry->project_id, CarbonImmutable::parse($entry->entry_date)->toDateString(), 'happened', $link($entry->workItem) + [
+                'what' => 'logged',
+                'by' => $entry->timesheet?->employee?->name,
+                'percentage' => (float) $entry->percentage,
+            ]);
+        }
+
+        $out = [];
+        foreach ($projects as $pid => $project) {
+            $days = [];
+            for ($i = 0; $i < 7; $i++) {
+                $date = $weekStart->addDays($i)->toDateString();
+                $bucket = $project['days'][$date] ?? [];
+                $days[] = ['date' => $date, 'planned' => $bucket['planned'] ?? [], 'happened' => $bucket['happened'] ?? [], 'events' => $bucket['events'] ?? []];
+            }
+            $out[] = ['project_id' => (int) $pid, 'days' => $days];
+        }
+        usort($out, fn ($a, $b) => $a['project_id'] <=> $b['project_id']);
+
+        return $this->ok(['week_start' => $weekStart->toDateString(), 'projects' => $out]);
+    }
+
+    /**
      * Collapse one project's entries into one row per position band.
      *
      * `alloc_pct` is the average dedication across the people in the band, so the row
@@ -289,6 +489,122 @@ class ApiController extends Controller
             ->sortBy(fn (array $row) => $row['position_title'] ?? '')
             ->values()
             ->all();
+    }
+
+    /**
+     * CR-08: every card comment pushed to Track, for Track to mirror into its project
+     * Comments panel. Latest version plus the full version list, withdrawn ones
+     * included (Track greys them, never drops them). `project_ids` is Track's list
+     * of linked Amanahku projects: each pull stamps them as linked, which is how the
+     * Push to Track tick knows to enable itself on those projects' cards.
+     */
+    /**
+     * CR-34: the tenant's management-meeting settings, this week's (holiday-shifted)
+     * meeting date, and who has or has not closed their 'Update Track' card. Track reads
+     * this to time its meeting pack and to show who still owes an update.
+     */
+    public function managementMeeting(Request $request, ManagementMeeting $meeting): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'board-week:read')) {
+            return $this->denyScope('board-week:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $settings = $meeting->settings();
+        $meetingDate = $meeting->meetingDateForWeek(Carbon::now(), $settings);
+
+        $cards = WorkItem::query()->with('employee')
+            ->where('source', 'management_meeting')
+            ->where('source_ref', $meetingDate->toDateString())
+            ->orderBy('employee_id')
+            ->get();
+
+        return $this->ok([
+            'meeting_day' => (int) $settings->meeting_day,
+            'meeting_time' => $settings->meeting_time,
+            'reminder_time' => $settings->reminder_time,
+            'task_time' => $settings->task_time,
+            'paused_until' => $settings->paused_until?->toDateString(),
+            'meeting_date' => $meetingDate->toDateString(),
+            'managers' => $cards->map(fn (WorkItem $c): array => [
+                'name' => $c->employee?->display_name ?? $c->employee?->name,
+                'done' => $c->status === 'done',
+                'card_url' => route('work.show', $c),
+            ])->values(),
+        ]);
+    }
+
+    public function projectComments(Request $request): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'comments:read')) {
+            return $this->denyScope('comments:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $q = $request->validate([
+            'since' => ['nullable', 'date'],
+            'project_ids' => ['nullable', 'string'],
+        ]);
+
+        $ids = collect(explode(',', $q['project_ids'] ?? ''))->filter(fn ($v) => ctype_digit(trim($v)))->map(fn ($v) => (int) $v);
+        if ($ids->isNotEmpty()) {
+            Project::whereIn('id', $ids)->update(['track_linked_at' => now()]);
+        }
+
+        $comments = WorkItemComment::query()
+            ->whereNotNull('pushed_to_track_at')
+            ->when($q['since'] ?? null, fn ($qq, $since) => $qq->where('updated_at', '>=', CarbonImmutable::parse($since)))
+            ->when($ids->isNotEmpty(), fn ($qq) => $qq->whereHas('workItem', fn ($w) => $w->whereIn('project_id', $ids)))
+            ->with(['workItem:id,title,project_id', 'employee:id,name,nickname,user_id', 'attachments'])
+            ->orderBy('id')
+            ->get();
+
+        return $this->ok([
+            'comments' => $comments->map(fn (WorkItemComment $c) => [
+                'id' => $c->id,
+                'project_id' => $c->workItem?->project_id,
+                'card_id' => $c->work_item_id,
+                'card_title' => $c->workItem?->title,
+                'card_url' => $c->workItem ? route('work.show', $c->workItem) : null,
+                'author' => $c->employee?->display_name,
+                'author_role' => $this->roleLabel($c),
+                'body' => $c->track_body,
+                'version' => $c->track_version,
+                'versions' => $c->track_versions ?? [],
+                'pushed_at' => $c->pushed_to_track_at?->toIso8601String(),
+                'updated_at' => $c->updated_at?->toIso8601String(),
+                'withdrawn_at' => $c->withdrawn_at?->toIso8601String(),
+                'withdrawn_reason' => $c->withdrawn_reason,
+                // Only files the author ticked for Track; confidential ones never appear.
+                'attachments' => $c->attachments->where('pushed_to_track', true)->where('confidential', false)->map(fn ($a) => [
+                    'name' => $a->name,
+                    'size' => $a->size,
+                    'mime' => $a->mime,
+                    'url' => route('work.comment.attachment', $a),
+                ])->values(),
+            ])->values(),
+        ]);
+    }
+
+    /** "Director", "Manager", "PE"… the badge Track shows beside a pushed comment. */
+    private function roleLabel(WorkItemComment $c): ?string
+    {
+        $project = $c->workItem?->project_id ? Project::find($c->workItem->project_id) : null;
+        if ($project && $c->employee_id === $project->pe_id) {
+            return 'PE';
+        }
+        if ($project && $c->employee_id === $project->pm_id) {
+            return 'PM';
+        }
+        $role = $c->employee?->user_id ? User::find($c->employee->user_id)?->roleIn(app(CurrentTenant::class)->get()) : null;
+
+        return $role ? ucfirst($role) : null;
     }
 
     /**

@@ -35,6 +35,8 @@
             $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         @endphp
         <span style="display:inline-block;font-size:11px;font-weight:600;color:{{ $stColor }};background:var(--canvas);padding:4px 11px;border-radius:9999px;">{{ $stOpts[$p->status] ?? ucfirst($p->status) }}</span>
+        @include('partials.awards.badges', ['awardBadges' => $awardBadges ?? collect()])
+        @include('partials.awards.side-quest-badges', ['questBadges' => $questBadges ?? collect()])
         <div style="margin-top:14px;font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px;">
             <div>{{ $p->department?->name }}@if ($p->branch) · {{ $p->branch->name }}@endif</div>
             <div><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span>: {{ $p->reportsTo?->name ?? '—' }}</div>
@@ -77,6 +79,8 @@
                 </div>
                 <p style="font-size:13.5px;color:var(--muted);margin:5px 0 0;">{{ $p->positionBand?->title ?? '—' }}</p>
                 <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0;">{{ $p->department?->name }}@if ($p->branch) · {{ $p->branch->name }}@endif</p>
+                @include('partials.awards.badges', ['awardBadges' => $awardBadges ?? collect()])
+                @include('partials.awards.side-quest-badges', ['questBadges' => $questBadges ?? collect()])
                 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted);">
                     <span><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $p->staff_id ?? '—' }}</span></span>
                     <span><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span>: <span style="font-family:var(--font-mono);color:var(--ink);">{{ $p->joined_at?->format('d M Y') ?? '—' }}</span></span>
@@ -85,6 +89,9 @@
             <div style="display:flex;gap:8px;flex-shrink:0;">
                 @if (($msgEnabled ?? false) && ! $isOwn)
                     <a href="{{ route('app.screen', 'messages') }}?to={{ $p->id }}" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Message' : 'Mesej'">Message</span></a>
+                @endif
+                @if ($canGiveFlower ?? false)
+                    @include('partials.flower-give', ['employee' => $p, 'flowersLeft' => $flowersLeft ?? 0, 'alreadyGaveThisMonth' => $alreadyGaveThisMonth ?? false])
                 @endif
                 @if ($canEdit)<button type="button" @click="edit = true" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</span></button>@endif
                 <a href="{{ route('app.screen', 'orgchart') }}" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Org chart' : 'Carta organisasi'">Org chart</span></a>
@@ -95,6 +102,25 @@
                 </a>
             @endif
         </div>
+
+        @if ($isOwn)
+        {{-- CR-31 "Keep it plain": same prefs key as the dashboard picker
+             (App\Support\DashboardPrefs), posts to the same route. --}}
+        <div x-data="{ plain: {{ ($keepItPlain ?? false) ? 'true' : 'false' }} }" style="padding:12px 4px 0;">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input type="checkbox" x-model="plain" style="margin-top:3px;"
+                       @change="fetch('/app/dashboard/prefs', {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                           body: JSON.stringify({ plain: plain }),
+                       }).catch(() => {})">
+                <span>
+                    <b style="display:block;font-size:13px;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Keep it plain' : 'Biar ringkas'">Keep it plain</b>
+                    <small style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No animations, no cheeky messages, anywhere.' : 'Tiada animasi, tiada mesej nakal, di mana-mana.'">No animations, no cheeky messages, anywhere.</small>
+                </span>
+            </label>
+        </div>
+        @endif
 
         {{-- Edit modal — teleported to body + centered. Route/method/field names unchanged. --}}
         @if ($canEdit)
@@ -122,6 +148,17 @@
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></label><input name="staff_id" type="text" value="{{ old('staff_id', $p->staff_id) }}" placeholder="UR-0000" style="{{ $fs }}font-family:var(--font-mono);" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span></label><input name="joined_at" type="date" value="{{ old('joined_at', $p->joined_at?->format('Y-m-d')) }}" style="{{ $fs }}margin-bottom:6px;" />@include('partials.hint', ['en' => 'Leave blank to keep the current hire date.', 'ms' => 'Biar kosong untuk kekalkan tarikh menyertai semasa.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Date of birth' : 'Tarikh lahir'">Date of birth</span></label><input name="date_of_birth" type="date" value="{{ old('date_of_birth', $p->date_of_birth?->format('Y-m-d')) }}" style="{{ $fs }}" /></div>
+                        @if ($isOwn)
+                            <div>
+                                <input type="hidden" name="birthday_private" value="0" />
+                                <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);">
+                                    <input type="checkbox" name="birthday_private" value="1" @checked(old('birthday_private', $p->birthday_private))
+                                           style="width:16px;height:16px;" />
+                                    <span x-text="$store.ui.lang==='en' ? 'Keep my birthday private' : 'Rahsiakan hari lahir saya'">Keep my birthday private</span>
+                                </label>
+                                @include('partials.hint', ['en' => 'No banner, no wishes, no 8 AM notice. The calendar still shows the day.', 'ms' => 'Tiada sepanduk, tiada ucapan, tiada notis 8 pagi. Kalendar masih memaparkan hari itu.'])
+                            </div>
+                        @endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Position band' : 'Band pangkat'">Position band</span></label><select name="position_id" x-model="pid" style="{{ $fs }}"><option value="">—</option>@foreach ($bandsByDept as $deptName => $group)<optgroup label="{{ $deptName }}">@foreach ($group as $pos)<option value="{{ $pos->id }}" @selected((int) old('position_id', $p->position_id) === $pos->id)>{{ $pos->title }}@if ($pos->staffLevel) · {{ $pos->staffLevel->name }}@endif · RM {{ number_format((float) $pos->max_salary, 0) }}</option>@endforeach</optgroup>@endforeach</select></div>
                         @if ($canSeeSalary ?? false)<div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Salary (RM)' : 'Gaji (RM)'">Salary (RM)</span></label><input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $p->salary) }}" placeholder="0.00" style="{{ $fs }}font-family:var(--font-mono);" /><div x-show="pid && max[pid] !== undefined" x-cloak style="font-size:11px;color:var(--muted);margin-top:4px;"><span x-text="$store.ui.lang==='en' ? 'Band max:' : 'Maks band:'">Band max:</span> RM <span x-text="(max[pid] ?? 0).toLocaleString('en-MY',{minimumFractionDigits:2})"></span></div></div>@endif
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span></label><select name="branch_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allBranches as $b)<option value="{{ $b->id }}" @selected((int) old('branch_id', $p->branch_id) === $b->id)>{{ $b->name }}</option>@endforeach</select></div>
@@ -183,6 +220,11 @@
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Workload' : 'Beban kerja'">Workload</span></div><div style="font-size:15px;font-weight:600;color:{{ Amanahku::SWATCH[$p->workload] }};margin-top:5px;">● {{ $p->workload_label }}</div></div>
             <div class="uj-card" style="flex:1;min-width:120px;padding:16px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Open tasks' : 'Tugas terbuka'">Open tasks</span></div><div class="uj-stat-value" style="font-size:22px;">{{ $p->workItems->whereIn('status', ['todo','prog','review'])->count() }}</div></div>
         </div>
+
+        {{-- Wall (CR-13 wishes + CR-23 flowers): everything this person has received,
+             newest first. Always included (the give-a-flower button above targets it
+             by id); the partial itself hides when there is nothing on it yet. --}}
+        @include('partials.wall', ['employee' => $p, 'wall' => $wall ?? collect(), 'canHideFlowers' => $canHideFlowers ?? false])
 
         @php
             // Read-only lookup maps for the profile tabs (mirrors the standalone screens).
@@ -274,6 +316,12 @@
                     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);font-size:12px;color:var(--body);line-height:1.5;">{{ $pers['blurb'] ?? '' }}</div>
                 </div>
                 @endif
+                @if ($isOwn)
+                <div>
+                    {{-- CR-15: the test lost its sidebar row, so the profile page links to it. --}}
+                    <a href="{{ route('app.screen', 'profile-test') }}" class="uj-btn-ghost" style="display:inline-flex;height:36px;align-items:center;padding:0 16px;font-size:13px;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? @js($pers ? 'Retake the Profile Test' : 'Take the Profile Test') : @js($pers ? 'Ambil semula Ujian Profil' : 'Ambil Ujian Profil')">{{ $pers ? 'Retake the Profile Test' : 'Take the Profile Test' }}</span></a>
+                </div>
+                @endif
 
                 @if ($p->interests)
                 <div>
@@ -316,6 +364,23 @@
                         </a>
                     @endif
                 </div>
+                @if ($googleCalendarConnected ?? false)
+                    <div style="font-size:11.5px;color:var(--muted);margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Your cards with a due date appear in a separate \'Amanahku\' calendar, never your main one. Move a Task there and it snaps back; move an Event and the card follows.' : 'Kad anda yang bertarikh akhir muncul dalam kalendar \'Amanahku\' berasingan, bukan kalendar utama. Alih Tugasan di sana dan ia kembali; alih Acara dan kad mengikut.'">Your cards with a due date appear in a separate 'Amanahku' calendar, never your main one.</div>
+                @endif
+                @if (($calendarSyncIssues ?? collect())->isNotEmpty())
+                    <div data-testid="calendar-sync-issues" style="margin-top:10px;border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 10px;">
+                        <div style="font-size:11px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:0.6px;" x-text="$store.ui.lang==='en' ? 'Sync issues' : 'Isu penyegerakan'">Sync issues</div>
+                        @foreach ($calendarSyncIssues as $issue)
+                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;">
+                                <a href="{{ route('work.show', $issue) }}" style="flex:1;min-width:0;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ $issue->calendar_sync_error }}">{{ $issue->title }}</a>
+                                <form method="post" action="{{ route('google-calendar.retry', $issue) }}">
+                                    @csrf
+                                    <button type="submit" class="uj-btn-ghost" style="height:24px;padding:0 8px;font-size:11px;" data-tip="Push this card to the calendar once more">Retry</button>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
                 </div>
                 @endif
                 @forelse ($wItems as $w)

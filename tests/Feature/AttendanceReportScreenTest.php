@@ -338,4 +338,16 @@ class AttendanceReportScreenTest extends TestCase
 
         $this->assertSame(0, $response->viewData('rows')->count());
     }
+
+    public function test_only_get_forms_are_turned_into_ledger_navigation(): void
+    {
+        // The drawer's amend and reverse forms POST. The screen-wide submit handler used to
+        // serialise every form into a GET, which landed those on a 405 page.
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance-report?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee("if (form.method !== 'get') return;", false);
+    }
 }

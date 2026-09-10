@@ -4,7 +4,8 @@
 <template x-teleport="body">
     <div x-show="drawerOpen" x-cloak>
         <div class="wd-scrim" :data-open="drawerOpen ? '' : null" @click="drawerOpen = false"></div>
-        <aside class="wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
+        <aside class="wd tot-wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
+               @submit="submitForm($event)"
                @keydown.escape.window="flyout ? (flyout = null) : (drawerOpen = false)"
                :aria-label="$store.ui.lang==='en' ? @js($session->session_date->format('F Y')) : @js($session->session_date->format('F Y'))">
 
@@ -16,12 +17,21 @@
                 </button>
             </div>
 
-            <div class="wd-body">
+            {{-- Two panes from 1200px up: the record (what gets filled in) on the left,
+                 the room (rate, rater notes, discussion, composer) on the right. Narrower
+                 than that .tot-panes is the single scroller and the panes stack. --}}
+            <div class="tot-panes">
+            <div class="wd-body tot-pane">
                 @if ($session->exists)
                     @php
                         $presenterName = $session->presenterLabel();
                         $isEvent = in_array($session->status, ['not_tot', 'skipped'], true);
+                        $canManageSession = $session->isManagedBy($role, $employee);
                     @endphp
+
+                    @if (! $isEvent)
+                        @include('partials.tot-attendance-summary', ['session' => $session, 'canManageSession' => $session->isManagedBy($role, $employee), 'assignableEmployees' => $assignableEmployees])
+                    @endif
 
                     @if (! $isEvent)
                         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
@@ -55,7 +65,43 @@
                         @endforelse
                     </div>
 
-                    @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
+                    @if (! $isEvent)
+                        <div style="margin-bottom:16px;">
+                            <div class="wd-sech" x-text="$store.ui.lang==='en' ? 'Nota Perbincangan' : 'Nota Perbincangan'">Nota Perbincangan</div>
+                            @if (filled($session->nota_url))
+                                <a class="tot-lk" href="{{ $session->nota_url }}" target="_blank" rel="noopener noreferrer">{{ $session->nota_url }}</a>
+                            @else
+                                <span class="tot-note" x-text="$store.ui.lang==='en' ? 'No link yet.' : 'Belum ada pautan.'">No link yet.</span>
+                            @endif
+                        </div>
+
+                        @include('partials.tot-slots', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees, 'employee' => $employee])
+
+                        @include('partials.tot-actions-table', ['session' => $session, 'canManageSession' => $canManageSession, 'assignableEmployees' => $assignableEmployees, 'role' => $role, 'employee' => $employee])
+
+                        @php $carriedAgenda = $session->carriedAgenda(); @endphp
+                        @if (filled($carriedAgenda))
+                            <div style="margin:0 0 16px;">
+                                <div class="wd-sech" x-text="$store.ui.lang==='en' ? 'Agenda dari bulan lepas' : 'Agenda dari bulan lepas'">Agenda dari bulan lepas</div>
+                                <p style="font-size:13.5px;color:var(--body);line-height:1.65;white-space:pre-line;margin:4px 0 0;">{{ $carriedAgenda }}</p>
+                            </div>
+                        @endif
+
+                        @if ($canManageSession)
+                            <div style="margin-bottom:16px;max-width:620px;">
+                                <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Next-month agenda' : 'Agenda bulan hadapan'">Next-month agenda</label>
+                                <form method="post" action="{{ route('tot.update', $session) }}">
+                                    @csrf
+                                    <input type="hidden" name="year" value="{{ $session->year }}">
+                                    <input type="hidden" name="month" value="{{ $session->month }}">
+                                    <input type="hidden" name="chair_employee_id" value="{{ $session->chair_employee_id }}">
+                                    <input type="hidden" name="nota_url" value="{{ $session->nota_url }}">
+                                    <textarea class="tot-field" name="next_agenda" style="height:64px;padding-top:9px;resize:vertical;">{{ old('next_agenda', $session->next_agenda) }}</textarea>
+                                    <button type="submit" class="tot-btn-g" style="margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Save agenda' : 'Simpan agenda'">Save agenda</button>
+                                </form>
+                            </div>
+                        @endif
+                    @endif
 
                     @if ($canEditSlot)
                         <hr class="wd-rule">
@@ -68,11 +114,14 @@
                         ])
                     @endif
 
+                </div>
+                <div class="wd-body tot-pane tot-pane--room" x-ref="room">
+                    @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
                     <hr class="wd-rule">
 
                     {{-- Anonymous rater notes. Present only for a viewer the server decided may
                          see scores, which is the presenter and management. Never a name. --}}
-                    <template x-if="notes.length">
+                    <template x-if="notes.length && !slotRoom">
                         <div class="wd-locked" style="display:block;">
                             <div class="wd-sech" style="margin-bottom:6px;"
                                  x-text="$store.ui.lang==='en' ? 'Anonymous notes from raters' : 'Nota tanpa nama daripada penilai'">Anonymous notes from raters</div>
@@ -82,17 +131,21 @@
                         </div>
                     </template>
 
-                    <h3 class="wd-sech" x-text="comments ? ($store.ui.lang==='en' ? `Discussion · ${comments}` : `Perbincangan · ${comments}`) : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</h3>
+                    <div x-show="slotRoom" x-cloak class="tot-room-slot">
+                        <button type="button" class="tot-pillbtn" @click="closeSlotRoom()" x-text="$store.ui.lang==='en' ? '← Session discussion' : '← Perbincangan sesi'">Session discussion</button>
+                        <h3 class="wd-sech" style="margin-top:12px;" x-text="($store.ui.lang==='en' ? 'Discussion on ' : 'Perbincangan tentang ') + (slotRoom ? slotRoom.title : '')"></h3>
+                    </div>
+                    <h3 class="wd-sech" x-show="!slotRoom" x-text="comments ? ($store.ui.lang==='en' ? `Discussion · ${comments}` : `Perbincangan · ${comments}`) : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</h3>
 
-                    <template x-if="thread === null">
+                    <template x-if="roomThread === null">
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
                     </template>
-                    <template x-if="thread !== null && thread.length === 0">
+                    <template x-if="roomThread !== null && roomThread.length === 0">
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet.</div>
                     </template>
 
                     <div class="wd-cmts">
-                        <template x-for="c in (thread || [])" :key="c.id">
+                        <template x-for="c in (roomThread || [])" :key="c.id">
                             <div class="wd-cmt">
                                 <span class="tot-av" :style="`background:${c.color};color:#fff;`" x-text="c.initials"></span>
                                 <div style="min-width:0;flex:1;">
@@ -101,7 +154,7 @@
                                         <span class="tot-presenter-tag" x-show="c.presenter"
                                               x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
                                         <span class="wd-cmt-at" x-text="c.at"></span>
-                                        <button type="button" x-show="c.canDelete" class="wd-ico" style="margin-left:auto;width:22px;height:22px;"
+                                        <button type="button" x-show="c.canDelete && !slotRoom" class="wd-ico" style="margin-left:auto;width:22px;height:22px;"
                                                 @click="removeComment(c.id)"
                                                 :aria-label="$store.ui.lang==='en' ? 'Remove comment' : 'Buang komen'">&times;</button>
                                     </div>
@@ -110,6 +163,7 @@
                             </div>
                         </template>
                     </div>
+                </div>
                 @else
                     {{-- Unsaved month --}}
                     @if ($canManage || $canAssignPresenter)
@@ -138,16 +192,17 @@
                     @else
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Nobody has been assigned to this session yet.' : 'Belum ada sesiapa ditugaskan untuk sesi ini.'">Nobody has been assigned to this session yet.</div>
                     @endif
+                </div>
                 @endif
             </div>
 
             @if ($session->exists && $canParticipate && $session->status !== 'skipped')
-                <div class="wd-foot">
-                    <textarea rows="1" x-ref="composer" maxlength="2000"
-                              :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'"
-                              @keydown.enter.prevent="postComment($event.target.value); $event.target.value = ''"></textarea>
+                <div class="wd-foot wd-foot--reveal" x-data="{ draft: '' }" :class="{ 'has-text': draft.trim().length }">
+                    <textarea rows="1" x-ref="composer" maxlength="2000" x-model="draft"
+                              :placeholder="slotRoom ? ($store.ui.lang==='en' ? 'Comment on this slot' : 'Komen tentang slot ini') : ($store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari')"
+                              @keydown.enter.prevent="postComment(draft); draft = ''"></textarea>
                     <button type="button" class="uj-btn-primary wd-post"
-                            @click="postComment($refs.composer.value); $refs.composer.value = ''"
+                            @click="postComment(draft); draft = ''"
                             x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</button>
                 </div>
             @endif

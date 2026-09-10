@@ -81,14 +81,14 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
-                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'ajaxTarget' => '#ts-projects', 'categories' => $addCategories])
+                @include('partials.ts-project-form', ['project' => null, 'action' => route('projects.store'), 'ajaxTarget' => '#ts-projects', 'categories' => $addCategories, 'employees' => $employees])
             </div>
         </div>
     @endif
 
     <div id="ts-projects">
         @forelse ($projects as $project)
-            @include('partials.ts-project-row', ['project' => $project, 'categories' => $projectCategories, 'canEdit' => $canEdit])
+            @include('partials.ts-project-row', ['project' => $project, 'categories' => $projectCategories, 'canEdit' => $canEdit, 'employees' => $employees, 'editableFields' => $editableFields, 'canReopen' => $canReopen, 'canRaiseVariation' => $canRaiseVariation, 'canDecideVariation' => $canDecideVariation, 'canRaiseBigDeal' => $canRaiseBigDeal])
         @empty
             <div data-empty class="uj-card" style="padding:24px;text-align:center;font-size:13px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'No projects yet.' : 'Tiada projek lagi.'">No projects yet.</span></div>
         @endforelse

@@ -61,6 +61,9 @@ export function registerDashboardWidgets(Alpine) {
         picking: false,
         filter: 'All',
         hidden: config.hidden,
+        /** "Keep it plain": bands and newer cards drop their ornament. Saved with the prefs. */
+        plain: !!config.plain,
+        draftPlain: false,
         catalog: config.catalog,
         prefsUrl: config.prefsUrl,
         widgetUrl: config.widgetUrl,
@@ -72,6 +75,7 @@ export function registerDashboardWidgets(Alpine) {
 
         openPicker() {
             this.draft = this.catalog.map((i) => i.id).filter((id) => !this.hidden.includes(id));
+            this.draftPlain = this.plain;
             this.filter = 'All';
             this.picking = true;
         },
@@ -94,6 +98,7 @@ export function registerDashboardWidgets(Alpine) {
 
         savePicker() {
             this.hidden = this.catalog.map((i) => i.id).filter((id) => !this.draft.includes(id));
+            this.plain = this.draftPlain;
             this.picking = false;
             this.save().then(() => window.location.reload());
         },
@@ -237,7 +242,7 @@ export function registerDashboardWidgets(Alpine) {
                     'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
                     Accept: 'application/json',
                 },
-                body: JSON.stringify({ hidden: this.hidden, order: this.currentOrder() }),
+                body: JSON.stringify({ hidden: this.hidden, order: this.currentOrder(), plain: this.plain }),
             }).catch(() => {});
         },
 
