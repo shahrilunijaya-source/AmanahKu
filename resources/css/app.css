@@ -1932,11 +1932,11 @@ select.wd-inline {
 
 /* CR-31: one quiet aside under the greeting row, its own line inside .uj-dw-head
    (flex-basis 100%). No motion on entry (it is in the server HTML), no sound. */
-.uj-egg { display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px; flex-basis:100%; width:fit-content; max-width:100%; margin:-8px 0 0; padding:7px 12px 7px 10px; border:1px solid color-mix(in srgb, var(--amber) 28%, var(--hairline)); border-radius:10px; background:color-mix(in srgb, var(--amber) 8%, #fff); font-size:var(--t-sm); color:var(--body); line-height:1.35; }
-.uj-egg svg { width:14px; height:14px; color:var(--amber-ink); flex-shrink:0; }
+.uj-egg { --egg-ink:#3f3a2e; --egg-mute:#7a7261; display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px; flex-basis:100%; width:fit-content; max-width:100%; margin:-8px 0 0; padding:7px 12px 7px 10px; border:1px solid color-mix(in srgb, var(--amber) 28%, #d9d2c2); border-radius:10px; background:color-mix(in srgb, var(--amber) 8%, #fff); font-size:var(--t-sm); color:var(--egg-ink); line-height:1.35; }
+.uj-egg svg { width:14px; height:14px; color:var(--amber-ink, #8a6410); flex-shrink:0; }
 .uj-egg-shortcut { color:var(--amber-ink); font-weight:600; text-decoration:underline; text-underline-offset:2px; text-decoration-color:color-mix(in srgb, var(--amber-ink) 40%, transparent); }
-.uj-egg-x { margin-left:auto; width:22px; height:22px; border:0; background:none; color:var(--muted); border-radius:6px; cursor:pointer; font-size:16px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
-.uj-egg-x:hover { color:var(--ink); background:var(--hairline-soft); }
+.uj-egg-x { margin-left:auto; width:22px; height:22px; border:0; background:none; color:var(--egg-mute); border-radius:6px; cursor:pointer; font-size:16px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+.uj-egg-x:hover { color:var(--egg-ink); background:rgba(0,0,0,.06); }
 
 /* CR-31 "Keep it plain": the three shell animations flagged in OPEN "QA / CR-06a /
    Keep it plain still leaves shell animations running" go static under body[data-plain],
