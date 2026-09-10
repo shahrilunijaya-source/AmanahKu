@@ -71,6 +71,16 @@ class ApiReference
             'note' => 'Aggregated server-side: no employee name, id or salary ever crosses the wire.',
         ],
         [
+            'path' => '/board-week',
+            'scope' => 'board-week:read',
+            'app_key' => true,
+            'title' => 'Board week',
+            'blurb' => 'One week of board activity per project, per day: cards due, what moved, and events.',
+            'fields' => 'week_start, projects[].project_id, projects[].days[] { date, planned[], happened[], events[] }',
+            'query' => 'week_start=YYYY-MM-DD (required, must be a Monday)',
+            'note' => 'Feeds the Last Week card in Track. Items carry the card id, title, status and a link back to the card.',
+        ],
+        [
             'path' => '/leave-requests',
             'scope' => 'leave:read',
             'app_key' => true,

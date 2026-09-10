@@ -23,4 +23,5 @@ Route::middleware(['auth:sanctum', 'api.tenant'])
         Route::get('/projects', [ApiController::class, 'projects']);
         Route::get('/positions', [ApiController::class, 'positions']);
         Route::get('/timesheet-effort', [ApiController::class, 'timesheetEffort']);
+        Route::get('/board-week', [ApiController::class, 'boardWeek']);
     });

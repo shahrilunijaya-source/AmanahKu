@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Payslip;
@@ -12,6 +13,7 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
+use App\Models\WorkItem;
 use App\Support\ApiCaller;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -326,6 +328,125 @@ class ApiController extends Controller
             'week_start' => CarbonImmutable::parse($weekStart)->toDateString(),
             'projects' => $projects,
         ]);
+    }
+
+    /**
+     * One week of board activity for every project, keyed by project and day, so
+     * Track can fill its Last Week card without a PM retyping what the board knows.
+     *
+     * Per day: `planned` is every card or subtask due that day, `happened` is what
+     * changed that day (created, moved between columns, done, or timesheet time
+     * logged against it), `events` is every Event card dated that day.
+     */
+    public function boardWeek(Request $request): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'board-week:read')) {
+            return $this->denyScope('board-week:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $weekStart = CarbonImmutable::parse($request->validate(['week_start' => ['required', 'date']])['week_start'])->startOfDay();
+        if (! $weekStart->isMonday()) {
+            return $this->error('week_start must be a Monday.', 422);
+        }
+        $weekEnd = $weekStart->addDays(6)->endOfDay();
+
+        $link = fn (WorkItem $item): array => [
+            'card_id' => $item->id,
+            'title' => $item->title,
+            'status' => $item->status,
+            'type' => $item->type,
+            'parent_id' => $item->parent_id,
+            'owner' => $item->employee?->name,
+            'url' => route('work.show', $item),
+        ];
+
+        $projects = [];
+        $push = function (int|string $projectId, string $date, string $kind, array $row) use (&$projects): void {
+            $projects[$projectId]['project_id'] = (int) $projectId;
+            $projects[$projectId]['days'][$date][$kind][] = $row;
+        };
+
+        $items = WorkItem::query()
+            ->whereNotNull('project_id')
+            ->whereNull('archived_at')
+            ->with('employee')
+            ->where(function ($q) use ($weekStart, $weekEnd) {
+                $q->whereBetween('due_at', [$weekStart->toDateString(), $weekEnd->toDateTimeString()])
+                    ->orWhereBetween('created_at', [$weekStart, $weekEnd])
+                    ->orWhereBetween('done_at', [$weekStart, $weekEnd]);
+            })
+            ->get();
+
+        foreach ($items as $item) {
+            $pid = $item->project_id;
+            if ($item->type === 'event') {
+                if ($item->due_at && $item->due_at->between($weekStart, $weekEnd)) {
+                    $push($pid, $item->due_at->toDateString(), 'events', $link($item));
+                }
+
+                continue;
+            }
+            if ($item->due_at && $item->due_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->due_at->toDateString(), 'planned', $link($item));
+            }
+            if ($item->created_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->created_at->toDateString(), 'happened', $link($item) + ['what' => 'created', 'at' => $item->created_at->toDateTimeString()]);
+            }
+            if ($item->done_at && $item->done_at->between($weekStart, $weekEnd)) {
+                $push($pid, $item->done_at->toDateString(), 'happened', $link($item) + ['what' => 'done', 'at' => $item->done_at->toDateTimeString()]);
+            }
+        }
+
+        $moves = AuditLog::query()
+            ->where('subject_type', (new WorkItem)->getMorphClass())
+            ->where('field', 'status')
+            ->whereBetween('created_at', [$weekStart, $weekEnd])
+            ->get();
+        $movedItems = WorkItem::query()->whereNotNull('project_id')->with('employee')->whereIn('id', $moves->pluck('subject_id'))->get()->keyBy('id');
+        foreach ($moves as $move) {
+            $item = $movedItems->get($move->subject_id);
+            $to = json_decode((string) $move->new_value, true);
+            $from = json_decode((string) $move->old_value, true);
+            if (! $item || $from === null || $to === 'done') {
+                continue; // creation and completion are already listed from the card itself
+            }
+            $push($item->project_id, $move->created_at->toDateString(), 'happened', $link($item) + ['what' => 'moved', 'from' => $from, 'to' => $to, 'at' => $move->created_at->toDateTimeString()]);
+        }
+
+        $logged = TimesheetEntry::query()
+            ->whereNotNull('work_item_id')
+            ->whereNotNull('project_id')
+            ->whereBetween('entry_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->with(['timesheet.employee', 'workItem'])
+            ->get();
+        foreach ($logged as $entry) {
+            if (! $entry->workItem) {
+                continue;
+            }
+            $push($entry->project_id, CarbonImmutable::parse($entry->entry_date)->toDateString(), 'happened', $link($entry->workItem) + [
+                'what' => 'logged',
+                'by' => $entry->timesheet?->employee?->name,
+                'percentage' => (float) $entry->percentage,
+            ]);
+        }
+
+        $out = [];
+        foreach ($projects as $pid => $project) {
+            $days = [];
+            for ($i = 0; $i < 7; $i++) {
+                $date = $weekStart->addDays($i)->toDateString();
+                $bucket = $project['days'][$date] ?? [];
+                $days[] = ['date' => $date, 'planned' => $bucket['planned'] ?? [], 'happened' => $bucket['happened'] ?? [], 'events' => $bucket['events'] ?? []];
+            }
+            $out[] = ['project_id' => (int) $pid, 'days' => $days];
+        }
+        usort($out, fn ($a, $b) => $a['project_id'] <=> $b['project_id']);
+
+        return $this->ok(['week_start' => $weekStart->toDateString(), 'projects' => $out]);
     }
 
     /**

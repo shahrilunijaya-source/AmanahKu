@@ -90,7 +90,7 @@ on failure. `data` is `null` on every failure and never `null` on success
 | `200` | Success. |
 | `401` | The key is missing, unrecognized, or (if recognized) its company binding no longer holds — e.g. the app it belongs to was moved to another company. |
 | `403` | The key is valid but lacks the scope the endpoint requires. |
-| `422` | A required query parameter is missing or malformed (`/timesheet-effort` only — see below). |
+| `422` | A required query parameter is missing or malformed (`/timesheet-effort` and `/board-week` — see below). |
 | `5xx` | Something broke on AmanahKu's side. |
 
 **A `401` has two different bodies depending on which failure it is** —
@@ -270,6 +270,52 @@ null` rather than dropped.
 curl -H "Authorization: Bearer $AMANAHKU_KEY" "https://amanahku.unijaya.com/api/v1/timesheet-effort?week_start=2026-08-03"
 ```
 
+### `GET /board-week?week_start=YYYY-MM-DD` — requires `board-week:read`
+
+One week of board activity for every project, per day, Monday first. Built for
+Track's Last Week card (CR-07): what was planned, what happened and which events
+sat on which day, without a PM retyping any of it.
+
+`week_start` is required and must be a Monday; anything else is a `422`.
+
+Each project answers exactly seven `days`. Per day:
+
+- `planned` — every card or subtask whose due date is that day, open or done.
+- `happened` — what changed that day: `what` is one of `created`, `moved`
+  (with `from` and `to` columns), `done`, or `logged` (a timesheet line booked
+  against the card, with `by` and `percentage` of that person's day).
+- `events` — Event cards dated that day.
+
+Every item carries `card_id`, `title`, `status`, `type`, `parent_id` (set on a
+subtask), `owner` and a `url` back to the card. Archived cards never appear. A
+project with nothing that week is omitted.
+
+```json
+{
+  "data": {
+    "week_start": "2026-08-03",
+    "projects": [
+      {
+        "project_id": 7,
+        "days": [
+          {
+            "date": "2026-08-03",
+            "planned": [{ "card_id": 41, "title": "Write spec", "status": "todo", "type": "task", "parent_id": null, "owner": "Ali", "url": "https://amanahku.unijaya.com/app/board/41" }],
+            "happened": [{ "card_id": 41, "title": "Write spec", "status": "prog", "type": "task", "parent_id": null, "owner": "Ali", "url": "…", "what": "moved", "from": "todo", "to": "prog", "at": "2026-08-03 10:12:00" }],
+            "events": []
+          }
+        ]
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+```bash
+curl -H "Authorization: Bearer $AMANAHKU_KEY" "https://amanahku.unijaya.com/api/v1/board-week?week_start=2026-08-03"
+```
+
 ### `GET /leave-requests` — requires `leave:read`
 
 Every leave request in the company, newest first.
@@ -338,6 +384,7 @@ filtered response — there is no partial access to an endpoint.
 | `employees:read` | Employee directory (names, emails, positions) |
 | `positions:read` | Position bands (no salary) |
 | `effort:read` | Weekly timesheet effort per band (no names, no salary) |
+| `board-week:read` | One week of board activity per project (planned, happened, events) |
 | `leave:read` | Leave requests |
 
 `payslips:read` cannot be granted to an application key. The endpoint remains reachable by a staff token, which carries every ability, and is documented below for that reason.
