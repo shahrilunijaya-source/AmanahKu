@@ -169,12 +169,6 @@ parameters:
 			path: app/Http/Controllers/AppController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/AppController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasMany\:\:active\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -241,18 +235,6 @@ parameters:
 			path: app/Http/Controllers/AssetController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/AssistantController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/CalendarController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Claim\:\:\$verified_by_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -295,7 +277,7 @@ parameters:
 			path: app/Http/Controllers/ComplianceController.php
 
 		-
-			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Employee\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Employee\>\|null given\.$#'
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\Employee\|Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), App\\Models\\Employee\>\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/DocumentController.php
@@ -415,7 +397,7 @@ parameters:
 			path: app/Http/Controllers/LeaveController.php
 
 		-
-			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\LeaveType\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\LeaveType\>\|null given\.$#'
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\LeaveType\|Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), App\\Models\\LeaveType\>\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/LeaveController.php
@@ -475,7 +457,7 @@ parameters:
 			path: app/Http/Controllers/LeaveReportController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Employee\>\|Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), App\\Models\\Employee\>\|Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/ManagementExceptionsController.php
@@ -712,12 +694,6 @@ parameters:
 			message: '#^Access to an undefined property App\\Models\\TimesheetEntry\:\:\$cost\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Http/Controllers/TimesheetController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 1
 			path: app/Http/Controllers/TimesheetController.php
 
 		-
@@ -989,12 +965,6 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Support/ProfileWall.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<TRelatedModel of Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Support/StuckRequests.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
