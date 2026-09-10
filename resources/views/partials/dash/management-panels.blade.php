@@ -11,10 +11,16 @@
 @php
     $lateness = $mgmt['lateness'] ?? [];
     $overdue = $mgmt['overdue'] ?? [];
+    // On the dashboard only the first few rows show; every row is still in the markup
+    // (CR17Test reads them) and "Show all" or the exceptions page reveals the rest.
+    $compact = $compact ?? false;
+    $peek = 5;
 @endphp
 <div class="uj-mgmt" x-data="{
         lateOpen: true,
         overdueOpen: true,
+        lateAll: {{ $compact ? 'false' : 'true' }},
+        overdueAll: {{ $compact ? 'false' : 'true' }},
         busy: false,
         csrf() { return document.querySelector('meta[name=csrf-token]').content; },
         async nudge(url) {
@@ -52,14 +58,21 @@
             <span aria-hidden="true" x-text="lateOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="lateOpen">
-            @forelse ($lateness as $row)
-                <div class="uj-mgmt-row" data-late-row="{{ $row['employee_id'] }}">
+            @forelse ($lateness as $i => $row)
+                <div class="uj-mgmt-row" data-late-row="{{ $row['employee_id'] }}" @if ($i >= $peek) x-show="lateAll" @endif>
                     <span class="uj-mgmt-name">{{ $row['name'] }}</span>
                     <span class="uj-mgmt-status" x-text="$store.ui.lang==='en' ? @js($row['status_en']) : @js($row['status_ms'])">{{ $row['status_en'] }}</span>
                 </div>
             @empty
                 <div class="uj-mgmt-empty" x-text="$store.ui.lang==='en' ? 'Nobody late today.' : 'Tiada yang lewat hari ini.'">Nobody late today.</div>
             @endforelse
+            @if ($compact && count($lateness) > $peek)
+                <div class="uj-mgmt-more">
+                    <button type="button" class="uj-mgmt-btn" @click="lateAll = ! lateAll"
+                            x-text="lateAll ? ($store.ui.lang==='en' ? 'Show fewer' : 'Tunjuk kurang') : ($store.ui.lang==='en' ? @js('Show all '.count($lateness)) : @js('Tunjuk semua '.count($lateness)))">Show all {{ count($lateness) }}</button>
+                    <a href="{{ route('management.exceptions') }}" x-text="$store.ui.lang==='en' ? 'Open exceptions page' : 'Buka halaman pengecualian'">Open exceptions page</a>
+                </div>
+            @endif
         </div>
     </div>
     <div class="uj-mgmt-panel" data-panel="overdue">
@@ -68,15 +81,18 @@
             <span aria-hidden="true" x-text="overdueOpen ? '−' : '+'">&minus;</span>
         </button>
         <div class="uj-mgmt-body" x-show="overdueOpen">
+            @php $shown = 0; $totalCards = array_sum(array_map(fn ($g) => count($g['cards']), $overdue)); @endphp
             @forelse ($overdue as $group)
-                <div class="uj-mgmt-owner" data-overdue-owner="{{ $group['owner_id'] }}">
+                {{-- Peek counts cards, not owners: one owner can hold twenty. --}}
+                <div class="uj-mgmt-owner" data-overdue-owner="{{ $group['owner_id'] }}" @if ($shown >= $peek) x-show="overdueAll" @endif>
                     <span class="uj-mgmt-owner-name">{{ $group['owner_name'] }}</span>
                     @foreach ($group['cards'] as $card)
                         @php
+                            $hide = $shown++ >= $peek;
                             $nudgeUrl = url('/app/management/overdue/'.$card['id'].'/nudge');
                             $reassignUrl = url('/app/management/overdue/'.$card['id'].'/reassign');
                         @endphp
-                        <div class="uj-mgmt-card" data-card="{{ $card['id'] }}">
+                        <div class="uj-mgmt-card" data-card="{{ $card['id'] }}" @if ($hide) x-show="overdueAll" @endif>
                             <span class="uj-mgmt-card-title">{{ $card['title'] }}</span>
                             <span class="uj-mgmt-days" x-text="$store.ui.lang==='en' ? @js($card['days_overdue'].' days overdue') : @js($card['days_overdue'].' hari tertunggak')">{{ $card['days_overdue'] }} days overdue</span>
                             <button type="button" class="uj-mgmt-btn" data-nudge-url="{{ $nudgeUrl }}" @click="nudge('{{ $nudgeUrl }}')" x-text="$store.ui.lang==='en' ? 'Nudge' : 'Ingatkan'">Nudge</button>
@@ -89,6 +105,13 @@
             @empty
                 <div class="uj-mgmt-empty" x-text="$store.ui.lang==='en' ? 'Nothing overdue.' : 'Tiada yang tertunggak.'">Nothing overdue.</div>
             @endforelse
+            @if ($compact && $totalCards > $peek)
+                <div class="uj-mgmt-more">
+                    <button type="button" class="uj-mgmt-btn" @click="overdueAll = ! overdueAll"
+                            x-text="overdueAll ? ($store.ui.lang==='en' ? 'Show fewer' : 'Tunjuk kurang') : ($store.ui.lang==='en' ? @js('Show all '.$totalCards.' cards') : @js('Tunjuk semua '.$totalCards.' kad'))">Show all {{ $totalCards }} cards</button>
+                    <a href="{{ route('management.exceptions') }}" x-text="$store.ui.lang==='en' ? 'Open exceptions page' : 'Buka halaman pengecualian'">Open exceptions page</a>
+                </div>
+            @endif
         </div>
     </div>
 </div>

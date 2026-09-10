@@ -161,7 +161,7 @@
             <span class="uj-db-k" x-text="$store.ui.lang==='en' ? @js($mgmt['kicker']['en']) : @js($mgmt['kicker']['ms'])">{{ $mgmt['kicker']['en'] }}</span>
             <span class="uj-db-t" x-text="$store.ui.lang==='en' ? @js($mgmt['title']['en']) : @js($mgmt['title']['ms'])">{{ $mgmt['title']['en'] }}</span>
             <span class="uj-db-s" x-text="$store.ui.lang==='en' ? @js($mgmt['sub']['en']) : @js($mgmt['sub']['ms'])">{{ $mgmt['sub']['en'] }}</span>
-            @include('partials.dash.management-panels', ['mgmt' => $mgmt])
+            @include('partials.dash.management-panels', ['mgmt' => $mgmt, 'compact' => true])
         </section>
     @endif
     {{-- CR-32/CR-14b: the awards carousel — one data-slide per award (a tie shares its
