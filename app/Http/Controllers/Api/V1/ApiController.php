@@ -17,10 +17,12 @@ use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkItemComment;
 use App\Support\ApiCaller;
+use App\Support\ManagementMeeting;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -496,6 +498,45 @@ class ApiController extends Controller
      * of linked Amanahku projects: each pull stamps them as linked, which is how the
      * Push to Track tick knows to enable itself on those projects' cards.
      */
+    /**
+     * CR-34: the tenant's management-meeting settings, this week's (holiday-shifted)
+     * meeting date, and who has or has not closed their 'Update Track' card. Track reads
+     * this to time its meeting pack and to show who still owes an update.
+     */
+    public function managementMeeting(Request $request, ManagementMeeting $meeting): JsonResponse
+    {
+        if (! $this->tokenCan($request, 'board-week:read')) {
+            return $this->denyScope('board-week:read');
+        }
+
+        if (! $this->isPrivileged($request)) {
+            return $this->error('This endpoint requires a management or HR role.', 403);
+        }
+
+        $settings = $meeting->settings();
+        $meetingDate = $meeting->meetingDateForWeek(Carbon::now(), $settings);
+
+        $cards = WorkItem::query()->with('employee')
+            ->where('source', 'management_meeting')
+            ->where('source_ref', $meetingDate->toDateString())
+            ->orderBy('employee_id')
+            ->get();
+
+        return $this->ok([
+            'meeting_day' => (int) $settings->meeting_day,
+            'meeting_time' => $settings->meeting_time,
+            'reminder_time' => $settings->reminder_time,
+            'task_time' => $settings->task_time,
+            'paused_until' => $settings->paused_until?->toDateString(),
+            'meeting_date' => $meetingDate->toDateString(),
+            'managers' => $cards->map(fn (WorkItem $c): array => [
+                'name' => $c->employee?->display_name ?? $c->employee?->name,
+                'done' => $c->status === 'done',
+                'card_url' => route('work.show', $c),
+            ])->values(),
+        ]);
+    }
+
     public function projectComments(Request $request): JsonResponse
     {
         if (! $this->tokenCan($request, 'comments:read')) {

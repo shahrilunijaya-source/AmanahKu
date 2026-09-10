@@ -81,6 +81,16 @@ class ApiReference
             'note' => 'Feeds the Last Week card in Track. Items carry the card id, title, status and a link back to the card.',
         ],
         [
+            'path' => '/management-meeting',
+            'scope' => 'board-week:read',
+            'app_key' => true,
+            'title' => 'Management meeting',
+            'blurb' => 'Meeting day and time, this week\'s meeting date (moved off a public holiday), and which managers have closed their Update Track card.',
+            'fields' => 'meeting_day, meeting_time, reminder_time, task_time, paused_until, meeting_date, managers[] { name, done, card_url }',
+            'query' => null,
+            'note' => 'Track times its 4:55 PM meeting pack from meeting_time and lists who still owes an update.',
+        ],
+        [
             'path' => '/project-comments',
             'scope' => 'comments:read',
             'app_key' => true,
