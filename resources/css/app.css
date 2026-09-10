@@ -334,6 +334,8 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 }
 .uj-btn-ghost:hover { border-color: var(--muted-soft); }
 .uj-btn-ghost:active { transform: scale(0.97); }
+.uj-or-vote { transition: background .15s, border-color .15s, color .15s, transform 160ms ease-out; }
+.uj-or-vote[aria-pressed="true"] { background: var(--red-tint); border-color: var(--red); color: var(--red); font-weight: 600; }
 
 /* Fixed-position dialog backdrop: display:flex lives here, not on the element's own
    style attribute, because Alpine's x-show wipes an inline `display` on reveal (see

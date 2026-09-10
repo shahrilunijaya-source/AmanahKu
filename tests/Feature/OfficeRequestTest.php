@@ -92,6 +92,22 @@ class OfficeRequestTest extends TestCase
     }
 
     #[Test]
+    public function a_vote_can_be_taken_back_and_taking_back_a_vote_you_never_cast_changes_nothing(): void
+    {
+        $requester = $this->person($this->tenant, 'Emysha');
+        $voter = $this->person($this->tenant, 'Adri');
+        $request = $this->raise($this->tenant, $requester);
+
+        $this->actingIn($this->tenant, $voter)->postJson("/app/office-requests/{$request->id}/upvote")->assertOk()->assertJson(['votes' => 2]);
+        $this->actingIn($this->tenant, $voter)->deleteJson("/app/office-requests/{$request->id}/upvote")->assertOk()->assertJson(['votes' => 1]);
+        $this->assertSame(0, DB::table('office_request_votes')->where('office_request_id', $request->id)->where('employee_id', $voter->id)->count());
+
+        // A second undo, or an undo from someone who never voted, is a no-op.
+        $this->actingIn($this->tenant, $voter)->deleteJson("/app/office-requests/{$request->id}/upvote")->assertOk()->assertJson(['votes' => 1]);
+        $this->assertSame(1, (int) DB::table('office_requests')->where('id', $request->id)->value('votes'));
+    }
+
+    #[Test]
     public function urgency_reason_is_required_only_when_urgency_is_urgent(): void
     {
         $person = $this->person($this->tenant, 'Emysha');

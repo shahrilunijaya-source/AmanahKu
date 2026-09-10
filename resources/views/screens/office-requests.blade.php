@@ -200,9 +200,9 @@
                             @endif
                         </div>
                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-                            <button data-tip-end type="button" class="uj-btn-ghost" style="height:28px;padding:0 11px;font-size:11.5px;" :disabled="{{ $myVotes->contains($r->id) ? 'true' : 'false' }}" @click="upvote({{ $r->id }})"
-                                    :data-tip="{{ $myVotes->contains($r->id) ? 'true' : 'false' }} ? ($store.ui.lang==='en' ? 'You already +1 this' : 'Anda sudah +1') : ($store.ui.lang==='en' ? '+1 if you need this too. One per person.' : '+1 jika anda perlukan juga. Satu seorang.')">
-                                &uarr; {{ $r->votes }}
+                            <button data-tip-end type="button" class="uj-btn-ghost uj-or-vote" style="height:28px;padding:0 11px;font-size:11.5px;" :aria-pressed="voted.includes({{ $r->id }})" @click="toggleVote({{ $r->id }})"
+                                    :data-tip="voted.includes({{ $r->id }}) ? ($store.ui.lang==='en' ? 'You +1 this. Click again to take it back.' : 'Anda +1 ini. Klik lagi untuk tarik balik.') : ($store.ui.lang==='en' ? '+1 if you need this too. One per person.' : '+1 jika anda perlukan juga. Satu seorang.')">
+                                &uarr; <span x-text="votes[{{ $r->id }}]">{{ $r->votes }}</span>
                             </button>
                             @if ($adminIds->contains($r->id) && $r->status !== 'done')
                                 <button data-tip-end type="button" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:11px;" @click="promptNote({{ $r->id }})" :data-tip="$store.ui.lang==='en' ? 'Leave the requester an update, e.g. Ordered, Thu' : 'Tinggalkan kemas kini untuk pemohon, cth. Dipesan, Kha'" x-text="$store.ui.lang==='en' ? 'Note' : 'Nota'">Note</button>
@@ -231,6 +231,8 @@ function officeRequests() {
         title: @js(old('title', '')),
         urgency: @js(old('urgency', 'normal')),
         similar: [],
+        voted: @js($myVotes->values()),
+        votes: @js(($orRequests ?? collect())->pluck('votes', 'id')),
         // QA F4: a refused action (422/403) shows the server's message instead of a silent reload.
         settle(r) {
             if (r.ok) { window.location.reload(); return; }
@@ -241,11 +243,15 @@ function officeRequests() {
             fetch('{{ route('office-requests.similar') }}?title=' + encodeURIComponent(this.title))
                 .then(r => r.json()).then(d => { this.similar = d; });
         },
-        upvote(id) {
+        toggleVote(id) {
+            const undo = this.voted.includes(id);
+            // Flip straight away so the click feels heard, then trust the server's count.
+            this.voted = undo ? this.voted.filter(v => v !== id) : [...this.voted, id];
+            this.votes[id] += undo ? -1 : 1;
             fetch(`/app/office-requests/${id}/upvote`, {
-                method: 'POST',
+                method: undo ? 'DELETE' : 'POST',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
-            }).then(r => this.settle(r));
+            }).then(r => r.ok ? r.json().then(d => { this.votes[id] = d.votes; }) : this.settle(r));
         },
         promptNote(id) {
             const note = prompt(this.$store.ui.lang === 'en' ? 'Note for the requester:' : 'Nota untuk pemohon:');

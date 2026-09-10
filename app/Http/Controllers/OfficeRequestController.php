@@ -204,6 +204,23 @@ class OfficeRequestController extends Controller
         return response()->json(['votes' => $officeRequest->fresh()->votes]);
     }
 
+    /** Take back your own +1 (a misclick). No vote row, nothing changes. */
+    public function unvote(Request $request, OfficeRequest $officeRequest): JsonResponse
+    {
+        $this->assertTenant($officeRequest);
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403);
+
+        $deleted = OfficeRequestVote::where('office_request_id', $officeRequest->id)
+            ->where('employee_id', $employee->id)
+            ->delete();
+        if ($deleted > 0 && $officeRequest->votes > 0) {
+            $officeRequest->decrement('votes');
+        }
+
+        return response()->json(['votes' => $officeRequest->fresh()->votes]);
+    }
+
     // ── Comments (scope 2) ───────────────────────────────────────────
 
     public function comment(Request $request, OfficeRequest $officeRequest): JsonResponse|RedirectResponse

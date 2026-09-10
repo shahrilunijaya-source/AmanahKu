@@ -450,6 +450,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/office-requests/insights', [AppController::class, 'officeRequestInsights'])->name('office-requests.insights');
         Route::get('/app/office-requests/{officeRequest}/photo', [OfficeRequestController::class, 'photoShow'])->name('office-requests.photo');
         Route::post('/app/office-requests/{officeRequest}/upvote', [OfficeRequestController::class, 'upvote'])->name('office-requests.upvote');
+        Route::delete('/app/office-requests/{officeRequest}/upvote', [OfficeRequestController::class, 'unvote'])->name('office-requests.unvote');
         Route::post('/app/office-requests/{officeRequest}/comments', [OfficeRequestController::class, 'comment'])->name('office-requests.comments.store');
         Route::post('/app/office-requests/{officeRequest}/admin-note', [OfficeRequestController::class, 'adminNote'])->name('office-requests.admin-note');
         Route::post('/app/office-requests/{officeRequest}/done', [OfficeRequestController::class, 'done'])->name('office-requests.done');
