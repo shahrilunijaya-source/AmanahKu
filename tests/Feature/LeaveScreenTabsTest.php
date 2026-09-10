@@ -742,14 +742,18 @@ class LeaveScreenTabsTest extends TestCase
             'days' => 1, 'remark' => 'Worked 31 Aug',
         ])->assertRedirect();
 
+        // A working day, whatever weekday the suite runs on: a weekend date counts
+        // as zero days and there would be nothing to spend or refund.
+        $day = now()->addDays(10)->nextWeekday()->toDateString();
         $this->applyAs($staff, [
             'leave_type_id' => $type->id,
-            'date_from' => now()->addDays(10)->toDateString(),
-            'date_to' => now()->addDays(10)->toDateString(),
+            'date_from' => $day,
+            'date_to' => $day,
             'reason' => 'Rest.',
         ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->assertEquals(1.0, (float) $leave->days);
         $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
             ->post(route('leave.verify', $leave))->assertRedirect();
         $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])

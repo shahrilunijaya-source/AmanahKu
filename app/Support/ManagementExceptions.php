@@ -106,6 +106,7 @@ class ManagementExceptions
             }
 
             $minutes = Carbon::parse($today.' '.$expected)->diffInMinutes($clockInAt, true);
+            $minutes = (int) $minutes;
             $h = intdiv($minutes, 60);
             $m = $minutes % 60;
             $rows[] = $this->row($employee, sprintf('Late %dh%02dm', $h, $m), sprintf('Lewat %dj%02dm', $h, $m));

@@ -84,7 +84,7 @@ class DashboardBandsTest extends TestCase
             ->assertSee('data-kind="holiday-eve"', false)
             ->assertSee('Malaysia Day tomorrow')
             ->assertSee('Selamat Hari Malaysia. See you Thu 17 Sep.')
-            ->assertSee('uj-db-stamp', false);
+            ->assertSee('uj-db-fold', false);
 
         $this->travelTo(CarbonImmutable::parse('2026-09-16 10:00:00'));
         $this->get('/app/dash')->assertOk()->assertDontSee('uj-db-band', false);
@@ -116,7 +116,7 @@ class DashboardBandsTest extends TestCase
         $this->get('/app/dash')->assertOk()
             ->assertSee('Malaysia Day tomorrow')
             ->assertSee('<div class="uj-db" data-plain="">', false)
-            ->assertDontSee('uj-db-stamp', false);
+            ->assertDontSee('uj-db-fold', false);
     }
 
     /** The flag rides along with the prefs save and survives a save that omits it. */
@@ -166,7 +166,7 @@ class DashboardBandsTest extends TestCase
         $response = $this->get('/app/dash')->assertOk()
             ->assertSee("It's Ahmad's birthday")
             ->assertSee('1 / 2', false)
-            ->assertSee('uj-db-cake', false);
+            ->assertSee('data-kind="birthday"', false);
 
         $kinds = array_column($response->viewData('bands')['moments'], 'kind');
         $this->assertSame(['holiday-eve', 'birthday'], $kinds);
