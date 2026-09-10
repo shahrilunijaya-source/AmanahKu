@@ -86,39 +86,23 @@
             @endphp
             <div x-data="totSlotThread({ sessionId: {{ $session->id }}, slotId: {{ $slot->id }}, reactions: @js((object) $slotCounts), mine: @js($slotMine) })"
                  style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">
-                {{-- QA F3: hearts per slot, the tenant's own reaction set, inline (no flyout). --}}
-                <div class="uj-react-tally" data-slot-reactions="{{ $slot->id }}" style="margin-bottom:8px;">
-                    @include('partials.reaction-picker', ['onPick' => "react('KEY')", 'mine' => 'mine'])
-                </div>
-                @include('partials.reaction-tally', ['counts' => $slotCounts, 'live' => true])
-                <button type="button" class="tot-pillbtn" style="margin-top:6px;" @click="toggle()"
-                        x-text="open ? ($store.ui.lang==='en' ? 'Hide discussion' : 'Sembunyikan perbincangan') : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</button>
-                <div x-show="open" x-cloak style="margin-top:8px;">
-                    <template x-if="thread === null">
-                        <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
-                    </template>
-                    <template x-if="thread !== null && thread.length === 0">
-                        <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet.' : 'Belum ada komen.'">No comments yet.</div>
-                    </template>
-                    <div class="wd-cmts">
-                        <template x-for="c in (thread || [])" :key="c.id">
-                            <div class="wd-cmt">
-                                <span class="tot-av" :style="`background:${c.color};color:#fff;`" x-text="c.initials"></span>
-                                <div style="min-width:0;flex:1;">
-                                    <div class="wd-cmt-who">
-                                        <span class="wd-cmt-name" x-text="c.name"></span>
-                                        <span class="tot-presenter-tag" x-show="c.presenter"
-                                              x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
-                                        <span class="wd-cmt-at" x-text="c.at"></span>
-                                    </div>
-                                    <div class="wd-cmt-body" x-text="c.body"></div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                    <textarea rows="1" maxlength="2000" class="tot-field" style="margin-top:6px;"
-                              :placeholder="$store.ui.lang==='en' ? 'Add a comment' : 'Tambah komen'"
-                              @keydown.enter.prevent="post($event.target.value); $event.target.value = ''"></textarea>
+                {{-- Hearts per slot, the tenant's own set. The picker stays out of the way
+                     until the heart is hovered (or tapped), like the session bar above. --}}
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <span class="tot-fw" @mouseleave="pick = false">
+                        <span class="tot-fly tot-fly-react" x-show="pick" x-cloak data-slot-reactions="{{ $slot->id }}" @keydown.escape.window="pick = false">
+                            @include('partials.reaction-picker', ['onPick' => "react('KEY'); pick = false", 'mine' => 'mine'])
+                        </span>
+                        <button type="button" class="tot-act" :data-on="mine.length ? '1' : null" @click="heartPress()" @mouseenter="pick = true"
+                                :aria-label="mine.length ? ($store.ui.lang==='en' ? 'Remove your reaction' : 'Buang reaksi anda') : ($store.ui.lang==='en' ? 'React to this slot' : 'Beri reaksi')">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                            <span x-text="reactionTotal || ''"></span>
+                        </button>
+                    </span>
+                    @include('partials.reaction-tally', ['counts' => $slotCounts, 'live' => true])
+                    <button type="button" class="tot-pillbtn" style="margin-left:auto;" @click="openSlotRoom({ id: slotId, title: @js($slot->title) })"
+                            :data-on="slotRoom && slotRoom.id === slotId ? '1' : null"
+                            x-text="$store.ui.lang==='en' ? 'Discussion' : 'Perbincangan'">Discussion</button>
                 </div>
             </div>
         </div>

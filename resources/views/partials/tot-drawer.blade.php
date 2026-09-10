@@ -114,13 +114,13 @@
                     @endif
 
                 </div>
-                <div class="wd-body tot-pane tot-pane--room">
+                <div class="wd-body tot-pane tot-pane--room" x-ref="room">
                     @include('partials.tot-actions', ['session' => $session, 'canParticipate' => $canParticipate])
                     <hr class="wd-rule">
 
                     {{-- Anonymous rater notes. Present only for a viewer the server decided may
                          see scores, which is the presenter and management. Never a name. --}}
-                    <template x-if="notes.length">
+                    <template x-if="notes.length && !slotRoom">
                         <div class="wd-locked" style="display:block;">
                             <div class="wd-sech" style="margin-bottom:6px;"
                                  x-text="$store.ui.lang==='en' ? 'Anonymous notes from raters' : 'Nota tanpa nama daripada penilai'">Anonymous notes from raters</div>
@@ -130,17 +130,21 @@
                         </div>
                     </template>
 
-                    <h3 class="wd-sech" x-text="comments ? ($store.ui.lang==='en' ? `Discussion · ${comments}` : `Perbincangan · ${comments}`) : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</h3>
+                    <div x-show="slotRoom" x-cloak class="tot-room-slot">
+                        <button type="button" class="tot-pillbtn" @click="closeSlotRoom()" x-text="$store.ui.lang==='en' ? '← Session discussion' : '← Perbincangan sesi'">Session discussion</button>
+                        <h3 class="wd-sech" style="margin-top:12px;" x-text="($store.ui.lang==='en' ? 'Discussion on ' : 'Perbincangan tentang ') + (slotRoom ? slotRoom.title : '')"></h3>
+                    </div>
+                    <h3 class="wd-sech" x-show="!slotRoom" x-text="comments ? ($store.ui.lang==='en' ? `Discussion · ${comments}` : `Perbincangan · ${comments}`) : ($store.ui.lang==='en' ? 'Discussion' : 'Perbincangan')">Discussion</h3>
 
-                    <template x-if="thread === null">
+                    <template x-if="roomThread === null">
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Loading' : 'Memuatkan'">Loading</div>
                     </template>
-                    <template x-if="thread !== null && thread.length === 0">
+                    <template x-if="roomThread !== null && roomThread.length === 0">
                         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No comments yet. Start the discussion.' : 'Belum ada komen. Mulakan perbincangan.'">No comments yet.</div>
                     </template>
 
                     <div class="wd-cmts">
-                        <template x-for="c in (thread || [])" :key="c.id">
+                        <template x-for="c in (roomThread || [])" :key="c.id">
                             <div class="wd-cmt">
                                 <span class="tot-av" :style="`background:${c.color};color:#fff;`" x-text="c.initials"></span>
                                 <div style="min-width:0;flex:1;">
@@ -149,7 +153,7 @@
                                         <span class="tot-presenter-tag" x-show="c.presenter"
                                               x-text="$store.ui.lang==='en' ? 'Presenter' : 'Pembentang'">Presenter</span>
                                         <span class="wd-cmt-at" x-text="c.at"></span>
-                                        <button type="button" x-show="c.canDelete" class="wd-ico" style="margin-left:auto;width:22px;height:22px;"
+                                        <button type="button" x-show="c.canDelete && !slotRoom" class="wd-ico" style="margin-left:auto;width:22px;height:22px;"
                                                 @click="removeComment(c.id)"
                                                 :aria-label="$store.ui.lang==='en' ? 'Remove comment' : 'Buang komen'">&times;</button>
                                     </div>
@@ -194,7 +198,7 @@
             @if ($session->exists && $canParticipate && $session->status !== 'skipped')
                 <div class="wd-foot">
                     <textarea rows="1" x-ref="composer" maxlength="2000"
-                              :placeholder="$store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari'"
+                              :placeholder="slotRoom ? ($store.ui.lang==='en' ? 'Comment on this slot' : 'Komen tentang slot ini') : ($store.ui.lang==='en' ? 'Ask a question or add what you learned' : 'Tanya soalan atau kongsi apa yang anda pelajari')"
                               @keydown.enter.prevent="postComment($event.target.value); $event.target.value = ''"></textarea>
                     <button type="button" class="uj-btn-primary wd-post"
                             @click="postComment($refs.composer.value); $refs.composer.value = ''"

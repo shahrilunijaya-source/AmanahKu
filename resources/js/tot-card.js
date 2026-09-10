@@ -6,6 +6,12 @@ export function registerTotCard(Alpine) {
         thread: null,
         notes: [],
         busy: false,
+        // A slot's own thread, shown in the room pane in place of the session thread.
+        slotRoom: null,
+
+        get roomThread() {
+            return this.slotRoom ? this.slotRoom.thread : this.thread;
+        },
 
         // Total across every emoji, which is what the heart shows.
         get reactionTotal() {
@@ -116,9 +122,59 @@ export function registerTotCard(Alpine) {
 
         async postComment(body) {
             if (!body.trim()) return;
+            if (this.slotRoom) return this.postSlotComment(body);
             await this.act(`/app/tot/${this.id}/comment`, { body });
             this.thread = null;
             await this.openThread();
+        },
+
+        async openSlotRoom(slot) {
+            if (this.slotRoom && this.slotRoom.id === slot.id) return this.closeSlotRoom();
+            this.slotRoom = { ...slot, thread: null };
+            this.$nextTick(() => {
+                this.$refs.room?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                this.$refs.composer?.focus();
+            });
+            try {
+                const res = await fetch(`/app/tot/${this.id}/slots/${slot.id}/comments`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!res.ok) throw new Error(String(res.status));
+                if (this.slotRoom?.id === slot.id) this.slotRoom.thread = (await res.json()).comments;
+            } catch (e) {
+                if (this.slotRoom?.id === slot.id) this.slotRoom.thread = [];
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en' ? 'Could not load the discussion.' : 'Tidak dapat memuatkan perbincangan.'
+                );
+            }
+        },
+
+        closeSlotRoom() {
+            this.slotRoom = null;
+        },
+
+        async postSlotComment(body) {
+            if (this.busy) return;
+            this.busy = true;
+            try {
+                const res = await fetch(`/app/tot/${this.id}/slots/${this.slotRoom.id}/comment`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ body }),
+                });
+                if (!res.ok) throw new Error(String(res.status));
+                this.slotRoom.thread = (await res.json()).comments;
+            } catch (e) {
+                Alpine.store('toast').error(
+                    Alpine.store('ui').lang === 'en' ? 'That did not save. Try again.' : 'Tidak berjaya disimpan. Cuba lagi.'
+                );
+            } finally {
+                this.busy = false;
+            }
         },
 
         async removeComment(id) {

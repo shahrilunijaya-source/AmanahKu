@@ -4789,6 +4789,7 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .tot-panes { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
 .tot-panes .wd-body { flex: none; overflow: visible; }
 .tot-pane--room { border-top: 1px solid var(--hairline); background: #fbfaf7; }
+.tot-pillbtn[data-on] { border-color: var(--red); color: var(--red); }
 @media (min-width: 1200px) {
     .wd.tot-wd { width: 1040px; display: grid; grid-template-columns: minmax(0, 1fr) 420px; grid-template-rows: auto minmax(0, 1fr) auto; }
     .tot-wd > .wd-head { grid-column: 1 / -1; }
