@@ -3,29 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Amanahku dashboard bands, tone families</title>
+<title>Amanahku dashboard bands, flat tone families</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
 <style>
 :root{
   --font-sans:'Poppins',ui-sans-serif,system-ui,sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,monospace;
-  --red:#d6232b;--red-active:#b01b22;
   --canvas:#f6f6f3;--card:#fff;--shelf:#ece9e1;
-  --ink:#26251e;--body:#5a5852;--muted:#6f6c61;--muted-soft:#8b887e;--hairline:#e6e5e0;
-  --lift:0 1px 2px rgba(31,30,26,.06),0 6px 18px -8px rgba(31,30,26,.18);
+  --ink:#26251e;--body:#5a5852;--muted:#6f6c61;--muted-soft:#8b887e;
+  --lift:0 2px 4px rgba(31,30,26,.06),0 10px 24px -10px rgba(31,30,26,.22);
   --ease:cubic-bezier(.23,1,.32,1);
 
-  /* Tone families. Each one: two-stop wash, a glow, a voice (kicker + button), and a tinted secondary text. */
-  --cele-a:#fff0dc;--cele-b:#fbdbe4;--cele-glow:#e9c8ff;--cele-voice:#b6336f;--cele-voice-deep:#8e2558;--cele-text:#6e4a58;
-  --head-a:#e9f1fb;--head-b:#e3ecf2;--head-glow:#c7e3f7;--head-voice:#2b537c;--head-voice-deep:#1f3f60;--head-text:#4f6479;
-  --need-a:#fff5e0;--need-b:#fbe7c3;--need-glow:#ffd48a;--need-voice:#9a6112;--need-voice-deep:#7a4b0c;--need-text:#7a5f3b;
-  --alrm-a:#fdeaea;--alrm-b:#fad9db;--alrm-glow:#ffb4b8;--alrm-voice:#b01b22;--alrm-voice-deep:#8f151b;--alrm-text:#7d3b3e;
+  /* Flat solid families. Each: fill, a deeper shade for the button, a paler shade for the folder mark. */
+  --cele:#ef6b74;--cele-deep:#c9424c;--cele-pale:#f59aa0;
+  --head:#7b8ab2;--head-deep:#56668f;--head-pale:#a3aecb;
+  --need:#f2a54f;--need-deep:#c97d27;--need-pale:#f7c48c;
+  --alrm:#d6232b;--alrm-deep:#a3161d;--alrm-pale:#e8767b;
+  /* Two supporting flats used inside celebration only, so the family still has range. */
+  --cele-mint:#7cc7a1;--cele-mint-deep:#4f9d78;--cele-plum:#a67bc4;--cele-plum-deep:#7c549b;
 }
 *{box-sizing:border-box}
 html{background:var(--canvas)}
 body{margin:0;font:14px/1.5 var(--font-sans);color:var(--ink);-webkit-font-smoothing:antialiased}
-::selection{background:#fbdbe4;color:var(--ink)}
+::selection{background:#f59aa0;color:#fff}
 .page{max-width:980px;margin:0 auto;padding:40px 24px 80px}
 h1{font-size:22px;font-weight:500;letter-spacing:-.025em;line-height:1.25;margin:0 0 6px}
 .lede{color:var(--body);max-width:62ch;margin:0 0 28px}
@@ -33,205 +34,310 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 .rule{font-size:12.5px;color:var(--muted);margin:0 0 14px;max-width:70ch}
 .rule b{color:var(--ink);font-weight:600}
 
-/* ---- Swatch legend ---- */
+/* ---- Family legend ---- */
 .fam{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 8px}
-.fam > div{border-radius:14px;padding:14px 16px 12px;box-shadow:var(--lift);position:relative;overflow:hidden;min-height:118px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
-.fam i{position:absolute;inset:auto -20px -30px auto;width:120px;height:120px;border-radius:50%;filter:blur(28px);opacity:.9}
-.fam b,.fam span,.fam small{position:relative}
-.fam b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase}
-.fam span{font-size:12px}
-.fam small{font:600 11px var(--font-mono);letter-spacing:0;opacity:.75}
-.fam .cele{background:linear-gradient(135deg,var(--cele-a),var(--cele-b))}.fam .cele i{background:var(--cele-glow)}.fam .cele b{color:var(--cele-voice)}.fam .cele span,.fam .cele small{color:var(--cele-text)}
-.fam .head{background:linear-gradient(135deg,var(--head-a),var(--head-b))}.fam .head i{background:var(--head-glow)}.fam .head b{color:var(--head-voice)}.fam .head span,.fam .head small{color:var(--head-text)}
-.fam .need{background:linear-gradient(135deg,var(--need-a),var(--need-b))}.fam .need i{background:var(--need-glow)}.fam .need b{color:var(--need-voice)}.fam .need span,.fam .need small{color:var(--need-text)}
-.fam .alrm{background:linear-gradient(135deg,var(--alrm-a),var(--alrm-b))}.fam .alrm i{background:var(--alrm-glow)}.fam .alrm b{color:var(--alrm-voice)}.fam .alrm span,.fam .alrm small{color:var(--alrm-text)}
+.fam>div{border-radius:16px;padding:16px;min-height:150px;display:flex;flex-direction:column;gap:2px;color:#fff;box-shadow:var(--lift);position:relative;overflow:hidden}
+.fam b{font-size:15px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.fam span{font-size:12px;opacity:.92}
+.fam small{font:600 11px var(--font-mono);opacity:.8}
+.fam .fold{margin-bottom:auto;opacity:.55}
+.fam .c{background:var(--cele)}.fam .h{background:var(--head)}.fam .n{background:var(--need)}.fam .a{background:var(--alrm)}
 
-/* ---- Band, one component, tone from data-tone ---- */
-.stack{display:flex;flex-direction:column;gap:14px}
-.band{position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:18px 22px;border-radius:14px;box-shadow:var(--lift);background:linear-gradient(135deg,var(--a),var(--b));color:var(--ink)}
-.band::before{content:"";position:absolute;right:-60px;top:-70px;width:260px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--glow),transparent 72%);opacity:.85;pointer-events:none}
-.band::after{content:"";position:absolute;left:-40px;bottom:-90px;width:200px;height:160px;border-radius:50%;background:radial-gradient(closest-side,var(--glow2,var(--glow)),transparent 72%);opacity:.45;pointer-events:none}
-.band > *{position:relative}
-.band[data-tone=cele]{--a:var(--cele-a);--b:var(--cele-b);--glow:var(--cele-glow);--glow2:#ffd9a3;--voice:var(--cele-voice);--voice-deep:var(--cele-voice-deep);--text:var(--cele-text)}
-.band[data-tone=head]{--a:var(--head-a);--b:var(--head-b);--glow:var(--head-glow);--glow2:#dbe9e0;--voice:var(--head-voice);--voice-deep:var(--head-voice-deep);--text:var(--head-text)}
-.band[data-tone=need]{--a:var(--need-a);--b:var(--need-b);--glow:var(--need-glow);--glow2:#ffe6b8;--voice:var(--need-voice);--voice-deep:var(--need-voice-deep);--text:var(--need-text)}
-.band[data-tone=alrm]{--a:var(--alrm-a);--b:var(--alrm-b);--glow:var(--alrm-glow);--glow2:#ffd0c4;--voice:var(--alrm-voice);--voice-deep:var(--alrm-voice-deep);--text:var(--alrm-text)}
-.k{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--voice)}
-.t{font-size:16px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
-.s{flex-basis:100%;margin-top:-4px;color:var(--text);font-size:14px;max-width:72ch}
-.meta{flex-basis:100%;font-size:11.5px;color:var(--text);opacity:.85}
-.meta b{font-weight:600;color:var(--ink)}
-.num{font:600 34px/1 var(--font-mono);letter-spacing:-.02em;color:var(--voice)}
-.art{font-size:22px;line-height:1}
-.av{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:600;color:#fff;background:#3a6ea5}
-.role{font-size:12.5px;color:var(--text)}
-.cta{margin-left:auto;white-space:nowrap;font-weight:500;font-size:14px;color:#fff;background:var(--voice);border-radius:9px;padding:8px 14px;transition:transform 160ms var(--ease),background 160ms ease;cursor:pointer}
-.cta:hover{background:var(--voice-deep)}
+/* ---- Band ---- */
+.stack{display:flex;flex-direction:column;gap:16px}
+.band{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr 250px;border-radius:18px;box-shadow:var(--lift);background:var(--fill);color:#fff;min-height:150px}
+.band[data-tone=cele]{--fill:var(--cele);--deep:var(--cele-deep);--pale:var(--cele-pale)}
+.band[data-tone=mint]{--fill:var(--cele-mint);--deep:var(--cele-mint-deep);--pale:#a9dcc2}
+.band[data-tone=plum]{--fill:var(--cele-plum);--deep:var(--cele-plum-deep);--pale:#c4a5d9}
+.band[data-tone=head]{--fill:var(--head);--deep:var(--head-deep);--pale:var(--head-pale)}
+.band[data-tone=need]{--fill:var(--need);--deep:var(--need-deep);--pale:var(--need-pale)}
+.band[data-tone=alrm]{--fill:var(--alrm);--deep:var(--alrm-deep);--pale:var(--alrm-pale)}
+.copy{padding:20px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
+.fold{width:34px;height:26px;position:relative;margin-bottom:auto;opacity:.55}
+.fold::before{content:"";position:absolute;left:0;top:0;width:14px;height:8px;border-radius:3px 3px 0 0;background:#fff}
+.fold::after{content:"";position:absolute;left:0;top:5px;right:0;bottom:0;border-radius:3px;background:#fff}
+.lines{position:absolute;left:22px;top:20px;display:flex;gap:8px;opacity:.6}
+.lines i{display:block;height:2px;border-radius:2px;background:#fff}
+.lines i:nth-child(1){width:70px}.lines i:nth-child(2){width:120px}.lines i:nth-child(3){width:38px}
+.k{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
+.t{font-size:22px;font-weight:600;letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+.s{font-size:13.5px;opacity:.95;max-width:56ch}
+.meta{font-size:11.5px;opacity:.8}
+.meta b{font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
+.cta{white-space:nowrap;font-weight:500;font-size:13.5px;color:#fff;background:var(--deep);border-radius:10px;padding:8px 14px;transition:transform 160ms var(--ease),filter 160ms ease;cursor:pointer}
+.cta:hover{filter:brightness(1.08)}
 .cta:active{transform:scale(.97)}
-.cta.ghost{background:rgba(255,255,255,.7);color:var(--voice-deep)}
-.pager{font:500 12px var(--font-mono);color:var(--text);display:inline-flex;gap:8px;align-items:center;margin-left:auto}
-.pager .cta{margin-left:0}
-.pager + .pager{margin-left:0}
-.chips{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}
-.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.72);color:var(--ink);transition:transform 120ms var(--ease);cursor:pointer}
+.cta.ghost{background:rgba(255,255,255,.22)}
+.pager{font:500 12px var(--font-mono);opacity:.85;display:inline-flex;gap:8px;align-items:center;margin-left:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.22);color:#fff;transition:transform 120ms var(--ease);cursor:pointer}
 .chip:active{transform:scale(.96)}
-.chip.on{background:var(--voice);color:#fff}
-.chip.count{margin-left:auto;background:rgba(255,255,255,.5);color:var(--text)}
-.story{flex-basis:100%;display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:rgba(255,255,255,.55);border-radius:10px}
-.story b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text)}
-.story p{margin:0;font-size:13px;color:var(--body)}
-.team{display:flex;align-items:center}
-.team .av{margin-left:-7px;box-shadow:0 0 0 2px #fff}
+.chip.on{background:#fff;color:var(--deep)}
+.chip.count{background:transparent;opacity:.85;padding-left:4px}
+.team{display:inline-flex;align-items:center;gap:8px;font-size:12px;opacity:.95}
+.team .av{margin-left:-7px;box-shadow:0 0 0 2px var(--fill)}
 .team .av:first-child{margin-left:0}
-.team small{margin-left:8px;font-size:11.5px;color:var(--text);white-space:nowrap}
-.panels{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.panel{background:rgba(255,255,255,.62);border-radius:10px;padding:10px 12px;font-size:12.5px}
-.panel b{display:block;font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text);margin-bottom:6px}
-.panel .row{display:flex;justify-content:space-between;padding:3px 0;color:var(--body)}
-.panel .row em{font:600 12px var(--font-mono);font-style:normal;color:var(--voice)}
-.slides{flex-basis:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.slide{background:rgba(255,255,255,.62);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px}
-.slide b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text)}
-.slide strong{font-size:14px;font-weight:600}
-.slide span{font-size:12px;color:var(--body)}
-.slide .w{display:flex;align-items:center;gap:8px;margin-top:4px}
-.slide .w .av{width:24px;height:24px;font-size:9px}
+.av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:600;color:#fff;background:#3a6ea5}
+.story{background:rgba(255,255,255,.16);border-radius:10px;padding:8px 12px;font-size:13px;margin-top:2px}
+.story b{display:block;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;opacity:.8;margin-bottom:2px}
+.art{position:relative;display:grid;place-items:center;padding:14px 18px 14px 0}
+.art svg{width:100%;max-width:220px;height:auto;display:block}
+.num{font:600 46px/1 var(--font-mono);letter-spacing:-.03em}
+
+/* management panels sit under the title inside copy */
+.panels{display:grid;grid-template-columns:1fr;gap:8px;margin-top:4px}
+.band.wide{grid-template-columns:1fr 170px}
+.panel{background:rgba(255,255,255,.18);border-radius:10px;padding:8px 12px;font-size:12.5px}
+.panel b{display:block;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;opacity:.8;margin-bottom:4px}
+.panel .r{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+.panel em{font:600 12px var(--font-mono);font-style:normal}
 
 /* toast */
-.toast{width:340px;background:#fff;border-radius:14px;box-shadow:0 12px 32px -8px rgba(31,30,26,.28),0 2px 6px rgba(31,30,26,.08);padding:14px 16px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
-.toast::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--need-glow),var(--need-voice))}
-.toast .k{color:var(--need-voice)}
-.toast .t{white-space:normal;font-size:15px}
-.toast .s{flex-basis:auto;margin:0;color:var(--body);font-size:12.5px}
-.toast input{height:36px;padding:0 10px;border:0;border-radius:8px;background:var(--shelf);font:12.5px var(--font-sans);color:var(--ink)}
+.two{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.toast{background:var(--need);color:#fff;border-radius:18px;box-shadow:var(--lift);padding:16px 18px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.toast .t{font-size:17px}
+.toast .s{font-size:12.5px}
+.toast input{height:36px;padding:0 10px;border:0;border-radius:9px;background:rgba(255,255,255,.92);font:12.5px var(--font-sans);color:var(--ink);margin-top:2px}
 .toast input::placeholder{color:var(--muted-soft)}
-.toast input:focus{outline:2px solid var(--need-glow);outline-offset:1px}
-.toast .row{display:flex;gap:8px;align-items:center}
-.toast .cta{margin-left:0;background:var(--need-voice)}
-.toast .cta.ghost{color:var(--need-voice-deep);background:var(--shelf)}
-.two{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+.toast input:focus{outline:2px solid #fff;outline-offset:1px}
+.toast .row{margin-top:2px}
+.toast svg{position:absolute;right:-6px;top:-8px;width:96px;opacity:.95}
 
-/* plain mode column */
-.plain .band{background:var(--card);box-shadow:var(--lift)}
-.plain .band::before,.plain .band::after{display:none}
-.plain .band .k{color:var(--voice)}
-.plain .band .s,.plain .band .meta{color:var(--body)}
-.plain .num,.plain .art{display:none}
+/* plain */
+.plain .band{background:#fff;color:var(--ink);grid-template-columns:1fr}
+.plain .band .art,.plain .band .lines,.plain .band .fold{display:none}
+.plain .band .k{color:var(--fill);opacity:1}
+.plain .band .s,.plain .band .meta{color:var(--body);opacity:1}
+.plain .band .cta{background:var(--fill)}
 
 @media (max-width:720px){
   .fam{grid-template-columns:1fr 1fr}
-  .band{padding:16px 18px}
-  .t{white-space:normal}
-  .panels,.slides{grid-template-columns:1fr}
+  .band{grid-template-columns:1fr}
+  .art{padding:0 18px 16px;justify-items:end}
+  .art svg{max-width:150px}
+  .t{font-size:19px}
   .two{grid-template-columns:1fr}
-  .cta,.pager{margin-left:0}
+  .panels{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 <div class="page">
-  <h1>Dashboard bands, one look per tone</h1>
-  <p class="lede">Every full-width strip on the dashboard now belongs to one of four families. The shape stays identical (kicker, title, one line, meta, button, pager). Only the wash, the glow and the voice colour change. No borders anywhere; the wash and a soft offset shadow carry the edge. Brand red is kept for one family only, so it means something again.</p>
+  <h1>Dashboard bands, flat and friendly</h1>
+  <p class="lede">One card shape for every strip. Solid flat colour, white type, a small faded folder mark, two speed lines, and a flat illustration on the right that says what the band is about before you read it. Four families, four fills. Brand red is used by one family only.</p>
 
   <div class="fam">
-    <div class="cele"><i></i><b>Celebration</b><span>Good news about people or work.</span><small>rose · apricot · lilac</small></div>
-    <div class="head"><i></i><b>Heads-up</b><span>Know it, nothing to do.</span><small>sky · sage</small></div>
-    <div class="need"><i></i><b>Needs action</b><span>Someone must do something.</span><small>honey · amber</small></div>
-    <div class="alrm"><i></i><b>Alarm</b><span>Something is wrong. Brand red, and only here.</span><small>red · coral</small></div>
+    <div class="c"><span class="fold"></span><b>Celebration</b><span>Good news about people or work.</span><small>coral, with mint and plum for range</small></div>
+    <div class="h"><span class="fold"></span><b>Heads-up</b><span>Know it, nothing to do.</span><small>slate blue</small></div>
+    <div class="n"><span class="fold"></span><b>Needs action</b><span>Someone must press a button.</span><small>tangerine</small></div>
+    <div class="a"><span class="fold"></span><b>Alarm</b><span>Something is wrong.</span><small>brand red, only here</small></div>
   </div>
 
   <h2>Celebration</h2>
-  <p class="rule">Birthday, Big Deal, Victory Bell, Wrapped, and every Awards slide. Warm wash from apricot into rose with a lilac glow. Voice is a deep rose, <b>never brand red</b>. The button is the one solid element on the band.</p>
+  <p class="rule">Birthday, Big Deal, Victory Bell, Wrapped, Awards. Coral is the family fill. Mint and plum are allowed inside the family so a stack of three celebrations does not read as one long coral wall. <b>Never brand red.</b></p>
   <div class="stack">
-    <section class="band" data-tone="cele">
-      <span class="k">Today</span>
-      <span class="av" style="background:#c2417a">HM</span>
-      <span class="t">Happy birthday, Yati</span>
-      <span class="role">Sr Project Manager</span>
-      <span class="s">Say it in person if you can, or drop a line on the Wall.</span>
-      <span class="cta">Wish her</span>
-    </section>
 
     <section class="band" data-tone="cele">
-      <span class="k">Big deal alert</span>
-      <span class="t">iLPF UAT completed</span>
-      <span class="team"><span class="av" style="background:#3a6ea5">MS</span><span class="av" style="background:#8e2558">KU</span><span class="av" style="background:#1f8a65">HM</span><small>+2 more</small></span>
-      <div class="story"><b>What it took</b><p>Three weeks of late nights, 212 test cases, zero showstoppers left. KDN signed off UAT on Friday.</p></div>
-      <span class="meta">Raised by <b>Kussairi</b> · KDN: iLPF · Track TRK-MS-42 · on the dashboard until Sat 12 Sep</span>
-      <div class="chips"><span class="chip">⚡ Power</span><span class="chip on">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">😨 Noted With Fear</span><span class="chip">🆘 Send Help</span><span class="chip">🫡 Respect</span><span class="chip count">1 · Legend</span></div>
-      <span class="pager">1 / 4 <span class="cta ghost">›</span></span>
-    </section>
-
-    <section class="band" data-tone="cele">
-      <span class="k">We have movement</span>
-      <span class="art">🔔</span>
-      <span class="t">2.0 Release, dark mode is officially Done.</span>
-      <span class="av">MS</span><span class="role">Shazwan</span>
-      <span class="s"><em>Dark mode shipped. Eyes everywhere thank you.</em></span>
-      <span class="meta">Rung by <b>Shazwan</b> · AmanahKu · on the dashboard until Thu 10 Sep, 14:48 · then on the Wins page</span>
-      <div class="chips"><span class="chip on">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">🫡 Respect</span><span class="chip count">1 · Power</span></div>
-      <span class="pager">2 / 4 <span class="cta ghost">›</span></span>
-    </section>
-
-    <section class="band" data-tone="cele">
-      <span class="k">September, wrapped</span>
-      <span class="num">286</span>
-      <span class="t">Unijaya's September in one breath</span>
-      <span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span>
-      <span class="meta">Company totals, frozen with the awards.</span>
-      <div class="chips"><span class="chip">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤯 How Did You Do This?</span><span class="chip">🧾 Claim Bila?</span></div>
-      <span class="cta">My Wrapped</span>
-      <span class="pager">3 / 4 <span class="cta ghost">›</span></span>
-    </section>
-
-    <section class="band" data-tone="cele">
-      <span class="k">Awards</span>
-      <span class="t">September's winners</span>
-      <span class="s">Frozen on the 1st, on the dashboard until the 7th.</span>
-      <div class="slides">
-        <div class="slide"><b>Done and dusted</b><strong>Most cards closed</strong><span>27 cards</span><div class="w"><span class="av" style="background:#c2417a">HM</span>Yati</div></div>
-        <div class="slide"><b>Chief firefighter</b><strong>Most high-priority handled</strong><span>8 fires</span><div class="w"><span class="av">MS</span>Shazwan</div></div>
-        <div class="slide"><b>Mystery award</b><strong>Chief Snack Negotiator</strong><span>"Nobody knew this category existed until 8:00 this morning."</span><div class="w"><span class="av" style="background:#8e2558">KU</span>Kussairi</div></div>
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">Today</span>
+        <span class="t">Happy birthday, Yati</span>
+        <span class="s">Sr Project Manager. Say it in person if you can, or drop a line on the Wall.</span>
+        <div class="row"><span class="cta">Wish her</span></div>
       </div>
-      <span class="cta">See all awards</span>
+      <div class="art">
+        <!-- cake -->
+        <svg viewBox="0 0 220 150" aria-hidden="true">
+          <rect x="40" y="86" width="140" height="44" rx="8" fill="#fff"/>
+          <rect x="40" y="86" width="140" height="14" rx="7" fill="#ffd6d9"/>
+          <rect x="58" y="58" width="104" height="34" rx="8" fill="#fff"/>
+          <rect x="58" y="58" width="104" height="12" rx="6" fill="#ffd6d9"/>
+          <path d="M40 130h140v6a8 8 0 0 1-8 8H48a8 8 0 0 1-8-8z" fill="#f3c9cc"/>
+          <g fill="#ffd166"><circle cx="70" cy="112" r="4"/><circle cx="110" cy="116" r="4"/><circle cx="150" cy="112" r="4"/><circle cx="90" cy="78" r="3.5"/><circle cx="130" cy="78" r="3.5"/></g>
+          <g><rect x="84" y="30" width="6" height="30" rx="3" fill="#1f2a5a"/><rect x="107" y="24" width="6" height="36" rx="3" fill="#1f2a5a"/><rect x="130" y="30" width="6" height="30" rx="3" fill="#1f2a5a"/>
+          <ellipse cx="87" cy="24" rx="5" ry="8" fill="#ffd166"/><ellipse cx="110" cy="17" rx="5" ry="8" fill="#ffd166"/><ellipse cx="133" cy="24" rx="5" ry="8" fill="#ffd166"/>
+          <ellipse cx="87" cy="26" rx="2.2" ry="4" fill="#ff8c42"/><ellipse cx="110" cy="19" rx="2.2" ry="4" fill="#ff8c42"/><ellipse cx="133" cy="26" rx="2.2" ry="4" fill="#ff8c42"/></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="band" data-tone="plum">
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">Big deal alert</span>
+        <span class="t">iLPF UAT completed</span>
+        <div class="story"><b>What it took</b>Three weeks of late nights, 212 test cases, zero showstoppers left. KDN signed off UAT on Friday.</div>
+        <span class="meta">Raised by <b>Kussairi</b> · KDN: iLPF · Track TRK-MS-42 · on the dashboard until Sat 12 Sep</span>
+        <div class="chips"><span class="chip">⚡ Power</span><span class="chip on">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">🫡 Respect</span><span class="chip count">1 Legend</span></div>
+        <div class="row"><span class="team"><span class="av" style="background:#3a6ea5">MS</span><span class="av" style="background:#c9424c">KU</span><span class="av" style="background:#4f9d78">HM</span>+2 more</span><span class="pager">1 / 4 <span class="cta ghost">›</span></span></div>
+      </div>
+      <div class="art">
+        <!-- trophy on a plinth with a signed sheet -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <rect x="128" y="18" width="70" height="88" rx="6" fill="#fff"/>
+          <g fill="#c4a5d9"><rect x="140" y="32" width="46" height="5" rx="2.5"/><rect x="140" y="44" width="34" height="5" rx="2.5"/><rect x="140" y="56" width="40" height="5" rx="2.5"/></g>
+          <path d="M142 88c6-8 10 4 16-4s8 6 14-2 6 4 14-2" stroke="#26251e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <path d="M50 30h64v34a32 32 0 0 1-64 0z" fill="#ffd166"/>
+          <path d="M50 38H30a16 16 0 0 0 16 24h6M114 38h20a16 16 0 0 1-16 24h-6" stroke="#ffd166" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <rect x="72" y="94" width="20" height="18" fill="#e5b84e"/>
+          <rect x="54" y="110" width="56" height="12" rx="4" fill="#26251e"/>
+          <rect x="44" y="122" width="76" height="14" rx="5" fill="#3d3a33"/>
+          <path d="M66 46l16-8 16 8-3 18H69z" fill="#fff" opacity=".5"/>
+        </svg>
+      </div>
+    </section>
+
+    <section class="band" data-tone="mint">
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">We have movement</span>
+        <span class="t">2.0 Release, dark mode is officially Done.</span>
+        <span class="s"><em>Dark mode shipped. Eyes everywhere thank you.</em></span>
+        <span class="meta">Rung by <b>Shazwan</b> · AmanahKu · on the dashboard until Thu 10 Sep, 14:48 · then on the Wins page</span>
+        <div class="chips"><span class="chip on">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">🫡 Respect</span><span class="chip count">1 Power</span></div>
+        <div class="row"><span class="pager">2 / 4 <span class="cta ghost">›</span></span></div>
+      </div>
+      <div class="art">
+        <!-- bell -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <path d="M110 22c-26 0-44 20-44 46v30l-14 20h116l-14-20V68c0-26-18-46-44-46z" fill="#fff"/>
+          <path d="M66 98v-30c0-26 18-46 44-46v96H52z" fill="#dff3e8"/>
+          <rect x="102" y="12" width="16" height="14" rx="5" fill="#1f2a5a"/>
+          <path d="M96 122a14 14 0 0 0 28 0z" fill="#1f2a5a"/>
+          <circle cx="110" cy="138" r="6" fill="#ffd166"/>
+          <g stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"><path d="M172 48c8 10 8 24 0 34"/><path d="M186 36c14 18 14 40 0 58"/><path d="M48 48c-8 10-8 24 0 34"/><path d="M34 36c-14 18-14 40 0 58"/></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="band" data-tone="cele">
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">September, wrapped</span>
+        <span class="t">Unijaya's September in one breath</span>
+        <span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span>
+        <span class="meta">Company totals, frozen with the awards.</span>
+        <div class="chips"><span class="chip">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤯 How Did You Do This?</span><span class="chip">🧾 Claim Bila?</span></div>
+        <div class="row"><span class="cta">My Wrapped</span><span class="pager">3 / 4 <span class="cta ghost">›</span></span></div>
+      </div>
+      <div class="art">
+        <!-- isometric stacked blocks, the "286" -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <g>
+            <path d="M60 112l40-22 40 22-40 22z" fill="#fff"/><path d="M60 112v22l40 22v-22z" fill="#f3c9cc"/><path d="M140 112v22l-40 22v-22z" fill="#e8a4aa"/>
+            <path d="M60 80l40-22 40 22-40 22z" fill="#fff"/><path d="M60 80v22l40 22v-22z" fill="#f3c9cc"/><path d="M140 80v22l-40 22v-22z" fill="#e8a4aa"/>
+            <path d="M60 48l40-22 40 22-40 22z" fill="#ffd166"/><path d="M60 48v22l40 22v-22z" fill="#e5b84e"/><path d="M140 48v22l-40 22v-22z" fill="#c99a33"/>
+          </g>
+          <g fill="#1f2a5a"><circle cx="164" cy="128" r="9"/><circle cx="182" cy="118" r="9"/><circle cx="173" cy="140" r="9"/></g>
+          <text x="100" y="52" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="600" font-size="15" fill="#26251e">286</text>
+        </svg>
+      </div>
+    </section>
+
+    <section class="band" data-tone="plum">
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">Awards</span>
+        <span class="t">September's winners</span>
+        <span class="s">Done and Dusted: Yati, 27 cards. Chief Firefighter: Shazwan, 8 fires. Mystery Award, Chief Snack Negotiator: Kussairi.</span>
+        <span class="meta">Frozen on the 1st, on the dashboard until the 7th.</span>
+        <div class="row"><span class="cta">See all awards</span><span class="pager">4 / 4 <span class="cta ghost">›</span></span></div>
+      </div>
+      <div class="art">
+        <!-- three medals -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <g><path d="M60 16l14 40h-28z" fill="#c9424c"/><path d="M60 16l14 40H60z" fill="#a3161d"/><circle cx="60" cy="74" r="24" fill="#ffd166"/><circle cx="60" cy="74" r="16" fill="#e5b84e"/><text x="60" y="80" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="16" fill="#26251e">1</text></g>
+          <g><path d="M110 40l14 40H96z" fill="#3a6ea5"/><path d="M110 40l14 40h-14z" fill="#2b537c"/><circle cx="110" cy="98" r="24" fill="#fff"/><circle cx="110" cy="98" r="16" fill="#e6e5e0"/><text x="110" y="104" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="16" fill="#26251e">2</text></g>
+          <g><path d="M160 40l14 40h-28z" fill="#4f9d78"/><path d="M160 40l14 40h-14z" fill="#37785a"/><circle cx="160" cy="98" r="24" fill="#f3c9cc"/><circle cx="160" cy="98" r="16" fill="#e8a4aa"/><text x="160" y="104" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="16" fill="#26251e">?</text></g>
+        </svg>
+      </div>
     </section>
   </div>
 
   <h2>Heads-up</h2>
-  <p class="rule">Holiday eve, and any future "for your information" strip. Cool sky wash with a sage glow. Calm by design, it should feel like a note on the fridge.</p>
+  <p class="rule">Holiday eve, weekend birthdays, any "for your information" strip. Slate blue. Calm by design, the illustration does the talking.</p>
   <div class="stack">
     <section class="band" data-tone="head">
-      <span class="k">Holiday eve</span>
-      <span class="art">🌙</span>
-      <span class="t">Malaysia Day tomorrow</span>
-      <span class="s">Happy holiday. Rest well, see you back Thursday.</span>
-      <span class="meta">Office closed Wed 16 Sep · claims and leave still submit as usual</span>
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">Holiday eve</span>
+        <span class="t">Malaysia Day tomorrow</span>
+        <span class="s">Happy holiday. Rest well, see you back Thursday.</span>
+        <span class="meta">Office closed Wed 16 Sep · claims and leave still submit as usual</span>
+      </div>
+      <div class="art">
+        <!-- moon, stars, a closed door sign -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <path d="M120 22a54 54 0 1 0 54 70 44 44 0 0 1-54-70z" fill="#fff"/>
+          <g fill="#ffd166"><circle cx="56" cy="40" r="4"/><circle cx="40" cy="92" r="3"/><circle cx="180" cy="34" r="3"/><path d="M70 120l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/></g>
+          <rect x="132" y="118" width="60" height="36" rx="6" fill="#fff"/>
+          <rect x="132" y="118" width="60" height="10" rx="5" fill="#a3aecb"/>
+          <g fill="#7b8ab2"><rect x="142" y="134" width="40" height="4" rx="2"/><rect x="142" y="142" width="26" height="4" rx="2"/></g>
+        </svg>
+      </div>
     </section>
     <section class="band" data-tone="head">
-      <span class="k">This weekend</span>
-      <span class="av" style="background:#1f8a65">AR</span>
-      <span class="t">Two birthdays on Saturday</span>
-      <span class="s">Aiman and Rina. The Wall is open if you want to leave a line early.</span>
-      <span class="cta ghost">Open the Wall</span>
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">This weekend</span>
+        <span class="t">Two birthdays on Saturday</span>
+        <span class="s">Aiman and Rina. The Wall is open if you want to leave a line early.</span>
+        <div class="row"><span class="cta ghost">Open the Wall</span></div>
+      </div>
+      <div class="art">
+        <!-- calendar page -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <rect x="64" y="30" width="96" height="110" rx="10" fill="#fff"/>
+          <rect x="64" y="30" width="96" height="30" rx="10" fill="#c9424c"/><rect x="64" y="48" width="96" height="12" fill="#c9424c"/>
+          <g fill="#1f2a5a"><rect x="86" y="18" width="8" height="22" rx="4"/><rect x="130" y="18" width="8" height="22" rx="4"/></g>
+          <text x="112" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="600" font-size="40" fill="#26251e">13</text>
+          <text x="112" y="130" text-anchor="middle" font-family="Poppins" font-weight="600" font-size="11" fill="#7b8ab2">SAT</text>
+          <g fill="#ffd166"><circle cx="176" cy="48" r="5"/><circle cx="186" cy="66" r="3"/><circle cx="46" cy="120" r="4"/></g>
+        </svg>
+      </div>
     </section>
   </div>
 
   <h2>Needs action</h2>
-  <p class="rule">Management band for directors, the "ring the bell?" prompt, anything with a button someone should press today. Honey wash, amber voice. Warm, not alarming: it asks, it does not shout.</p>
+  <p class="rule">Management band, the "ring the bell?" prompt, anything with a button someone should press today. Tangerine. Warm and clear, it asks, it does not shout.</p>
   <div class="two">
     <div class="stack">
-      <section class="band" data-tone="need">
-        <span class="k">Management</span>
-        <span class="t">Three things need a director today</span>
-        <span class="s">Two verified claims waiting for final approval, one overdue milestone.</span>
-        <div class="panels">
-          <div class="panel"><b>Waiting on you</b><div class="row"><span>Claim, Shazwan, site travel</span><em>RM 184</em></div><div class="row"><span>Claim, Kussairi, client lunch</span><em>RM 96</em></div></div>
-          <div class="panel"><b>Overdue by owner</b><div class="row"><span>Kussairi · iLPF go-live checklist</span><em>3 d</em></div></div>
+      <section class="band wide" data-tone="need">
+        <div class="lines"><i></i><i></i><i></i></div>
+        <div class="copy">
+          <span class="fold"></span>
+          <span class="k">Management</span>
+          <span class="t">Three things need a director today</span>
+          <div class="panels">
+            <div class="panel"><b>Waiting on you</b><div class="r"><span>Claim, Shazwan, site travel</span><em>RM 184</em></div><div class="r"><span>Claim, Kussairi, client lunch</span><em>RM 96</em></div></div>
+            <div class="panel"><b>Overdue by owner</b><div class="r"><span>Kussairi · iLPF go-live checklist</span><em>3 d</em></div></div>
+          </div>
+          <div class="row"><span class="cta">Review now</span></div>
         </div>
-        <span class="cta">Review now</span>
+        <div class="art">
+          <!-- mailbox with flag up -->
+          <svg viewBox="0 0 220 170" aria-hidden="true">
+            <rect x="104" y="96" width="14" height="60" rx="4" fill="#3d3a33"/>
+            <path d="M52 60a30 30 0 0 1 30-30h72a30 30 0 0 1 30 30v42H52z" fill="#1f2a5a"/>
+            <path d="M52 60a30 30 0 0 1 30-30h8v72H52z" fill="#2b537c"/>
+            <rect x="96" y="56" width="70" height="40" rx="5" fill="#fff"/>
+            <g fill="#c9c6bd"><rect x="106" y="66" width="34" height="4" rx="2"/><rect x="106" y="76" width="24" height="4" rx="2"/></g>
+            <rect x="140" y="62" width="16" height="12" rx="2" fill="#3a6ea5"/>
+            <rect x="176" y="18" width="6" height="44" rx="3" fill="#c9424c"/><rect x="176" y="18" width="24" height="14" rx="3" fill="#c9424c"/>
+          </svg>
+        </div>
       </section>
     </div>
     <div class="toast">
+      <svg viewBox="0 0 100 90" aria-hidden="true"><path d="M50 10c-14 0-24 11-24 25v16l-8 11h64l-8-11V35c0-14-10-25-24-25z" fill="#fff"/><path d="M42 66a8 8 0 0 0 16 0z" fill="#1f2a5a"/><rect x="45" y="4" width="10" height="8" rx="3" fill="#1f2a5a"/></svg>
       <span class="k">Milestone done</span>
       <span class="t">Ring the bell for "2.0 Release"?</span>
       <span class="s">Add a line, or leave it blank.</span>
@@ -241,39 +347,40 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   </div>
 
   <h2>Alarm</h2>
-  <p class="rule">Nothing lives here today. Reserved for "something is wrong": a failed payroll run, a locked account, a sync that stopped. Brand red wash and voice. Because no celebration uses red any more, this one will be read the moment it appears.</p>
+  <p class="rule">Nothing lives here today. Reserved for "something is wrong": a failed payroll run, a locked account, a sync that stopped. Brand red. Because no celebration uses red any more, this one gets read the moment it appears.</p>
   <div class="stack">
     <section class="band" data-tone="alrm">
-      <span class="k">Payroll</span>
-      <span class="art">⚠️</span>
-      <span class="t">September payroll did not send</span>
-      <span class="s">Bank file rejected 2 of 31 rows. Nothing was paid. Fix the two rows and run it again.</span>
-      <span class="meta">Stopped Tue 30 Sep, 16:02 · rows 14 and 27 · nobody else sees this band</span>
-      <span class="cta">Open payroll</span>
+      <div class="lines"><i></i><i></i><i></i></div>
+      <div class="copy">
+        <span class="fold"></span>
+        <span class="k">Payroll</span>
+        <span class="t">September payroll did not send</span>
+        <span class="s">Bank file rejected 2 of 31 rows. Nothing was paid. Fix the two rows and run it again.</span>
+        <span class="meta">Stopped Tue 30 Sep, 16:02 · rows 14 and 27 · nobody else sees this band</span>
+        <div class="row"><span class="cta">Open payroll</span></div>
+      </div>
+      <div class="art">
+        <!-- siren light on a box -->
+        <svg viewBox="0 0 220 170" aria-hidden="true">
+          <rect x="60" y="96" width="100" height="50" rx="8" fill="#fff"/>
+          <rect x="60" y="96" width="100" height="14" rx="7" fill="#e8767b"/>
+          <g fill="#c9c6bd"><rect x="74" y="120" width="40" height="5" rx="2.5"/><rect x="74" y="130" width="28" height="5" rx="2.5"/></g>
+          <circle cx="138" cy="126" r="7" fill="#ffd166"/>
+          <path d="M84 96V72a26 26 0 0 1 52 0v24z" fill="#ffd166"/>
+          <path d="M84 96V72a26 26 0 0 1 26-26v50z" fill="#e5b84e"/>
+          <rect x="76" y="90" width="68" height="10" rx="4" fill="#3d3a33"/>
+          <g stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"><path d="M150 50l14-12"/><path d="M158 72h18"/><path d="M70 50L56 38"/><path d="M62 72H44"/></g>
+        </svg>
+      </div>
     </section>
   </div>
 
   <h2>Keep it plain</h2>
-  <p class="rule">Same families, wash and glow removed, white card. The voice colour on the kicker and button is the only trace of the family, so plain users still know a celebration from an alarm.</p>
+  <p class="rule">Same families on a white card, no illustration, no lines. The kicker and the button keep the family colour, so a plain user still knows a celebration from an alarm at a glance.</p>
   <div class="stack plain">
-    <section class="band" data-tone="cele">
-      <span class="k">September, wrapped</span>
-      <span class="t">Unijaya's September in one breath</span>
-      <span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span>
-      <span class="cta">My Wrapped</span>
-    </section>
-    <section class="band" data-tone="need">
-      <span class="k">Management</span>
-      <span class="t">Three things need a director today</span>
-      <span class="s">Two verified claims waiting for final approval, one overdue milestone.</span>
-      <span class="cta">Review now</span>
-    </section>
-    <section class="band" data-tone="alrm">
-      <span class="k">Payroll</span>
-      <span class="t">September payroll did not send</span>
-      <span class="s">Bank file rejected 2 of 31 rows. Nothing was paid.</span>
-      <span class="cta">Open payroll</span>
-    </section>
+    <section class="band" data-tone="cele"><div class="copy"><span class="k">September, wrapped</span><span class="t">Unijaya's September in one breath</span><span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span><div class="row"><span class="cta">My Wrapped</span></div></div></section>
+    <section class="band" data-tone="need"><div class="copy"><span class="k">Management</span><span class="t">Three things need a director today</span><span class="s">Two verified claims waiting for final approval, one overdue milestone.</span><div class="row"><span class="cta">Review now</span></div></div></section>
+    <section class="band" data-tone="alrm"><div class="copy"><span class="k">Payroll</span><span class="t">September payroll did not send</span><span class="s">Bank file rejected 2 of 31 rows. Nothing was paid.</span><div class="row"><span class="cta">Open payroll</span></div></div></section>
   </div>
 </div>
 </body>
