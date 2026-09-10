@@ -231,8 +231,16 @@ class WorkItemController extends Controller
     }
 
     /** Full card detail + comment thread for the detail drawer. */
-    public function show(Request $request, WorkItem $workItem): JsonResponse
+    public function show(Request $request, WorkItem $workItem): JsonResponse|RedirectResponse
     {
+        // A person following a link to the card (notification bell, Google Calendar
+        // event description, API card_url) lands here in a browser tab; the drawer
+        // asks for JSON. Send the browser to the board with the card open instead
+        // of showing them the raw payload.
+        if (! $request->expectsJson()) {
+            return redirect(route('app.screen', 'board').'?card='.$workItem->id);
+        }
+
         $employee = $this->employee($request);
         $this->boardRules->authorizeAccess($request, $workItem, $employee);
 
