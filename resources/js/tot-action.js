@@ -5,6 +5,7 @@ export function registerTotAction(Alpine) {
     Alpine.data('totActionCard', (seed) => ({
         ...seed,
         busy: false,
+        editing: false,
 
         async createCard() {
             if (this.busy || this.workItemId) return;

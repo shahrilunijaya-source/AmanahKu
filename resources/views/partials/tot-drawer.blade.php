@@ -5,6 +5,7 @@
     <div x-show="drawerOpen" x-cloak>
         <div class="wd-scrim" :data-open="drawerOpen ? '' : null" @click="drawerOpen = false"></div>
         <aside class="wd tot-wd" :data-open="drawerOpen ? '' : null" role="dialog" aria-modal="true"
+               @submit="submitForm($event)"
                @keydown.escape.window="flyout ? (flyout = null) : (drawerOpen = false)"
                :aria-label="$store.ui.lang==='en' ? @js($session->session_date->format('F Y')) : @js($session->session_date->format('F Y'))">
 

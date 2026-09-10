@@ -267,7 +267,7 @@ class TotActionsTest extends TestCase
         // The edit form no longer offers the Pemilik once the card exists.
         $page = $this->actingInTenantAs($hr)->get('/app/tot?year=2026');
         $page->assertOk();
-        $page->assertSee('name="owners[]" style="margin-top:6px;" disabled', false);
+        $page->assertSee('name="owners[]" disabled', false);
         $page->assertSee('<input type="hidden" name="owners[]" value="'.$rubmin->id.'">', false);
         $page->assertSee('Pemilik and Sasaran are locked once the T.A.A. task exists.');
     }

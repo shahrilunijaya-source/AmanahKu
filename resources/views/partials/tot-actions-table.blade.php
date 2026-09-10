@@ -1,7 +1,8 @@
 {{-- CR-09/CR-10: Keputusan/Tindakan Susulan. "Create T.A.A. task" is a fetch
      (totActionCard, resources/js/tot-action.js) because tot.actions.card answers JSON only,
-     unlike the rest of this drawer's plain form posts; add/edit/delete stay plain form posts
-     with a redirect back, same as the rest of this drawer. --}}
+     unlike the rest of this drawer's plain form posts. Add/edit/delete are plain form posts
+     that redirect back; totCard.submitForm catches the submit and swaps the month card in
+     from the response, so nothing here reloads the page. --}}
 @php $previousSession = $session->previousSession(); @endphp
 @if ($previousSession && $previousSession->actions->isNotEmpty())
     <div style="margin-bottom:16px;">
@@ -61,36 +62,44 @@
                     </button>
                 @endif
                 @if ($canManageSession)
-                    <details>
-                        <summary class="tot-pillbtn" style="display:inline-block;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</summary>
-                        <form method="post" action="{{ route('tot.actions.update', [$session, $action]) }}" style="max-width:340px;margin-top:6px;">
-                            @csrf
-                            <input class="tot-field" name="action" value="{{ $action->action }}">
-                            {{-- QA F1: Pemilik and Sasaran lock with the card; a disabled field is not posted. --}}
-                            <select class="tot-field" name="owners[]" style="margin-top:6px;" @disabled($action->work_item_id !== null)>
-                                @foreach ($assignableEmployees as $e)
-                                    <option value="{{ $e->id }}" @selected($e->id === $action->owner_employee_id)>{{ $e->name }}</option>
-                                @endforeach
-                            </select>
-                            @if ($action->work_item_id !== null)
-                                <input type="hidden" name="owners[]" value="{{ $action->owner_employee_id }}">
-                                <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Pemilik and Sasaran are locked once the T.A.A. task exists.' : 'Pemilik dan Sasaran dikunci setelah tugasan T.A.A. wujud.'">Pemilik and Sasaran are locked once the T.A.A. task exists.</div>
-                            @endif
-                            <select class="tot-field" name="owners[]" multiple style="margin-top:6px;">
-                                @foreach ($assignableEmployees as $e)
-                                    <option value="{{ $e->id }}" @selected($action->helpers->contains('id', $e->id))>{{ $e->name }}</option>
-                                @endforeach
-                            </select>
-                            <input type="date" class="tot-field" name="target_date" value="{{ $action->target_date?->format('Y-m-d') }}" style="margin-top:6px;" @disabled($action->work_item_id !== null)>
-                            <button type="submit" class="tot-btn-g" style="margin-top:6px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
-                        </form>
-                    </details>
+                    <button type="button" class="tot-pillbtn" :data-on="editing ? '1' : null" @click="editing = !editing" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
                     <form method="post" action="{{ route('tot.actions.delete', [$session, $action]) }}" onsubmit="return confirm('Delete this tindakan?');">
                         @csrf
                         <button type="submit" class="tot-pillbtn" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
                     </form>
                 @endif
             </div>
+            @if ($canManageSession)
+                {{-- Full row width, under the tindakan, so the edit never squeezes the text column. --}}
+                <form method="post" action="{{ route('tot.actions.update', [$session, $action]) }}" x-show="editing" x-cloak style="flex-basis:100%;max-width:560px;padding:4px 0 6px;">
+                    @csrf
+                    <label class="tot-lbl">Tindakan</label>
+                    <input class="tot-field" name="action" value="{{ $action->action }}">
+                    <label class="tot-lbl" style="margin-top:8px;">Pemilik</label>
+                    {{-- QA F1: Pemilik and Sasaran lock with the card; a disabled field is not posted. --}}
+                    <select class="tot-field" name="owners[]" @disabled($action->work_item_id !== null)>
+                        @foreach ($assignableEmployees as $e)
+                            <option value="{{ $e->id }}" @selected($e->id === $action->owner_employee_id)>{{ $e->name }}</option>
+                        @endforeach
+                    </select>
+                    @if ($action->work_item_id !== null)
+                        <input type="hidden" name="owners[]" value="{{ $action->owner_employee_id }}">
+                        <div class="tot-note" x-text="$store.ui.lang==='en' ? 'Pemilik and Sasaran are locked once the T.A.A. task exists.' : 'Pemilik dan Sasaran dikunci setelah tugasan T.A.A. wujud.'">Pemilik and Sasaran are locked once the T.A.A. task exists.</div>
+                    @endif
+                    <label class="tot-lbl" style="margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Helpers' : 'Pembantu'">Helpers</label>
+                    <select class="tot-field" name="owners[]" multiple>
+                        @foreach ($assignableEmployees as $e)
+                            <option value="{{ $e->id }}" @selected($action->helpers->contains('id', $e->id))>{{ $e->name }}</option>
+                        @endforeach
+                    </select>
+                    <label class="tot-lbl" style="margin-top:8px;">Sasaran</label>
+                    <input type="date" class="tot-field" name="target_date" value="{{ $action->target_date?->format('Y-m-d') }}" @disabled($action->work_item_id !== null)>
+                    <div style="display:flex;gap:6px;margin-top:8px;">
+                        <button type="submit" class="tot-btn-g" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
+                        <button type="button" class="tot-btn-g" @click="editing = false" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                    </div>
+                </form>
+            @endif
         </div>
     @empty
         <div class="tot-note" x-text="$store.ui.lang==='en' ? 'No tindakan yet.' : 'Belum ada tindakan.'">No tindakan yet.</div>

@@ -186,9 +186,10 @@
                     editing: {{ $slotFailed ? 'true' : 'false' }},
                     drawerOpen: {{ $slotFailed ? 'true' : 'false' }},
                 })"
+                     data-tot-month="{{ $session->month }}" @if ($errors->any()) data-tot-failed @endif
                      @tot-open.window="if ($event.detail.month === {{ $session->month }}) { openDrawer() }">
             @else
-                <div x-data="{ drawerOpen: false }"
+                <div x-data="totMonth()" data-tot-month="{{ $session->month }}" @if ($errors->any()) data-tot-failed @endif
                      @tot-open.window="if ($event.detail.month === {{ $session->month }}) { drawerOpen = true }">
             @endif
                 <button type="button" class="tot-row" @if ($rm['kind']) data-kind="{{ $rm['kind'] }}" @endif
