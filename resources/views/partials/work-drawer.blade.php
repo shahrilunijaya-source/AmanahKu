@@ -60,7 +60,7 @@
                     <span x-text="$store.ui.lang==='en' ? 'Saved' : 'Disimpan'">Saved</span>
                 </span>
                 <div style="position:relative;">
-                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu" data-tip-end :data-tip="$store.ui.lang==='en' ? 'Archive, cancel or delete' : 'Arkib, batal atau padam'"
+                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu" data-tip-below data-tip-end :data-tip="$store.ui.lang==='en' ? 'Archive, cancel or delete' : 'Arkib, batal atau padam'"
                             :aria-expanded="drawer.menuOpen ? 'true' : 'false'" :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Tindakan lain'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
@@ -79,7 +79,7 @@
             @else
                 <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="drawer.card.parent_id ? (drawer.card.status === 'done' ? 'Done' : 'Open') : ((@js($statusLabels))[drawer.card.status] || '')"></span>
             @endif
-            <button type="button" class="wd-ico" @click="closeDrawer()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+            <button type="button" class="wd-ico" @click="closeDrawer()" data-tip-below data-tip-end :data-tip="$store.ui.lang==='en' ? 'Close (Esc)' : 'Tutup (Esc)'" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -122,7 +122,7 @@
                     </p>
 
                     <div class="wd-props">
-                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Task is yours, Assignment came from someone, Adhoc is a quick one-off' : 'Tugas milik anda, Tugasan datang dari orang lain, Adhoc kerja kecil sekali lalu'" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
                         <span class="wd-pval" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.type" :disabled="drawer.locked" @change="commitField('type', drawer.card.type)">
@@ -133,7 +133,7 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Only High shows on the card. Medium is the default.' : 'Hanya Tinggi tertera di kad. Sederhana ialah lalai.'" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</span>
                         <span class="wd-pval">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.priority" :disabled="drawer.locked" @change="commitField('priority', drawer.card.priority)">
@@ -144,7 +144,7 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Locks the moment it is saved. Ask HR if it must change.' : 'Dikunci sebaik disimpan. Minta HR jika perlu ubah.'" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
                         <span class="wd-pval" style="position:relative;display:inline-block;">
                             @if ($interactive)
                                 {{-- Dates render as "30 Jul 2026" everywhere, matching the card face — a bare
@@ -179,7 +179,7 @@
                              Development and Maintenance are done on a job, HR and Admin, Charity
                              and Others are not. An empty project list is the server saying the
                              question does not arise — see WorkItem::projectOptions(). --}}
-                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Feeds the timesheet. A card with no category cannot be logged.' : 'Masuk ke timesheet. Kad tanpa kategori tidak boleh direkod.'" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
                         <span class="wd-pval wd-ppair" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
@@ -214,7 +214,7 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'">Labels</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Tags for filtering the board. Recurring cards come back on their own.' : 'Tag untuk tapis papan. Kad berulang muncul semula sendiri.'" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'">Labels</span>
                         <span class="wd-pval">
                             <span class="wd-chiprow">
                                 <template x-for="lk in drawer.card.labels" :key="lk">
@@ -238,7 +238,7 @@
                             </span>
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'">People</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Helper does part of the work. FYI only watches.' : 'Pembantu buat sebahagian kerja. FYI hanya lihat.'" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'">People</span>
                         <span class="wd-pval">
                             <span class="wd-chiprow">
                                 <template x-if="!drawer.locked">
@@ -295,7 +295,7 @@
                              Anyone but the owner may be asked; an FYI person becomes a Helper.
                              A reaction, Send Help included, never does this. --}}
                         <template x-if="!drawer.locked && reviewerOptions.length">
-                            <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Request help' : 'Minta bantuan'">Request help</span>
+                            <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Pings a teammate with your message. They can then join as Helper.' : 'Hantar mesej kepada rakan. Mereka boleh sertai sebagai Pembantu.'" x-text="$store.ui.lang==='en' ? 'Request help' : 'Minta bantuan'">Request help</span>
                         </template>
                         <template x-if="!drawer.locked && reviewerOptions.length">
                             <span class="wd-pval">
@@ -319,7 +319,7 @@
                              "Create Event" step produced. Everyone must be on the event first; the server
                              ticks that subtask, and the card cannot reach Done until the event is closed out. --}}
                         <template x-if="drawer.card.company_event || (drawer.card.event_options || []).length">
-                            <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Linked event' : 'Acara berkaitan'">Linked event</span>
+                            <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Ties this card to a company event so attendance closes it.' : 'Kaitkan kad dengan acara syarikat supaya kehadiran menutupnya.'" x-text="$store.ui.lang==='en' ? 'Linked event' : 'Acara berkaitan'">Linked event</span>
                         </template>
                         <template x-if="drawer.card.company_event">
                             <span class="wd-pval" data-linked-event>
@@ -342,7 +342,7 @@
                         </template>
 
                         {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Signs the card off. It cannot reach Done without them.' : 'Mengesahkan kad. Tidak boleh Selesai tanpa mereka.'" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
                         <span class="wd-pval">
                             {{-- The server says who may set it (PM and above, covering the owner), so the
                                  control follows can_set_reviewer rather than the drawer lock: the team board
@@ -362,7 +362,7 @@
                         </span>
 
                         {{-- CR-28: Milestone — set by PM and above; only a Milestone card can ring the Victory Bell. --}}
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Big deal card. PM and above set it, and only a Milestone can ring the bell.' : 'Kad besar. PM ke atas tetapkan, dan hanya Pencapaian boleh bunyikan loceng.'" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
                         <span class="wd-pval">
                             <template x-if="drawer.card.can_set_milestone">
                                 <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
@@ -382,7 +382,7 @@
                          card — the toast (work-board.js ringPrompt) offers it right after the
                          move; this stays for later. --}}
                     <template x-if="drawer.card.can_ring_bell">
-                        <button type="button" class="uj-btn-ghost" style="align-self:flex-start;" @click="ringBell()"
+                        <button type="button" class="uj-btn-ghost" style="align-self:flex-start;" @click="ringBell()" data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Tells the whole company this milestone landed. Once per card.' : 'Beritahu seluruh syarikat pencapaian ini tercapai. Sekali setiap kad.'"
                                 x-text="$store.ui.lang==='en' ? '🔔 Ring the bell' : '🔔 Bunyikan loceng'"></button>
                     </template>
 
