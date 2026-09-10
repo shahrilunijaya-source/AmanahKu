@@ -17,7 +17,7 @@
 
   /* Flat solid families. Each: fill, a deeper shade for the button, a paler shade for the folder mark. */
   --cele:#ef6b74;--cele-deep:#c9424c;--cele-pale:#f59aa0;
-  --head:#7b8ab2;--head-deep:#56668f;--head-pale:#a3aecb;
+  --head:#4a90e2;--head-deep:#2f6bb8;--head-pale:#8dbbee;
   --need:#f2a54f;--need-deep:#c97d27;--need-pale:#f7c48c;
   --alrm:#d6232b;--alrm-deep:#a3161d;--alrm-pale:#e8767b;
   /* Two supporting flats used inside celebration only, so the family still has range. */
@@ -52,11 +52,11 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 .band[data-tone=head]{--fill:var(--head);--deep:var(--head-deep);--pale:var(--head-pale)}
 .band[data-tone=need]{--fill:var(--need);--deep:var(--need-deep);--pale:var(--need-pale)}
 .band[data-tone=alrm]{--fill:var(--alrm);--deep:var(--alrm-deep);--pale:var(--alrm-pale)}
-.copy{padding:20px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
+.copy{padding:30px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
 .fold{width:34px;height:26px;position:relative;margin-bottom:auto;opacity:.55}
 .fold::before{content:"";position:absolute;left:0;top:0;width:14px;height:8px;border-radius:3px 3px 0 0;background:#fff}
 .fold::after{content:"";position:absolute;left:0;top:5px;right:0;bottom:0;border-radius:3px;background:#fff}
-.lines{position:absolute;left:22px;top:20px;display:flex;gap:8px;opacity:.6}
+.lines{position:absolute;left:22px;top:14px;display:flex;gap:8px;opacity:.55}
 .lines i{display:block;height:2px;border-radius:2px;background:#fff}
 .lines i:nth-child(1){width:70px}.lines i:nth-child(2){width:120px}.lines i:nth-child(3){width:38px}
 .k{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;opacity:.85}
@@ -129,7 +129,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 
   <div class="fam">
     <div class="c"><span class="fold"></span><b>Celebration</b><span>Good news about people or work.</span><small>coral, with mint and plum for range</small></div>
-    <div class="h"><span class="fold"></span><b>Heads-up</b><span>Know it, nothing to do.</span><small>slate blue</small></div>
+    <div class="h"><span class="fold"></span><b>Heads-up</b><span>Know it, nothing to do.</span><small>sky blue</small></div>
     <div class="n"><span class="fold"></span><b>Needs action</b><span>Someone must press a button.</span><small>tangerine</small></div>
     <div class="a"><span class="fold"></span><b>Alarm</b><span>Something is wrong.</span><small>brand red, only here</small></div>
   </div>
@@ -261,7 +261,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   </div>
 
   <h2>Heads-up</h2>
-  <p class="rule">Holiday eve, weekend birthdays, any "for your information" strip. Slate blue. Calm by design, the illustration does the talking.</p>
+  <p class="rule">Holiday eve, weekend birthdays, any "for your information" strip. Bright sky blue. Calm by design, the illustration does the talking.</p>
   <div class="stack">
     <section class="band" data-tone="head">
       <div class="lines"><i></i><i></i><i></i></div>
