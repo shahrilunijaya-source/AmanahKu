@@ -35,6 +35,12 @@
       link_text: "Open Timesheet"
       link_text_ms: "Buka Timesheet"
     - tag: added
+      text: "Your own notes on the dashboard calendar. Pick a day on the Personal tab, add a note with a title, an optional time and a few words, or pin one of your open cards to that day. Only you see them."
+      text_ms: "Nota anda sendiri pada kalendar papan pemuka. Pilih hari pada tab Peribadi, tambah nota dengan tajuk, masa pilihan dan beberapa patah kata, atau sematkan satu kad terbuka anda pada hari itu. Hanya anda yang nampak."
+      link: "/app/dash"
+      link_text: "Open Dashboard"
+      link_text_ms: "Buka Papan Pemuka"
+    - tag: added
       major: true
       text: "Connect your Google Calendar from your account and every card with a due date appears there. Events you add to the Amanahku calendar show up in My Work too."
       text_ms: "Sambungkan Google Calendar anda dari akaun dan setiap kad yang ada tarikh akhir muncul di sana. Acara yang anda tambah dalam kalendar Amanahku muncul dalam Kerja Saya juga."
