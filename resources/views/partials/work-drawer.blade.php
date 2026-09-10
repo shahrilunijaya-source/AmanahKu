@@ -126,10 +126,14 @@
                         <span class="wd-pval" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.type" :disabled="drawer.locked" @change="commitField('type', drawer.card.type)">
+                                    {{-- An Event card (imported from Google Calendar) can be converted to a
+                                         Task/Assignment/Adhoc, never the other way round, so Event is only
+                                         offered while the card still is one. --}}
+                                    <option value="event" x-show="drawer.card.type === 'event'" :disabled="drawer.card.type !== 'event'">Event</option>
                                     @foreach ($typeLabels as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                                 </select>
                             @else
-                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="(@js($typeLabels))[drawer.card.type] || ''"></span>
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.type === 'event' ? 'Event' : ((@js($typeLabels))[drawer.card.type] || '')"></span>
                             @endif
                         </span>
 
@@ -155,13 +159,13 @@
                                      input (the old approach) is silently ignored on iOS Safari without showPicker(). --}}
                                 {{-- Once a work card has a due date it never changes (date-calendar-rules §1):
                                      the picker is disabled and the hint below says how to move the work. --}}
-                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked || !!drawer.card.due_at"
+                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked || (!!drawer.card.due_at && drawer.card.type !== 'event')"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
-                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked || !!drawer.card.due_at"
+                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked || (!!drawer.card.due_at && drawer.card.type !== 'event')"
                                        @click="openDuePicker()"
                                        @change="commitField('due_at', $event.target.value || null)"
                                        style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
-                                <span class="wd-due-lock" x-show="!drawer.locked && !!drawer.card.due_at" x-cloak
+                                <span class="wd-due-lock" x-show="!drawer.locked && !!drawer.card.due_at && drawer.card.type !== 'event'" x-cloak
                                       x-text="$store.ui.lang==='en' ? 'Locked. If the work has moved, cancel this card with a reason and create a new one.' : 'Dikunci. Jika kerja ini berubah tarikh, batalkan kad ini dengan sebab dan cipta kad baharu.'"></span>
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir')"></span>
