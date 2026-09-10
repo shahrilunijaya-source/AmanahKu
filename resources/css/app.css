@@ -1846,6 +1846,7 @@ select.wd-inline {
 .wd-help-row { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-left:-8px; }
 .wd-help-row > .wd-inline { margin-left:0; }
 .wd-help-row > input.wd-inline { flex:1 1 140px; cursor:text; border-color:var(--hairline); }
+.wd-help-row > input[list="wd-help-names"] { flex:0 1 150px; }
 .wd-help-row > .wd-add:disabled { opacity:.45; cursor:default; }
 .uj-react-tally { display:inline-flex; flex-wrap:wrap; gap:4px; align-items:center; }
 .uj-react-chip { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--hairline); border-radius:999px; padding:1px 8px; font-size:11.5px; color:var(--body); background:var(--card); }

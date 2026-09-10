@@ -155,6 +155,7 @@ export function registerWorkBoard(Alpine) {
             peopleQuery: '',
             // CR-30 Request help: who to ask and the one message.
             helpId: '',
+            helpName: '',
             helpMessage: '',
             // CR-18 Linked event: the event picked in the drawer, until it is linked.
             eventId: '',
@@ -171,6 +172,14 @@ export function registerWorkBoard(Alpine) {
 
         // Who may be the reviewer: anyone on the roster but the card's owner (the
         // server refuses that pairing too). The roster already omits the viewer.
+        // Type-to-search name fields (Request help, Reviewer): the typed name back to
+        // its id, or '' when it matches nobody on the roster.
+        idFromName(name) {
+            const q = (name || '').trim().toLowerCase();
+            const hit = q ? this.reviewerOptions.find((p) => p.name.toLowerCase() === q) : null;
+            return hit ? hit.id : '';
+        },
+
         get reviewerOptions() {
             const ownerId = this.drawer.card.employee_id;
             return this.people.filter((p) => p.id !== ownerId);
@@ -679,6 +688,7 @@ export function registerWorkBoard(Alpine) {
                 });
                 this.drawer.card.participants = card.participants ?? this.drawer.card.participants;
                 this.drawer.helpId = '';
+                this.drawer.helpName = '';
                 this.drawer.helpMessage = '';
                 this.$store.toast.success(this.t('Asked. They have been tagged as a Helper.', 'Diminta. Mereka ditanda sebagai Pembantu.'));
             } catch (err) {
@@ -722,6 +732,7 @@ export function registerWorkBoard(Alpine) {
             if (this.drawer.locked || !this.drawer.card.can_set_reviewer) return;
             const id = value ? Number(value) : null;
             this.drawer.card.reviewer_id = id;
+            this.drawer.card.reviewer = id ? (this.reviewerOptions.find((p) => p.id === id) || null) : null;
             this.commitField('reviewer_id', id);
         },
 

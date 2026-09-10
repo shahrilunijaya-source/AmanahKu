@@ -410,6 +410,14 @@ export function registerTeamBoard(Alpine) {
         // CR-04: the one write this read-only drawer allows. A PM appoints the
         // reviewer from here because the team board is the only place they see a
         // staff member's card; the server gates it (manager tier + covers the owner).
+        // Type-to-search name fields (Request help, Reviewer): the typed name back to
+        // its id, or '' when it matches nobody on the roster.
+        idFromName(name) {
+            const q = (name || '').trim().toLowerCase();
+            const hit = q ? this.reviewerOptions.find((p) => p.name.toLowerCase() === q) : null;
+            return hit ? hit.id : '';
+        },
+
         get reviewerOptions() {
             const ownerId = this.drawer.card.employee_id;
             return this.people.filter((p) => p.id !== ownerId);

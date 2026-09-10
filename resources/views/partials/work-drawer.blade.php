@@ -300,12 +300,15 @@
                         <template x-if="!drawer.locked && reviewerOptions.length">
                             <span class="wd-pval">
                                 <span class="wd-help-row">
-                                    <select class="wd-inline" x-model="drawer.helpId" :aria-label="$store.ui.lang==='en' ? 'Who to ask' : 'Siapa untuk diminta'">
-                                        <option value="" x-text="$store.ui.lang==='en' ? 'Who?' : 'Siapa?'"></option>
+                                    <input type="text" class="wd-inline" list="wd-help-names" autocomplete="off" x-model="drawer.helpName"
+                                           @input="drawer.helpId = idFromName(drawer.helpName)"
+                                           :placeholder="$store.ui.lang==='en' ? 'Who?' : 'Siapa?'"
+                                           :aria-label="$store.ui.lang==='en' ? 'Who to ask' : 'Siapa untuk diminta'">
+                                    <datalist id="wd-help-names">
                                         <template x-for="p in reviewerOptions" :key="'hp'+p.id">
-                                            <option :value="p.id" x-text="p.name"></option>
+                                            <option :value="p.name"></option>
                                         </template>
-                                    </select>
+                                    </datalist>
                                     <input type="text" class="wd-inline" maxlength="200" x-model="drawer.helpMessage"
                                            :placeholder="$store.ui.lang==='en' ? 'What do you need?' : 'Apa yang anda perlukan?'"
                                            @keydown.enter.prevent="requestHelp()">
@@ -348,12 +351,15 @@
                                  control follows can_set_reviewer rather than the drawer lock: the team board
                                  is otherwise read-only, yet it is where a PM meets a staff member's card. --}}
                             <template x-if="drawer.card.can_set_reviewer">
-                                <select class="wd-inline" :value="drawer.card.reviewer_id || ''" @change="setReviewer($event.target.value)">
-                                    <option value="" x-text="$store.ui.lang==='en' ? 'No reviewer' : 'Tiada penyemak'"></option>
+                                <input type="text" class="wd-inline" list="wd-reviewer-names" autocomplete="off"
+                                       :value="drawer.card.reviewer ? drawer.card.reviewer.name : ''"
+                                       :placeholder="$store.ui.lang==='en' ? 'No reviewer' : 'Tiada penyemak'"
+                                       @change="const id = idFromName($event.target.value); if (id || !$event.target.value.trim()) { setReviewer(id); } else { $event.target.value = drawer.card.reviewer ? drawer.card.reviewer.name : ''; }">
+                                <datalist id="wd-reviewer-names">
                                     <template x-for="p in reviewerOptions" :key="'rv'+p.id">
-                                        <option :value="p.id" :selected="p.id === drawer.card.reviewer_id" x-text="p.name"></option>
+                                        <option :value="p.name"></option>
                                     </template>
-                                </select>
+                                </datalist>
                             </template>
                             <template x-if="!drawer.card.can_set_reviewer">
                                 <span class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.reviewer }" style="margin:0;padding-left:0;"
