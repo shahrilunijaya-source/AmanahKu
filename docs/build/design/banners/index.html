@@ -52,6 +52,26 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
 .band[data-tone=head]{--fill:var(--head);--deep:var(--head-deep);--pale:var(--head-pale)}
 .band[data-tone=need]{--fill:var(--need);--deep:var(--need-deep);--pale:var(--need-pale)}
 .band[data-tone=alrm]{--fill:var(--alrm);--deep:var(--alrm-deep);--pale:var(--alrm-pale)}
+
+/* lava lamp: two big blurred blobs drift under the copy; celebration only */
+.band[data-tone=cele],.band[data-tone=mint],.band[data-tone=plum]{isolation:isolate}
+.band[data-tone=cele]::before,.band[data-tone=cele]::after,
+.band[data-tone=mint]::before,.band[data-tone=mint]::after,
+.band[data-tone=plum]::before,.band[data-tone=plum]::after{
+  content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(40px);opacity:.9;pointer-events:none;will-change:transform}
+.band[data-tone=cele]::before,.band[data-tone=mint]::before,.band[data-tone=plum]::before{
+  width:60%;height:170%;left:-15%;top:-60%;animation:lava-a 14s ease-in-out infinite alternate}
+.band[data-tone=cele]::after,.band[data-tone=mint]::after,.band[data-tone=plum]::after{
+  width:55%;height:150%;right:-10%;bottom:-70%;animation:lava-b 18s ease-in-out infinite alternate}
+.band[data-kind=birthday]::before{background:#ff9d6c}.band[data-kind=birthday]::after{background:#f0508f}
+.band[data-kind=big-deal]::before{background:#6f6bf0}.band[data-kind=big-deal]::after{background:#e08ad6}
+.band[data-kind=victory-bell]::before{background:#2fb3a8}.band[data-kind=victory-bell]::after{background:#b6e25e}
+.band[data-kind=wrapped]::before{background:#c93d78}.band[data-kind=wrapped]::after{background:#ff8f5a}
+.band[data-kind=awards]::before{background:#5468e6}.band[data-kind=awards]::after{background:#d25aa8}
+@keyframes lava-a{from{transform:translate(0,0) scale(1)}50%{transform:translate(35%,30%) scale(1.15)}to{transform:translate(70%,10%) scale(.95)}}
+@keyframes lava-b{from{transform:translate(0,0) scale(1)}50%{transform:translate(-40%,-25%) scale(1.2)}to{transform:translate(-75%,5%) scale(1)}}
+.plain .band::before,.plain .band::after{display:none}
+@media (prefers-reduced-motion:reduce){.band::before,.band::after{animation:none}}
 .copy{padding:20px 22px 20px 22px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;min-width:0}
 .fold{width:34px;height:26px;position:relative;margin-bottom:auto;opacity:.55}
 .fold::before{content:"";position:absolute;left:0;top:0;width:14px;height:8px;border-radius:3px 3px 0 0;background:#fff}
@@ -137,7 +157,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
   <p class="rule">Birthday, Big Deal, Victory Bell, Wrapped, Awards. Coral is the family fill. Mint and plum are allowed inside the family so a stack of three celebrations does not read as one long coral wall. <b>Never brand red.</b></p>
   <div class="stack">
 
-    <section class="band" data-tone="cele">
+    <section class="band" data-tone="cele" data-kind="birthday">
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Today</span>
@@ -161,7 +181,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
       </div>
     </section>
 
-    <section class="band" data-tone="plum">
+    <section class="band" data-tone="plum" data-kind="big-deal">
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Big deal alert</span>
@@ -187,7 +207,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
       </div>
     </section>
 
-    <section class="band" data-tone="mint">
+    <section class="band" data-tone="mint" data-kind="victory-bell">
       <div class="copy">
         <span class="fold"></span>
         <span class="k">We have movement</span>
@@ -210,7 +230,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
       </div>
     </section>
 
-    <section class="band" data-tone="cele">
+    <section class="band" data-tone="cele" data-kind="wrapped">
       <div class="copy">
         <span class="fold"></span>
         <span class="k">September, wrapped</span>
@@ -234,7 +254,7 @@ h2{font-size:16px;font-weight:600;margin:44px 0 4px}
       </div>
     </section>
 
-    <section class="band" data-tone="plum">
+    <section class="band" data-tone="plum" data-kind="awards">
       <div class="copy">
         <span class="fold"></span>
         <span class="k">Awards</span>
