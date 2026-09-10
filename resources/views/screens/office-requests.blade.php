@@ -45,8 +45,9 @@
            :data-tip="$store.ui.lang==='en' ? 'Volumes, response times and repeat issues' : 'Jumlah, masa tindak balas dan isu berulang'"
            x-text="$store.ui.lang==='en' ? 'Insights' : 'Wawasan'">Insights</a>
         @endif
-        <button type="button" @click="open = !open" :class="open ? 'uj-btn-ghost' : 'uj-btn-primary'" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"
-                x-text="open ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ New request' : '+ Permintaan baharu')">+ New request</button>
+        {{-- Hidden while the form is open: the form carries its own Cancel. --}}
+        <button type="button" x-show="!open" @click="open = true" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"
+                x-text="$store.ui.lang==='en' ? '+ New request' : '+ Permintaan baharu'">+ New request</button>
     </div>
 
     {{-- ── Raise form ─────────────────────────────────────────────────── --}}
