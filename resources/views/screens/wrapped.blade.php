@@ -93,27 +93,59 @@
     @endif
 
     @if ($isWrappedArcCurator)
-        <div class="uj-card uj-wr-arcs">
-            <b>Character arcs · {{ $wrappedArcs->count() }} live</b>
-            <span style="font-size:12px;color:var(--muted);">Picked in this order: 3+ high-priority situations → Firefighter, helped 3+ people → Helper, 10+ cards closed → Closer, 0 cards closed → Quiet, otherwise → Steady.</span>
-            @foreach ($wrappedArcs as $arc)
-                <div class="row" data-wrapped-arc="{{ $arc->id }}">
-                    {{ $arc->title }} <small>{{ $arc->rule }}</small>
-                    <form method="POST" action="{{ route('wrapped.arcs.retire', $arc->id) }}"><input type="hidden" name="_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="uj-btn-ghost">Retire</button>
-                    </form>
+        @php
+            // Same order the builder checks them in; first match wins.
+            $arcRules = [
+                'firefighter' => ['Firefighter', '3+ high-priority situations'],
+                'helper' => ['Helper', 'helped 3+ people'],
+                'closer' => ['Closer', '10+ cards closed'],
+                'quiet' => ['Quiet', '0 cards closed'],
+                'steady' => ['Steady', 'everyone else'],
+            ];
+            $arcsByRule = $wrappedArcs->groupBy('rule');
+        @endphp
+        <div class="uj-card uj-wr-arcs" x-data="{ open: false }">
+            <div class="uj-wr-arcs-head">
+                <div>
+                    <b>Character arcs</b> <span class="uj-mgmt-n">{{ $wrappedArcs->count() }}</span>
+                    <div class="uj-wr-arcs-sub">The title a person's Wrapped gets. Rules are checked top to bottom, first match wins, then one title is drawn from that group.</div>
                 </div>
-            @endforeach
-            <form method="POST" action="{{ route('wrapped.arcs.store') }}">
+                <button type="button" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12.5px;" @click="open = ! open" x-text="open ? 'Close' : 'Add an arc'">Add an arc</button>
+            </div>
+            <form method="POST" action="{{ route('wrapped.arcs.store') }}" class="uj-wr-arcs-add" x-show="open" x-cloak>
                 <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                <input type="text" name="title" placeholder="New arc title" required maxlength="120">
+                <input type="text" name="title" placeholder="Title, e.g. The Closer" required maxlength="120" style="flex:1 1 220px;">
                 <select name="rule" required>
-                    @foreach (\App\Models\WrappedArc::RULES as $rule)
-                        <option value="{{ $rule }}">{{ ucfirst($rule) }}</option>
+                    @foreach ($arcRules as $rule => [$label, $when])
+                        <option value="{{ $rule }}">{{ $label }} · {{ $when }}</option>
                     @endforeach
                 </select>
                 <button type="submit" class="uj-btn-primary">Add</button>
             </form>
+            <div class="uj-wr-arc-groups">
+                @foreach ($arcRules as $rule => [$label, $when])
+                    @php $group = $arcsByRule->get($rule, collect()); @endphp
+                    <section class="uj-wr-arc-group" data-arc-rule="{{ $rule }}">
+                        <header>
+                            <span class="uj-wr-arc-step">{{ $loop->iteration }}</span>
+                            <b>{{ $label }}</b>
+                            <span class="uj-wr-arc-when">{{ $when }}</span>
+                            <span class="uj-mgmt-n" @if ($group->count() < 3) data-low title="Fewer than 3 live titles: the builder needs at least 3 per rule" @endif>{{ $group->count() }}</span>
+                        </header>
+                        <div class="uj-wr-arc-chips">
+                            @forelse ($group as $arc)
+                                <form method="POST" action="{{ route('wrapped.arcs.retire', $arc->id) }}" class="uj-wr-arc-chip" data-wrapped-arc="{{ $arc->id }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                                    <span>{{ $arc->title }}</span>
+                                    <button type="submit" aria-label="Retire {{ $arc->title }}" data-tip="Retire" onclick="return confirm('Retire this arc? It stops being drawn for new Wrapped stories.')">&times;</button>
+                                </form>
+                            @empty
+                                <span class="uj-wr-arc-empty">No live titles.</span>
+                            @endforelse
+                        </div>
+                    </section>
+                @endforeach
+            </div>
         </div>
     @endif
 </div>

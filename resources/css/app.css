@@ -5401,13 +5401,26 @@ form.uj-or-fields { padding: 20px; }
 .uj-wr-nav .share { margin-left:auto; height:32px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; }
 .uj-wr-shared { font-size:12px; color:#1f6b4a; font-weight:600; margin-left:auto; display:inline-flex; align-items:center; gap:8px; }
 .uj-wr-plain { font-size:14px; color:var(--body); line-height:1.6; padding:16px 18px; }
-.uj-wr-arcs { padding:14px 18px; display:flex; flex-direction:column; gap:8px; }
-.uj-wr-arcs .row { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink); }
-.uj-wr-arcs .row small { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
-.uj-wr-arcs .row button { margin-left:auto; height:28px; padding:0 10px; font-size:12px; display:inline-flex; align-items:center; }
-.uj-wr-arcs form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.uj-wr-arcs input, .uj-wr-arcs select { height:34px; border:1px solid var(--hairline); border-radius:8px; padding:0 10px; font-size:13px; font-family:inherit; }
-.uj-wr-arcs form .uj-btn-primary { height:34px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+.uj-wr-arcs { padding:16px 18px 18px; display:flex; flex-direction:column; gap:14px; }
+.uj-wr-arcs-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.uj-wr-arcs-head b { font-size:14px; color:var(--ink); }
+.uj-wr-arcs-sub { font-size:12.5px; color:var(--muted); margin-top:3px; max-width:560px; line-height:1.45; }
+.uj-wr-arcs-add { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:12px; border:1px dashed var(--hairline); border-radius:10px; background:var(--hairline-soft); }
+.uj-wr-arcs-add input, .uj-wr-arcs-add select { height:34px; border:1px solid var(--hairline); border-radius:8px; padding:0 10px; font-size:13px; font-family:inherit; background:var(--card); color:var(--ink); }
+.uj-wr-arcs-add .uj-btn-primary { height:34px; padding:0 14px; font-size:12.5px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
+.uj-wr-arc-groups { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+.uj-wr-arc-group { border:1px solid var(--hairline); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+.uj-wr-arc-group header { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ink); }
+.uj-wr-arc-group header b { font-weight:600; }
+.uj-wr-arc-step { width:18px; height:18px; border-radius:50%; background:var(--ink); color:#fff; font:600 10.5px/18px var(--font-sans); text-align:center; flex-shrink:0; }
+.uj-wr-arc-when { font-size:11.5px; color:var(--muted); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.uj-wr-arc-group .uj-mgmt-n { background:var(--hairline-soft); color:var(--muted); }
+.uj-wr-arc-group .uj-mgmt-n[data-low] { background:var(--red-tint); color:var(--red); }
+.uj-wr-arc-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.uj-wr-arc-chip { display:inline-flex; align-items:center; gap:2px; border:1px solid var(--hairline); border-radius:999px; padding:3px 4px 3px 10px; font-size:12.5px; color:var(--ink); background:var(--card); }
+.uj-wr-arc-chip button { width:20px; height:20px; border:0; border-radius:50%; background:none; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+.uj-wr-arc-chip button:hover { background:var(--red-tint); color:var(--red); }
+.uj-wr-arc-empty { font-size:12px; color:var(--muted-soft); }
 .uj-wr-line { font-size:15px; color:var(--ink); line-height:1.5; flex:1 1 300px; min-width:240px; }
 .uj-wr-foot { font-size:11.5px; color:var(--muted); flex-basis:100%; }
 /* QA (S28 grade): same row model as the Victory Bell moment, otherwise the sentence squeezes
