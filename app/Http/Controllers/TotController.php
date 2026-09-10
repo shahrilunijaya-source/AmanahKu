@@ -70,7 +70,7 @@ class TotController extends Controller
             'canManage' => $privileged,
             'canAssignPresenter' => $this->canAssignPresenter($request),
             'assignableEmployees' => $this->assignableEmployees(),
-            'reactionCounts' => $this->reactionCounts($ids),
+            'reactionCounts' => $this->reactionCounts($ids, includeSlots: true),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
             // The one slot this viewer presents in the displayed year, if any. A
@@ -1461,14 +1461,16 @@ class TotController extends Controller
      * @param  list<int>  $ids
      * @return array<int, array<string, int>>
      */
-    private function reactionCounts(array $ids): array
+    private function reactionCounts(array $ids, bool $includeSlots = false): array
     {
         if ($ids === []) {
             return [];
         }
 
+        // The list row adds slot reactions in (people react on the slot once a session
+        // has slots); the session-level bar itself only ever counts its own.
         return TotReaction::whereIn('session_id', $ids)
-            ->whereNull('slot_id')
+            ->when(! $includeSlots, fn ($q) => $q->whereNull('slot_id'))
             ->get()
             ->groupBy('session_id')
             ->map(fn (Collection $rows) => $rows->groupBy('emoji')->map->count()->all())

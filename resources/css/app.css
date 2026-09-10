@@ -1768,6 +1768,7 @@ select.wd-inline {
 .tot-act { display:inline-flex; align-items:center; gap:7px; background:none; border:0; padding:0;
   cursor:pointer; color:var(--muted); font-size:13.5px; }
 .tot-act:hover { color:var(--red); }
+.tot-act-lbl { font-size:12.5px; font-weight:500; }
 .tot-act[data-on] { color:var(--red); }
 
 .tot-fw { position:relative; display:inline-flex; }

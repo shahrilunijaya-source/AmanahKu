@@ -1,4 +1,8 @@
 <div class="tot-actions">
+    {{-- Session-level heart only for a session with no slots (pre-slot data). With slots,
+         people react on the slot and the list row adds those up, so a second heart here
+         would count the same feeling twice. --}}
+    @if ($session->slots->isEmpty())
     <span class="tot-fw">
         <span class="tot-fly tot-fly-react" x-show="flyout === 'react'" x-cloak
               @mouseleave="flyout = null" @keydown.escape.window="flyout = null">
@@ -16,12 +20,12 @@
         </button>
     </span>
     @include('partials.reaction-tally', ['counts' => $reactionCounts[$session->id] ?? [], 'live' => true])
-
+    @endif
     <button type="button" class="tot-act" :data-on="iWatched ? '1' : null"
             @click="toggleWatched()" x-show="canParticipate"
             :aria-label="$store.ui.lang==='en' ? 'Mark as watched' : 'Tanda sudah tonton'">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span x-text="watched || ''"></span>
+        <span class="tot-act-lbl" x-text="($store.ui.lang==='en' ? 'Watched' : 'Tonton') + (watched ? ' · ' + watched : '')"></span>
     </button>
 
     <span class="tot-fw" x-show="canParticipate">
@@ -68,7 +72,7 @@
                     ? ($store.ui.lang==='en' ? 'Remove your rating' : 'Buang penilaian anda')
                     : ($store.ui.lang==='en' ? 'Rate this session' : 'Nilai sesi ini')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1z"/></svg>
-            <span x-text="score ? `${score.average} (${score.count})` : ''"></span>
+            <span class="tot-act-lbl" x-text="($store.ui.lang==='en' ? 'Rate' : 'Nilai') + (score ? ` · ${score.average} (${score.count})` : (myScore ? ` · ${myScore}` : ''))"></span>
         </button>
     </span>
 </div>

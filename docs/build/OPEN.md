@@ -35,6 +35,13 @@ These are already known before the run starts. A session that hits one of them s
 
 <!-- sessions append below this line -->
 
+### Design / CR-09 / session-level heart retired once a session has slots, rating still per session
+- Question: with per-slot hearts (CR-09 QA F3), the session bar still carried its own heart, eye and star. Do all three still earn their place?
+- Decided: the session heart shows only for a session with no slots (pre-slot data, and the CR30 acceptance fixture). With slots, people react on the slot and the list row's top-3 emoji now adds session and slot reactions together. Watched (eye) and Rate (star) stay on the session bar with a text label each.
+- Alternatives: keep both hearts (counts the same feeling twice, the row only showed one of them); move rating to the slot so a 2-presenter session scores each presenter (right thing, but a schema, endpoint and frozen-test change, so left for the spec to revisit).
+- Reversal cost: cheap for the heart (one @if in tot-actions and one flag on reactionCounts()); medium for per-slot rating (new column, endpoint, acceptance test).
+- Source: spec silent, Shazwan asked for the row to be evaluated on 2026-09-10.
+
 ### S00 / CR-32 / Appendix B column for My work summary and My working style
 - Question: Appendix B draws "My work summary" and "My working style" in the left column; the registry (`DashboardWidgets`) has both in the right column, and users can drag them anyway.
 - Decided: contract follows the code, right column. Nothing moved.
