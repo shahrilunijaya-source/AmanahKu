@@ -30,7 +30,7 @@ class UpdateAppearanceRequest extends FormRequest
         return [
             'wallpaper' => ['required', 'string', Rule::in(['none', 'upload', ...$presets])],
             'dim' => ['nullable', 'string', Rule::in(array_keys(config('amanahku.wallpaper_dims')))],
-            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240'],
         ];
     }
 

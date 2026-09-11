@@ -375,7 +375,7 @@
                         <button type="button" :data-on="dim === 'strong'" @click="setDim('strong')" x-text="$store.ui.lang==='en' ? 'Strong' : 'Kuat'">Strong</button>
                     </div>
                 </div>
-                <span x-show="!photoUrl">{{ $bi('JPEG, PNG or WebP, up to 5 MB', 'JPEG, PNG atau WebP, sehingga 5 MB') }}</span>
+                <span x-show="!photoUrl">{{ $bi('JPEG, PNG or WebP, up to 10 MB', 'JPEG, PNG atau WebP, sehingga 10 MB') }}</span>
                 <button type="button" x-show="photoUrl" x-cloak class="uj-btn-ghost uj-set-btn" @click="removePhoto()">{{ $bi('Remove photo', 'Buang foto') }}</button>
                 <p x-show="error" x-cloak x-text="error" class="uj-set-err" style="flex-basis:100%;margin:0;"></p>
             </div>
