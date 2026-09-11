@@ -233,7 +233,7 @@ class AppearanceTest extends TestCase
     {
         $html = $this->actingInTenant()->get(route('app.screen', 'security'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('Appearance', $html);
+        $this->assertStringContainsString('Background', $html);
         foreach (['dawn', 'dusk', 'paper', 'moss', 'slate', 'sand'] as $key) {
             $this->assertStringContainsString('data-wallpaper="preset:'.$key.'"', $html);
         }
@@ -256,6 +256,6 @@ class AppearanceTest extends TestCase
     {
         $html = $this->actingInTenant()->get(route('app.screen', 'dash'))->getContent();
 
-        $this->assertStringContainsString(route('app.screen', 'security').'#appearance', $html);
+        $this->assertStringContainsString(route('app.screen', ['screen' => 'security', 'section' => 'appearance']), $html);
     }
 }
