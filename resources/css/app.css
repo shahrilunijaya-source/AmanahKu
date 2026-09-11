@@ -5029,8 +5029,22 @@ form.uj-or-fields { padding: 20px; }
     .uj-lv-acts { width: 100%; }
     .uj-lv-acts > form { flex: 1; }
     .uj-lv-acts .uj-btn-primary, .uj-lv-acts .uj-btn-ghost { width: 100%; }
-    .uj-lv-commit { flex-wrap: wrap; }
-    .uj-lv-commit-t span { display: none; }
+    /* Phones: the reckoning box above already says what is being sent, so the bar
+       is just the button, full width, like an app's primary action. */
+    .uj-lv-commit { padding: 10px; }
+    .uj-lv-commit-t { display: none; }
+    .uj-lv-commit .uj-btn-primary { flex: 1; justify-content: center; }
+    /* Half-day as a native segmented control: short labels, one line each. */
+    .uj-lv-half { border-radius: 9px; }
+    .uj-lv-half button { height: 34px; font-size: 13px; white-space: nowrap; padding: 0 4px; }
+    .uj-lv-half-x { display: none; }
+    .uj-dev-clock { display: none !important; }
+}
+/* iOS Safari gives date inputs an intrinsic minimum width and centres the value,
+   so they overflow the card; flatten them to a plain block. iOS-only query. */
+@supports (-webkit-touch-callout: none) {
+    .uj-lv-in[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; text-align: left; line-height: 44px; }
+    .uj-lv-in[type="date"]::-webkit-date-and-time-value { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) {
     .uj-lv-fold { transition-duration: .01ms; }

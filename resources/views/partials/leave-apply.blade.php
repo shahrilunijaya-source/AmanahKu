@@ -352,10 +352,13 @@
                     <div class="uj-lv-half">
                         <button type="button" :data-on="half === '' ? '' : null" @click="half = ''"
                                 x-text="$store.ui.lang==='en' ? 'Whole day' : 'Sepanjang hari'">Whole day</button>
-                        <button type="button" :data-on="half === 'am' ? '' : null" @click="half = 'am'"
-                                x-text="$store.ui.lang==='en' ? 'Morning only' : 'Pagi sahaja'">Morning only</button>
-                        <button type="button" :data-on="half === 'pm' ? '' : null" @click="half = 'pm'"
-                                x-text="$store.ui.lang==='en' ? 'Afternoon only' : 'Petang sahaja'">Afternoon only</button>
+                        {{-- The trailing "only" drops on phones (.uj-lv-half-x) so the three fit on one line. --}}
+                        <button type="button" :data-on="half === 'am' ? '' : null" @click="half = 'am'"><span
+                                x-text="$store.ui.lang==='en' ? 'Morning' : 'Pagi'">Morning</span><span class="uj-lv-half-x"
+                                x-text="$store.ui.lang==='en' ? ' only' : ' sahaja'"> only</span></button>
+                        <button type="button" :data-on="half === 'pm' ? '' : null" @click="half = 'pm'"><span
+                                x-text="$store.ui.lang==='en' ? 'Afternoon' : 'Petang'">Afternoon</span><span class="uj-lv-half-x"
+                                x-text="$store.ui.lang==='en' ? ' only' : ' sahaja'"> only</span></button>
                     </div>
                     <input type="hidden" name="half_day_period" :value="half">
                 </div>
