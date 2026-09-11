@@ -130,7 +130,7 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
         Claude Code, running on your own computer, can look things up in AmanahKu for you and even make changes when you let it — instead of you clicking through screens.
       </p>
       <div class="cta">
-        <a class="btn btn-p" href="{{ route('app.screen', 'security') }}" x-data x-text="$store.ui.lang==='en' ? 'Go to Account & security' : 'Ke Akaun & keselamatan'">Go to Account &amp; security</a>
+        <a class="btn btn-p" href="{{ route('app.screen', ['screen' => 'security', 'section' => 'ai']) }}" x-data x-text="$store.ui.lang==='en' ? 'Go to Settings' : 'Ke Tetapan'">Go to Settings</a>
         <a class="btn btn-s" href="https://claude.com/product/claude-code" target="_blank" rel="noopener" x-data x-text="$store.ui.lang==='en' ? 'Get Claude Code' : 'Dapatkan Claude Code'">Get Claude Code</a>
       </div>
     </div>
@@ -226,13 +226,13 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
       </p>
       <div class="steps">
         <div class="step">
-          <h3 x-data x-text="$store.ui.lang==='en' ? 'Open Account & security' : 'Buka Akaun & keselamatan'">Open Account &amp; security</h3>
+          <h3 x-data x-text="$store.ui.lang==='en' ? 'Open Settings' : 'Buka Tetapan'">Open Settings</h3>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'Open the Account & security screen and find the “AI access key” card.'
-                  : 'Buka skrin Akaun & keselamatan dan cari kad “Kunci akses AI”.'">
-            Open the Account &amp; security screen and find the "AI access key" card.
+                  ? 'Open Settings, pick AI access, and find the “AI access key” card.'
+                  : 'Buka Tetapan, pilih Akses AI, dan cari kad “Kunci akses AI”.'">
+            Open Settings, pick AI access, and find the "AI access key" card.
           </p>
-          <a href="{{ route('app.screen', 'security') }}" x-data x-text="$store.ui.lang==='en' ? 'Open Account & security →' : 'Buka Akaun & keselamatan →'">Open Account &amp; security →</a>
+          <a href="{{ route('app.screen', ['screen' => 'security', 'section' => 'ai']) }}" x-data x-text="$store.ui.lang==='en' ? 'Open Settings →' : 'Buka Tetapan →'">Open Settings →</a>
         </div>
         <div class="step">
           <h3 x-data x-text="$store.ui.lang==='en' ? 'Confirm your password and generate' : 'Sahkan password anda dan jana'">Confirm your password and generate</h3>
@@ -277,9 +277,9 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
         Pasting this tells Claude Code where AmanahKu is and hands it your key so it can sign in as you. The --scope user part makes AmanahKu available everywhere on your computer, not just the one folder you happened to be standing in — so it's there whether you're in a terminal, the desktop app, or your code editor. It does not open AmanahKu in a browser or change anything by itself — you talk to Claude Code, and it fetches your data in the background.
       </p>
       <p class="sub" style="margin-top:12px;" x-data x-text="$store.ui.lang==='en'
-              ? 'If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there\'s no automatic re-login. Generate a new key on the Account & security screen and paste the updated command again.'
-              : 'Jika kunci anda dibatalkan atau anda menjana kunci baharu, Claude Code akan berhenti sahaja daripada dapat mencapai AmanahKu — tiada log masuk semula secara automatik. Jana kunci baharu pada skrin Akaun & keselamatan dan tampal semula arahan yang dikemas kini.'">
-        If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there's no automatic re-login. Generate a new key on the Account &amp; security screen and paste the updated command again.
+              ? 'If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there\'s no automatic re-login. Generate a new key on the Settings screen and paste the updated command again.'
+              : 'Jika kunci anda dibatalkan atau anda menjana kunci baharu, Claude Code akan berhenti sahaja daripada dapat mencapai AmanahKu — tiada log masuk semula secara automatik. Jana kunci baharu pada skrin Tetapan dan tampal semula arahan yang dikemas kini.'">
+        If your key is ever revoked or you generate a new one, Claude Code will simply stop being able to reach AmanahKu — there's no automatic re-login. Generate a new key on the Settings screen and paste the updated command again.
       </p>
     </section>
 
@@ -491,9 +491,9 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
         <div class="safeitem">
           <b x-data x-text="$store.ui.lang==='en' ? 'Lost your laptop? Revoke it' : 'Hilang laptop? Batalkan kunci'">Lost your laptop? Revoke it</b>
           <p x-data x-text="$store.ui.lang==='en'
-                  ? 'Go back to Account & security and click Revoke key. That switches it off immediately — Claude Code on that machine can no longer reach AmanahKu.'
-                  : 'Kembali ke Akaun & keselamatan dan klik Batalkan kunci. Itu akan mematikannya serta-merta — Claude Code pada mesin itu tidak lagi boleh mencapai AmanahKu.'">
-            Go back to Account &amp; security and click Revoke key. That switches it off immediately — Claude Code on that machine can no longer reach AmanahKu.
+                  ? 'Go back to Settings and click Revoke key. That switches it off immediately — Claude Code on that machine can no longer reach AmanahKu.'
+                  : 'Kembali ke Tetapan dan klik Batalkan kunci. Itu akan mematikannya serta-merta — Claude Code pada mesin itu tidak lagi boleh mencapai AmanahKu.'">
+            Go back to Settings and click Revoke key. That switches it off immediately — Claude Code on that machine can no longer reach AmanahKu.
           </p>
         </div>
         <div class="safeitem">
@@ -509,7 +509,7 @@ footer{border-top:1px solid var(--hairline);margin-top:64px;padding:26px 0 0;fon
 
     <footer>
       <span x-data x-text="$store.ui.lang==='en' ? 'AmanahKu · staff guide' : 'AmanahKu · panduan kakitangan'">AmanahKu · staff guide</span>
-      <a href="{{ route('app.screen', 'security') }}" x-data x-text="$store.ui.lang==='en' ? 'Account & security' : 'Akaun & keselamatan'">Account &amp; security</a>
+      <a href="{{ route('app.screen', ['screen' => 'security', 'section' => 'ai']) }}" x-data x-text="$store.ui.lang==='en' ? 'Settings' : 'Tetapan'">Settings</a>
     </footer>
   </main>
 </div>

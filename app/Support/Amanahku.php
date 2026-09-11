@@ -410,7 +410,7 @@ class Amanahku
             'roles' => ['title' => 'Roles & Permissions', 'title_ms' => 'Peranan & Kebenaran', 'sub' => 'Assign access roles to workspace members.', 'sub_ms' => 'Tetapkan peranan akses kepada ahli ruang kerja.', 'crumb' => ['Administration', 'Roles & Permissions']],
             'audit' => ['title' => 'Audit Logs', 'title_ms' => 'Log Audit', 'sub' => 'Recent administrative and approval activity.', 'sub_ms' => 'Aktiviti pentadbiran dan kelulusan terkini.', 'crumb' => ['Reports & Audit', 'Audit Logs']],
             'oversight' => ['title' => 'Oversight', 'title_ms' => 'Pengawasan', 'sub' => 'Workforce, attendance, leave, timesheet and audit reports, in one place.', 'sub_ms' => 'Laporan tenaga kerja, kehadiran, cuti, lembaran masa dan audit, di satu tempat.', 'crumb' => ['Insights', 'Oversight']],
-            'security' => ['title' => 'Account Security', 'title_ms' => 'Keselamatan Akaun', 'sub' => 'Two-factor authentication and sign-in protection.', 'sub_ms' => 'Pengesahan dua faktor dan perlindungan log masuk.', 'crumb' => ['Account', 'Security']],
+            'security' => ['title' => 'Settings', 'title_ms' => 'Tetapan', 'sub' => 'Your account, sign-in security, background and AI access. Only you see these.', 'sub_ms' => 'Akaun, keselamatan log masuk, latar belakang dan akses AI anda. Hanya anda yang melihatnya.', 'crumb' => ['Account', 'Settings']],
             'soon' => ['title' => 'Module', 'title_ms' => 'Modul', 'sub' => 'This module is part of the AmanahKu platform.', 'sub_ms' => 'Modul ini sebahagian daripada platform AmanahKu.', 'crumb' => ['Module']],
         ];
 

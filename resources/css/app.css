@@ -907,6 +907,120 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-wp-tile--none .uj-wp-name { color: var(--ink); text-shadow: none; }
 .uj-wp-tile--upload { background: #fff; border-style: dashed; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted); font-size: 11px; }
 .uj-wp-tile--upload b { font-size: 18px; font-weight: 400; color: var(--ink); line-height: 1; }
+
+/* ── Personal settings (screens/security.blade.php) ──
+   A section rail on the left, one panel at a time on the right. The active rail row is
+   a white pill on the bare canvas, same language as .uj-seg, never red. Each setting is
+   a card with an action strip along its foot, so the button is always in the same place.
+   Panels and strips are x-show targets, so their display lives here, not inline. */
+.uj-set { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; align-items: start; }
+.uj-set-rail { position: sticky; top: 80px; display: flex; flex-direction: column; gap: 2px; }
+.uj-set-tab { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 11px; border: 1px solid transparent; border-radius: 9px; font-size: var(--t-base); font-weight: 500; color: var(--body); text-decoration: none; transition: background .14s ease, color .14s ease, transform 160ms cubic-bezier(.23, 1, .32, 1); }
+.uj-set-tab svg { flex-shrink: 0; color: var(--muted-soft); transition: color .14s ease; }
+.uj-set-tab .uj-stamp { margin-left: auto; }
+.uj-set-tab:active { transform: scale(.98); }
+.uj-set-tab[aria-current="page"] { background: #fff; border-color: var(--hairline); color: var(--ink); box-shadow: 0 1px 2px rgba(38, 37, 30, .06); }
+.uj-set-tab[aria-current="page"] svg { color: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+    .uj-set-tab:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); }
+}
+
+.uj-set-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.uj-set-intro h2 { font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0 0 3px; }
+.uj-set-intro p { font-size: var(--t-sm); color: var(--muted); margin: 0; max-width: 60ch; line-height: 1.5; }
+.uj-set-link { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline); }
+.uj-set-link:hover { text-decoration-color: currentColor; }
+
+.uj-set-card { background: var(--card); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; }
+.uj-set-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 0; }
+.uj-set-card-head h3 { font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0 0 3px; }
+.uj-set-card-head p { font-size: var(--t-sm); color: var(--muted); margin: 0; max-width: 56ch; line-height: 1.5; }
+.uj-set-body { padding: 16px 20px 20px; }
+.uj-set-body--top { padding-top: 20px; }
+.uj-set-body--rule { border-top: 1px solid var(--hairline-soft); padding-top: 18px; }
+.uj-set-gap { height: 18px; }
+.uj-set-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap; padding: 12px 20px; border-top: 1px solid var(--hairline-soft); background: color-mix(in srgb, var(--canvas) 60%, #fff); font-size: var(--t-sm); color: var(--muted); }
+.uj-set-foot > :last-child { margin-left: auto; }
+.uj-set-input.uj-set-foot-input { width: 220px; max-width: 100%; height: 36px; font-size: var(--t-sm); }
+.uj-set-btn { height: 36px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; font-size: var(--t-sm); text-decoration: none; white-space: nowrap; }
+.uj-set-copy { height: 32px; padding: 0 11px; display: inline-flex; align-items: center; font-size: var(--t-sm); flex-shrink: 0; white-space: nowrap; }
+.uj-set-danger { color: var(--error); }
+.uj-set-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+.uj-set-kv { display: grid; grid-template-columns: 150px minmax(0, 1fr); margin: 0; }
+.uj-set-kv > dt, .uj-set-kv > dd { margin: 0; padding: 12px 0; border-top: 1px solid var(--hairline-soft); }
+.uj-set-kv > dt { font-size: var(--t-sm); color: var(--muted); padding-top: 13px; }
+.uj-set-kv > dd { font-size: var(--t-base); color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.uj-set-kv > :nth-child(-n+2) { border-top: 0; padding-top: 2px; }
+
+.uj-set-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--hairline-soft); }
+.uj-set-row:first-child { border-top: 0; padding-top: 0; }
+.uj-set-row:last-child { padding-bottom: 0; }
+.uj-set-row-main { flex: 1; min-width: 0; }
+.uj-set-row-title { font-size: var(--t-base); font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.uj-set-row-sub { font-size: var(--t-sm); color: var(--muted); }
+.uj-set-ico { width: 32px; height: 32px; border-radius: 8px; background: var(--canvas); border: 1px solid var(--hairline-soft); display: flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
+.uj-set-empty { margin: 0; font-size: var(--t-sm); color: var(--muted); }
+
+.uj-set-fields { display: grid; gap: 14px; max-width: 380px; }
+.uj-set-fields--wide { max-width: none; gap: 18px; }
+.uj-set-narrow { max-width: 320px; }
+.uj-set-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.uj-set-label { display: block; padding: 0; font-size: var(--t-sm); font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.uj-set-input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 9px; background: #fff; font-size: var(--t-base); color: var(--ink); outline: none; }
+.uj-set-otp { width: 150px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: .2em; text-align: center; }
+.uj-set-err { margin: 6px 0 0; font-size: var(--t-sm); color: var(--error); }
+.uj-set-ok { color: var(--success-ink); font-weight: 500; }
+.uj-set-note { margin: 0; font-size: var(--t-sm); color: var(--muted); }
+.uj-set-inline { flex: 1; min-width: 200px; max-width: 300px; }
+.uj-set-inline .uj-set-label { font-weight: 500; color: var(--body); }
+
+.uj-set-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.uj-set-opt { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: 10px; cursor: pointer; transition: border-color .14s ease, background .14s ease; }
+.uj-set-opt:has(input:checked) { border-color: var(--ink); background: color-mix(in srgb, var(--canvas) 50%, #fff); }
+.uj-set-opt:has(input:focus-visible) { outline: 2px solid var(--red); outline-offset: 2px; }
+.uj-set-opt input { margin-top: 3px; accent-color: var(--ink); flex-shrink: 0; }
+.uj-set-opt b { display: block; font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-set-opt small { display: block; font-size: var(--t-sm); color: var(--muted); line-height: 1.45; margin-top: 2px; }
+
+.uj-set-enrol { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.uj-set-qr { width: 148px; height: 148px; flex-shrink: 0; background: #fff; border: 1px solid var(--hairline); border-radius: 10px; padding: 8px; }
+.uj-set-qr svg { width: 100%; height: 100%; display: block; }
+.uj-set-steps { flex: 1; min-width: 220px; display: grid; gap: 10px; }
+.uj-set-steps > p:first-child { margin: 0; font-size: var(--t-base); color: var(--ink); }
+.uj-set-secret { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--hairline); border-radius: 9px; padding: 4px 4px 4px 12px; }
+.uj-set-secret code { flex: 1; min-width: 0; padding: 6px 0; font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink); overflow-wrap: anywhere; }
+.uj-set-subhead { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: var(--t-sm); color: var(--muted); }
+.uj-set-codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 16px; min-height: 44px; background: var(--canvas); border: 1px solid var(--hairline-soft); border-radius: 9px; padding: 14px 16px; }
+.uj-set-codes span { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink); }
+
+/* The one-time key reveal: a "do this now" notice, so amber, not the error red. */
+.uj-set-notice { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--amber) 32%, #fff); border-radius: 12px; background: color-mix(in srgb, var(--amber) 9%, #fff); color: var(--amber-ink); }
+.uj-set-notice-head { display: flex; gap: 10px; align-items: flex-start; }
+.uj-set-notice-head svg { flex-shrink: 0; margin-top: 1px; }
+.uj-set-notice strong { display: block; font-size: var(--t-base); font-weight: 600; }
+.uj-set-notice small { display: block; font-size: var(--t-sm); }
+.uj-set-notice .uj-set-label { color: var(--amber-ink); }
+
+@media (max-width: 820px) {
+    .uj-set { grid-template-columns: 1fr; gap: 16px; }
+    .uj-set-rail { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+    .uj-set-rail::-webkit-scrollbar { display: none; }
+    .uj-set-tab { flex-shrink: 0; white-space: nowrap; }
+    .uj-set-tab .uj-stamp { margin-left: 2px; }
+}
+@media (max-width: 560px) {
+    .uj-set-kv { grid-template-columns: 1fr; }
+    .uj-set-kv > dt { padding-bottom: 0; }
+    .uj-set-kv > dd { border-top: 0; padding-top: 2px; }
+    .uj-set-kv > dt:first-child { border-top: 0; }
+    .uj-set-choice { grid-template-columns: 1fr; }
+    .uj-set-input.uj-set-foot-input { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .uj-set-tab { transition: background .14s ease, color .14s ease; }
+    .uj-set-tab:active { transform: none; }
+}
 @media (prefers-reduced-motion: reduce) {
     .uj-wp-tile, .uj-cover-change, .uj-cover-chip { transition: none !important; }
     /* Keep the opacity crossfade paint() sets inline, drop only the blur motion —
