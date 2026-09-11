@@ -168,4 +168,43 @@ class SettingsScreenTest extends TestCase
         $this->actingInTenant()->get('/app/dash')->assertOk()
             ->assertSee(route('app.screen', ['screen' => 'security', 'section' => 'appearance']), escape: false);
     }
+
+    public function test_account_section_offers_the_birthday_privacy_switch_to_a_user_with_an_employee(): void
+    {
+        $html = $this->actingInTenant()->get('/app/security?section=account')->assertOk()->getContent();
+
+        $this->assertStringContainsString('birthday_private', $html);
+        $this->assertStringContainsString('Keep my birthday private', $html);
+    }
+
+    public function test_posting_the_birthday_privacy_switch_updates_only_the_posters_own_employee(): void
+    {
+        $other = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
+        $other->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $otherEmployee = Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $other->id,
+            'name' => 'Other', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $this->actingInTenant()->post('/app/security/birthday-privacy', ['birthday_private' => '1'])
+            ->assertSessionHasNoErrors();
+
+        $employee = Employee::where('user_id', $this->user->id)->firstOrFail();
+        $this->assertTrue($employee->fresh()->birthday_private);
+        $this->assertFalse($otherEmployee->fresh()->birthday_private);
+
+        $this->actingInTenant()->post('/app/security/birthday-privacy', ['birthday_private' => '0'])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($employee->fresh()->birthday_private);
+    }
+
+    public function test_a_user_without_an_employee_neither_sees_nor_may_post_the_switch(): void
+    {
+        $solo = User::create(['name' => 'Solo', 'email' => 'solo@example.com', 'password' => Hash::make('password')]);
+        $solo->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+        $this->actingAs($solo)->withSession(['current_tenant' => $this->tenant->id]);
+
+        $this->get('/app/security?section=account')->assertOk()->assertDontSee('Keep my birthday private');
+        $this->post('/app/security/birthday-privacy', ['birthday_private' => '1'])->assertNotFound();
+    }
 }

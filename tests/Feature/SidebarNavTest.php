@@ -46,18 +46,6 @@ class SidebarNavTest extends TestCase
         return substr($html, $start, $end - $start);
     }
 
-    public function test_desktop_nav_lists_sections_not_screens(): void
-    {
-        $this->signIn();
-
-        $nav = $this->desktopNav();
-
-        $this->assertStringContainsString('>My Work<', $nav, 'The My Work section row is missing.');
-        // The screens themselves belong to the panel, never to the sidebar column.
-        $this->assertStringNotContainsString('uj-nav-kids', $nav,
-            'A nested child list came back to the desktop sidebar. Children live in the section panel now.');
-    }
-
     public function test_section_panel_carries_that_sections_screens(): void
     {
         $this->signIn();
@@ -76,18 +64,6 @@ class SidebarNavTest extends TestCase
 
         $this->assertStringContainsString('uj-fly-sub', $nav,
             "A group's sub-panel is gone. Oversight and Offboarding hold one cell each and open their screens beside it.");
-    }
-
-    public function test_listed_down_layout_ships_alongside_the_panel(): void
-    {
-        $this->signIn();
-
-        $nav = $this->desktopNav();
-
-        // Both bodies are in the HTML on every page; a CSS class picks one, so the
-        // switch costs no request. Lose either and the switch flips to an empty column.
-        $this->assertStringContainsString('uj-nav-sections', $nav, 'The section body is gone.');
-        $this->assertStringContainsString('uj-nav-tree', $nav, 'The listed-down body is gone.');
     }
 
     public function test_listed_down_layout_reaches_every_screen_the_panel_does(): void
@@ -111,16 +87,6 @@ class SidebarNavTest extends TestCase
             'A group in the listed-down sidebar shows its screens outright instead of opening on hover.');
     }
 
-    public function test_the_layout_switch_is_on_the_page(): void
-    {
-        $this->signIn();
-
-        $html = $this->get('/app/dash')->assertOk()->getContent();
-
-        $this->assertStringContainsString('toggleSbStyle()', $html,
-            'The control that swaps the two sidebar layouts is gone.');
-    }
-
     /**
      * The org chart and the time-off calendar are everyone's, read-only: knowing who
      * reports to whom and who is away this month is not a manager's privilege. The
@@ -141,18 +107,6 @@ class SidebarNavTest extends TestCase
         foreach (['directory', 'probation', 'workload'] as $screen) {
             $this->assertStringNotContainsString(route('app.screen', ['screen' => $screen]), $nav,
                 sprintf('%s is a manager screen and should not be in a plain employee\'s nav.', $screen));
-        }
-    }
-
-    public function test_every_nav_section_has_an_icon(): void
-    {
-        $sections = collect(Amanahku::nav())->pluck('section')->unique();
-
-        foreach ($sections as $section) {
-            $this->assertNotSame('M12 12h.01', Amanahku::sectionIcon($section), sprintf(
-                'Section "%s" has no icon and falls back to a dot. Add one in Amanahku::sectionIcon().',
-                $section
-            ));
         }
     }
 

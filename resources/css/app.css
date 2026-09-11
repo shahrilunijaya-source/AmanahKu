@@ -2167,6 +2167,7 @@ body[data-plain] .kb-pulse-ring { animation:none; }
 .uj-dw-cal-pill[data-k="pending"] { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--hairline); }
 .uj-dw-cal-pill[data-k="task"]    { background:var(--red-tint);     color:var(--red); }
 .uj-dw-cal-pill[data-k="note"]    { background:var(--shelf);        color:var(--body); box-shadow:inset 0 0 0 1px var(--shelf-line); }
+.uj-dw-cal-pill[data-k="awaiting"] { background:transparent; color:var(--success-ink); border:1px dashed var(--success); padding:0 4px; }
 .uj-dw-cal-more { font-size:10px; color:var(--muted-soft); padding-left:2px; line-height:1.4; }
 /* A day is a button now — it picks what the panel below reads out. Buttons carry
    their own background and font, so the cell resets both back to the grid. */
@@ -2196,6 +2197,7 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-dw-cal-tag[data-k="holiday"] { background:var(--amber-tint);   color:var(--amber-ink); }
 .uj-dw-cal-tag[data-k="task"]    { background:var(--red-tint);     color:var(--red); }
 .uj-dw-cal-tag[data-k="note"]    { background:var(--shelf);        color:var(--body); }
+.uj-dw-cal-tag[data-k="awaiting"] { background:transparent; color:var(--success-ink); border:1px dashed var(--success); padding:2px 8px; }
 /* Personal-tab additions: a note or a pinned card on the selected day. */
 .uj-dw-cal-x { flex-shrink:0; width:24px; height:24px; border:0; border-radius:6px; background:none; color:var(--muted-soft); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:background .14s ease-out, color .14s ease-out; }
 .uj-dw-cal-x svg { width:14px; height:14px; }
@@ -5027,8 +5029,22 @@ form.uj-or-fields { padding: 20px; }
     .uj-lv-acts { width: 100%; }
     .uj-lv-acts > form { flex: 1; }
     .uj-lv-acts .uj-btn-primary, .uj-lv-acts .uj-btn-ghost { width: 100%; }
-    .uj-lv-commit { flex-wrap: wrap; }
-    .uj-lv-commit-t span { display: none; }
+    /* Phones: the reckoning box above already says what is being sent, so the bar
+       is just the button, full width, like an app's primary action. */
+    .uj-lv-commit { padding: 10px; }
+    .uj-lv-commit-t { display: none; }
+    .uj-lv-commit .uj-btn-primary { flex: 1; justify-content: center; }
+    /* Half-day as a native segmented control: short labels, one line each. */
+    .uj-lv-half { border-radius: 9px; }
+    .uj-lv-half button { height: 34px; font-size: 13px; white-space: nowrap; padding: 0 4px; }
+    .uj-lv-half-x { display: none; }
+    .uj-dev-clock { display: none !important; }
+}
+/* iOS Safari gives date inputs an intrinsic minimum width and centres the value,
+   so they overflow the card; flatten them to a plain block. iOS-only query. */
+@supports (-webkit-touch-callout: none) {
+    .uj-lv-in[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; text-align: left; line-height: 44px; }
+    .uj-lv-in[type="date"]::-webkit-date-and-time-value { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) {
     .uj-lv-fold { transition-duration: .01ms; }

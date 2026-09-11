@@ -17,6 +17,12 @@
     foreach ($cell['leave'] as $l) {
         $items->push(['kind' => 'leave', 'label' => $l->employee?->display_name ?? 'Employee', 'color' => 'var(--success)', 'tint' => '#e9f5ee']);
     }
+    // Leave this viewer verified, waiting on final approval — hollow/dashed so it
+    // reads as "not settled yet" next to a solid, filled "on leave" chip.
+    foreach (($cell['awaiting'] ?? collect()) as $a) {
+        $name = $a->employee?->display_name ?? 'Employee';
+        $items->push(['kind' => 'awaiting', 'label' => $name, 'color' => 'var(--success)', 'tint' => 'transparent', 'dashed' => true, 'title' => $name.', waiting for approval']);
+    }
     $visible = $items->take($maxItems);
     $overflow = $items->count() - $visible->count();
     $bg = $cell['isToday'] ? '#fffaf0' : ($cell['inMonth'] ? '#fff' : 'var(--surface-soft, #fafafa)');
@@ -30,8 +36,9 @@
         @endif
     </div>
     @foreach ($visible as $it)
-        <div title="{{ $it['label'] }}" style="display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.3;color:var(--ink);background:{{ $it['tint'] }};border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            <span style="width:6px;height:6px;border-radius:50%;background:{{ $it['color'] }};flex-shrink:0;"></span>
+        @php $dashed = $it['dashed'] ?? false; @endphp
+        <div title="{{ $it['title'] ?? $it['label'] }}" style="display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.3;color:var(--ink);background:{{ $it['tint'] }};{{ $dashed ? 'border:1px dashed '.$it['color'].';' : '' }}border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <span style="width:6px;height:6px;border-radius:50%;{{ $dashed ? 'background:transparent;border:1px solid '.$it['color'] : 'background:'.$it['color'] }};flex-shrink:0;"></span>
             <span style="overflow:hidden;text-overflow:ellipsis;">{{ $it['label'] }}</span>
         </div>
     @endforeach

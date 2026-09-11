@@ -493,6 +493,26 @@ trait BuildsDashboardWidgets
             ];
         }
 
+        // Leave this viewer verified and is waiting on final approval — visible to
+        // that one verifier only (CalendarController::awaitingLeaveInRange already
+        // narrowed the query to their own verified_by_id), never to the requester's
+        // coworkers or the final approver.
+        foreach ($day['awaiting'] ?? [] as $leave) {
+            $person = $leave->employee;
+            $type = Permissions::showsLeaveType($leaveTypeIds, $person->id)
+                ? Str::lower($this->leaveTypeName($leave))
+                : 'on leave';
+
+            $entries[] = [
+                'level' => in_array($person->id, $reports, true) ? 1 : 0,
+                'kind' => 'awaiting',
+                'who' => $this->initials($person->display_name),
+                'short' => $person->display_name,
+                'title' => $person->display_name.' — '.$type,
+                'sub' => 'Waiting for approval · verified by you',
+            ];
+        }
+
         // Your own leave that has not been approved yet is on the calendar screen
         // nowhere, but it is the thing you most want to see on your own dashboard:
         // the day you asked for is already spoken for, pending or not.

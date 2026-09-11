@@ -143,6 +143,26 @@
             </div>
         </div>
 
+        @if ($employee)
+            <form method="post" action="{{ route('security.birthday-privacy') }}" class="uj-set-card">
+                @csrf
+                <div class="uj-set-card-head"><div>
+                    <h3>{{ $bi('Birthday privacy', 'Privasi hari lahir') }}</h3>
+                    <p>{{ $bi('Hides your birthday from the calendar, the dashboard and birthday wishes.', 'Sembunyikan hari lahir anda daripada kalendar, papan pemuka dan ucapan hari lahir.') }}</p>
+                </div></div>
+                <div class="uj-set-body">
+                    <input type="hidden" name="birthday_private" value="0" />
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);">
+                        <input type="checkbox" name="birthday_private" value="1" @checked($employee->birthday_private) style="width:16px;height:16px;" />
+                        <span x-text="$store.ui.lang==='en' ? 'Keep my birthday private' : 'Rahsiakan hari lahir saya'">Keep my birthday private</span>
+                    </label>
+                </div>
+                <div class="uj-set-foot">
+                    <button type="submit" class="uj-btn-primary uj-set-btn">{{ $bi('Save', 'Simpan') }}</button>
+                </div>
+            </form>
+        @endif
+
         <form method="post" action="{{ route('user-password.update') }}" class="uj-set-card">
             @csrf @method('PUT')
             <div class="uj-set-card-head"><div>
@@ -375,7 +395,7 @@
                         <button type="button" :data-on="dim === 'strong'" @click="setDim('strong')" x-text="$store.ui.lang==='en' ? 'Strong' : 'Kuat'">Strong</button>
                     </div>
                 </div>
-                <span x-show="!photoUrl">{{ $bi('JPEG, PNG or WebP, up to 5 MB', 'JPEG, PNG atau WebP, sehingga 5 MB') }}</span>
+                <span x-show="!photoUrl">{{ $bi('JPEG, PNG or WebP, up to 10 MB', 'JPEG, PNG atau WebP, sehingga 10 MB') }}</span>
                 <button type="button" x-show="photoUrl" x-cloak class="uj-btn-ghost uj-set-btn" @click="removePhoto()">{{ $bi('Remove photo', 'Buang foto') }}</button>
                 <p x-show="error" x-cloak x-text="error" class="uj-set-err" style="flex-basis:100%;margin:0;"></p>
             </div>

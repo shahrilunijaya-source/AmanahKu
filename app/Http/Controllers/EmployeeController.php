@@ -96,10 +96,6 @@ class EmployeeController extends Controller
             'staff_id' => ['nullable', 'string', 'max:50', $this->activeUnique('staff_id', $tenantId, $employee->id)],
             'joined_at' => ['nullable', 'date', 'before_or_equal:today'],
             'date_of_birth' => ['nullable', 'date', 'before:today'],
-            // Only the own-profile form renders this checkbox (hidden-false + checkbox
-            // pattern); absent entirely when an admin edits someone else, so update()
-            // below falls back to the existing value rather than resetting it.
-            'birthday_private' => ['sometimes', 'boolean'],
             'position_id' => ['nullable', 'integer', $this->inTenant('positions', $tenantId)],
             'salary' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'branch_id' => ['nullable', 'integer', $this->inTenant('branches', $tenantId)],
@@ -140,7 +136,6 @@ class EmployeeController extends Controller
                 // falling back to today — matching store() / import().
                 'joined_at' => $data['joined_at'] ?? $employee->joined_at ?? now()->toDateString(),
                 'date_of_birth' => $data['date_of_birth'] ?? null,
-                'birthday_private' => $data['birthday_private'] ?? $employee->birthday_private,
                 'salary' => $canSetSalary ? ($data['salary'] ?? null) : $employee->salary,
                 'branch_id' => $data['branch_id'] ?? null,
                 'employment_type_id' => $data['employment_type_id'] ?? null,

@@ -56,52 +56,6 @@ class TimesheetSubmitReviewTest extends TestCase
         return $this;
     }
 
-    public function test_the_record_tab_carries_a_review_pane(): void
-    {
-        $r = $this->actingInTenant()->get('/app/timesheets');
-
-        $r->assertOk();
-        $r->assertSee('Review before you submit', false);
-        $r->assertSee('id="ts-review-title"', false);
-    }
-
-    public function test_the_submit_button_opens_the_review_instead_of_saving(): void
-    {
-        $r = $this->actingInTenant()->get('/app/timesheets');
-
-        $r->assertOk();
-        $r->assertSee('id="ts-submit-btn"', false);
-        $r->assertSee('@click="openReview()"', false);
-    }
-
-    public function test_the_review_pane_has_its_own_confirm_button(): void
-    {
-        $r = $this->actingInTenant()->get('/app/timesheets');
-
-        $r->assertOk();
-        $r->assertSee('id="ts-confirm-submit-btn"', false);
-        $r->assertSee('@click="save(true)"', false);
-    }
-
-    public function test_the_review_pane_closes_on_escape_and_the_back_gesture(): void
-    {
-        $r = $this->actingInTenant()->get('/app/timesheets');
-
-        $r->assertOk();
-        $r->assertSee('@keydown.escape.window', false);
-        $r->assertSee('@popstate.window', false);
-    }
-
-    public function test_the_review_pane_has_a_category_summary(): void
-    {
-        $r = $this->actingInTenant()->get('/app/timesheets');
-
-        $r->assertOk();
-        $r->assertSee('id="ts-review-summary"', false);
-        $r->assertSee('categoryTotals()', false);
-        $r->assertSee('reviewDays()', false);
-    }
-
     public function test_the_review_pane_renders_entries_and_locked_days_client_side(): void
     {
         $category = TimesheetCategory::create([

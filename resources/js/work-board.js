@@ -46,6 +46,8 @@ export function registerWorkBoard(Alpine) {
         labelFilter: null,
         // Active project id as a string, or '' for "any project". ANDs with type + label.
         projectFilter: '',
+        // Title search text, matched case-insensitively against each card's face title.
+        search: '',
         // Active due-date bucket ('overdue' | 'today' | 'week' | 'none' | 'range'), or null for "any due date".
         dueFilter: null,
         // Bounds for the 'range' bucket, each an ISO date string or '' (unset).
@@ -307,6 +309,14 @@ export function registerWorkBoard(Alpine) {
             return (el.dataset.labels || '').split(',').includes(this.labelFilter);
         },
 
+        // Reads the rendered title rather than a data attribute, so a card repainted
+        // after a title edit is matched on its new title with nothing extra to keep in sync.
+        searchInFilter(el) {
+            const q = this.search.trim().toLowerCase();
+            if (!q) return true;
+            return (el.querySelector('.wc-title')?.textContent || '').toLowerCase().includes(q);
+        },
+
         projectInFilter(el) {
             if (!this.projectFilter) return true;
             return (el.dataset.project || '') === this.projectFilter;
@@ -356,7 +366,7 @@ export function registerWorkBoard(Alpine) {
         // filter) so autosave never has to re-touch the other cards on the board.
         applyFilterTo(node) {
             if (!node) return;
-            node.style.display = this.typeInFilter(node.dataset.type) && this.roleInFilter(node) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) ? '' : 'none';
+            node.style.display = this.typeInFilter(node.dataset.type) && this.roleInFilter(node) && this.labelInFilter(node) && this.projectInFilter(node) && this.dueInFilter(node) && this.searchInFilter(node) ? '' : 'none';
         },
 
         // Switches the column ordering. Manual is the drag order already on the

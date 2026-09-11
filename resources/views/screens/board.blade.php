@@ -62,6 +62,10 @@
                 <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount"
                       style="min-width:16px;height:16px;line-height:16px;text-align:center;font-size:10.5px;font-family:var(--font-mono);background:rgba(255,255,255,.28);border-radius:9999px;padding:0 4px;"></span>
             </button>
+            <input type="search" x-model="search" @input="applyFilter()"
+                   :placeholder="$store.ui.lang==='en' ? 'Search card title…' : 'Cari tajuk kad…'"
+                   :aria-label="$store.ui.lang==='en' ? 'Search card title' : 'Cari tajuk kad'"
+                   style="width:220px;max-width:100%;padding:7px 14px;font-size:12.5px;border:1px solid var(--hairline);border-radius:9999px;background:#fff;color:var(--ink);outline:none;">
     </div>
 
     {{-- CR-04 role chips: whose work this is for me. Assigned is the default view and

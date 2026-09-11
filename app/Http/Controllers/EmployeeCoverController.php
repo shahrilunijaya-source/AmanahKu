@@ -35,7 +35,7 @@ class EmployeeCoverController extends Controller
         $presets = array_keys(config('amanahku.wallpaper_presets'));
         $request->validate([
             'preset' => ['nullable', 'string', Rule::in($presets), 'required_without:photo'],
-            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120', 'required_without:preset'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:10240', 'required_without:preset'],
         ]);
 
         $luminance = null;

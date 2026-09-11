@@ -17,7 +17,7 @@
     $tabs = $w['calTabs'] ?? ['personal', 'company'];
     $tabLevels = ['personal' => 0, 'team' => 1, 'company' => 2];
     $tabLabels = ['personal' => ['Personal', 'Peribadi'], 'team' => ['Team', 'Pasukan'], 'company' => ['Company', 'Syarikat']];
-    $kindLabels = ['leave' => ['Leave', 'Cuti'], 'pending' => ['Pending', 'Menunggu'], 'holiday' => ['Holiday', 'Cuti umum'], 'event' => ['Event', 'Acara'], 'task' => ['Task', 'Tugas'], 'note' => ['Note', 'Nota']];
+    $kindLabels = ['leave' => ['Leave', 'Cuti'], 'awaiting' => ['Waiting for approval', 'Menunggu kelulusan'], 'pending' => ['Pending', 'Menunggu'], 'holiday' => ['Holiday', 'Cuti umum'], 'event' => ['Event', 'Acara'], 'task' => ['Task', 'Tugas'], 'note' => ['Note', 'Nota']];
     $noteRoutes = \Illuminate\Support\Facades\Route::has('calendar-notes.store');
     // Day label and the per-tab entry count, so the panel heading can be written
     // client-side without shipping every day's heading as markup.

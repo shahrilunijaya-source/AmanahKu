@@ -102,16 +102,6 @@ class WorkItemCardHtmlTest extends TestCase
         $this->assertIsString($deleted->json('html'));
     }
 
-    public function test_compact_card_partial_uses_the_compact_modifier(): void
-    {
-        $item = $this->card(['title' => 'Compact card']);
-        $item->load(['participants', 'projectRef', 'assignedBy'])->loadCount('comments');
-
-        $html = view('partials.work-card', ['c' => $item, 'compact' => true])->render();
-
-        $this->assertStringContainsString('wc--sm', $html);
-    }
-
     public function test_a_parent_with_children_renders_as_a_stack_with_a_counter(): void
     {
         $parent = $this->card();

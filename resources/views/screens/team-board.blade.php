@@ -222,6 +222,10 @@
                      for this one person. They never touch the person table's own
                      search/toggles/sort behind this window. --}}
                 <div class="tb-win-filters">
+                    <input type="search" class="tb-search" x-model="win.search" @input="applyWinFilter()"
+                           :placeholder="$store.ui.lang==='en' ? 'Search card title…' : 'Cari tajuk kad…'"
+                           :aria-label="$store.ui.lang==='en' ? 'Search card title' : 'Cari tajuk kad'"
+                           style="width:200px;height:32px;" />
                     <select class="tb-select" x-model="win.typeFilter" @change="applyWinFilter()">
                         <option value="" x-text="$store.ui.lang==='en' ? 'Any type' : 'Sebarang jenis'">Any type</option>
                         <option value="task">Task</option>

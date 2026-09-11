@@ -48,6 +48,7 @@ class CalendarController extends Controller
         $gridEnd = $monthEnd->endOfWeek(CarbonInterface::SUNDAY);
 
         $leave = $this->approvedLeaveInRange($gridStart, $gridEnd);
+        $awaiting = $this->awaitingLeaveInRange($gridStart, $gridEnd, $employee);
         $holidays = $this->holidaysInRange($gridStart, $gridEnd);
         $events = $this->eventsInRange($gridStart, $gridEnd);
         // Birthdays recur yearly, so they are matched by month+day (not a date range) —
@@ -55,7 +56,7 @@ class CalendarController extends Controller
         $birthdays = $this->birthdayPeople();
 
         $today = CarbonImmutable::now();
-        $weeks = $this->buildWeeks($gridStart, $gridEnd, $month, $today, $leave, $holidays, $events, $birthdays);
+        $weeks = $this->buildWeeks($gridStart, $gridEnd, $month, $today, $leave, $awaiting, $holidays, $events, $birthdays);
 
         return [
             // Who this viewer may see a leave TYPE for; null means everybody. The
@@ -112,6 +113,27 @@ class CalendarController extends Controller
             ->get();
     }
 
+    /**
+     * Leave this viewer verified and is waiting on final approval — visible to that
+     * one verifier only, on both calendars, until it is approved (folds into the
+     * normal approved-leave list) or rejected/cancelled (drops off entirely).
+     * Empty when there is no viewer (no employee record).
+     */
+    private function awaitingLeaveInRange(CarbonImmutable $start, CarbonImmutable $end, ?Employee $employee): Collection
+    {
+        if ($employee === null) {
+            return collect();
+        }
+
+        return LeaveRequest::with(['employee', 'leaveType'])
+            ->where('status', 'verified')
+            ->where('verified_by_id', $employee->id)
+            ->whereHas('employee', fn ($q) => $q->active())
+            ->whereDate('date_from', '<=', $end->toDateString())
+            ->whereDate('date_to', '>=', $start->toDateString())
+            ->get();
+    }
+
     private function holidaysInRange(CarbonImmutable $start, CarbonImmutable $end): Collection
     {
         return PublicHoliday::whereDate('date', '>=', $start->toDateString())
@@ -139,6 +161,7 @@ class CalendarController extends Controller
         CarbonImmutable $month,
         CarbonImmutable $today,
         Collection $leave,
+        Collection $awaiting,
         Collection $holidays,
         Collection $events,
         Collection $birthdays,
@@ -148,7 +171,7 @@ class CalendarController extends Controller
         $cursor = $gridStart;
 
         while ($cursor->lessThanOrEqualTo($gridEnd)) {
-            $week[] = $this->buildDay($cursor, $month, $today, $leave, $holidays, $events, $birthdays);
+            $week[] = $this->buildDay($cursor, $month, $today, $leave, $awaiting, $holidays, $events, $birthdays);
 
             if (count($week) === 7) {
                 $weeks[] = $week;
@@ -164,13 +187,14 @@ class CalendarController extends Controller
     /**
      * Build one day cell with the items falling on that date.
      *
-     * @return array{date:CarbonImmutable, inMonth:bool, isToday:bool, leave:Collection, holiday:Collection, events:Collection, birthday:Collection}
+     * @return array{date:CarbonImmutable, inMonth:bool, isToday:bool, leave:Collection, awaiting:Collection, holiday:Collection, events:Collection, birthday:Collection}
      */
     private function buildDay(
         CarbonImmutable $date,
         CarbonImmutable $month,
         CarbonImmutable $today,
         Collection $leave,
+        Collection $awaiting,
         Collection $holidays,
         Collection $events,
         Collection $birthdays,
@@ -180,6 +204,10 @@ class CalendarController extends Controller
             'inMonth' => $date->month === $month->month && $date->year === $month->year,
             'isToday' => $date->isSameDay($today),
             'leave' => $leave->filter(
+                fn (LeaveRequest $l) => $date->betweenIncluded($l->date_from, $l->date_to)
+            )->values(),
+            // Verified leave the viewer themselves verified, waiting on final approval.
+            'awaiting' => $awaiting->filter(
                 fn (LeaveRequest $l) => $date->betweenIncluded($l->date_from, $l->date_to)
             )->values(),
             'holiday' => $holidays->filter(
@@ -196,11 +224,16 @@ class CalendarController extends Controller
         ];
     }
 
-    /** Active people with a known DOB — matched by month+day per cell (recurs yearly). */
+    /**
+     * Active people with a known DOB who have not opted out — matched by month+day
+     * per cell (recurs yearly). A private birthday is left out of the grid cells AND
+     * the "this month" side card, not just softened elsewhere.
+     */
     private function birthdayPeople(): Collection
     {
         return Employee::active()
             ->whereNotNull('date_of_birth')
+            ->where('birthday_private', false)
             ->get(['id', 'name', 'nickname', 'initials', 'avatar_color', 'date_of_birth']);
     }
 
