@@ -107,4 +107,27 @@ class SecurityController extends Controller
 
         return back()->with('ok', 'AI access key revoked.');
     }
+
+    /**
+     * Own-record-only switch for birthday privacy, moved here from the profile
+     * form (Account & security → Account). No id in the payload: this always
+     * writes the signed-in user's own employee record for the current tenant,
+     * never anyone else's.
+     */
+    public function birthdayPrivacy(Request $request, CurrentTenant $currentTenant): RedirectResponse
+    {
+        $tenant = $currentTenant->get();
+        abort_unless($tenant !== null, 403);
+
+        $employee = $request->user()->employeeFor($tenant);
+        abort_unless($employee !== null, 404);
+
+        $data = $request->validate(['birthday_private' => ['required', 'boolean']]);
+
+        $employee->forceFill(['birthday_private' => $data['birthday_private']])->save();
+
+        AuditLog::record('Updated birthday privacy setting');
+
+        return back()->with('ok', 'Birthday privacy saved.');
+    }
 }

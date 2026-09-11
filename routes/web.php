@@ -404,6 +404,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
         Route::post('/app/security/ai-key/generate', [SecurityController::class, 'generateAiKey'])->middleware('throttle:10,1,ai-key-generate')->name('security.ai-key.generate');
         Route::post('/app/security/ai-key/revoke', [SecurityController::class, 'revokeAiKey'])->name('security.ai-key.revoke');
+        Route::post('/app/security/birthday-privacy', [SecurityController::class, 'birthdayPrivacy'])->name('security.birthday-privacy');
 
         // Personal workspace wallpaper (Account & security → Appearance). Own row only.
         Route::post('/app/account/appearance', [AppearanceController::class, 'update'])->name('account.appearance');

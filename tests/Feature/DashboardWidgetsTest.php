@@ -546,6 +546,43 @@ class DashboardWidgetsTest extends TestCase
         $this->assertSame(1, $calendar['days'][now()->toDateString()]['marks']['company']['count']);
     }
 
+    /**
+     * A report's leave that the manager verified but nobody has finally approved
+     * yet shows on the manager's own dashboard as "awaiting", and nowhere else.
+     */
+    public function test_calendar_shows_verified_leave_awaiting_approval_only_to_its_verifier(): void
+    {
+        $manager = $this->userWithRole('manager', 'await-mgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+
+        $staff = $this->userWithRole('employee', 'await-staff@acme.test');
+        $staffEmployee = $this->employeeFor($staff, $mgrEmployee->id);
+        $staffEmployee->update(['name' => 'Await Staff']);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $staffEmployee->id,
+            'leave_type_id' => $type->id, 'status' => 'verified',
+            'verified_by_id' => $mgrEmployee->id, 'verified_at' => now(),
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($manager);
+        $entries = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'][now()->toDateString()]['entries'];
+        $awaiting = collect($entries)->firstWhere('kind', 'awaiting');
+
+        $this->assertNotNull($awaiting);
+        $this->assertSame(1, $awaiting['level']);
+        $this->assertSame('Waiting for approval · verified by you', $awaiting['sub']);
+
+        // A coworker with no part in this approval sees nothing about it.
+        $coworker = $this->userWithRole('employee', 'await-coworker@acme.test');
+        $this->employeeFor($coworker);
+        $this->actAs($coworker);
+        $entries = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'][now()->toDateString()]['entries'] ?? [];
+        $this->assertNull(collect($entries)->firstWhere('kind', 'awaiting'));
+    }
+
     /** Nobody reporting to you means no Team tab — it would only repeat Personal. */
     public function test_calendar_drops_the_team_tab_for_someone_with_no_reports(): void
     {

@@ -122,6 +122,15 @@ class BirthdayWishesTest extends TestCase
         $this->assertNotContains('Quiet Person', $names);
     }
 
+    /** ---- Privacy now lives in Settings, not the profile edit form ---- */
+    public function test_profile_screen_no_longer_offers_the_birthday_privacy_checkbox(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-08 09:00'));
+        $viewer = $this->signIn();
+
+        $this->get('/app/profile')->assertOk()->assertDontSee('name="birthday_private"', false);
+    }
+
     /** ---- Wishes ---- */
     public function test_posting_a_wish_stores_it_and_renders_for_everyone_and_the_recipient(): void
     {
