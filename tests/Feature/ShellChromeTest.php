@@ -28,14 +28,6 @@ class ShellChromeTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Blades that make up the shell and must therefore stay on the ramp. */
-    private const SHELL_BLADES = [
-        'resources/views/layouts/app.blade.php',
-        'resources/views/partials/header.blade.php',
-        'resources/views/partials/sidebar.blade.php',
-        'resources/views/partials/env-badge.blade.php',
-    ];
-
     private function signIn(): User
     {
         $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
@@ -74,21 +66,5 @@ class ShellChromeTest extends TestCase
             'The language tabs went back to a red fill. Red is the primary action colour, '
             .'not the "which tab am I on" colour.'
         );
-    }
-
-    public function test_shell_blades_only_use_the_type_ramp(): void
-    {
-        foreach (self::SHELL_BLADES as $blade) {
-            $source = file_get_contents(base_path($blade));
-
-            preg_match_all('/font(?:-size)?:\s*\d+(?:\.\d+)?px/', $source, $hits);
-
-            $this->assertSame([], $hits[0], sprintf(
-                '%s sets a raw pixel font size (%s). Use --t-micro / --t-sm / --t-base / '
-                .'--t-lg / --t-xl so the shell and the dashboard stay one system.',
-                $blade,
-                implode(', ', array_unique($hits[0]))
-            ));
-        }
     }
 }

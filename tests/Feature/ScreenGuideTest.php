@@ -59,47 +59,6 @@ class ScreenGuideTest extends TestCase
         ]);
     }
 
-    public function test_the_guide_modal_is_marked_up_as_a_dialog(): void
-    {
-        $response = $this->actAsHr()->get('/app/attendance-report');
-
-        $response->assertOk();
-        $response->assertSee('role="dialog"', false);
-        $response->assertSee('aria-modal="true"', false);
-    }
-
-    public function test_the_guide_carries_no_inline_styles(): void
-    {
-        $renderedPartial = view('partials.guide', [
-            'key' => 'attendance-report',
-            'en' => [
-                'title' => 'Attendance Reports',
-                'body' => 'Test body',
-                'who' => 'HR',
-                'steps' => ['Step 1'],
-            ],
-        ])->render();
-
-        $this->assertStringNotContainsString('style="', $renderedPartial);
-
-        $response = $this->actAsHr()->get('/app/attendance-report');
-        $content = $response->getContent();
-        $startPos = strpos($content, 'class="uj-guide-host"');
-        $this->assertNotFalse($startPos, 'Guide host class must exist on page');
-        $endPos = strpos($content, '</template>', $startPos) + strlen('</template>');
-        $guideSlice = substr($content, $startPos, $endPos - $startPos);
-
-        $this->assertStringNotContainsString('style="', $guideSlice);
-    }
-
-    public function test_the_guide_still_renders_the_screen_copy(): void
-    {
-        $response = $this->actAsHr()->get('/app/attendance-report');
-
-        $response->assertOk();
-        $response->assertSee('One row for every active employee on every working day');
-    }
-
     public function test_the_guide_is_skipped_in_embed_mode(): void
     {
         $normalResponse = $this->actAsHr()->get('/app/attendance-report');

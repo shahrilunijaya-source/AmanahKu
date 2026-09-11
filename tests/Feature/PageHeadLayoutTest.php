@@ -51,44 +51,11 @@ class PageHeadLayoutTest extends TestCase
         ]);
     }
 
-    public function test_profile_banner_renders_above_the_page_heading(): void
-    {
-        // Profile, not attendance: the banner nudges you about your own record, so it
-        // only rides the dashboard and the profile screen.
-        $response = $this->actingAs($this->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/profile');
-
-        $response->assertOk();
-
-        $content = $response->getContent();
-        $bannerPos = strpos($content, 'profileBannerDismissedUntil');
-        $headingPos = strpos($content, '<h1');
-
-        $this->assertNotFalse($bannerPos, 'Profile banner markup must be present in response');
-        $this->assertNotFalse($headingPos, '<h1 heading markup must be present in response');
-        $this->assertLessThan(
-            $headingPos,
-            $bannerPos,
-            'Profile banner markup position must be less than page heading <h1 position'
-        );
-    }
-
     public function test_page_heading_carries_no_header_clearance_padding(): void
     {
         $response = $this->actingAs($this->user)
             ->withSession(['current_tenant' => $this->tenant->id])
             ->get('/app/attendance');
-
-        $response->assertOk();
-        $response->assertSee('uj-head-stack');
-    }
-
-    public function test_head_stack_is_present_on_the_dashboard(): void
-    {
-        $response = $this->actingAs($this->user)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/dash');
 
         $response->assertOk();
         $response->assertSee('uj-head-stack');

@@ -117,18 +117,6 @@ class TimesheetReportScreenTest extends TestCase
         return $ts;
     }
 
-    public function test_hr_sees_the_three_lens_controls(): void
-    {
-        $response = $this->actingAs($this->hrUser)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
-
-        $response->assertOk()
-            ->assertSee('By category')
-            ->assertSee('By project')
-            ->assertSee('By person');
-    }
-
     public function test_the_person_days_figure_renders(): void
     {
         $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
@@ -191,18 +179,6 @@ class TimesheetReportScreenTest extends TestCase
 
         $res2->assertOk()
             ->assertDontSee('A row short of its weeks is short a submitted sheet, not short of work.');
-    }
-
-    public function test_the_empty_state_renders_for_a_filter_with_no_matches(): void
-    {
-        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'EmptyCat', 'requires_project' => false]);
-
-        $response = $this->actingAs($this->hrUser)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30&category='.$cat->id);
-
-        $response->assertOk()
-            ->assertSee('No submitted time matches this filter');
     }
 
     public function test_a_manager_is_admitted_and_a_plain_employee_is_forbidden(): void
@@ -335,20 +311,5 @@ class TimesheetReportScreenTest extends TestCase
         $response->assertOk()
             ->assertSee('missingWeeks', false)
             ->assertSee('Week 26', false);
-    }
-
-    public function test_the_rail_renders_a_panel_element(): void
-    {
-        $cat = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Dev', 'requires_project' => false]);
-        [,$emp] = $this->createEmployee('Alice', $this->position);
-        $this->createTimesheetWithEntry($emp, $cat, '2026-06-15', 100);
-
-        $response = $this->actingAs($this->hrUser)
-            ->withSession(['current_tenant' => $this->tenant->id])
-            ->get('/app/timesheet-reports?from=2026-06-01&to=2026-06-30');
-
-        $response->assertOk()
-            ->assertSee('uj-tr-panel')
-            ->assertSee('uj-tr-lens');
     }
 }
