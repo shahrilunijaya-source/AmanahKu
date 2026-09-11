@@ -67,7 +67,10 @@
 
     // Approved keeps the withdrawn ones: a leave the viewer approved and the applicant
     // later pulled is still something they decided, and worth seeing marked.
-    $decApproved = $leaveApprovedByMe ?? collect();
+    // A plain manager never gives final approval, so their first history chip is what
+    // they verified instead — an approved list would sit at 0 for them forever.
+    $decKind = ($givesFinalApproval ?? false) ? 'approved' : 'verified';
+    $decApproved = $decKind === 'approved' ? ($leaveApprovedByMe ?? collect()) : ($leaveVerifiedByMe ?? collect());
     $decRejected = $leaveRejectedByMe ?? collect();
     // A plain manager only recommends — scopeToApprove() closes for them — so the tab is
     // named for what they can actually do.
@@ -381,7 +384,7 @@
                     <b>{{ $reviewCount }}</b>
                 </button>
                 <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
-                    <span x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'">Approved</span>
+                    <span x-text="$store.ui.lang==='en' ? @js($decKind === 'approved' ? 'Approved' : 'Verified') : @js($decKind === 'approved' ? 'Diluluskan' : 'Disahkan')">{{ $decKind === 'approved' ? 'Approved' : 'Verified' }}</span>
                     <b>{{ $decApproved->count() }}</b>
                 </button>
                 <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
@@ -425,7 +428,7 @@
 
             {{-- ── Decided this year ── --}}
             <div x-show="st === 'approved'" class="uj-tab-stack">
-                @include('partials.leave-decided-list', ['items' => $decApproved, 'kind' => 'approved'])
+                @include('partials.leave-decided-list', ['items' => $decApproved, 'kind' => $decKind])
             </div>
             <div x-show="st === 'rejected'" class="uj-tab-stack">
                 @include('partials.leave-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])

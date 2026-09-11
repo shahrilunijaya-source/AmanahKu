@@ -683,6 +683,29 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertSee('You have not rejected anything this year.', false);
     }
 
+    /** A plain manager never approves; their history chip is what they verified. */
+    public function test_a_plain_manager_sees_the_claims_they_verified(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->claim($report, 'verified', $manager->id, 'Waiting')->update(['verified_at' => now()]);
+        $this->claim($report, 'paid', $manager->id, 'Reimbursed')->update([
+            'verified_at' => now(), 'approved_by_id' => $mgmt->id, 'approved_at' => now(),
+        ]);
+
+        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
+            ->assertViewHas('claimsVerifiedByMe', fn ($c) => $c->count() === 2)
+            ->assertSee('Verified this year', false)
+            ->assertSee('with management', false)
+            ->assertDontSee('Approved this year', false);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
+            ->assertViewHas('claimsVerifiedByMe', fn ($c) => $c->isEmpty())
+            ->assertSee('Approved this year', false);
+    }
+
     // --- HR files on someone's behalf ------------------------------------------
 
     public function test_hr_can_file_a_claim_for_an_employee_and_it_routes_to_that_persons_manager(): void

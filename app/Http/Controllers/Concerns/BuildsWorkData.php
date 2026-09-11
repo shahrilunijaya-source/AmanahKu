@@ -434,6 +434,10 @@ trait BuildsWorkData
             // 2026_09_02 decision trail recorded no approver, so they stay out for good.
             $data['claimsApprovedByMe'] = $this->scopeApprovedByViewer(Claim::with('employee'), $request, ['approved', 'cancelled', 'paid'])->latest('approved_at')->get();
             $data['claimsRejectedByMe'] = $this->scopeRejectedByViewer(Claim::with('employee'), $request)->latest('rejected_at')->get();
+            // A plain manager never approves, so their history is what they verified.
+            $data['claimsVerifiedByMe'] = $givesFinalApproval
+                ? collect()
+                : $this->scopeVerifiedByViewer(Claim::with('employee'), $request)->latest('verified_at')->get();
         }
 
         if ($privileged) {
@@ -489,6 +493,12 @@ trait BuildsWorkData
             'leaveRejectedByMe' => $this->scopeRejectedByViewer(
                 LeaveRequest::with(['employee', 'leaveType']), $request,
             )->latest('rejected_at')->get(),
+            // A plain manager never approves, so their history is what they verified.
+            'leaveVerifiedByMe' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES)
+                ? collect()
+                : $this->scopeVerifiedByViewer(
+                    LeaveRequest::with(['employee', 'leaveType']), $request,
+                )->latest('verified_at')->get(),
             // Gates the tab itself. Deliberately not "is anything pending" — see
             // canReviewAnything: a cleared queue must not take the history with it.
             'leaveCanReview' => $this->canReviewAnything($request),
