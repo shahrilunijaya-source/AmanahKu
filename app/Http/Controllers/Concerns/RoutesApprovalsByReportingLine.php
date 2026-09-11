@@ -310,6 +310,19 @@ trait RoutesApprovalsByReportingLine
             ->whereYear('approved_at', now()->year);
     }
 
+    /**
+     * The viewer's VERIFIED history: requests they passed up the chain this year, whatever
+     * became of them after — still with management, approved, declined there, or withdrawn.
+     * This is the history a plain manager shows in place of the approved one: they never
+     * give final approval, so their approved list would stay empty forever.
+     */
+    protected function scopeVerifiedByViewer(Builder $query, Request $request): Builder
+    {
+        return $query
+            ->where('verified_by_id', $this->actingEmployeeId($request))
+            ->whereYear('verified_at', now()->year);
+    }
+
     /** The same for refusals, matched on the rejecter alone. See scopeApprovedByViewer(). */
     protected function scopeRejectedByViewer(Builder $query, Request $request): Builder
     {

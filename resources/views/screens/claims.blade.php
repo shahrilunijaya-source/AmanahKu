@@ -52,7 +52,10 @@
     // Decisions this viewer made themselves this year. Kept off the pending count on
     // purpose: these are history, not work. Empty for everyone until the 2026_09_02
     // decision trail has some claims to record.
-    $decApproved = $claimsApprovedByMe ?? collect();
+    // A plain manager never gives final approval, so their first history chip is what
+    // they verified instead — an approved list would sit at 0 for them forever.
+    $decKind = ($givesFinalApproval ?? false) ? 'approved' : 'verified';
+    $decApproved = $decKind === 'approved' ? ($claimsApprovedByMe ?? collect()) : ($claimsVerifiedByMe ?? collect());
     $decRejected = $claimsRejectedByMe ?? collect();
 
     $sc = ['cancelled' => 'muted', 'submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
@@ -266,7 +269,7 @@
                     <b>{{ $reviewCount }}</b>
                 </button>
                 <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
-                    <span x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'">Approved</span>
+                    <span x-text="$store.ui.lang==='en' ? @js($decKind === 'approved' ? 'Approved' : 'Verified') : @js($decKind === 'approved' ? 'Diluluskan' : 'Disahkan')">{{ $decKind === 'approved' ? 'Approved' : 'Verified' }}</span>
                     <b>{{ $decApproved->count() }}</b>
                 </button>
                 <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
@@ -310,7 +313,7 @@
 
             {{-- ── Decided this year ── --}}
             <div x-show="st === 'approved'" class="uj-tab-stack">
-                @include('partials.claims-decided-list', ['items' => $decApproved, 'kind' => 'approved'])
+                @include('partials.claims-decided-list', ['items' => $decApproved, 'kind' => $decKind])
             </div>
             <div x-show="st === 'rejected'" class="uj-tab-stack">
                 @include('partials.claims-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])
