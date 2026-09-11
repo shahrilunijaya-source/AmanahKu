@@ -165,11 +165,21 @@ class ProfileCoverTest extends TestCase
         $this->signIn($hr)->post(route('employees.cover.destroy', $stranger))->assertNotFound();
     }
 
+    public function test_a_phone_sized_cover_up_to_ten_megabytes_is_accepted(): void
+    {
+        $me = $this->person('employee');
+
+        $this->signIn($me)->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->image('c.jpg', 1600, 600)->size(8000)])
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertNotNull($me->fresh()->cover_path);
+    }
+
     public function test_bad_uploads_are_rejected(): void
     {
         $me = $this->person('employee');
 
-        $this->signIn($me)->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->create('big.jpg', 6000, 'image/jpeg')])->assertSessionHasErrors('photo');
+        $this->signIn($me)->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->create('big.jpg', 11000, 'image/jpeg')])->assertSessionHasErrors('photo');
         $this->signIn($me)->post(route('employees.cover.update', $me), ['photo' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])->assertSessionHasErrors('photo');
         $this->signIn($me)->post(route('employees.cover.update', $me), [])->assertSessionHasErrors('photo');
     }

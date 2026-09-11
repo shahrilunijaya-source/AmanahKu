@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceIncident;
 use App\Models\AttendanceRecord;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -262,6 +264,37 @@ class AttendanceAdminController extends Controller
         );
 
         return back()->with('ok', 'Clock-out set to '.$out->format('H:i').'.');
+    }
+
+    /**
+     * CR-17: HR marks a window (e.g. "clock server down 09:00-10:00") during which every
+     * clock-in reads "Unverified" on the management lateness panel instead of late. HR
+     * only — deliberately narrower than PRIVILEGED_ROLES, which also admits 'management'.
+     */
+    public function storeIncident(Request $request): JsonResponse|RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['hr']);
+
+        $data = $request->validate([
+            'starts_at' => ['required', 'date'],
+            'ends_at' => ['required', 'date', 'after:starts_at'],
+            'note' => ['required', 'string', 'max:255'],
+        ]);
+
+        $actor = $request->attributes->get('employee');
+
+        $incident = AttendanceIncident::create([
+            'starts_at' => $data['starts_at'],
+            'ends_at' => $data['ends_at'],
+            'note' => $data['note'],
+            'created_by_id' => $actor?->id,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'id' => $incident->id]);
+        }
+
+        return back()->with('ok', 'Incident window marked: '.$incident->starts_at->format('j M H:i').' to '.$incident->ends_at->format('j M H:i').'.');
     }
 
     /** @return array<string,mixed> */

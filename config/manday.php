@@ -26,4 +26,12 @@ return [
 
     // Working hours assumed per day (manday -> manhour conversion).
     'hours_per_day' => 8,
+
+    // CR-03: a day must be submitted by this time (HH:MM, app timezone) on the next
+    // working day, or it is flagged late.
+    'day_submit_deadline' => env('TIMESHEET_DAY_DEADLINE', '10:00'),
+
+    // CR-03: how many working days back a staffer may still edit a day without a
+    // manager unlock.
+    'edit_window_working_days' => 3,
 ];

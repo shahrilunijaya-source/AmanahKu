@@ -60,13 +60,16 @@
                     <span x-text="$store.ui.lang==='en' ? 'Saved' : 'Disimpan'">Saved</span>
                 </span>
                 <div style="position:relative;">
-                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu"
+                    <button type="button" class="wd-ico" @click="drawer.menuOpen = !drawer.menuOpen" aria-haspopup="menu" data-tip-below data-tip-end :data-tip="$store.ui.lang==='en' ? 'Archive, cancel or delete' : 'Arkib, batal atau padam'"
                             :aria-expanded="drawer.menuOpen ? 'true' : 'false'" :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Tindakan lain'">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
                     </button>
                     <div class="wd-menu" x-show="drawer.menuOpen" x-cloak @click.outside="drawer.menuOpen = false" role="menu">
                         <button type="button" role="menuitem" x-show="!drawer.locked && drawer.card.status === 'done' && !drawer.card.parent_id" @click="drawer.menuOpen = false; archiveCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Archive card' : 'Arkibkan kad'">Archive card</span>
+                        </button>
+                        <button type="button" role="menuitem" x-show="!drawer.locked && !drawer.card.parent_id && !drawer.card.cancelled_at" @click="drawer.menuOpen = false; cancelCard()">
+                            <span x-text="$store.ui.lang==='en' ? 'Cancel card (with reason)' : 'Batalkan kad (dengan sebab)'">Cancel card (with reason)</span>
                         </button>
                         <button type="button" role="menuitem" class="is-danger" x-show="!drawer.locked" @click="drawer.menuOpen = false; deleteCard()">
                             <span x-text="$store.ui.lang==='en' ? 'Delete card' : 'Padam kad'">Delete card</span>
@@ -76,7 +79,7 @@
             @else
                 <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="drawer.card.parent_id ? (drawer.card.status === 'done' ? 'Done' : 'Open') : ((@js($statusLabels))[drawer.card.status] || '')"></span>
             @endif
-            <button type="button" class="wd-ico" @click="closeDrawer()" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
+            <button type="button" class="wd-ico" @click="closeDrawer()" data-tip-below data-tip-end :data-tip="$store.ui.lang==='en' ? 'Close (Esc)' : 'Tutup (Esc)'" :aria-label="$store.ui.lang==='en' ? 'Close' : 'Tutup'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -106,21 +109,35 @@
                     @else
                         <h2 class="wd-title" id="wd-title" x-text="drawer.card.title"></h2>
                     @endif
-                    <p class="wd-sub" x-text="drawer.sub"></p>
+                    <p class="wd-sub">
+                        <span x-text="drawer.sub"></span>
+                        {{-- CR-19: " · ⚡ Closed automatically <date>" once the card carries the Auto marker. --}}
+                        <template x-if="drawer.card.auto_closed_label">
+                            <span class="wd-meta-auto">
+                                &middot;
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+                                <span x-text="($store.ui.lang==='en' ? 'Closed automatically' : 'Ditutup automatik') + ' ' + drawer.card.auto_closed_label"></span>
+                            </span>
+                        </template>
+                    </p>
 
                     <div class="wd-props">
-                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Task is yours, Assignment came from someone, Adhoc is a quick one-off' : 'Tugas milik anda, Tugasan datang dari orang lain, Adhoc kerja kecil sekali lalu'" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</span>
                         <span class="wd-pval" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.type" :disabled="drawer.locked" @change="commitField('type', drawer.card.type)">
+                                    {{-- An Event card (imported from Google Calendar) can be converted to a
+                                         Task/Assignment/Adhoc, never the other way round, so Event is only
+                                         offered while the card still is one. --}}
+                                    <option value="event" x-show="drawer.card.type === 'event'" :disabled="drawer.card.type !== 'event'">Event</option>
                                     @foreach ($typeLabels as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
                                 </select>
                             @else
-                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="(@js($typeLabels))[drawer.card.type] || ''"></span>
+                                <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.type === 'event' ? 'Event' : ((@js($typeLabels))[drawer.card.type] || '')"></span>
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Only High shows on the card. Medium is the default.' : 'Hanya Tinggi tertera di kad. Sederhana ialah lalai.'" x-text="$store.ui.lang==='en' ? 'Priority' : 'Keutamaan'">Priority</span>
                         <span class="wd-pval">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.priority" :disabled="drawer.locked" @change="commitField('priority', drawer.card.priority)">
@@ -131,7 +148,7 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Locks the moment it is saved. Ask HR if it must change.' : 'Dikunci sebaik disimpan. Minta HR jika perlu ubah.'" x-text="$store.ui.lang==='en' ? 'Due' : 'Tarikh akhir'">Due</span>
                         <span class="wd-pval" style="position:relative;display:inline-block;">
                             @if ($interactive)
                                 {{-- Dates render as "30 Jul 2026" everywhere, matching the card face — a bare
@@ -140,12 +157,16 @@
                                      transparent, so the tap itself lands on the native control — iOS only raises its
                                      date wheel from a direct tap, a synthetic .click()/.focus() on a hidden 1px
                                      input (the old approach) is silently ignored on iOS Safari without showPicker(). --}}
-                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked"
+                                {{-- Once a work card has a due date it never changes (date-calendar-rules §1):
+                                     the picker is disabled and the hint below says how to move the work. --}}
+                                <button type="button" class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.due_at }" :disabled="drawer.locked || (!!drawer.card.due_at && drawer.card.type !== 'event')"
                                         @click="openDuePicker()" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'Set a due date' : 'Tetapkan tarikh akhir')"></button>
-                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked"
+                                <input type="date" x-ref="dueInput" :value="drawer.card.due_at || ''" :disabled="drawer.locked || (!!drawer.card.due_at && drawer.card.type !== 'event')"
                                        @click="openDuePicker()"
                                        @change="commitField('due_at', $event.target.value || null)"
                                        style="position:absolute;inset:0;opacity:0;width:100%;height:100%;pointer-events:auto;cursor:pointer;" />
+                                <span class="wd-due-lock" x-show="!drawer.locked && !!drawer.card.due_at && drawer.card.type !== 'event'" x-cloak
+                                      x-text="$store.ui.lang==='en' ? 'Locked. If the work has moved, cancel this card with a reason and create a new one.' : 'Dikunci. Jika kerja ini berubah tarikh, batalkan kad ini dengan sebab dan cipta kad baharu.'"></span>
                             @else
                                 <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="drawer.card.due_label || ($store.ui.lang==='en' ? 'No due date' : 'Tiada tarikh akhir')"></span>
                             @endif
@@ -162,7 +183,7 @@
                              Development and Maintenance are done on a job, HR and Admin, Charity
                              and Others are not. An empty project list is the server saying the
                              question does not arise — see WorkItem::projectOptions(). --}}
-                        <span class="wd-plabel" x-show="!drawer.card.parent_id" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
+                        <span class="wd-plabel" x-show="!drawer.card.parent_id" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Feeds the timesheet. A card with no category cannot be logged.' : 'Masuk ke timesheet. Kad tanpa kategori tidak boleh direkod.'" x-text="$store.ui.lang==='en' ? 'Category · Project' : 'Kategori · Projek'">Category · Project</span>
                         <span class="wd-pval wd-ppair" x-show="!drawer.card.parent_id">
                             @if ($interactive)
                                 <select class="wd-inline" x-model="drawer.card.timesheet_category_id" :disabled="drawer.locked"
@@ -197,7 +218,7 @@
                             @endif
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'">Labels</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Tags for filtering the board. Recurring cards come back on their own.' : 'Tag untuk tapis papan. Kad berulang muncul semula sendiri.'" x-text="$store.ui.lang==='en' ? 'Labels' : 'Label'">Labels</span>
                         <span class="wd-pval">
                             <span class="wd-chiprow">
                                 <template x-for="lk in drawer.card.labels" :key="lk">
@@ -221,7 +242,7 @@
                             </span>
                         </span>
 
-                        <span class="wd-plabel" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'">People</span>
+                        <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Helper does part of the work. FYI only watches.' : 'Pembantu buat sebahagian kerja. FYI hanya lihat.'" x-text="$store.ui.lang==='en' ? 'People' : 'Orang'">People</span>
                         <span class="wd-pval">
                             <span class="wd-chiprow">
                                 <template x-if="!drawer.locked">
@@ -229,6 +250,10 @@
                                         <span style="display:inline-flex;align-items:center;gap:6px;padding:3px 8px 3px 4px;border:1px solid var(--hairline);border-radius:9999px;font-size:12px;font-weight:500;color:var(--ink);background:#fff;">
                                             <span class="wa" :style="'margin-left:0;width:22px;height:22px;font-size:9px;background:' + (p.color || 'var(--muted)')" x-text="p.initials"></span>
                                             <span x-text="p.name"></span>
+                                            {{-- CR-04: Helper does part of the work, FYI only watches. Click to flip. --}}
+                                            <button type="button" class="wd-role-toggle" @click="setPersonRole(p.id, p.role === 'fyi' ? 'helper' : 'fyi')"
+                                                    :data-tip="$store.ui.lang==='en' ? 'Helper does part of the work, FYI only watches. Click to flip.' : 'Pembantu buat sebahagian kerja, FYI hanya lihat. Klik untuk tukar.'" data-tip-wrap data-tip-start
+                                                    x-text="p.role === 'fyi' ? 'FYI' : ($store.ui.lang==='en' ? 'Helper' : 'Pembantu')"></button>
                                             <button type="button" @click="removePerson(p.id)" :aria-label="($store.ui.lang==='en' ? 'Remove ' : 'Buang ') + p.name"
                                                     style="border:0;background:none;color:var(--muted);font-size:14px;line-height:1;cursor:pointer;padding:0;">×</button>
                                         </span>
@@ -237,7 +262,7 @@
                                 <template x-if="drawer.locked && drawer.card.participants.length">
                                     <span class="wa-stack">
                                         <template x-for="p in drawer.card.participants" :key="'ro'+p.id">
-                                            <span class="wa" :style="'background:' + (p.color || 'var(--muted)')" :title="p.name" x-text="p.initials"></span>
+                                            <span class="wa" :style="'background:' + (p.color || 'var(--muted)')" :title="p.name + (p.role === 'fyi' ? ' (FYI)' : ' (Helper)')" x-text="p.initials"></span>
                                         </template>
                                     </span>
                                 </template>
@@ -255,7 +280,12 @@
                                                :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
                                                :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'" autocomplete="off">
                                         <template x-for="p in filteredPeople" :key="p.id">
-                                            <button type="button" role="menuitem" @click="addPerson(p.id); drawer.peopleQuery = ''" x-text="p.name"></button>
+                                            <div class="wd-tag-row" role="none">
+                                                <span x-text="p.name"></span>
+                                                <button type="button" role="menuitem" class="wd-role-pick" @click="addPerson(p.id, 'helper'); drawer.peopleQuery = ''"
+                                                        x-text="$store.ui.lang==='en' ? 'Helper' : 'Pembantu'"></button>
+                                                <button type="button" role="menuitem" class="wd-role-pick" @click="addPerson(p.id, 'fyi'); drawer.peopleQuery = ''">FYI</button>
+                                            </div>
                                         </template>
                                         <template x-if="!filteredPeople.length">
                                             <span class="wd-inline wd-inline--empty" style="margin:0;padding-left:0;" x-text="$store.ui.lang==='en' ? 'Nobody found' : 'Tiada sesiapa dijumpai'"></span>
@@ -264,7 +294,107 @@
                                 </span>
                             </span>
                         </span>
+
+                        {{-- CR-30 Request Help: the explicit escalation. Tags a Helper and sends one message.
+                             Anyone but the owner may be asked; an FYI person becomes a Helper.
+                             A reaction, Send Help included, never does this. --}}
+                        <template x-if="!drawer.locked && reviewerOptions.length">
+                            <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Pings a teammate with your message. They can then join as Helper.' : 'Hantar mesej kepada rakan. Mereka boleh sertai sebagai Pembantu.'" x-text="$store.ui.lang==='en' ? 'Request help' : 'Minta bantuan'">Request help</span>
+                        </template>
+                        <template x-if="!drawer.locked && reviewerOptions.length">
+                            <span class="wd-pval">
+                                <span class="wd-help-row">
+                                    <input type="text" class="wd-inline" list="wd-help-names" autocomplete="off" x-model="drawer.helpName"
+                                           @input="drawer.helpId = idFromName(drawer.helpName)"
+                                           :placeholder="$store.ui.lang==='en' ? 'Who?' : 'Siapa?'"
+                                           :aria-label="$store.ui.lang==='en' ? 'Who to ask' : 'Siapa untuk diminta'">
+                                    <datalist id="wd-help-names">
+                                        <template x-for="p in reviewerOptions" :key="'hp'+p.id">
+                                            <option :value="p.name"></option>
+                                        </template>
+                                    </datalist>
+                                    <input type="text" class="wd-inline" maxlength="200" x-model="drawer.helpMessage"
+                                           :placeholder="$store.ui.lang==='en' ? 'What do you need?' : 'Apa yang anda perlukan?'"
+                                           @keydown.enter.prevent="requestHelp()">
+                                    <button type="button" class="wd-add" @click="requestHelp()" :disabled="!drawer.helpId || !drawer.helpMessage.trim()"
+                                            x-text="$store.ui.lang==='en' ? 'Ask' : 'Minta'"></button>
+                                </span>
+                            </span>
+                        </template>
+
+                        {{-- CR-18 Linked event: a recurring card (the company social) names the Event its
+                             "Create Event" step produced. Everyone must be on the event first; the server
+                             ticks that subtask, and the card cannot reach Done until the event is closed out. --}}
+                        <template x-if="drawer.card.company_event || (drawer.card.event_options || []).length">
+                            <span class="wd-plabel" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Ties this card to a company event so attendance closes it.' : 'Kaitkan kad dengan acara syarikat supaya kehadiran menutupnya.'" x-text="$store.ui.lang==='en' ? 'Linked event' : 'Acara berkaitan'">Linked event</span>
+                        </template>
+                        <template x-if="drawer.card.company_event">
+                            <span class="wd-pval" data-linked-event>
+                                <span x-text="drawer.card.company_event.title + (drawer.card.company_event.date ? ' · ' + drawer.card.company_event.date : '')"></span>
+                            </span>
+                        </template>
+                        <template x-if="!drawer.card.company_event && (drawer.card.event_options || []).length">
+                            <span class="wd-pval">
+                                <span class="wd-help-row">
+                                    <select class="wd-inline" x-model="drawer.eventId" :disabled="drawer.locked" :aria-label="$store.ui.lang==='en' ? 'Which event' : 'Acara mana'">
+                                        <option value="" x-text="$store.ui.lang==='en' ? 'Which event?' : 'Acara mana?'"></option>
+                                        <template x-for="e in drawer.card.event_options" :key="'ev'+e.id">
+                                            <option :value="e.id" x-text="e.title + (e.date ? ' · ' + e.date : '')"></option>
+                                        </template>
+                                    </select>
+                                    <button type="button" class="wd-add" @click="linkEvent()" :disabled="drawer.locked || !drawer.eventId"
+                                            x-text="$store.ui.lang==='en' ? 'Link' : 'Pautkan'"></button>
+                                </span>
+                            </span>
+                        </template>
+
+                        {{-- CR-04 Reviewer: set by PM and above; alone moves the card from In Review to Done. --}}
+                        <span class="wd-plabel" x-show="drawer.card.can_set_reviewer || drawer.card.reviewer" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Signs the card off. It cannot reach Done without them.' : 'Mengesahkan kad. Tidak boleh Selesai tanpa mereka.'" x-text="$store.ui.lang==='en' ? 'Reviewer' : 'Penyemak'">Reviewer</span>
+                        <span class="wd-pval" x-show="drawer.card.can_set_reviewer || drawer.card.reviewer">
+                            {{-- The server says who may set it (PM and above, covering the owner), so the
+                                 control follows can_set_reviewer rather than the drawer lock: the team board
+                                 is otherwise read-only, yet it is where a PM meets a staff member's card. --}}
+                            <template x-if="drawer.card.can_set_reviewer">
+                                <input type="text" class="wd-inline" list="wd-reviewer-names" autocomplete="off"
+                                       :value="drawer.card.reviewer ? drawer.card.reviewer.name : ''"
+                                       :placeholder="$store.ui.lang==='en' ? 'No reviewer' : 'Tiada penyemak'"
+                                       @change="const id = idFromName($event.target.value); if (id || !$event.target.value.trim()) { setReviewer(id); } else { $event.target.value = drawer.card.reviewer ? drawer.card.reviewer.name : ''; }">
+                                <datalist id="wd-reviewer-names">
+                                    <template x-for="p in reviewerOptions" :key="'rv'+p.id">
+                                        <option :value="p.name"></option>
+                                    </template>
+                                </datalist>
+                            </template>
+                            <template x-if="!drawer.card.can_set_reviewer">
+                                <span class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.reviewer }" style="margin:0;padding-left:0;"
+                                      x-text="drawer.card.reviewer ? drawer.card.reviewer.name : ($store.ui.lang==='en' ? 'None' : 'Tiada')"></span>
+                            </template>
+                        </span>
+
+                        {{-- CR-28: Milestone — set by PM and above; only a Milestone card can ring the Victory Bell. --}}
+                        <span class="wd-plabel" x-show="drawer.card.can_set_milestone || drawer.card.is_milestone" data-tip-below data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Big deal card. PM and above set it, and only a Milestone can ring the bell.' : 'Kad besar. PM ke atas tetapkan, dan hanya Pencapaian boleh bunyikan loceng.'" x-text="$store.ui.lang==='en' ? 'Milestone' : 'Pencapaian'">Milestone</span>
+                        <span class="wd-pval" x-show="drawer.card.can_set_milestone || drawer.card.is_milestone">
+                            <template x-if="drawer.card.can_set_milestone">
+                                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" :checked="drawer.card.is_milestone" :disabled="drawer.locked"
+                                           @change="setMilestone($event.target.checked)">
+                                    <span x-text="$store.ui.lang==='en' ? 'Flag as Milestone' : 'Tanda sebagai Pencapaian'"></span>
+                                </label>
+                            </template>
+                            <template x-if="!drawer.card.can_set_milestone">
+                                <span class="wd-inline" :class="{ 'wd-inline--empty': !drawer.card.is_milestone }" style="margin:0;padding-left:0;"
+                                      x-text="drawer.card.is_milestone ? ($store.ui.lang==='en' ? 'Milestone' : 'Pencapaian') : ($store.ui.lang==='en' ? 'None' : 'Tiada')"></span>
+                            </template>
+                        </span>
                     </div>
+
+                    {{-- CR-28: persistent "Ring the bell" action for a Done, unrung Milestone
+                         card — the toast (work-board.js ringPrompt) offers it right after the
+                         move; this stays for later. --}}
+                    <template x-if="drawer.card.can_ring_bell">
+                        <button type="button" class="uj-btn-ghost" style="align-self:flex-start;" @click="ringBell()" data-tip-start data-tip-wrap :data-tip="$store.ui.lang==='en' ? 'Tells the whole company this milestone landed. Once per card.' : 'Beritahu seluruh syarikat pencapaian ini tercapai. Sekali setiap kad.'"
+                                x-text="$store.ui.lang==='en' ? '🔔 Ring the bell' : '🔔 Bunyikan loceng'"></button>
+                    </template>
 
                     <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Description' : 'Penerangan'">Description</h3>
                     <textarea class="wd-desc" x-model="drawer.card.description" :readonly="drawer.locked" maxlength="5000"
@@ -293,8 +423,12 @@
                         <template x-if="!drawer.card.parent_id && drawer.canAddChild && drawer.family && !drawer.family.children.length">
                             <div>
                                 <h3 class="wd-sech" x-text="$store.ui.lang==='en' ? 'Subtasks' : 'Subtugas'">Subtasks</h3>
-                                <input class="wd-inline" style="margin:0 0 12px;" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
+                                <input class="wd-inline" style="margin:0 0 6px;" x-model="drawer.newChildTitle" maxlength="160" :disabled="drawer.addingChild"
                                        :placeholder="$store.ui.lang==='en' ? '+ Add a subtask' : '+ Tambah subtugas'"
+                                       @keydown.enter.prevent="addChild()">
+                                {{-- Due date first: a subtask's date locks on first save. --}}
+                                <input type="date" class="wd-inline" style="margin:0 0 12px;" x-model="drawer.newChildDueAt" :disabled="drawer.addingChild"
+                                       :aria-label="$store.ui.lang==='en' ? 'Subtask due date' : 'Tarikh akhir subtugas'"
                                        @keydown.enter.prevent="addChild()">
                             </div>
                         </template>
@@ -339,19 +473,84 @@
 
                     <h3 class="wd-sech" x-text="drawer.comments.length ? (($store.ui.lang==='en' ? 'Comments' : 'Komen') + ' (' + drawer.comments.length + ')') : ($store.ui.lang==='en' ? 'Comments' : 'Komen')">Comments</h3>
                     <div class="wd-cmts">
-                        <template x-for="c in drawer.comments" :key="c.id">
-                            <div class="wd-cmt">
-                                <span class="wa" :style="'background:' + c.color" x-text="c.initials"></span>
+                        <template x-for="c in drawer.comments.filter((x) => !x.parent_id)" :key="c.id">
+                            <div class="wd-cmt" :class="{ 'wd-cmt--system': c.is_system }">
+                                {{-- CR-19: an auto-close activity line carries no employee_id — a system
+                                     mark renders instead of an avatar. --}}
+                                <span class="wd-cmt-mark" x-show="c.is_system"><svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg></span>
+                                <span class="wa" :style="'background:' + c.color" x-text="c.initials" x-show="!c.is_system"></span>
                                 <div style="flex:1;min-width:0;">
                                     <div class="wd-cmt-who">
                                         <span class="wd-cmt-name" x-text="c.author"></span>
                                         <span class="wd-cmt-at" x-text="c.when"></span>
-                                        <button type="button" x-show="c.mine" @click="deleteComment(c.id)" style="margin-left:auto;font-size:11px;color:var(--muted);background:transparent;cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                        {{-- CR-08: an official record in Track, with its version; greyed once withdrawn. --}}
+                                        <span class="wd-cmt-track" x-show="c.pushed && !c.withdrawn_reason"
+                                              :title="$store.ui.lang==='en' ? 'Official record in Track' : 'Rekod rasmi dalam Track'"
+                                              x-text="($store.ui.lang==='en' ? 'In Track' : 'Dalam Track') + (c.track_version > 1 ? ' · v' + c.track_version : '')"></span>
+                                        <span class="wd-cmt-track wd-cmt-track--off" x-show="c.withdrawn_reason"
+                                              :title="c.withdrawn_reason"
+                                              x-text="$store.ui.lang==='en' ? 'Withdrawn' : 'Ditarik balik'"></span>
+                                        <span class="wd-cmt-acts" x-show="!c.is_system && drawer.editing.id !== c.id">
+                                            <button type="button" @click="replyTo(c)" x-show="!c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Reply' : 'Balas'"></button>
+                                            <button type="button" @click="startEditComment(c)" x-show="c.mine && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
+                                            <button type="button" @click="withdrawComment(c)" x-show="c.mine && c.pushed && !c.withdrawn_reason" x-text="$store.ui.lang==='en' ? 'Withdraw' : 'Tarik balik'"></button>
+                                            <button type="button" @click="deleteComment(c.id)" x-show="c.mine && !c.pushed" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                        </span>
                                     </div>
                                     {{-- Escaped first, then tinted: c.body is user input, and renderCommentBody()
                                          only ever wraps exact-match substrings of the card's own mentionable
                                          names inside the ALREADY-escaped string — see work-board.js/team-board.js. --}}
-                                    <div class="wd-cmt-body" x-html="renderCommentBody(c.body)"></div>
+                                    <div class="wd-cmt-body" :class="{ 'wd-cmt-body--off': c.withdrawn_reason }" x-show="drawer.editing.id !== c.id" x-html="renderCommentBody(c.body)"></div>
+                                    {{-- CR-08: files on the comment. A lock marks a confidential file (never leaves
+                                         the card); a small "Track" tag marks one that went with the push. --}}
+                                    <div class="wd-cmt-files" x-show="c.attachments && c.attachments.length">
+                                        <template x-for="a in (c.attachments || [])" :key="a.id">
+                                            <a class="wd-file" :href="a.url" target="_blank" rel="noopener" :title="a.name + ' · ' + fileSize(a.size)">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                                                <span class="wd-file-name" x-text="a.name"></span>
+                                                <span class="wd-file-tag wd-file-tag--lock" x-show="a.confidential" x-text="$store.ui.lang==='en' ? 'Confidential' : 'Sulit'"></span>
+                                                <span class="wd-file-tag wd-file-tag--track" x-show="a.pushed" x-text="'Track'"></span>
+                                            </a>
+                                        </template>
+                                    </div>
+                                    <template x-if="drawer.editing.id === c.id">
+                                        <div class="wd-cmt-edit">
+                                            <textarea x-model="drawer.editing.body" rows="2" maxlength="2000" @keydown.enter.meta.prevent="saveEditComment()" @keydown.escape.stop="cancelEditComment()"></textarea>
+                                            <p x-show="c.pushed" x-text="$store.ui.lang==='en' ? 'Saving makes a new version in Track; the old one stays in its history.' : 'Simpan akan buat versi baharu dalam Track; yang lama kekal dalam sejarah.'"></p>
+                                            <div>
+                                                <button type="button" class="uj-btn-primary" @click="saveEditComment()" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'"></button>
+                                                <button type="button" @click="cancelEditComment()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    {{-- Replies: comments whose parent_id points at this one, oldest first. --}}
+                                    <div class="wd-cmt-replies" x-show="drawer.comments.some((r) => r.parent_id === c.id)">
+                                        <template x-for="r in drawer.comments.filter((x) => x.parent_id === c.id)" :key="r.id">
+                                            <div class="wd-cmt wd-cmt--reply">
+                                                <span class="wa" :style="'background:' + r.color" x-text="r.initials"></span>
+                                                <div style="flex:1;min-width:0;">
+                                                    <div class="wd-cmt-who">
+                                                        <span class="wd-cmt-name" x-text="r.author"></span>
+                                                        <span class="wd-cmt-at" x-text="r.when"></span>
+                                                        <span class="wd-cmt-acts" x-show="r.mine && drawer.editing.id !== r.id">
+                                                            <button type="button" @click="startEditComment(r)" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'"></button>
+                                                            <button type="button" @click="deleteComment(r.id)" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'"></button>
+                                                        </span>
+                                                    </div>
+                                                    <div class="wd-cmt-body" x-show="drawer.editing.id !== r.id" x-html="renderCommentBody(r.body)"></div>
+                                                    <template x-if="drawer.editing.id === r.id">
+                                                        <div class="wd-cmt-edit">
+                                                            <textarea x-model="drawer.editing.body" rows="2" maxlength="2000" @keydown.enter.meta.prevent="saveEditComment()" @keydown.escape.stop="cancelEditComment()"></textarea>
+                                                            <div>
+                                                                <button type="button" class="uj-btn-primary" @click="saveEditComment()" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'"></button>
+                                                                <button type="button" @click="cancelEditComment()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'"></button>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -368,6 +567,51 @@
              see mentionActiveQuery()/paintMention()/insertMention() in
              work-board.js (and its team-board.js counterpart). --}}
         <div class="wd-foot wd-foot--reveal" :class="{ 'has-text': drawer.newComment.trim().length }">
+            {{-- Replying: the composer posts under that comment until cleared. --}}
+            <div class="wd-replying" x-show="drawer.reply" x-cloak>
+                <span x-text="($store.ui.lang==='en' ? 'Replying to ' : 'Membalas ') + (drawer.reply ? drawer.reply.author : '')"></span>
+                <button type="button" @click="drawer.reply = null" :aria-label="$store.ui.lang==='en' ? 'Stop replying' : 'Berhenti membalas'">&times;</button>
+            </div>
+            {{-- CR-08: Push to Track. Only PM and above, or the project's PE/PM, see it. Off
+                 on every open, never remembered. Disabled with the reason when the project
+                 is not linked to Track or the card is Internal. Ticking shows the exact
+                 text Track will display. --}}
+            <template x-if="drawer.card.can_push_to_track">
+                <div class="wd-push" data-testid="push-to-track">
+                    <label :class="{ 'is-off': drawer.card.push_to_track_disabled }" :title="drawer.card.push_to_track_disabled || ''">
+                        <input type="checkbox" :checked="drawer.pushToTrack" :disabled="!!drawer.card.push_to_track_disabled" @change="togglePushToTrack()">
+                        <span x-text="$store.ui.lang==='en' ? 'Push to Track' : 'Hantar ke Track'"></span>
+                        <span class="wd-push-why" x-show="drawer.card.push_to_track_disabled" x-text="drawer.card.push_to_track_disabled"></span>
+                    </label>
+                    <div class="wd-push-prev" x-show="drawer.pushToTrack" x-cloak>
+                        <div class="wd-push-prev-h" x-text="$store.ui.lang==='en' ? 'Will appear in Track as' : 'Akan dipaparkan dalam Track sebagai'"></div>
+                        <div class="wd-push-prev-b" x-text="drawer.pushPreview || (drawer.newComment.trim() ? '…' : ($store.ui.lang==='en' ? 'Type the comment first.' : 'Tulis komen dahulu.'))"></div>
+                        <div class="wd-push-prev-files" x-show="drawer.files.length">
+                            <template x-for="(f, i) in drawer.files" :key="'pv' + i">
+                                <div class="wd-push-prev-file" :class="{ 'is-out': !fileGoesToTrack(f) }">
+                                    <span x-text="fileGoesToTrack(f) ? '✓' : '✕'"></span>
+                                    <span class="wd-file-name" x-text="f.file.name"></span>
+                                    <span class="wd-push-why" x-show="!fileGoesToTrack(f)" x-text="f.confidential ? ($store.ui.lang==='en' ? 'confidential, stays on the card' : 'sulit, kekal pada kad') : ($store.ui.lang==='en' ? 'not ticked' : 'tidak ditanda')"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="wd-push-prev-n" x-text="$store.ui.lang==='en' ? 'Mentions become plain names. Nobody in Track is notified. Once posted this is an official project record.' : 'Sebutan jadi nama biasa. Tiada sesiapa dalam Track dimaklumkan. Selepas dihantar ini menjadi rekod rasmi projek.'"></div>
+                    </div>
+                </div>
+            </template>
+            {{-- CR-08: files picked for this comment. Each may be marked Confidential
+                 (never leaves the card). With Push to Track on, each other file has its
+                 own Push tick, off by default. --}}
+            <div class="wd-files" x-show="drawer.files.length" x-cloak data-testid="comment-files">
+                <template x-for="(f, i) in drawer.files" :key="'f' + i">
+                    <div class="wd-files-row">
+                        <span class="wd-file-name" x-text="f.file.name" :title="f.file.name + ' · ' + fileSize(f.file.size)"></span>
+                        <label><input type="checkbox" x-model="f.confidential" @change="if (f.confidential) f.push = false; refreshPushPreview()"> <span x-text="$store.ui.lang==='en' ? 'Confidential' : 'Sulit'"></span></label>
+                        <label x-show="drawer.pushToTrack" :class="{ 'is-off': f.confidential }"><input type="checkbox" x-model="f.push" :disabled="f.confidential" @change="refreshPushPreview()"> <span x-text="$store.ui.lang==='en' ? 'Push' : 'Hantar'"></span></label>
+                        <button type="button" class="wd-files-x" @click="removeFile(i)" :aria-label="$store.ui.lang==='en' ? 'Remove file' : 'Buang fail'">×</button>
+                    </div>
+                </template>
+            </div>
             <div class="wd-ment" role="listbox" :data-open="drawer.mention.open ? '' : null"
                  :aria-label="$store.ui.lang==='en' ? 'Mention someone on this card' : 'Sebut seseorang pada kad ini'">
                 <template x-if="drawer.mention.open && !mentionPool.length">
@@ -388,9 +632,14 @@
                     </template>
                 </template>
             </div>
-            <textarea x-ref="newCommentEl" x-model="drawer.newComment" @input="onCommentInput($event)" @keydown="onCommentKeydown($event)"
+            <textarea x-ref="newCommentEl" x-model="drawer.newComment" @input="onCommentInput($event)" @input.debounce.400ms="refreshPushPreview()" @keydown="onCommentKeydown($event)"
                       @blur="setTimeout(() => closeMention(), 120)" @keydown.enter.meta.prevent="addComment()" rows="1" maxlength="2000"
                       :placeholder="$store.ui.lang==='en' ? 'Write a comment, or type @ to notify someone…' : 'Tulis komen, atau taip @ untuk maklumkan seseorang…'"></textarea>
+            <input type="file" x-ref="commentFiles" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" hidden @change="pickFiles($event)">
+            <button type="button" class="wd-attach" @click="$refs.commentFiles.click()" :title="$store.ui.lang==='en' ? 'Attach a file' : 'Lampirkan fail'" :aria-label="$store.ui.lang==='en' ? 'Attach a file' : 'Lampirkan fail'" data-testid="comment-attach">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                <span class="wd-attach-n" x-show="drawer.files.length" x-text="drawer.files.length"></span>
+            </button>
             <button type="button" class="uj-btn-primary wd-post" @click="addComment()">
                 <span x-text="$store.ui.lang==='en' ? 'Post' : 'Hantar'">Post</span>
             </button>

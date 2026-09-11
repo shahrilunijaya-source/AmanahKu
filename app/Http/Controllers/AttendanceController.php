@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Attendance\ClockService;
+use App\Attendance\HolidayEve;
+use App\Models\AppNotification;
 use App\Models\AttendanceAttempt;
 use App\Models\AttendanceRecord;
+use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -92,6 +96,21 @@ class AttendanceController extends Controller
             $request->file('photo'),
         );
 
+        // One audit line per successful punch (contract: audit-log.md). The service
+        // writes/updates the record but returns only a status/message pair, so the row
+        // is re-read here rather than threaded back through ClockService's return shape.
+        if ($result['status'] === 'ok') {
+            $record = $employee->attendanceRecords()->onDate($now)->first();
+            if ($record) {
+                AuditLog::change(
+                    $record,
+                    $validated['action'] === 'in' ? 'clock_in' : 'clock_out',
+                    null,
+                    $now->format('H:i:s'),
+                );
+            }
+        }
+
         // Understood and declined — a second clock-in on a day already punched. Not a
         // success: a green tick here reads as "punched again", which is the one thing it
         // did not do, and staff then believe they clocked twice.
@@ -124,7 +143,35 @@ class AttendanceController extends Controller
                 ->withErrors(['photo' => $result['message']]);
         }
 
+        // CR-20: a successful clock-out on the eve of a public holiday earns the greeting.
+        // The notification row doubles as the once-per-holiday latch (dedupe key), and it
+        // is the same bell the 5:30 PM sweep sends to anyone who never clocked out.
+        if ($validated['action'] === 'out') {
+            $this->greetHolidayEve($request, $employee, $now);
+        }
+
         return back()->with('clock_ok', $result['message']);
+    }
+
+    private function greetHolidayEve(Request $request, Employee $employee, Carbon $now): void
+    {
+        $eve = app(HolidayEve::class)->forDay($now);
+        if ($eve === null) {
+            return;
+        }
+
+        $payload = app(HolidayEve::class)->payload($eve['holiday'], $eve['next_working_day']);
+        $fresh = AppNotification::send(
+            $employee->user_id,
+            $payload['name'].' · '.$payload['greeting_en'],
+            'See you on '.$eve['next_working_day']->format('l j M').'.',
+            route('app.screen', 'attendance'),
+            HolidayEve::dedupeKey($payload['holiday_id']),
+        );
+
+        if ($fresh) {
+            $request->session()->flash('holiday_eve', $payload);
+        }
     }
 
     /**

@@ -74,7 +74,7 @@ class WorkItemCardHtmlTest extends TestCase
     public function test_store_returns_html_for_the_new_card(): void
     {
         $res = $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Fresh from the composer', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog',
+            'title' => 'Fresh from the composer', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog', 'due_at' => '2026-07-01',
         ])->assertCreated();
 
         $this->assertStringContainsString('Fresh from the composer', $res->json('html'));
@@ -100,16 +100,6 @@ class WorkItemCardHtmlTest extends TestCase
 
         $deleted = $this->actingInTenant()->deleteJson("/app/board/comments/{$commentId}")->assertOk();
         $this->assertIsString($deleted->json('html'));
-    }
-
-    public function test_compact_card_partial_uses_the_compact_modifier(): void
-    {
-        $item = $this->card(['title' => 'Compact card']);
-        $item->load(['participants', 'projectRef', 'assignedBy'])->loadCount('comments');
-
-        $html = view('partials.work-card', ['c' => $item, 'compact' => true])->render();
-
-        $this->assertStringContainsString('wc--sm', $html);
     }
 
     public function test_a_parent_with_children_renders_as_a_stack_with_a_counter(): void

@@ -159,7 +159,14 @@ class WorkItemDueDateTest extends TestCase
         $this->assertSame('high', $card->fresh()->priority);
     }
 
-    public function test_dropping_the_last_participant_leaves_the_card_editable_without_a_due(): void
+    /**
+     * assertDueDateRetained() no longer has the last say on whether a due date may
+     * clear: dropping the last participant still frees the card from THAT rule, but
+     * BoardRules::assertDueDateLocked() (S02, docs/build/contracts/dates.md Rule 1)
+     * refuses clearing a due date once set, unconditionally, with or without others
+     * on the card.
+     */
+    public function test_dropping_the_last_participant_still_does_not_unlock_the_due_date(): void
     {
         $alice = $this->person('Alice', 'alice@example.com');
         $card = $this->card(['due_at' => '2026-09-30']);
@@ -171,8 +178,9 @@ class WorkItemDueDateTest extends TestCase
 
         $this->actingInTenant()
             ->patchJson("/app/board/{$card->id}", ['due_at' => null])
-            ->assertOk();
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('due_at');
 
-        $this->assertNull($card->fresh()->due_at);
+        $this->assertNotNull($card->fresh()->due_at);
     }
 }

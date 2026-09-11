@@ -70,6 +70,7 @@ export function registerTeamBoard(Alpine) {
             priorityFilter: '',
             projectFilter: '',
             labelFilter: null,
+            search: '', // card title text, case-insensitive "contains"
             _closeTimer: null,
         },
         winVisibleCount: 0,
@@ -104,6 +105,12 @@ export function registerTeamBoard(Alpine) {
                 project_id: '', project: null, comments_count: 0, mentionable: [],
             },
             comments: [],
+            // CR-08: Push to Track (PM and above, or the project's PE/PM), see work-board.js.
+            pushToTrack: false,
+            reply: null, // comment being replied to, or null
+            files: [], // CR-08: [{ file, confidential, push }]
+            pushPreview: '',
+            editing: { id: null, body: '' },
             mention: { open: false, hits: [], idx: 0 },
             // Never opens here (drawer.locked), but the picker's directives still bind.
             peopleMenuOpen: false,
@@ -211,6 +218,9 @@ export function registerTeamBoard(Alpine) {
                 `${p.overdue} ${this.t('overdue', 'lewat')}`,
                 `${p.blocked} ${this.t('blocked', 'tersekat')}`,
                 `${p.in_review} ${this.t('in review', 'disemak')}`,
+                // CR-04: helper and reviewer load, reported beside the four counters.
+                ...(p.helping > 0 ? [`${this.t('helping on', 'membantu')} ${p.helping}`] : []),
+                ...(p.reviewing > 0 ? [`${this.t('reviewing', 'menyemak')} ${p.reviewing}`] : []),
             ].join(' · ');
         },
 
@@ -289,6 +299,13 @@ export function registerTeamBoard(Alpine) {
             this.win.priorityFilter = '';
             this.win.projectFilter = '';
             this.win.labelFilter = null;
+            // Carry the table search in only when it hit one of this person's
+            // card titles; a name-only hit would otherwise open an empty window.
+            const q = this.search.trim().toLowerCase();
+            this.win.search = q && this.$refs.winTaskBody
+                && [...this.$refs.winTaskBody.querySelectorAll(`[data-owner-id="${id}"] .wc-title`)].some((t) => t.textContent.toLowerCase().includes(q))
+                ? this.search.trim()
+                : '';
             this.applyWinFilter();
 
             this.win.show = true;
@@ -384,10 +401,12 @@ export function registerTeamBoard(Alpine) {
                 return;
             }
             const ownerId = String(this.win.person.id);
+            const q = this.win.search.trim().toLowerCase();
             let visible = 0;
             body.querySelectorAll('[data-id]').forEach((row) => {
                 const labels = (row.dataset.labels || '').split(',').filter(Boolean);
                 const matches = row.dataset.ownerId === ownerId
+                    && (!q || (row.querySelector('.wc-title')?.textContent || '').toLowerCase().includes(q))
                     && (!this.win.typeFilter || row.dataset.type === this.win.typeFilter)
                     && (!this.win.priorityFilter || row.dataset.priority === this.win.priorityFilter)
                     && (!this.win.projectFilter || row.dataset.project === this.win.projectFilter)
@@ -399,9 +418,73 @@ export function registerTeamBoard(Alpine) {
         },
 
         // ── Card detail drawer ─────────────────────────────────────
+        // CR-04: the one write this read-only drawer allows. A PM appoints the
+        // reviewer from here because the team board is the only place they see a
+        // staff member's card; the server gates it (manager tier + covers the owner).
+        // Type-to-search name fields (Request help, Reviewer): the typed name back to
+        // its id, or '' when it matches nobody on the roster.
+        idFromName(name) {
+            const q = (name || '').trim().toLowerCase();
+            const hit = q ? this.reviewerOptions.find((p) => p.name.toLowerCase() === q) : null;
+            return hit ? hit.id : '';
+        },
+
+        get reviewerOptions() {
+            const ownerId = this.drawer.card.employee_id;
+            return this.people.filter((p) => p.id !== ownerId);
+        },
+
+        async setReviewer(value) {
+            if (!this.drawer.id || !this.drawer.card.can_set_reviewer) return;
+            const id = value ? Number(value) : null;
+            this.drawer.error = '';
+            try {
+                const { card, html } = await this.api(`/app/board/${this.drawer.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ reviewer_id: id }),
+                });
+                this.drawer.card.reviewer_id = card.reviewer_id;
+                this.drawer.card.reviewer = card.reviewer;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not set the reviewer.', 'Tidak dapat menetapkan penyemak.');
+            }
+        },
+
+        // CR-28: same can_set_milestone gate as the personal board's setMilestone,
+        // but this drawer has no commitField()/toast — it PATCHes directly and
+        // repaints, exactly like setReviewer() just above.
+        async setMilestone(checked) {
+            if (!this.drawer.id || !this.drawer.card.can_set_milestone) return;
+            this.drawer.error = '';
+            try {
+                const { card, html } = await this.api(`/app/board/${this.drawer.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ is_milestone: checked }),
+                });
+                this.drawer.card.is_milestone = card.is_milestone;
+                this.repaintNode(html);
+            } catch (err) {
+                this.drawer.error = this.t('Could not set the milestone flag.', 'Tidak dapat menetapkan tanda pencapaian.');
+            }
+        },
+
+        // CR-28: the drawer's persistent "Ring the bell" button, mirroring the
+        // personal board's ringBell() — this surface has no toast store, so
+        // success/failure both surface through drawer.error (cleared on success).
+        async ringBell() {
+            if (!this.drawer.id) return;
+            this.drawer.error = '';
+            try {
+                await this.api(`/app/board/${this.drawer.id}/bell`, { method: 'POST', body: JSON.stringify({}) });
+            } catch (err) {
+                this.drawer.error = this.t('Could not ring the bell.', 'Tidak dapat membunyikan loceng.');
+            }
+        },
+
         async api(url, opts = {}) {
             const headers = { 'X-CSRF-TOKEN': this.token, Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-            if (opts.body) headers['Content-Type'] = 'application/json';
+            if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
             const res = await fetch(url, { headers, ...opts });
             if (!res.ok) throw new Error('Request failed: ' + res.status);
             return res.status === 204 ? null : res.json();
@@ -441,6 +524,11 @@ export function registerTeamBoard(Alpine) {
             this.drawer.family = null;
             this.drawer.ovOpen = false;
             this.drawer.newComment = '';
+            this.drawer.reply = null;
+            this.drawer.pushToTrack = false;
+            this.drawer.files = [];
+            this.drawer.pushPreview = '';
+            this.drawer.editing = { id: null, body: '' };
             this.drawer.labelMenuOpen = false;
             this.closeMention();
             this.drawer.show = true;
@@ -456,6 +544,8 @@ export function registerTeamBoard(Alpine) {
                     labels: card.labels ?? [],
                     links: card.links ?? [],
                     participants: card.participants ?? [],
+                    reviewer: card.reviewer ?? null,
+                    reviewer_id: card.reviewer_id ?? null,
                     mentionable: card.mentionable ?? [],
                     project_id: card.project?.id ?? '',
                 };
@@ -601,17 +691,32 @@ export function registerTeamBoard(Alpine) {
             return html;
         },
 
+        replyTo(c) {
+            this.drawer.reply = c;
+            this.$nextTick(() => this.$refs.newCommentEl && this.$refs.newCommentEl.focus());
+        },
+
         async addComment() {
             const body = this.drawer.newComment.trim();
             if (!body) return;
             this.closeMention();
             try {
-                const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, {
-                    method: 'POST',
-                    body: JSON.stringify({ body }),
+                const form = new FormData();
+                form.append('body', body);
+                if (this.drawer.reply) form.append('parent_id', String(this.drawer.reply.id));
+                form.append('push_to_track', this.drawer.pushToTrack ? '1' : '0');
+                this.drawer.files.forEach((f, i) => {
+                    form.append('attachments[]', f.file);
+                    if (f.confidential) form.append('attachments_confidential[]', String(i));
+                    if (f.push) form.append('attachments_push[]', String(i));
                 });
+                const { comment, count, html } = await this.api(`/app/board/${this.drawer.id}/comments`, { method: 'POST', body: form });
                 this.drawer.comments.push(comment);
+                this.drawer.reply = null;
                 this.drawer.newComment = '';
+                this.drawer.pushToTrack = false;
+                this.drawer.files = [];
+                this.drawer.pushPreview = '';
                 this.drawer.card.comments_count = count;
                 this.repaintNode(html);
             } catch (err) {
@@ -620,13 +725,111 @@ export function registerTeamBoard(Alpine) {
         },
 
         async deleteComment(id) {
+            const existing = this.drawer.comments.find((c) => c.id === id);
+            let reason = null;
+            if (existing?.pushed) {
+                reason = window.prompt(this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'));
+                if (!reason || !reason.trim()) return;
+            }
             try {
-                const { count, html } = await this.api(`/app/board/comments/${id}`, { method: 'DELETE' });
-                this.drawer.comments = this.drawer.comments.filter((c) => c.id !== id);
-                this.drawer.card.comments_count = count;
-                this.repaintNode(html);
+                const res = await this.api(`/app/board/comments/${id}`, {
+                    method: 'DELETE',
+                    body: reason ? JSON.stringify({ reason: reason.trim() }) : undefined,
+                });
+                if (res.withdrawn) {
+                    this.drawer.comments = this.drawer.comments.map((c) => (c.id === id ? res.comment : c));
+                } else {
+                    this.drawer.comments = this.drawer.comments.filter((c) => c.id !== id);
+                }
+                this.drawer.card.comments_count = res.count;
+                this.repaintNode(res.html);
             } catch (err) {
                 this.drawer.error = this.t('Could not delete comment.', 'Tidak dapat padam komen.');
+            }
+        },
+
+        // ── CR-08: Push to Track ─────────────────────────────────────────────
+        // The tick shows the preview under the composer: exactly what Track will
+        // display (mentions flattened to names). Re-fetched as the text changes.
+        async togglePushToTrack() {
+            if (!this.drawer.card.can_push_to_track || this.drawer.card.push_to_track_disabled) return;
+            this.drawer.pushToTrack = !this.drawer.pushToTrack;
+            if (this.drawer.pushToTrack) await this.refreshPushPreview();
+        },
+
+        async refreshPushPreview() {
+            if (!this.drawer.pushToTrack) return;
+            const body = this.drawer.newComment.trim();
+            if (!body) { this.drawer.pushPreview = ''; return; }
+            try {
+                const { track_body } = await this.api(`/app/board/${this.drawer.id}/comments/preview`, {
+                    method: 'POST',
+                    body: JSON.stringify({ body, attachments: this.drawer.files.map((f) => ({ name: f.file.name, confidential: !!f.confidential, push: !!f.push })) }),
+                });
+                this.drawer.pushPreview = track_body;
+            } catch (err) {
+                this.drawer.pushPreview = '';
+            }
+        },
+
+        pickFiles(e) {
+            const picked = Array.from(e.target.files || []).map((file) => ({ file, confidential: false, push: false }));
+            this.drawer.files = this.drawer.files.concat(picked).slice(0, 6);
+            e.target.value = '';
+            this.refreshPushPreview();
+        },
+
+        removeFile(i) {
+            this.drawer.files.splice(i, 1);
+            this.refreshPushPreview();
+        },
+
+        fileGoesToTrack(f) {
+            return !f.confidential && !!f.push;
+        },
+
+        fileSize(bytes) {
+            if (!bytes) return '';
+            return bytes < 1024 * 1024 ? Math.max(1, Math.round(bytes / 1024)) + ' KB' : (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        },
+
+        startEditComment(c) {
+            this.drawer.editing = { id: c.id, body: c.body };
+        },
+
+        cancelEditComment() {
+            this.drawer.editing = { id: null, body: '' };
+        },
+
+        // A pushed comment's edit becomes a new version in Track; nothing is lost.
+        async saveEditComment() {
+            const { id, body } = this.drawer.editing;
+            if (!id || !body.trim()) return;
+            try {
+                const { comment } = await this.api(`/app/board/comments/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ body: body.trim() }),
+                });
+                this.drawer.comments = this.drawer.comments.map((c) => (c.id === id ? comment : c));
+                this.cancelEditComment();
+            } catch (err) {
+                this.drawer.error = this.t('Could not save comment.', 'Tidak dapat simpan komen.');
+            }
+        },
+
+        // Untick after the fact: withdraw from Track with a reason. The comment stays
+        // on the card, Track shows it as withdrawn.
+        async withdrawComment(c) {
+            const reason = window.prompt(this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'));
+            if (!reason || !reason.trim()) return;
+            try {
+                const { comment } = await this.api(`/app/board/comments/${c.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ push_to_track: false, reason: reason.trim() }),
+                });
+                this.drawer.comments = this.drawer.comments.map((x) => (x.id === c.id ? comment : x));
+            } catch (err) {
+                this.drawer.error = this.t('Could not withdraw comment.', 'Tidak dapat tarik balik komen.');
             }
         },
     }));

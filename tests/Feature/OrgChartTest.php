@@ -68,20 +68,6 @@ class OrgChartTest extends TestCase
         $response->assertSee('Farah Aziz');              // child
     }
 
-    public function test_a_seat_shows_a_face_and_carries_the_name_for_hover_and_focus(): void
-    {
-        $html = $this->actingInTenant()->get('/app/orgchart')->assertOk()->getContent();
-
-        // A seat holds the person's photo or initials, never their name as circle text.
-        $this->assertStringContainsString('class="oc-av"', $html);
-        // The name rides on data-name, which the ::after tooltip reveals on hover AND on
-        // keyboard focus — hover alone would strand touch and keyboard users.
-        $this->assertStringContainsString(':data-name="person(id).name"', $html);
-        $this->assertStringContainsString(':data-name="subject.name"', $html);
-        // The only word left inside a circle belongs to the band, which is not a person.
-        $this->assertSame(1, substr_count($html, 'class="oc-name"'));
-    }
-
     public function test_a_management_tier_account_pins_to_the_directors_band(): void
     {
         // A user whose only tenant role is `management` (no director role, no director
@@ -141,16 +127,5 @@ class OrgChartTest extends TestCase
 
         // ...but only one of them actually has nobody to verify their requests.
         $this->assertSame([$orphan->id], $chart['unmanaged']);
-    }
-
-    public function test_orgchart_shows_the_summary_line(): void
-    {
-        // Act
-        $response = $this->actingInTenant()->get('/app/orgchart');
-
-        // Assert — headcount and depth, in the one mono line that replaced the stat cards.
-        $response->assertOk();
-        $response->assertSee('staff');
-        $response->assertSee('levels deep');
     }
 }

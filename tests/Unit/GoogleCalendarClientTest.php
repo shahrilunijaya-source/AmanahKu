@@ -2,11 +2,8 @@
 
 namespace Tests\Unit;
 
-use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
-use App\Models\Tenant;
 use App\Models\User;
-use App\Models\WorkItem;
 use App\Services\GoogleCalendarClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -38,34 +35,18 @@ class GoogleCalendarClientTest extends TestCase
         ], $overrides));
     }
 
-    private function workItem(): WorkItem
-    {
-        $user = User::create(['name' => 'Assignee', 'email' => 'assignee@example.com', 'password' => Hash::make('password')]);
-        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
-        $user->tenants()->attach($tenant->id, ['role' => 'employee']);
-        $employee = Employee::create([
-            'tenant_id' => $tenant->id, 'user_id' => $user->id,
-            'name' => 'Assignee', 'status' => 'active', 'workload' => 'green',
-        ]);
-
-        return $employee->workItems()->create([
-            'tenant_id' => $tenant->id, 'title' => 'Ship the report', 'type' => 'task',
-            'priority' => 'low', 'status' => 'todo', 'progress' => 0, 'due_at' => '2026-09-30',
-        ]);
-    }
-
     public function test_configured_requires_client_id_and_secret(): void
     {
         $this->assertTrue($this->client()->configured());
         $this->assertFalse((new GoogleCalendarClient([]))->configured());
     }
 
-    public function test_redirect_url_requests_offline_access_and_the_calendar_events_scope(): void
+    public function test_redirect_url_requests_offline_access_and_the_calendar_scope(): void
     {
         $url = $this->client()->redirectUrl('state-abc');
 
         $this->assertStringContainsString('access_type=offline', $url);
-        $this->assertStringContainsString(urlencode('https://www.googleapis.com/auth/calendar.events'), $url);
+        $this->assertStringContainsString(urlencode('https://www.googleapis.com/auth/calendar'), $url);
         $this->assertStringContainsString('state=state-abc', $url);
     }
 
@@ -116,57 +97,11 @@ class GoogleCalendarClientTest extends TestCase
         $this->assertSame('refreshed-token', $connection->fresh()->access_token);
     }
 
-    public function test_create_or_update_event_posts_a_new_event_with_exclusive_end_date(): void
-    {
-        Http::fake([
-            'www.googleapis.com/calendar/v3/*' => Http::response(['id' => 'evt_new']),
-        ]);
-        $connection = $this->connection();
-        $item = $this->workItem();
-
-        $eventId = $this->client()->createOrUpdateEvent($item, $connection);
-
-        $this->assertSame('evt_new', $eventId);
-        Http::assertSent(function ($request) {
-            return $request->method() === 'POST'
-                && $request['start']['date'] === '2026-09-30'
-                && $request['end']['date'] === '2026-10-01';
-        });
-    }
-
-    public function test_create_or_update_event_patches_when_a_google_event_id_already_exists(): void
-    {
-        Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(['id' => 'evt_existing'])]);
-        $connection = $this->connection();
-        $item = $this->workItem();
-        $item->update(['google_event_id' => 'evt_existing']);
-
-        $this->client()->createOrUpdateEvent($item, $connection);
-
-        Http::assertSent(fn ($request) => $request->method() === 'PATCH'
-            && str_contains((string) $request->url(), 'evt_existing'));
-    }
-
-    public function test_create_or_update_event_falls_back_to_post_when_the_patch_target_is_gone(): void
-    {
-        Http::fake([
-            'www.googleapis.com/calendar/v3/calendars/primary/events/evt_gone' => Http::response(null, 404),
-            'www.googleapis.com/calendar/v3/calendars/primary/events' => Http::response(['id' => 'evt_new']),
-        ]);
-        $connection = $this->connection();
-        $item = $this->workItem();
-        $item->update(['google_event_id' => 'evt_gone']);
-
-        $eventId = $this->client()->createOrUpdateEvent($item, $connection);
-
-        $this->assertSame('evt_new', $eventId);
-        Http::assertSent(fn ($request) => $request->method() === 'POST' && ! str_contains((string) $request->url(), 'evt_gone'));
-    }
-
+    /** The upsert, pull and dedicated-calendar paths live in tests/Feature/GoogleCalendarClientTest (CR-01). */
     public function test_delete_event_treats_404_as_success(): void
     {
         Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(null, 404)]);
-        $connection = $this->connection();
+        $connection = $this->connection(['calendar_id' => 'cal-1']);
 
         $this->client()->deleteEvent('evt_gone', $connection);
         $this->assertTrue(true); // no exception
@@ -175,7 +110,7 @@ class GoogleCalendarClientTest extends TestCase
     public function test_delete_event_throws_on_real_failure(): void
     {
         Http::fake(['www.googleapis.com/calendar/v3/*' => Http::response(['error' => 'server_error'], 500)]);
-        $connection = $this->connection();
+        $connection = $this->connection(['calendar_id' => 'cal-1']);
 
         $this->expectException(\RuntimeException::class);
         $this->client()->deleteEvent('evt_x', $connection);

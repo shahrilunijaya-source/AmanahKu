@@ -13,20 +13,28 @@ use App\Http\Controllers\AttendanceAdminController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
+use App\Http\Controllers\AwardController;
 use App\Http\Controllers\BenefitController;
+use App\Http\Controllers\BigDealController;
+use App\Http\Controllers\BirthdayWishController;
+use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
+use App\Http\Controllers\EasterEggController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FlowerController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
+use App\Http\Controllers\FridayController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\GoogleCalendarConnectionController;
+use App\Http\Controllers\GreetingLineController;
 use App\Http\Controllers\HandbookController;
 use App\Http\Controllers\HelpdeskController;
 use App\Http\Controllers\IdeaController;
@@ -36,11 +44,14 @@ use App\Http\Controllers\LearningController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\ManagementExceptionsController;
+use App\Http\Controllers\ManagementMeetingController;
 use App\Http\Controllers\McpDocsController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OffboardingController;
+use App\Http\Controllers\OfficeRequestController;
 use App\Http\Controllers\OidcController;
 use App\Http\Controllers\OnboardingContentController;
 use App\Http\Controllers\OnboardingController;
@@ -50,11 +61,14 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PettyCashController;
+use App\Http\Controllers\PlotTwistController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\RecruitmentController;
+use App\Http\Controllers\RecurringTaskController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ResignationController;
@@ -66,6 +80,7 @@ use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\SharedResourceController;
 use App\Http\Controllers\ShiftSwapController;
+use App\Http\Controllers\SideQuestController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
@@ -79,10 +94,12 @@ use App\Http\Controllers\TotController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\TravelController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VictoryBellController;
 use App\Http\Controllers\WelcomeWizardController;
 use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
+use App\Http\Controllers\WrappedController;
 use App\Support\Changelog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -195,10 +212,15 @@ Route::middleware('auth')->group(function () {
     Route::middleware(['tenant', 'company.active', 'not.archived', 'module.enabled'])->group(function () {
         // Write-paths (state-changing) — defined before the catch-all screen route.
         Route::post('/app/dashboard/prefs', [AppController::class, 'updateDashboardPrefs'])->name('dashboard.prefs.update');
+        Route::get('/app/audit/export', [AppController::class, 'auditExport'])->name('audit.export');
         // One dashboard card, rebuilt for another period. Read-only and gated the
         // same way the dashboard gates the card itself, so the arrows cannot reach
         // a widget the viewer's role or the tenant's modules keep off their page.
         Route::get('/app/dashboard/widget/{widget}', [AppController::class, 'dashboardWidgetPartial'])->name('dashboard.widget');
+        // Personal tab of the calendar widget: private day notes and pinned cards.
+        Route::post('/app/dashboard/calendar-notes', [CalendarNoteController::class, 'store'])->name('calendar-notes.store');
+        Route::patch('/app/dashboard/calendar-notes/{note}', [CalendarNoteController::class, 'update'])->name('calendar-notes.update');
+        Route::delete('/app/dashboard/calendar-notes/{note}', [CalendarNoteController::class, 'destroy'])->name('calendar-notes.destroy');
         Route::post('/app/leave', [LeaveController::class, 'store'])->name('leave.store');
         // HR grants quota of an HR-granted type (Replacement) — see LeaveController::grant.
         Route::post('/app/leave/grant', [LeaveController::class, 'grant'])->name('leave.grant');
@@ -221,6 +243,7 @@ Route::middleware('auth')->group(function () {
         // Public holidays managed alongside leave types on the Leave Setup screen.
         Route::post('/app/leave-setup/holidays', [LeaveSetupController::class, 'storeHoliday'])->name('holiday.store');
         Route::post('/app/leave-setup/holidays/standard', [LeaveSetupController::class, 'loadStandardHolidays'])->name('holiday.standard');
+        Route::post('/app/leave-setup/holidays/{holiday}/greeting', [LeaveSetupController::class, 'updateHolidayGreeting'])->name('holiday.greeting');
         Route::post('/app/leave-setup/holidays/{holiday}/delete', [LeaveSetupController::class, 'deleteHoliday'])->name('holiday.delete');
         // Throttled: every post accepts a 4MB selfie, and a real day needs two punches, not
         // twenty. The cap stops a stuck client (or a bored one) from filling the disk.
@@ -276,17 +299,28 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/board/archived', [WorkItemController::class, 'archived'])->name('work.archived');
         Route::get('/app/board/{workItem}', [WorkItemController::class, 'show'])->name('work.show');
         Route::post('/app/board/{workItem}/move', [WorkItemController::class, 'move'])->name('work.move');
+        // CR-30: explicit escalation, the one thing a reaction never is.
+        Route::post('/app/board/{workItem}/request-help', [WorkItemController::class, 'requestHelp'])->name('work.request-help');
+        // CR-18: the social activity's event link and HR's off-boarding hand-over.
+        Route::post('/app/board/{workItem}/link-event', [WorkItemController::class, 'linkEvent'])->name('work.link-event');
+        Route::post('/app/board/{workItem}/reassign', [WorkItemController::class, 'reassign'])->name('work.reassign');
         Route::post('/app/board/{workItem}/archive', [WorkItemController::class, 'archive'])->name('work.archive');
+        Route::post('/app/board/{workItem}/cancel', [WorkItemController::class, 'cancel'])->name('work.cancel');
         Route::post('/app/board/{workItem}/restore', [WorkItemController::class, 'restore'])->name('work.restore');
         Route::patch('/app/board/{workItem}', [WorkItemController::class, 'update'])->name('work.update');
         Route::delete('/app/board/{workItem}', [WorkItemController::class, 'destroy'])->name('work.destroy');
         // AI Workforce Intelligence — "Apply" a recommendation as an in-app nudge (privileged only).
         Route::post('/app/workload/apply', [WorkforceController::class, 'apply'])->name('workforce.apply');
+        Route::post('/app/board/{workItem}/bell', [WorkItemController::class, 'ring'])->name('work.bell');
         Route::post('/app/board/{workItem}/comments', [WorkItemController::class, 'comment'])->name('work.comment');
+        Route::post('/app/board/{workItem}/comments/preview', [WorkItemController::class, 'commentPreview'])->name('work.comment.preview');
+        Route::patch('/app/board/comments/{comment}', [WorkItemController::class, 'commentUpdate'])->name('work.comment.update');
         Route::delete('/app/board/comments/{comment}', [WorkItemController::class, 'commentDestroy'])->name('work.comment.destroy');
+        Route::get('/app/board/comments/attachments/{attachment}', [WorkItemController::class, 'commentAttachment'])->name('work.comment.attachment');
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
         Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
+        Route::post('/app/settings/google-calendar/retry/{workItem}', [GoogleCalendarConnectionController::class, 'retry'])->name('google-calendar.retry');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
@@ -323,6 +357,27 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1,welcome-cert')->name('welcome.certificate');
         Route::post('/app/welcome/finish', [WelcomeWizardController::class, 'finish'])->name('welcome.finish');
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
+        // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
+        Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
+        // CR-30 reaction set: read by every picker, curated by HR on Company Settings.
+        Route::get('/app/reactions', [ReactionController::class, 'index'])->name('reactions.index');
+        Route::post('/app/admin/reactions', [ReactionController::class, 'store'])->name('admin.reactions.store');
+        Route::post('/app/admin/reactions/{key}/retire', [ReactionController::class, 'retire'])->name('admin.reactions.retire');
+        // CR-18 recurring schedules: HR and management create, skip a period, pause, resume.
+        Route::post('/app/admin/recurring', [RecurringTaskController::class, 'store'])->name('admin.recurring.store');
+        Route::post('/app/admin/recurring/{recurringTask}/skip', [RecurringTaskController::class, 'skip'])->name('admin.recurring.skip');
+        Route::post('/app/admin/recurring/{recurringTask}/pause', [RecurringTaskController::class, 'pause'])->name('admin.recurring.pause');
+        Route::post('/app/admin/recurring/{recurringTask}/resume', [RecurringTaskController::class, 'resume'])->name('admin.recurring.resume');
+        // CR-34: management meeting day/time, reminder recipients and HR pause.
+        Route::post('/app/admin/management-meeting', [ManagementMeetingController::class, 'update'])->name('admin.management-meeting.update');
+        Route::post('/app/admin/greetings/{greetingLine}', [GreetingLineController::class, 'update'])->name('admin.greetings.update');
+        Route::post('/app/admin/greetings/{greetingLine}/delete', [GreetingLineController::class, 'delete'])->name('admin.greetings.delete');
+        // Any signed-in employee can suggest a line; HR approves it above.
+        Route::post('/app/greetings/suggest', [GreetingLineController::class, 'suggest'])->name('greetings.suggest');
+        // CR-31 dashboard/board easter-egg bank — HR curates it on Company Settings.
+        Route::post('/app/admin/eggs', [EasterEggController::class, 'store'])->name('admin.eggs.store');
+        Route::post('/app/admin/eggs/{easterEgg}', [EasterEggController::class, 'update'])->name('admin.eggs.update');
+        Route::post('/app/admin/eggs/{easterEgg}/delete', [EasterEggController::class, 'delete'])->name('admin.eggs.delete');
         Route::post('/app/admin/features', [AdminController::class, 'updateFeatures'])->name('admin.features.update');
         Route::post('/app/admin/roles/{user}', [AdminController::class, 'updateRole'])->name('admin.roles.update');
         Route::post('/app/admin/scope/{user}', [AdminController::class, 'updateScope'])->name('admin.scope.update');
@@ -349,6 +404,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/security/two-factor/disable', [SecurityController::class, 'disableTwoFactor'])->name('security.2fa.disable');
         Route::post('/app/security/ai-key/generate', [SecurityController::class, 'generateAiKey'])->middleware('throttle:10,1,ai-key-generate')->name('security.ai-key.generate');
         Route::post('/app/security/ai-key/revoke', [SecurityController::class, 'revokeAiKey'])->name('security.ai-key.revoke');
+        Route::post('/app/security/birthday-privacy', [SecurityController::class, 'birthdayPrivacy'])->name('security.birthday-privacy');
 
         // Personal workspace wallpaper (Account & security → Appearance). Own row only.
         Route::post('/app/account/appearance', [AppearanceController::class, 'update'])->name('account.appearance');
@@ -382,11 +438,40 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/shared-resources/{resource}/delete', [SharedResourceController::class, 'destroy'])->name('shared-resources.destroy');
         // Company events
         Route::post('/app/events', [EventController::class, 'store'])->name('events.store');
-        // Static "rsvp" segment registered ahead of the /app/events/{event} wildcard
-        // routes below, or it would bind as {event}'s trailing segment instead.
+        // Static segments registered ahead of the /app/events/{event} wildcard routes
+        // below, or they would bind as {event}'s trailing segment instead.
+        Route::get('/app/events/photos/{photo}', [EventController::class, 'photoShow'])->name('events.photos.show');
         Route::post('/app/events/{event}/rsvp', [EventController::class, 'rsvp'])->name('events.rsvp');
+        Route::post('/app/events/{event}/attendees', [EventController::class, 'attendees'])->name('events.attendees');
+        Route::post('/app/events/{event}/photos', [EventController::class, 'storePhotos'])->name('events.photos.store');
+        Route::post('/app/events/{event}/comments', [EventController::class, 'storeComment'])->name('events.comments.store');
+        Route::post('/app/events/{event}/lessons', [EventController::class, 'storeLesson'])->name('events.lessons.store');
+        Route::post('/app/events/{event}/lessons/{lesson}/react', [EventController::class, 'lessonReact'])->name('events.lessons.react');
+        Route::post('/app/events/{event}/react', [EventController::class, 'react'])->name('events.react');
+        Route::get('/app/events/{event}', [AppController::class, 'eventShow'])->name('events.show');
         Route::post('/app/events/{event}', [EventController::class, 'update'])->name('events.update');
         Route::post('/app/events/{event}/delete', [EventController::class, 'destroy'])->name('events.destroy');
+        // Office Requests (CR-21). GET board itself needs no route here — it rides the
+        // /app/{screen?} catch-all below with $screen = 'office-requests'. Static segments
+        // (similar, insights) registered ahead of the {officeRequest} wildcard routes, same
+        // caution as the events block above.
+        Route::post('/app/office-requests', [OfficeRequestController::class, 'store'])->name('office-requests.store');
+        Route::get('/app/office-requests/similar', [OfficeRequestController::class, 'similar'])->name('office-requests.similar');
+        Route::get('/app/office-requests/insights', [AppController::class, 'officeRequestInsights'])->name('office-requests.insights');
+        Route::get('/app/office-requests/{officeRequest}/photo', [OfficeRequestController::class, 'photoShow'])->name('office-requests.photo');
+        Route::post('/app/office-requests/{officeRequest}/upvote', [OfficeRequestController::class, 'upvote'])->name('office-requests.upvote');
+        Route::delete('/app/office-requests/{officeRequest}/upvote', [OfficeRequestController::class, 'unvote'])->name('office-requests.unvote');
+        Route::post('/app/office-requests/{officeRequest}/comments', [OfficeRequestController::class, 'comment'])->name('office-requests.comments.store');
+        Route::post('/app/office-requests/{officeRequest}/admin-note', [OfficeRequestController::class, 'adminNote'])->name('office-requests.admin-note');
+        Route::post('/app/office-requests/{officeRequest}/done', [OfficeRequestController::class, 'done'])->name('office-requests.done');
+        Route::post('/app/office-requests/{officeRequest}/reopen', [OfficeRequestController::class, 'reopen'])->name('office-requests.reopen');
+        // Management exceptions (CR-17): lateness + overdue-by-Primary-Owner. The page
+        // needs its own route — /app/{screen?} only matches one path segment — registered
+        // ahead of the {card} wildcard routes, same caution as office-requests above.
+        Route::get('/app/management/exceptions', [AppController::class, 'managementExceptions'])->name('management.exceptions');
+        Route::post('/app/management/overdue/{card}/nudge', [ManagementExceptionsController::class, 'nudge'])->name('management.overdue.nudge');
+        Route::post('/app/management/overdue/{card}/reassign', [ManagementExceptionsController::class, 'reassign'])->name('management.overdue.reassign');
+        Route::post('/app/attendance/incidents', [AttendanceAdminController::class, 'storeIncident'])->name('attendance.incidents.store');
         // Offboarding / exit clearance
         Route::post('/app/offboarding', [OffboardingController::class, 'store'])->name('offboarding.store');
         Route::post('/app/offboarding/items/{item}/toggle', [OffboardingController::class, 'toggleItem'])->name('offboarding.toggle');
@@ -443,10 +528,81 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/tot/{session}/comments', [TotController::class, 'comments'])->name('tot.comments');
         Route::post('/app/tot/{session}/comment', [TotController::class, 'comment'])->name('tot.comment');
         Route::post('/app/tot/{session}/react', [TotController::class, 'react'])->name('tot.react');
+        // Birthday band wishes (CR-13).
+        Route::post('/app/birthday/{employee}/wish', [BirthdayWishController::class, 'wish'])->name('birthday.wish');
+        Route::post('/app/birthday/{employee}/thanks', [BirthdayWishController::class, 'thanks'])->name('birthday.thanks');
+        Route::post('/app/birthday/wish/{wish}/react', [BirthdayWishController::class, 'react'])->name('birthday.react');
+        // Flowers (CR-23) — "Caught Being Brilliant" recognition on the profile Wall.
+        Route::post('/app/flowers/{employee}', [FlowerController::class, 'store'])->name('flowers.store');
+        Route::post('/app/flowers/{flower}/hide', [FlowerController::class, 'hide'])->name('flowers.hide');
         Route::post('/app/tot/{session}/watched', [TotController::class, 'watched'])->name('tot.watched');
         Route::post('/app/tot/{session}/rate', [TotController::class, 'rate'])->name('tot.rate');
+        // CR-09: ordered slots, per-slot discussion, attendance and Tindakan Susulan.
+        Route::post('/app/tot/{session}/slots', [TotController::class, 'storeSlot'])->name('tot.slots.store');
+        Route::post('/app/tot/{session}/slots/{slot}', [TotController::class, 'updateSlot'])->name('tot.slots.update');
+        Route::post('/app/tot/{session}/slots/{slot}/delete', [TotController::class, 'destroySlot'])->name('tot.slots.delete');
+        Route::post('/app/tot/{session}/slots/{slot}/comment', [TotController::class, 'slotComment'])->name('tot.slots.comment');
+        Route::get('/app/tot/{session}/slots/{slot}/comments', [TotController::class, 'slotComments'])->name('tot.slots.comments');
+        Route::post('/app/tot/{session}/slots/{slot}/react', [TotController::class, 'slotReact'])->name('tot.slots.react');
+        Route::post('/app/tot/{session}/attendance', [TotController::class, 'storeAttendance'])->name('tot.attendance');
+        Route::post('/app/tot/{session}/actions', [TotController::class, 'storeAction'])->name('tot.actions.store');
+        Route::post('/app/tot/{session}/actions/{action}', [TotController::class, 'updateAction'])->name('tot.actions.update');
+        Route::post('/app/tot/{session}/actions/{action}/delete', [TotController::class, 'deleteAction'])->name('tot.actions.delete');
+        Route::post('/app/tot/{session}/actions/{action}/card', [TotController::class, 'createActionCard'])->name('tot.actions.card');
         Route::post('/app/tot/{session}', [TotController::class, 'update'])->name('tot.update');
         Route::post('/app/tot/{session}/delete', [TotController::class, 'destroy'])->name('tot.destroy');
+        // CR-14b: peer nominations, the two director/PM manual picks, reactions/comments on
+        // a result, and the Global Clause item 3 Director override.
+        Route::post('/app/awards/nominate', [AwardController::class, 'nominate'])->name('awards.nominate');
+        Route::post('/app/awards/select', [AwardController::class, 'select'])->name('awards.select');
+        Route::post('/app/awards/{result}/react', [AwardController::class, 'react'])->name('awards.react');
+        Route::post('/app/awards/{result}/comments', [AwardController::class, 'comment'])->name('awards.comments');
+        Route::post('/app/awards/{result}/adjust', [AwardController::class, 'adjust'])->name('awards.adjust');
+        // CR-27: the Mystery Award — director/committee pick and the director-only
+        // committee roster, both on the Awards screen's Select tab.
+        Route::post('/app/awards/mystery', [AwardController::class, 'mysteryPick'])->name('awards.mystery.pick');
+        Route::post('/app/awards/mystery/committee', [AwardController::class, 'mysteryCommittee'])->name('awards.mystery.committee');
+        // CR-24: Big Deal Alert — raised from a project or T.A.A. card, shown on the
+        // dashboard's moments band for 3 days, archived to /app/wins after (screen
+        // route rides the existing /app/{screen} catch-all, see AppController).
+        Route::post('/app/big-deals', [BigDealController::class, 'store'])->name('big-deals.store');
+        Route::get('/app/big-deals/{deal}/photos/{photo}', [BigDealController::class, 'photo'])->name('big-deals.photos.show');
+        Route::post('/app/big-deals/{deal}/react', [BigDealController::class, 'react'])->name('big-deals.react');
+        Route::post('/app/victory-bells/{bell}/react', [VictoryBellController::class, 'react'])->name('victory-bells.react');
+        // CR-22: Amanahku Wrapped. Unlike most Playground screens, /app/wrapped is its
+        // OWN route (not left to the /app/{screen?} catch-all below) because
+        // CR22Test::test_acceptance_5 scans every route's uri() for the literal string
+        // "wrapped" and expects 'app/wrapped' among them — the catch-all's own uri() is
+        // literally "app/{screen?}", which would never match. Still dispatches through
+        // the same AppController::screen()/screenData() shell as every other screen.
+        Route::get('/app/wrapped', [AppController::class, 'screen'])->defaults('screen', 'wrapped')
+            ->middleware(['system.launched', 'profile.complete'])->name('wrapped.show');
+        Route::post('/app/wrapped/arcs', [WrappedController::class, 'addArc'])->name('wrapped.arcs.store');
+        Route::post('/app/wrapped/arcs/{arc}/retire', [WrappedController::class, 'retireArc'])->name('wrapped.arcs.retire');
+        Route::post('/app/wrapped/{story}/share', [WrappedController::class, 'share'])->name('wrapped.share');
+        Route::post('/app/wrapped/{story}/unshare', [WrappedController::class, 'unshare'])->name('wrapped.unshare');
+        Route::post('/app/wrapped/{story}/react', [WrappedController::class, 'react'])->name('wrapped.react');
+        // CR-25: This Week's Plot Twist — weekly anonymous poll (screen route rides the
+        // existing /app/{screen} catch-all, see AppController). Vote/opt-out/results all
+        // need the {poll} segment so they must be declared ahead of that catch-all.
+        Route::post('/app/plot-twist', [PlotTwistController::class, 'store'])->name('plot-twist.store');
+        Route::post('/app/plot-twist/suggest', [PlotTwistController::class, 'suggest'])->name('plot-twist.suggest');
+        Route::post('/app/plot-twist/{poll}/vote', [PlotTwistController::class, 'vote'])->name('plot-twist.vote');
+        Route::post('/app/plot-twist/{poll}/opt-out', [PlotTwistController::class, 'optOut'])->name('plot-twist.opt-out');
+        Route::get('/app/plot-twist/{poll}/results', [PlotTwistController::class, 'results'])->name('plot-twist.results');
+        // CR-29: Friday Sign-Off — one tap, anonymous mood, on the `friday` dashboard
+        // widget only (S04 slot). No screen, no GET route: everything reads back
+        // through the widget (docs/build/OPEN.md "QA / CR-29").
+        Route::post('/app/friday-signoff', [FridayController::class, 'signOff'])->name('friday.signoff');
+        // CR-26: Side Quests — optional non-KPI challenges, 2-3 live at a time (screen
+        // route rides the existing /app/{screen} catch-all, see AppController).
+        Route::post('/app/side-quests', [SideQuestController::class, 'store'])->name('side-quests.store');
+        Route::post('/app/side-quests/suggest', [SideQuestController::class, 'suggest'])->name('side-quests.suggest');
+        Route::post('/app/side-quests/{quest}/retire', [SideQuestController::class, 'retire'])->name('side-quests.retire');
+        Route::post('/app/side-quests/{quest}/approve', [SideQuestController::class, 'approve'])->name('side-quests.approve');
+        Route::post('/app/side-quests/{quest}/complete', [SideQuestController::class, 'complete'])->name('side-quests.complete');
+        Route::get('/app/side-quests/posts/{post}/photo', [SideQuestController::class, 'photo'])->name('side-quests.posts.photo');
+        Route::post('/app/side-quests/posts/{post}/react', [SideQuestController::class, 'react'])->name('side-quests.posts.react');
         // Direct messaging — 1-to-1 threads. Paths share the `messages` first segment so
         // EnsureModuleEnabled gates them under module.messages.
         Route::post('/app/messages/send', [MessageController::class, 'send'])->middleware('throttle:60,1,messages-send')->name('messages.send');
@@ -482,6 +638,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/timesheets', [TimesheetController::class, 'store'])->name('timesheets.store');
         Route::post('/app/timesheets/preferences', [TimesheetController::class, 'preferences'])->name('timesheets.preferences');
         Route::post('/app/timesheets/{timesheet}/recall', [TimesheetController::class, 'recall'])->name('timesheets.recall');
+        // Per-day manager actions (CR-03): return for correction, approve, unlock the
+        // backdate window, or bulk-approve a week — {employee} is the sheet owner, not
+        // the actor (see TimesheetController::authorizeManagesDays).
+        Route::post('/app/timesheets/{employee}/days/{date}/return', [TimesheetController::class, 'returnDay'])->name('timesheets.day.return');
+        Route::post('/app/timesheets/{employee}/days/{date}/approve', [TimesheetController::class, 'approveDay'])->name('timesheets.day.approve');
+        Route::post('/app/timesheets/{employee}/days/{date}/unlock', [TimesheetController::class, 'unlockDay'])->name('timesheets.day.unlock');
+        Route::post('/app/timesheets/{employee}/approve-week', [TimesheetController::class, 'approveWeek'])->name('timesheets.approve-week');
         Route::post('/app/timesheet-reports/nudge/{employee}', [TimesheetController::class, 'nudge'])->name('timesheet.reports.nudge');
         // Timesheet categories — privileged (management / HR)
         Route::post('/app/timesheet-setup/categories', [TimesheetAdminController::class, 'storeCategory'])->name('timesheet.admin.categories.store');
@@ -491,8 +654,14 @@ Route::middleware('auth')->group(function () {
         // everyone reads. Sub-pillars are tenant-wide, not nested under a project.
         Route::post('/app/projects', [ProjectController::class, 'storeProject'])->name('projects.store');
         Route::post('/app/projects/{project}', [ProjectController::class, 'updateProject'])->name('projects.update');
+        Route::post('/app/projects/{project}/reopen', [ProjectController::class, 'reopenProject'])->name('projects.reopen');
         Route::post('/app/projects/{project}/delete', [ProjectController::class, 'deleteProject'])->name('projects.delete');
         Route::post('/app/projects/{project}/archive', [ProjectController::class, 'archiveProject'])->name('projects.archive');
+        // Contract variations (CR-06b §E4, E5) — raise (finance), decide (management tier).
+        Route::post('/app/projects/{project}/variations', [ProjectController::class, 'storeVariation'])->name('projects.variations.store');
+        Route::post('/app/projects/{project}/variations/{variation}/approve', [ProjectController::class, 'approveVariation'])->name('projects.variations.approve');
+        Route::post('/app/projects/{project}/variations/{variation}/reject', [ProjectController::class, 'rejectVariation'])->name('projects.variations.reject');
+        Route::get('/app/projects/{project}/variations/{variation}/attachment', [ProjectController::class, 'variationAttachment'])->name('projects.variations.attachment');
         Route::post('/app/sub-pillars', [ProjectController::class, 'storeSubPillar'])->name('sub-pillars.store');
         Route::post('/app/sub-pillars/{subPillar}', [ProjectController::class, 'updateSubPillar'])->name('sub-pillars.update');
         Route::post('/app/sub-pillars/{subPillar}/delete', [ProjectController::class, 'deleteSubPillar'])->name('sub-pillars.delete');

@@ -97,7 +97,7 @@ class BoardCardTest extends TestCase
     public function test_inline_add_returns_card_json(): void
     {
         $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Quick card', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog',
+            'title' => 'Quick card', 'type' => 'assignment', 'priority' => 'medium', 'status' => 'prog', 'due_at' => '2026-07-01',
         ])->assertCreated()->assertJsonPath('card.title', 'Quick card')->assertJsonPath('card.status', 'prog');
 
         $this->assertDatabaseHas('work_items', ['title' => 'Quick card', 'status' => 'prog']);
@@ -113,6 +113,27 @@ class BoardCardTest extends TestCase
             ->assertJsonPath('card.description', 'Body text')
             ->assertJsonPath('comments.0.body', 'First note')
             ->assertJsonPath('comments.0.mine', true);
+    }
+
+    public function test_a_reply_nests_under_its_parent_and_only_a_top_level_comment_can_be_replied_to(): void
+    {
+        $item = $this->card();
+        $parent = $item->comments()->create(['tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'body' => 'First note']);
+
+        $reply = $this->actingInTenant()->postJson("/app/board/{$item->id}/comments", ['body' => 'Agreed', 'parent_id' => $parent->id])
+            ->assertCreated()
+            ->assertJsonPath('comment.parent_id', $parent->id)
+            ->json('comment.id');
+
+        $this->actingInTenant()->postJson("/app/board/{$item->id}/comments", ['body' => 'Nested too deep', 'parent_id' => $reply])
+            ->assertStatus(422);
+
+        $other = $this->card();
+        $this->actingInTenant()->postJson("/app/board/{$other->id}/comments", ['body' => 'Wrong card', 'parent_id' => $parent->id])
+            ->assertStatus(422);
+
+        $this->actingInTenant()->getJson("/app/board/{$item->id}")
+            ->assertJsonPath('comments.1.parent_id', $parent->id);
     }
 
     public function test_owner_updates_card_fields(): void
@@ -673,7 +694,7 @@ class BoardCardTest extends TestCase
         $rms->categories()->sync([$sales->id]);
 
         $this->actingInTenant()->postJson('/app/board', [
-            'title' => 'Sold work', 'type' => 'task', 'priority' => 'low',
+            'title' => 'Sold work', 'type' => 'task', 'priority' => 'low', 'due_at' => '2026-07-01',
             'timesheet_category_id' => $sales->id, 'project_id' => $iris->id,
         ])->assertCreated();
 

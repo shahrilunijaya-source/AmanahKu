@@ -64,6 +64,7 @@ class MoveCardTool extends Tool
                 abort_unless(in_array($data['status'], ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
             }
             $this->boardRules->assertChildrenDoneForStatus($item, $data['status']);
+            $this->boardRules->assertReviewerMovesToDone($item, $data['status'], $employee);
 
             return ['item' => $item];
         });
@@ -102,6 +103,7 @@ class MoveCardTool extends Tool
                 abort_unless(in_array($status, ['todo', 'done'], true), 422, 'A subtask is either open (todo) or done.');
             }
             $this->boardRules->assertChildrenDoneForStatus($item, $status);
+            $this->boardRules->assertReviewerMovesToDone($item, $status, $employee);
             $wasDone = $item->status === 'done';
 
             $item->update([
@@ -118,6 +120,25 @@ class MoveCardTool extends Tool
                     null,
                     route('app.screen', 'board'),
                 );
+            }
+
+            // The last open subtask just closed: send the parent to Review on its own —
+            // mirrors WorkItemController::move(), the browser twin of this tool.
+            if (! $wasDone && $status === 'done') {
+                $reviewedParent = $this->boardRules->autoReviewParentOnLastChildDone($item);
+                if ($reviewedParent) {
+                    $reviewedParent->loadMissing(['employee', 'assignedBy']);
+                    $recipients = collect([$reviewedParent->employee?->user_id, $reviewedParent->assigned_by_id ? $reviewedParent->assignedBy?->user_id : null])
+                        ->filter()->unique();
+                    foreach ($recipients as $userId) {
+                        AppNotification::send(
+                            $userId,
+                            $employee->display_name.' finished the last subtask of: '.$reviewedParent->title,
+                            null,
+                            route('app.screen', 'board'),
+                        );
+                    }
+                }
             }
 
             AuditLog::record('Moved board card'.$this->keySuffix($httpRequest), $item->title.' -> '.$status);

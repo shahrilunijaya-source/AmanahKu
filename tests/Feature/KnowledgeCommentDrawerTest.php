@@ -106,14 +106,14 @@ class KnowledgeCommentDrawerTest extends TestCase
     {
         // Add.
         $this->actingInTenant()
-            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['emoji' => '🔥'])
+            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['reaction' => 'legend'])
             ->assertOk()
-            ->assertJsonPath('reactions.🔥', 1)
-            ->assertJsonPath('mine', ['🔥']);
+            ->assertJsonPath('reactions.legend', 1)
+            ->assertJsonPath('mine', ['legend']);
 
         // Same emoji again → removed.
         $this->actingInTenant()
-            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['emoji' => '🔥'])
+            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['reaction' => 'legend'])
             ->assertOk()
             ->assertJsonPath('mine', []);
 
@@ -125,7 +125,7 @@ class KnowledgeCommentDrawerTest extends TestCase
     public function test_react_rejects_an_unknown_emoji(): void
     {
         $this->actingInTenant()
-            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['emoji' => '🦄'])
+            ->postJson("/app/knowledge-bank/{$this->entry->id}/react", ['reaction' => 'nope'])
             ->assertStatus(422);
     }
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\GoogleCalendarConnection;
+use App\Models\WorkItem;
 use App\Services\GoogleCalendarClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -71,6 +73,18 @@ class GoogleCalendarConnectionController extends Controller
         );
 
         return redirect('/app/profile')->with('ok', 'Google Calendar connected.');
+    }
+
+    /** CR-01 rule 9: one more push for a card that gave up, from the Sync issues list. */
+    public function retry(Request $request, WorkItem $workItem): RedirectResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee && $workItem->employee_id === $employee->id, 403);
+
+        WorkItem::withoutGlobalScopes()->where('id', $workItem->id)->update(['calendar_sync_error' => null]);
+        SyncWorkItemCalendarEventJob::dispatch(tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id);
+
+        return redirect('/app/profile')->with('ok', 'Calendar sync queued again.');
     }
 
     public function disconnect(Request $request): RedirectResponse

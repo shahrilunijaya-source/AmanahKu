@@ -182,6 +182,20 @@ class WorkItemMentionTest extends TestCase
             ->assertSee('data-deep-link-card="'.$item->id.'"', false);
     }
 
+    /** A browser following a card link (notification bell, calendar event) must
+     *  land on the board with the drawer open, not on the drawer's raw JSON. */
+    public function test_browser_visit_to_the_card_url_redirects_to_the_board_deep_link(): void
+    {
+        $item = $this->card(['title' => 'Linked card']);
+
+        $this->actingInTenant()->get('/app/board/'.$item->id)
+            ->assertRedirect('/app/board?card='.$item->id);
+
+        $this->actingInTenant()->getJson('/app/board/'.$item->id)
+            ->assertOk()
+            ->assertJsonPath('card.id', $item->id);
+    }
+
     /** Not a 403 for the whole screen, and no confirmation the card exists —
      *  the deep-link id is only relayed to the client, which opens it through
      *  the same authorized GET /app/board/{workItem} the drawer always used;

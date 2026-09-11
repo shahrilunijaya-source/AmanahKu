@@ -56,11 +56,11 @@ class TotLiveActionsTest extends TestCase
         $session = $this->slot();
 
         $response = $this->actingInTenant()
-            ->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+            ->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
 
         $response->assertOk()
-            ->assertJsonPath('reactions.👍', 1)
-            ->assertJsonPath('mine', ['👍'])
+            ->assertJsonPath('reactions.power', 1)
+            ->assertJsonPath('mine', ['power'])
             ->assertJsonPath('comments', 0);
     }
 
@@ -68,12 +68,12 @@ class TotLiveActionsTest extends TestCase
     {
         $session = $this->slot();
 
-        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
 
         $response->assertOk()
             ->assertJsonPath('mine', [])
-            ->assertJsonMissingPath('reactions.👍');
+            ->assertJsonMissingPath('reactions.power');
     }
 
     public function test_a_plain_form_post_still_redirects(): void
@@ -81,7 +81,7 @@ class TotLiveActionsTest extends TestCase
         $session = $this->slot();
 
         $this->actingInTenant()
-            ->post("/app/tot/{$session->id}/react", ['emoji' => '👍'])
+            ->post("/app/tot/{$session->id}/react", ['reaction' => 'power'])
             ->assertRedirect();
     }
 
@@ -220,7 +220,7 @@ class TotLiveActionsTest extends TestCase
     {
         $session = $this->slot();
 
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍'])->assertRedirect();
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power'])->assertRedirect();
         $this->actingInTenant()->post("/app/tot/{$session->id}/watched")->assertRedirect();
         $this->actingInTenant()->post("/app/tot/{$session->id}/rate", ['score' => 3])->assertRedirect();
         $this->actingInTenant()->post("/app/tot/{$session->id}/comment", ['body' => 'Plain post'])->assertRedirect();
@@ -319,15 +319,15 @@ class TotLiveActionsTest extends TestCase
     {
         $session = $this->slot();
 
-        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'legend']);
 
-        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+        $response->assertOk()->assertJsonPath('mine', ['legend']);
 
         $this->assertSame(1, TotReaction::where('session_id', $session->id)
             ->where('employee_id', $this->employee->id)->count(), 'one emoji per person');
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['🔥' => 1]),
+            json_encode(['legend' => 1]),
             json_encode($response->json('reactions')),
             'the first emoji is gone from the counts, not just from mine'
         );
@@ -337,8 +337,8 @@ class TotLiveActionsTest extends TestCase
     {
         $session = $this->slot();
 
-        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
 
         $response->assertOk()->assertJsonPath('mine', []);
         $this->assertSame(0, TotReaction::where('session_id', $session->id)->count());
@@ -354,15 +354,15 @@ class TotLiveActionsTest extends TestCase
         ]);
         TotReaction::create([
             'tenant_id' => $this->tenant->id, 'session_id' => $session->id,
-            'employee_id' => $other->id, 'emoji' => '👍',
+            'employee_id' => $other->id, 'emoji' => 'power',
         ]);
 
-        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+        $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $response = $this->actingInTenant()->postJson("/app/tot/{$session->id}/react", ['reaction' => 'legend']);
 
-        $response->assertOk()->assertJsonPath('mine', ['🔥']);
+        $response->assertOk()->assertJsonPath('mine', ['legend']);
         $this->assertSame(1, TotReaction::where('session_id', $session->id)
             ->where('employee_id', $other->id)->count(), 'their reaction survives');
-        $this->assertSame(1, $response->json('reactions.👍'), 'and still counts');
+        $this->assertSame(1, $response->json('reactions.power'), 'and still counts');
     }
 }

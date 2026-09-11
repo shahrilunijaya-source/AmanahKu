@@ -21,4 +21,9 @@ class TotReaction extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+
+    public function slot(): BelongsTo
+    {
+        return $this->belongsTo(TotSlot::class, 'slot_id');
+    }
 }

@@ -28,7 +28,7 @@ class DashboardPrefs
     /**
      * Sanitised prefs for the signed-in user.
      *
-     * @return array{hidden: list<string>, order: array<string, list<string>>}
+     * @return array{hidden: list<string>, order: array<string, list<string>>, plain: bool}
      */
     public static function forUser(?array $prefs): array
     {
@@ -37,6 +37,7 @@ class DashboardPrefs
         return [
             'hidden' => self::cleanIds($raw['hidden'] ?? [], stripPinned: true),
             'order' => self::cleanOrder($raw['order'] ?? []),
+            'plain' => (bool) ($raw['plain'] ?? false),
         ];
     }
 
@@ -46,12 +47,13 @@ class DashboardPrefs
      * @param  array<string, mixed>  $order
      * @return array<string, mixed>
      */
-    public static function merge(?array $prefs, array $hidden, array $order): array
+    public static function merge(?array $prefs, array $hidden, array $order, ?bool $plain = null): array
     {
         $prefs ??= [];
         $prefs[self::KEY] = [
             'hidden' => self::cleanIds($hidden, stripPinned: true),
             'order' => self::cleanOrder($order),
+            'plain' => $plain ?? (bool) ($prefs[self::KEY]['plain'] ?? false),
         ];
 
         return $prefs;

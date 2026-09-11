@@ -37,7 +37,18 @@
             : 'Simpanan fail peribadi anda sendiri — kontrak, sijil, ID dan seumpamanya. Hanya anda dan HR yang dibenarkan boleh melihatnya. Fail disimpan dengan selamat dan dibuka hanya melalui pautan muat turun yang dilindungi.',
     ],
 ])
-<div x-data="{ add: {{ $errors->any() ? 'true' : 'false' }} }">
+@php
+    $catLabels = ['Contract' => ['en' => 'Contracts', 'ms' => 'Kontrak'], 'Certificate' => ['en' => 'Certificates', 'ms' => 'Sijil'], 'ID' => ['en' => 'IDs', 'ms' => 'ID'], 'Other' => ['en' => 'Other', 'ms' => 'Lain-lain']];
+    $catCounts = $documents->map->count();
+@endphp
+<div x-data="{
+        add: {{ $errors->any() ? 'true' : 'false' }},
+        q: '',
+        cat: '',
+        folded: {},
+        hit(text) { const q = this.q.trim().toLowerCase(); return ! q || text.toLowerCase().includes(q); },
+        showCat(c) { return ! this.cat || this.cat === c; },
+    }">
 <div x-show="add" x-cloak class="uj-card" style="padding:20px;margin-bottom:16px;">
     <h3 class="uj-card-title" style="margin-bottom:14px;" x-text="$store.ui.lang==='en' ? 'Upload document' : 'Muat naik dokumen'">Upload document</h3>
     <form method="post" action="{{ route('documents.store') }}" enctype="multipart/form-data">
@@ -58,23 +69,42 @@
     </form>
 </div>
 
-<div class="uj-card">
+<div class="uj-card uj-doc-list">
     <div class="uj-card-head" style="flex-wrap:wrap;gap:10px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Document vault' : 'Peti dokumen'">Document vault</h3>
             <span class="uj-pill" style="background:var(--canvas);color:var(--muted);">{{ $totalDocs }}</span>
             <span class="uj-pill" style="background:var(--canvas);color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($scopeEn) : @js($scopeMs)">{{ $scopeEn }}</span>
         </div>
-        <button @click="add = ! add" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;"><span x-text="add ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Upload' : '+ Muat naik')"></span></button>
+        <button @click="add = ! add" class="uj-btn-primary" style="height:34px;padding:0 13px;font-size:12.5px;" data-tip-end :data-tip="$store.ui.lang==='en' ? 'Add a file to the vault' : 'Tambah fail ke peti'"><span x-text="add ? ($store.ui.lang==='en' ? 'Cancel' : 'Batal') : ($store.ui.lang==='en' ? '+ Upload' : '+ Muat naik')"></span></button>
     </div>
+
+    @if ($totalDocs > 0)
+        {{-- Filter row: a search over title and owner, plus one chip per category. --}}
+        <div class="uj-doc-tools">
+            <label class="uj-mgmt-search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input type="search" x-model="q" :placeholder="$store.ui.lang==='en' ? @js($privileged ? 'Filter by title or person' : 'Filter by title') : @js($privileged ? 'Tapis ikut tajuk atau nama' : 'Tapis ikut tajuk')" autocomplete="off">
+            </label>
+            <div class="uj-seg">
+                <button type="button" :data-on="cat === '' ? '' : null" @click="cat = ''" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Show every category' : 'Tunjuk semua kategori'"><span x-text="$store.ui.lang==='en' ? 'All' : 'Semua'">All</span>&nbsp;<span class="uj-doc-n">{{ $totalDocs }}</span></button>
+                @foreach ($documents as $category => $docs)
+                    <button type="button" :data-on="cat === @js($category) ? '' : null" @click="cat = cat === @js($category) ? '' : @js($category)" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Only this category, click again to clear' : 'Kategori ini sahaja, klik lagi untuk kosongkan'"><span x-text="$store.ui.lang==='en' ? @js($catLabels[$category]['en'] ?? $category) : @js($catLabels[$category]['ms'] ?? $category)">{{ $category }}</span>&nbsp;<span class="uj-doc-n">{{ $docs->count() }}</span></button>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @forelse ($documents as $category => $docs)
         @php $cm = $catMeta[$category] ?? $catMeta['Other']; @endphp
-        <div style="padding:13px 20px 6px;font-size:var(--t-micro);font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:{{ $cm['tint'] }};border-top:1px solid var(--hairline-soft);">
-            {{ $category }} <span style="color:var(--muted);font-weight:600;letter-spacing:normal;text-transform:none;">· {{ $docs->count() }}</span>
-        </div>
-        @foreach ($docs as $doc)
-            <div class="uj-lv-rw" x-data="{ drawerOpen: false }">
+        @php $searchable = $docs->map(fn ($d) => $d->title.' '.($privileged ? ($d->employee?->name ?? '') : ''))->all(); @endphp
+        <button type="button" class="uj-doc-cat" data-tip-start :data-tip="folded[@js($category)] ? ($store.ui.lang==='en' ? 'Expand' : 'Kembangkan') : ($store.ui.lang==='en' ? 'Collapse' : 'Lipat')" x-show="showCat(@js($category)) && @js($searchable).some(t => hit(t))" @click="folded[@js($category)] = ! folded[@js($category)]" :aria-expanded="! folded[@js($category)]">
+            <span class="uj-mgmt-chev" aria-hidden="true" :data-open="folded[@js($category)] ? null : ''">&#9656;</span>
+            <span style="color:{{ $cm['tint'] }};">{{ $category }}</span>
+            <span class="uj-doc-n">{{ $docs->count() }}</span>
+        </button>
+        @foreach ($docs as $i => $doc)
+            <div class="uj-lv-rw" x-data="{ drawerOpen: false }" x-show="showCat(@js($category)) && ! folded[@js($category)] && hit(@js($searchable[$i]))">
                 <button type="button" class="uj-lv-rw-head" @click="drawerOpen = true">
                     <span class="uj-lv-rw-ico" style="background:{{ $cm['bg'] }};color:{{ $cm['tint'] }};">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{!! $cm['icon'] !!}</svg>

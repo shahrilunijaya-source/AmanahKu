@@ -28,7 +28,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('create_card')]
 #[IsReadOnly]
-#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — without it BoardSuggestions holds the card\'s rows back and it never turns up on the timesheet screen. Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
+#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). A due date is required and is locked once the card is created — the only way to move it later is to cancel the card with a reason and create a new one. timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — without it BoardSuggestions holds the card\'s rows back and it never turns up on the timesheet screen. Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
 class CreateCardTool extends Tool
 {
     use PreviewsWrites;
@@ -56,6 +56,9 @@ class CreateCardTool extends Tool
             'priority' => ['required', 'in:high,medium,low'],
             'status' => ['nullable', 'in:todo,prog,review,done'],
             'due_label' => ['nullable', 'string', 'max:60'],
+            // Mandatory on every work row (docs/build/contracts/dates.md Rule 1) and,
+            // once set here, locked — the only legal write is this creation.
+            'due_at' => ['required', 'date'],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
             'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             // Default (ParentOnly) scope on purpose: a subtask's id is not found, which
@@ -76,6 +79,7 @@ class CreateCardTool extends Tool
             'priority' => $data['priority'],
             'status' => $data['status'] ?? 'todo',
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'],
             'project_id' => $data['project_id'] ?? null,
             'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
         ];
@@ -116,13 +120,14 @@ class CreateCardTool extends Tool
             'title' => $data['title'],
             'priority' => $data['priority'],
             'due_label' => $data['due_label'] ?? null,
+            'due_at' => $data['due_at'],
         ];
 
         return $this->preview(
             $httpRequest,
             $payload,
             "Create subtask '".$data['title']."' under '".$parent->title."'.",
-            ['board' => "under '".$parent->title."'", 'title' => $data['title'], 'priority' => $data['priority'], 'due_label' => $data['due_label'] ?? null],
+            ['board' => "under '".$parent->title."'", 'title' => $data['title'], 'priority' => $data['priority'], 'due_label' => $data['due_label'] ?? null, 'due_at' => $data['due_at']],
         );
     }
 
@@ -148,6 +153,7 @@ class CreateCardTool extends Tool
                 'type' => $payload['type'],
                 'priority' => $payload['priority'],
                 'due_label' => $payload['due_label'] ?? null,
+                'due_at' => $payload['due_at'],
                 'project_id' => $payload['project_id'] ?? null,
                 'timesheet_category_id' => $payload['timesheet_category_id'] ?? null,
                 'status' => $status,
@@ -187,6 +193,7 @@ class CreateCardTool extends Tool
                 'type' => $parent->type,
                 'priority' => $payload['priority'],
                 'due_label' => $payload['due_label'] ?? null,
+                'due_at' => $payload['due_at'],
                 'project_id' => $parent->project_id,
                 'timesheet_category_id' => $parent->timesheet_category_id,
                 'status' => 'todo',
@@ -211,6 +218,7 @@ class CreateCardTool extends Tool
             'priority' => $schema->string()->enum(['high', 'medium', 'low'])->required(),
             'status' => $schema->string()->enum(['todo', 'prog', 'review', 'done'])->description('Defaults to todo.'),
             'due_label' => $schema->string()->description('Free-text due label (not a real date).'),
+            'due_at' => $schema->string()->description('Due date, YYYY-MM-DD. Required. Locked once the card is created — moving the work later means cancelling this card with a reason and creating a new one.')->required(),
             'parent_id' => $schema->integer()->description('Make this card a subtask of that card. The subtask lands on the parent\'s board, copies its type, project and category, and is only ever todo or done. A subtask cannot itself be a parent.'),
             'project_id' => $schema->integer()->description('Project this card is planned under, if any. Dropped if it does not match timesheet_category_id — see that field.'),
             'timesheet_category_id' => $schema->integer()->description('The effort type this card is costed as on a timesheet. Call timesheet_options to see valid ids. A category that does not require a project (e.g. HR & Admin) drops project_id if it was sent; a category that does (e.g. Development) only keeps project_id when that project is tagged with it.'),

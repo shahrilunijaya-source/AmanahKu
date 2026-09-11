@@ -10,6 +10,7 @@ use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WorkItem;
@@ -120,11 +121,17 @@ class TimesheetTest extends TestCase
             'category_id' => $this->category->id, 'percentage' => 100, 'hours' => 8.00,
         ]);
 
-        // Act — replay store() for the same week (double-click / back-button re-post).
-        $response = $this->actingInTenant()->post('/app/timesheets', [
+        // A TimesheetDay row makes the 15th itself locked under the new per-day model.
+        TimesheetDay::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $timesheet->id,
+            'entry_date' => '2026-06-15', 'status' => 'submitted', 'submitted_at' => now(),
+        ]);
+
+        // Act — replay store() for the same day (double-click / back-button re-post).
+        $response = $this->actingInTenant()->postJson('/app/timesheets', [
             'week_start' => '2026-06-15',
             'entries' => [
-                ['entry_date' => '2026-06-16', 'category_id' => $this->category->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 50],
             ],
         ]);
 
@@ -174,6 +181,9 @@ class TimesheetTest extends TestCase
      */
     public function test_store_with_submit_now_names_every_incomplete_day_at_once(): void
     {
+        // Only the three days with data are submit_now candidates.
+        Carbon::setTestNow('2026-06-17 09:00:00'); // Wednesday of that week
+
         $response = $this->actingInTenant()->post('/app/timesheets', [
             'week_start' => '2026-06-15',
             'submit_now' => 1,
@@ -219,15 +229,19 @@ class TimesheetTest extends TestCase
 
     public function test_store_with_submit_now_submits_when_every_day_is_100(): void
     {
+        // submit_now now requires every working day up to today to be filled; a single
+        // filled day is submitted via submit_day instead.
         $this->actingInTenant()->post('/app/timesheets', [
             'week_start' => '2026-06-15',
-            'submit_now' => 1,
+            'submit_day' => '2026-06-15',
             'entries' => [
                 ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
             ],
         ])->assertRedirect();
 
-        $this->assertSame('submitted', Timesheet::where('employee_id', $this->employee->id)->first()->status);
+        $timesheet = Timesheet::where('employee_id', $this->employee->id)->first();
+        $this->assertNotNull($timesheet);
+        $this->assertDatabaseHas('timesheet_days', ['timesheet_id' => $timesheet->id, 'entry_date' => '2026-06-15', 'status' => 'submitted']);
     }
 
     public function test_submitting_an_empty_week_through_store_is_refused(): void
@@ -235,7 +249,7 @@ class TimesheetTest extends TestCase
         // No user rows, and no approved leave or public holiday to generate locked rows,
         // so the week is genuinely empty. Submitting it must be refused, not silently
         // create a submitted timesheet with zero entries.
-        $this->actingInTenant()->post('/app/timesheets', [
+        $this->actingInTenant()->postJson('/app/timesheets', [
             'week_start' => '2026-06-15',
             'submit_now' => true,
             'entries' => [],
@@ -444,6 +458,11 @@ class TimesheetTest extends TestCase
             'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-17',
             'category_id' => $this->category->id, 'percentage' => 100, 'project' => 'Others', 'hours' => 8,
         ]);
+        // That day is finalised under the per-day model too.
+        TimesheetDay::create([
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id,
+            'entry_date' => '2026-06-17', 'status' => 'submitted', 'submitted_at' => now(),
+        ]);
 
         $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
         LeaveRequest::create([
@@ -452,17 +471,23 @@ class TimesheetTest extends TestCase
             'days' => 1, 'status' => 'approved',
         ]);
 
-        // The week is already finalised, so the save is refused outright rather than merged.
-        $this->actingInTenant()->post('/app/timesheets', [
+        // The submitted day is already finalised. The newly-approved leave now locks the
+        // whole day, so the grid's line for it is dropped before the frozen-day check ever
+        // sees it (LockedDays::keepsTypedRows()) — the save succeeds, but the frozen-day
+        // guard reinjects the day's ORIGINAL stored line rather than letting it vanish or
+        // be replaced by a generated leave row. Either way, the submitted work is never
+        // rewritten.
+        $this->actingInTenant()->postJson('/app/timesheets', [
             'week_start' => '2026-06-15',
             'entries' => [
-                ['entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100],
+                ['entry_date' => '2026-06-17', 'category_id' => $this->category->id, 'percentage' => 50],
             ],
-        ])->assertStatus(422);
+        ])->assertOk();
 
         $rows = TimesheetEntry::whereDate('entry_date', '2026-06-17')->get();
         $this->assertCount(1, $rows);
         $this->assertNull($rows[0]->source);
+        $this->assertSame(100.0, (float) $rows[0]->percentage);
     }
 
     public function test_cancelling_approved_leave_clears_the_locked_row_on_the_next_save(): void
@@ -756,16 +781,18 @@ class TimesheetTest extends TestCase
             'title' => 'Struck off', 'type' => 'task', 'status' => 'prog',
         ]);
 
+        // Entry date is today (2026-06-19) so the second save below isn't caught by the
+        // backdate edit window — this test is about dismissed_suggestions, not locking.
         $this->actingInTenant()->postJson('/app/timesheets', [
             'week_start' => '2026-06-15',
             'entries' => [[
-                'entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 100,
+                'entry_date' => '2026-06-19', 'category_id' => $this->category->id, 'percentage' => 100,
             ]],
             'dismissed' => ['2026-06-16' => [$card->id]],
         ])->assertOk();
 
         app(WeekWriter::class)->save($this->employee, '2026-06-15', [[
-            'entry_date' => '2026-06-15', 'category_id' => $this->category->id, 'percentage' => 50,
+            'entry_date' => '2026-06-19', 'category_id' => $this->category->id, 'percentage' => 50,
         ]], null, false);
 
         $this->assertSame(
@@ -831,15 +858,17 @@ class TimesheetTest extends TestCase
             'week_start' => '2026-06-15', 'status' => 'draft', 'total_hours' => 8,
         ]);
         TimesheetEntry::create([
-            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-15',
+            'tenant_id' => $this->tenant->id, 'timesheet_id' => $sheet->id, 'entry_date' => '2026-06-19',
             'category_id' => $retired->id, 'percentage' => 100, 'hours' => 8,
         ]);
         $retired->update(['is_active' => false]);
 
+        // Use today's date (2026-06-19) so this stays about the retired category, not the
+        // backdate edit window.
         $this->actingInTenant()->post('/app/timesheets', [
             'week_start' => '2026-06-15',
             'entries' => [
-                ['entry_date' => '2026-06-15', 'category_id' => $retired->id, 'percentage' => 60],
+                ['entry_date' => '2026-06-19', 'category_id' => $retired->id, 'percentage' => 60],
             ],
         ])->assertRedirect();
 

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -67,12 +71,22 @@ class BoardRules
     public function authorizeAccess(Request $request, WorkItem $item, Employee $employee): void
     {
         abort_unless($item->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        // A subtask handed to someone else is theirs to open, tick and comment on. Every
+        // other right on it still comes from the parent (see subject()) — the same split
+        // the assignee of a tac already gets: move + comment, never edit. Must run before
+        // subject() collapses $item to the parent, or employee_id here is the wrong person.
+        if ($item->parent_id !== null && $item->employee_id === $employee->id) {
+            return;
+        }
+
         $item = $this->subject($item);
         $role = $request->attributes->get('tenantRole', 'employee');
         abort_unless(
             $item->employee_id === $employee->id
             || $this->isAssigner($item, $employee)
             || $item->participants()->whereKey($employee->id)->exists()
+            || $item->reviewer_id === $employee->id
             // A manager who may edit the card must also be able to open it. Without
             // this they hold edit rights they can never reach: show() would 403 and
             // the drawer would never render.
@@ -164,6 +178,24 @@ class BoardRules
     }
 
     /**
+     * When a card carries a Reviewer, that person alone moves it from In Review to
+     * Done: owner, helpers and managers are refused (CR-04, contracts/roles.md). Every
+     * other move is untouched, and a card with no reviewer moves as it always did.
+     * A subtask is never in review, so it is judged as itself.
+     */
+    public function assertReviewerMovesToDone(WorkItem $item, string $status, Employee $actor): void
+    {
+        abort_if(
+            $status === 'done'
+            && $item->status === 'review'
+            && $item->reviewer_id !== null
+            && $item->reviewer_id !== $actor->id,
+            403,
+            'Only the reviewer can move this card from In Review to Done.',
+        );
+    }
+
+    /**
      * A card that involves anyone but its owner (a tac, or a card with
      * participants) must carry a due date. Checked against the state the change
      * would LEAVE BEHIND, not the raw input, because the drawer autosaves one
@@ -189,6 +221,44 @@ class BoardRules
     }
 
     /**
+     * Rule 1 of docs/build/contracts/dates.md: a work item's due date locks after its
+     * first save. Allowed through untouched: a brand-new item (still unsaved), an Event
+     * (dates 2 of that contract reschedule freely), or a card that has never had a due
+     * date set (null to a value is the one legal write). Anything else must match the
+     * date already on the row exactly, compared as Y-m-d — a same-day resend (the
+     * drawer autosaves every field back) is a no-op, not a violation.
+     *
+     * Compared against getOriginal() rather than the live attribute so this also works
+     * called from the model's own `saving` hook, where the attribute may already be
+     * dirty with the incoming value by the time this runs.
+     */
+    public function assertDueDateLocked(WorkItem $item, mixed $incoming): void
+    {
+        if (! $item->exists || $item->isEvent()) {
+            return;
+        }
+
+        $original = $item->getOriginal('due_at');
+        $originalDate = $original instanceof DateTimeInterface ? $original->format('Y-m-d') : ($original ? Carbon::parse($original)->format('Y-m-d') : null);
+
+        if ($originalDate === null) {
+            return;
+        }
+
+        $incomingDate = match (true) {
+            $incoming === null => null,
+            $incoming instanceof DateTimeInterface => $incoming->format('Y-m-d'),
+            default => Carbon::parse($incoming)->format('Y-m-d'),
+        };
+
+        if ($incomingDate !== $originalDate) {
+            throw ValidationException::withMessages([
+                'due_at' => 'Due dates are locked after the first save. Cancel this card with a reason and create a new one if the work has moved.',
+            ]);
+        }
+    }
+
+    /**
      * A card cannot land on Done while any of its subtasks is still open. Lives here,
      * not in the controller, for the same reason assertDueDateRetained() does: one rule
      * shared by WorkItemController::move() and App\Mcp\Tools\MoveCardTool, so the
@@ -201,15 +271,86 @@ class BoardRules
             return;
         }
 
-        $open = $item->openChildCount();
+        $openTitles = ($item->relationLoaded('children') ? $item->children : $item->children()->get())
+            ->where('status', '!=', 'done')
+            ->pluck('title');
 
-        if ($open > 0) {
+        if ($openTitles->isEmpty()) {
+            return;
+        }
+
+        $names = $openTitles->take(5)->implode(', ');
+        if ($openTitles->count() > 5) {
+            $names .= ', +'.($openTitles->count() - 5).' more';
+        }
+
+        throw ValidationException::withMessages([
+            'status' => "Still open: {$names}. Tick them off before moving this card to Done.",
+        ]);
+    }
+
+    /**
+     * CR-18 done rule for a card that carries a linked Event: Done only once the event is
+     * approved, its organiser has marked it Held, its date has passed, at least
+     * `min_attended` people were marked attended, and post-event evidence is on it. A
+     * Draft or Cancelled event, or a past one nobody attended, keeps the card open. The
+     * attendance floor comes from the schedule the card belongs to (default 1).
+     */
+    public function assertLinkedEventSatisfiesDoneRule(WorkItem $item, string $status): void
+    {
+        if ($status !== 'done' || ! $item->company_event_id) {
+            return;
+        }
+
+        $event = $item->companyEvent;
+        if ($event === null) {
+            return;
+        }
+
+        $floor = max(1, (int) ($item->recurringOccurrence?->schedule->min_attended ?? 1));
+        $attended = $event->rsvps()->where('response', CompanyEvent::RESPONSE_ATTENDED)->count();
+        $today = CarbonImmutable::now()->startOfDay();
+
+        $missing = collect([
+            'approved' => $event->approved_at !== null,
+            'held' => $event->status === CompanyEvent::STATUS_HELD,
+            'date passed' => CarbonImmutable::parse($event->event_date->toDateString())->lt($today),
+            "attendance ({$attended} of {$floor})" => $attended >= $floor,
+            'evidence' => filled($event->evidence_note),
+        ])->reject(fn (bool $ok) => $ok)->keys();
+
+        if ($missing->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'status' => $open === 1
-                    ? '1 subtask still open. Tick it off before moving this card to Done.'
-                    : "{$open} subtasks still open. Tick them off before moving this card to Done.",
+                'status' => 'The linked event is not closed out yet. Missing: '.$missing->implode(', ').'.',
             ]);
         }
+    }
+
+    /**
+     * When a child reaches Done and that closes out its parent's last open subtask, the
+     * parent moves itself to Review — the point of the last piece of legwork finishing is
+     * usually a second pair of eyes, not sitting untouched in To Do/In Progress until
+     * someone notices by hand. Only fires while the parent is still todo or prog; a parent
+     * already in review or done is left alone. Deleting a subtask never calls this — see
+     * WorkItemController::destroy(), which stays a plain removal.
+     *
+     * @return WorkItem|null the parent, moved, when it fired; null otherwise (caller uses
+     *                       this to decide whether to notify and repaint)
+     */
+    public function autoReviewParentOnLastChildDone(WorkItem $child): ?WorkItem
+    {
+        if (! $child->isChild()) {
+            return null;
+        }
+
+        $parent = $child->parent;
+        if (! in_array($parent->status, ['todo', 'prog'], true) || $parent->openChildCount() > 0) {
+            return null;
+        }
+
+        $parent->update(['status' => 'review']);
+
+        return $parent;
     }
 
     /**

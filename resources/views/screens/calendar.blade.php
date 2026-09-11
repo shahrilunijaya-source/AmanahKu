@@ -29,6 +29,7 @@
             </div>
             <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);">
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--success);"></span><span x-text="$store.ui.lang==='en' ? 'On leave' : 'Bercuti'">On leave</span></span>
+                <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:transparent;border:1px dashed var(--success);"></span><span x-text="$store.ui.lang==='en' ? 'Waiting for approval' : 'Menunggu kelulusan'">Waiting for approval</span></span>
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></span><span x-text="$store.ui.lang==='en' ? 'Holiday' : 'Cuti umum'">Holiday</span></span>
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#3a6ea5;"></span><span x-text="$store.ui.lang==='en' ? 'Event' : 'Acara'">Event</span></span>
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#c026d3;"></span><span x-text="$store.ui.lang==='en' ? 'Birthday' : 'Hari lahir'">Birthday</span></span>

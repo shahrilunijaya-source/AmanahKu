@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Carbon\CarbonImmutable;
+
 /**
  * The dashboard's widget registry — one row per card, listed in the order a
  * brand-new user meets them. Ported from the approved public/_dash-unified.html
@@ -16,6 +18,10 @@ namespace App\Support;
  * `screen` is the tenant feature gate — a widget whose module is switched off
  * reads as absent, the same rule AppController::screen() applies to whole screens.
  * `column` is only the DEFAULT placement; a user's saved drag order overrides it.
+ * `after` (optional) names the card a new widget sits under by default (CR-32):
+ * without it a widget lands at the bottom of its column. The full-width bands
+ * above the grid (moments, management, awards) are not widgets — see
+ * BuildsDashboardWidgets::dashboardBands().
  */
 final class DashboardWidgets
 {
@@ -33,7 +39,7 @@ final class DashboardWidgets
      * The registry. `roles` null means everyone; `screen` null means core (no
      * module can switch it off); `column` is the default side of the grid.
      *
-     * @var array<string, array{title: string, title_ms: string, blurb: string, blurb_ms: string, category: string, roles: list<string>|null, screen: string|null, column: string}>
+     * @var array<string, array{title: string, title_ms: string, blurb: string, blurb_ms: string, category: string, roles: list<string>|null, screen: string|null, column: string, after?: string}>
      */
     public const ALL = [
         'summary' => [
@@ -53,6 +59,12 @@ final class DashboardWidgets
             'blurb' => 'Everything still waiting on you, grouped.',
             'blurb_ms' => 'Semua yang masih menunggu tindakan anda, dikumpulkan.',
             'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'left',
+        ],
+        'friday' => [
+            'title' => 'Friday sign-off', 'title_ms' => 'Penutup Jumaat',
+            'blurb' => 'Wrap up the week. Shows from Friday 3 PM to Monday 9 AM.',
+            'blurb_ms' => 'Tutup minggu. Dipaparkan dari Jumaat 3 petang hingga Isnin 9 pagi.',
+            'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'left', 'after' => 'tasks',
         ],
         'leave' => [
             'title' => 'My leave summary', 'title_ms' => 'Ringkasan cuti saya',
@@ -84,6 +96,12 @@ final class DashboardWidgets
             'blurb_ms' => 'Pengumuman syarikat.',
             'category' => 'Me', 'roles' => null, 'screen' => null, 'column' => 'right',
         ],
+        'flowers' => [
+            'title' => 'Flowers', 'title_ms' => 'Bunga',
+            'blurb' => 'Colleagues caught being brilliant this month.',
+            'blurb_ms' => 'Rakan sekerja yang ditangkap cemerlang bulan ini.',
+            'category' => 'Team', 'roles' => null, 'screen' => null, 'column' => 'right', 'after' => 'notices',
+        ],
         'claims' => [
             'title' => 'My claim summary', 'title_ms' => 'Ringkasan tuntutan saya',
             'blurb' => 'What you claimed this year and where it stands.',
@@ -96,11 +114,26 @@ final class DashboardWidgets
             'blurb_ms' => 'Masuk dan keluar, hari demi hari.',
             'category' => 'Attendance', 'roles' => null, 'screen' => 'attendance', 'column' => 'right',
         ],
+        'style' => [
+            'title' => 'My working style', 'title_ms' => 'Gaya kerja saya',
+            'blurb' => 'Your Profile Test result: archetype and the four-way split.',
+            'blurb_ms' => 'Keputusan Ujian Profil anda: arketip dan pecahan empat hala.',
+            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right', 'after' => 'work',
+        ],
         'pulse' => [
             'title' => 'Company pulse', 'title_ms' => 'Nadi syarikat',
             'blurb' => 'Headcount, timesheets past lock, claims outstanding.',
             'blurb_ms' => 'Bilangan kakitangan, kad waktu lewat kunci, tuntutan tertunggak.',
             'category' => 'Team', 'roles' => Permissions::FINAL_APPROVAL_ROLES, 'screen' => null, 'column' => 'right',
+        ],
+        // CR-11 (docs/build/contracts/dashboard-slots.md): present only for an upcoming or
+        // just-past company event with attendees — see BuildsDashboardWidgets' 'events'
+        // filter, mirrors the 'friday' conditional card.
+        'events' => [
+            'title' => 'Events', 'title_ms' => 'Acara',
+            'blurb' => 'An event coming up or just wrapped, and who is going.',
+            'blurb_ms' => 'Acara yang akan datang atau baru selesai, dan siapa yang hadir.',
+            'category' => 'Team', 'roles' => null, 'screen' => 'events', 'column' => 'right', 'after' => 'attendance',
         ],
     ];
 
@@ -151,6 +184,30 @@ final class DashboardWidgets
             self::ids(),
             fn (string $id): bool => self::ALL[$id]['roles'] === null || in_array($role, self::ALL[$id]['roles'], true),
         ));
+    }
+
+    /**
+     * Whether the Friday sign-off card (CR-29, slot owned by CR-32) is on the page:
+     * Friday 15:00 up to, not including, Monday 09:00, on the tenant clock.
+     */
+    public static function fridaySignOffOpen(CarbonImmutable $now): bool
+    {
+        return match ($now->dayOfWeek) {
+            CarbonImmutable::FRIDAY => $now->hour >= 15,
+            CarbonImmutable::SATURDAY, CarbonImmutable::SUNDAY => true,
+            CarbonImmutable::MONDAY => $now->hour < 9,
+            default => false,
+        };
+    }
+
+    /**
+     * The Friday whose sign-off window we are in, `Y-m-d`. Only meaningful
+     * while fridaySignOffOpen() is true: Friday itself, or the Friday just
+     * gone for Saturday, Sunday, or Monday before 09:00.
+     */
+    public static function fridayWeekOf(CarbonImmutable $now): string
+    {
+        return $now->subDays(($now->dayOfWeek - CarbonImmutable::FRIDAY + 7) % 7)->toDateString();
     }
 
     /** The period slice a widget's arrows move by, or null when it has none. */
@@ -204,6 +261,21 @@ final class DashboardWidgets
      */
     public static function layout(array $available, array $order, array $hidden): array
     {
+        return self::layoutWith(self::ALL, $available, $order, $hidden);
+    }
+
+    /**
+     * layout() against a given registry, so the anchor rule can be tested
+     * without a real widget having to carry `after` yet.
+     *
+     * @param  array<string, array{column: string, after?: string}>  $registry
+     * @param  list<string>  $available
+     * @param  array<string, mixed>  $order
+     * @param  list<string>  $hidden
+     * @return array<string, list<string>>
+     */
+    public static function layoutWith(array $registry, array $available, array $order, array $hidden): array
+    {
         $shown = array_values(array_diff($available, array_diff($hidden, self::PINNED)));
         $placed = [];
         $layout = [];
@@ -223,9 +295,18 @@ final class DashboardWidgets
         }
 
         foreach ($shown as $id) {
-            if (! isset($placed[$id])) {
-                $layout[self::ALL[$id]['column']][] = $id;
+            if (isset($placed[$id])) {
+                continue;
             }
+            $column = $registry[$id]['column'];
+            $anchor = $registry[$id]['after'] ?? null;
+            $at = $anchor === null ? false : array_search($anchor, $layout[$column], true);
+            if ($at === false) {
+                $layout[$column][] = $id;
+            } else {
+                array_splice($layout[$column], $at + 1, 0, [$id]);
+            }
+            $placed[$id] = true;
         }
 
         return $layout;

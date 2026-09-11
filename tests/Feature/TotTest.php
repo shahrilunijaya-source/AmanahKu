@@ -825,7 +825,7 @@ class TotTest extends TestCase
             ->assertNotFound();
 
         $this->actingAs($hr)->withSession(['current_tenant' => $this->tenant->id])
-            ->post("/app/tot/{$foreignSession->id}/react", ['emoji' => '👍'])
+            ->post("/app/tot/{$foreignSession->id}/react", ['reaction' => 'power'])
             ->assertNotFound();
 
         $this->assertSame(
@@ -840,11 +840,11 @@ class TotTest extends TestCase
     {
         $session = $this->makeSession();
 
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍'])
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('tot_reactions', [
-            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => '👍',
+            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => 'power',
         ]);
     }
 
@@ -852,11 +852,11 @@ class TotTest extends TestCase
     {
         $session = $this->makeSession();
 
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power']);
 
         $this->assertDatabaseMissing('tot_reactions', [
-            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => '👍',
+            'session_id' => $session->id, 'employee_id' => $this->employee->id, 'emoji' => 'power',
         ]);
     }
 
@@ -864,14 +864,14 @@ class TotTest extends TestCase
     {
         $session = $this->makeSession();
 
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '🔥']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power']);
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'legend']);
 
         $this->assertSame(1, TotReaction::where('session_id', $session->id)->count());
         $this->assertSame(
-            '🔥',
+            'legend',
             TotReaction::where('session_id', $session->id)->value('emoji'),
-            'the newer emoji replaces the older one'
+            'the newer reaction replaces the older one'
         );
     }
 
@@ -879,8 +879,8 @@ class TotTest extends TestCase
     {
         $session = $this->makeSession();
 
-        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '💩'])
-            ->assertSessionHasErrors('emoji');
+        $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'nope'])
+            ->assertSessionHasErrors('reaction');
 
         $this->assertSame(0, TotReaction::count());
     }
@@ -913,16 +913,16 @@ class TotTest extends TestCase
                 'tenant_id' => $this->tenant->id,
                 'session_id' => $session->id,
                 'employee_id' => $this->employee->id,
-                'emoji' => '👍',
+                'emoji' => 'power',
             ]);
         });
 
-        $response = $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['emoji' => '👍']);
+        $response = $this->actingInTenant()->post("/app/tot/{$session->id}/react", ['reaction' => 'power']);
 
         $response->assertRedirect();
         $this->assertSame(1, TotReaction::where('session_id', $session->id)
             ->where('employee_id', $this->employee->id)
-            ->where('emoji', '👍')
+            ->where('emoji', 'power')
             ->count());
     }
 

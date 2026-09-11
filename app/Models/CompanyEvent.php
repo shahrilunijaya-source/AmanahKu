@@ -10,22 +10,76 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property Carbon $event_date
+ * @property Carbon|null $starts_at
+ * @property Carbon|null $ends_at
  * @property list<int>|null $tagged_employee_ids
  */
 class CompanyEvent extends Model
 {
     use BelongsToTenant;
 
+    /**
+     * CR-18 pulls the smallest CR-11 lifecycle forward: an event is drafted, approved by
+     * a director or PM, marked Held by its organiser (never by the date alone), or
+     * cancelled. CR-11 builds the screens; the columns and the done rule live here.
+     */
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_APPROVED = 'approved';
+
+    public const STATUS_HELD = 'held';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUSES = [self::STATUS_DRAFT, self::STATUS_APPROVED, self::STATUS_HELD, self::STATUS_CANCELLED];
+
+    /** An RSVP response recorded after the event: the person was there. */
+    public const RESPONSE_ATTENDED = 'attended';
+
+    /** CR-11: signed up ahead of an external/registration-style event. */
+    public const RESPONSE_REGISTERED = 'registered';
+
+    /** CR-19: the post-event mark-off's other outcome — archives the attendee's card. */
+    public const RESPONSE_DID_NOT_ATTEND = 'did_not_attend';
+
+    /** Every RSVP response the attendees endpoint and the page may show. */
+    public const RESPONSES = ['going', self::RESPONSE_REGISTERED, self::RESPONSE_ATTENDED, self::RESPONSE_DID_NOT_ATTEND, 'maybe', 'declined'];
+
     protected $guarded = [];
 
     protected function casts(): array
     {
-        return ['event_date' => 'date', 'tagged_employee_ids' => 'array'];
+        return [
+            'event_date' => 'date', 'tagged_employee_ids' => 'array', 'approved_at' => 'datetime',
+            'starts_at' => 'datetime', 'ends_at' => 'datetime',
+        ];
     }
 
     public function rsvps(): HasMany
     {
         return $this->hasMany(EventRsvp::class);
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(EventPhoto::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function lessons(): HasMany
+    {
+        return $this->hasMany(EventLesson::class);
+    }
+
+    /** Top-level comments only; replies are read off each one's own replies() relation. */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(EventComment::class)->whereNull('parent_id')->oldest();
+    }
+
+    /** Reactions on the event itself, not on one of its lessons. */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(EventReaction::class)->whereNull('lesson_id');
     }
 
     /**
@@ -55,5 +109,30 @@ class CompanyEvent extends Model
     public function isExternal(): bool
     {
         return $this->host !== null;
+    }
+
+    /**
+     * Post-event sharing (CR-11) unlocks once the event is over: `ends_at` when the
+     * event carries one, otherwise the end of `event_date`. Compared against the app
+     * clock (Carbon::now(), which the dev clock override and tests both drive via
+     * Carbon::setTestNow), never a bare `now()` inline — see docs/build/contracts/dates.md.
+     */
+    public function isOver(): bool
+    {
+        $end = $this->ends_at ?? $this->event_date?->copy()->endOfDay();
+
+        return $end !== null && Carbon::now()->greaterThanOrEqualTo($end);
+    }
+
+    /** The moment this event starts, for the calendar port and the card due date. */
+    public function startsAtOrDate(): Carbon
+    {
+        return $this->starts_at ?? $this->event_date->copy()->startOfDay();
+    }
+
+    /** The moment this event ends, for the calendar port. Falls back to a one-hour slot. */
+    public function endsAtOrDate(): Carbon
+    {
+        return $this->ends_at ?? $this->startsAtOrDate()->copy()->addHour();
     }
 }

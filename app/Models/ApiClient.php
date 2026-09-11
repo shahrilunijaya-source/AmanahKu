@@ -62,6 +62,8 @@ class ApiClient extends Model implements AuthenticatableContract
         'employees:read' => 'Employee directory (names, emails, positions)',
         'positions:read' => 'Position bands (no salary)',
         'effort:read' => 'Weekly timesheet effort per band (no names, no salary)',
+        'board-week:read' => 'One week of board activity per project (planned, happened, events)',
+        'comments:read' => 'Card comments pushed to Track (official project records)',
         'leave:read' => 'Leave requests',
         'timesheets:read' => 'Weekly timesheets and their entries',
         'board:read' => 'Board cards (work items)',

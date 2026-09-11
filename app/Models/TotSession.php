@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\Permissions;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -202,5 +203,76 @@ class TotSession extends Model
     public function participations(): HasMany
     {
         return $this->hasMany(TotParticipation::class, 'session_id');
+    }
+
+    /** CR-09: the session chair (Pengerusi). @return BelongsTo<Employee, $this> */
+    public function chair(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'chair_employee_id');
+    }
+
+    /** @return HasMany<TotSlot, $this> */
+    public function slots(): HasMany
+    {
+        return $this->hasMany(TotSlot::class, 'session_id')->orderBy('position');
+    }
+
+    /** @return HasMany<TotAttendance, $this> */
+    public function attendance(): HasMany
+    {
+        return $this->hasMany(TotAttendance::class, 'session_id');
+    }
+
+    /** @return HasMany<TotAction, $this> */
+    public function actions(): HasMany
+    {
+        return $this->hasMany(TotAction::class, 'session_id')->orderBy('position');
+    }
+
+    /**
+     * The previous calendar month's session, wherever the year rolls over. Not eager
+     * loadable through a relation (the key crosses year boundaries), so this is a plain
+     * query, cheap enough for one extra lookup per row on the year screen.
+     */
+    public function previousSession(): ?self
+    {
+        $month = (int) $this->month - 1;
+        $year = (int) $this->year;
+        if ($month < 1) {
+            $month = 12;
+            $year--;
+        }
+
+        return static::query()->where('year', $year)->where('month', $month)->first();
+    }
+
+    /**
+     * The agenda carried from last month, only when this month has not written its own
+     * description yet (CR-09 scope item 5). Read live, never copied, so an edit to last
+     * month's agenda after this month opened still shows through.
+     */
+    public function carriedAgenda(): ?string
+    {
+        if (filled($this->description)) {
+            return null;
+        }
+
+        $previous = $this->previousSession();
+
+        return $previous && filled($previous->next_agenda) ? $previous->next_agenda : null;
+    }
+
+    /**
+     * CR-09: who may edit this session, its slots, attendance and tindakan. Called from
+     * both TotController (with the raw tenant role) and the year screen (with the already
+     * effective-collapsed $role), so effectiveRole() runs either way — idempotent on a
+     * role that is already collapsed.
+     */
+    public function isManagedBy(?string $role, ?Employee $employee): bool
+    {
+        $effective = $role !== null ? Permissions::effectiveRole($role) : null;
+
+        return in_array($effective, ['management', 'hr', 'manager'], true)
+            || ($employee !== null && $this->chair_employee_id === $employee->id);
     }
 }

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Amanahku dashboard bands, tone families</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font-sans:'Poppins',ui-sans-serif,system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --red:#d6232b;--red-active:#b01b22;
+  --canvas:#f6f6f3;--card:#fff;--shelf:#ece9e1;
+  --ink:#26251e;--body:#5a5852;--muted:#6f6c61;--muted-soft:#8b887e;--hairline:#e6e5e0;
+  --lift:0 1px 2px rgba(31,30,26,.06),0 6px 18px -8px rgba(31,30,26,.18);
+  --ease:cubic-bezier(.23,1,.32,1);
+
+  /* Tone families. Each one: two-stop wash, a glow, a voice (kicker + button), and a tinted secondary text. */
+  --cele-a:#fff0dc;--cele-b:#fbdbe4;--cele-glow:#e9c8ff;--cele-voice:#b6336f;--cele-voice-deep:#8e2558;--cele-text:#6e4a58;
+  --head-a:#e9f1fb;--head-b:#e3ecf2;--head-glow:#c7e3f7;--head-voice:#2b537c;--head-voice-deep:#1f3f60;--head-text:#4f6479;
+  --need-a:#fff5e0;--need-b:#fbe7c3;--need-glow:#ffd48a;--need-voice:#9a6112;--need-voice-deep:#7a4b0c;--need-text:#7a5f3b;
+  --alrm-a:#fdeaea;--alrm-b:#fad9db;--alrm-glow:#ffb4b8;--alrm-voice:#b01b22;--alrm-voice-deep:#8f151b;--alrm-text:#7d3b3e;
+}
+*{box-sizing:border-box}
+html{background:var(--canvas)}
+body{margin:0;font:14px/1.5 var(--font-sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+::selection{background:#fbdbe4;color:var(--ink)}
+.page{max-width:980px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:22px;font-weight:500;letter-spacing:-.025em;line-height:1.25;margin:0 0 6px}
+.lede{color:var(--body);max-width:62ch;margin:0 0 28px}
+h2{font-size:16px;font-weight:600;margin:44px 0 4px}
+.rule{font-size:12.5px;color:var(--muted);margin:0 0 14px;max-width:70ch}
+.rule b{color:var(--ink);font-weight:600}
+
+/* ---- Swatch legend ---- */
+.fam{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 8px}
+.fam > div{border-radius:14px;padding:14px 16px 12px;box-shadow:var(--lift);position:relative;overflow:hidden;min-height:118px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
+.fam i{position:absolute;inset:auto -20px -30px auto;width:120px;height:120px;border-radius:50%;filter:blur(28px);opacity:.9}
+.fam b,.fam span,.fam small{position:relative}
+.fam b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase}
+.fam span{font-size:12px}
+.fam small{font:600 11px var(--font-mono);letter-spacing:0;opacity:.75}
+.fam .cele{background:linear-gradient(135deg,var(--cele-a),var(--cele-b))}.fam .cele i{background:var(--cele-glow)}.fam .cele b{color:var(--cele-voice)}.fam .cele span,.fam .cele small{color:var(--cele-text)}
+.fam .head{background:linear-gradient(135deg,var(--head-a),var(--head-b))}.fam .head i{background:var(--head-glow)}.fam .head b{color:var(--head-voice)}.fam .head span,.fam .head small{color:var(--head-text)}
+.fam .need{background:linear-gradient(135deg,var(--need-a),var(--need-b))}.fam .need i{background:var(--need-glow)}.fam .need b{color:var(--need-voice)}.fam .need span,.fam .need small{color:var(--need-text)}
+.fam .alrm{background:linear-gradient(135deg,var(--alrm-a),var(--alrm-b))}.fam .alrm i{background:var(--alrm-glow)}.fam .alrm b{color:var(--alrm-voice)}.fam .alrm span,.fam .alrm small{color:var(--alrm-text)}
+
+/* ---- Band, one component, tone from data-tone ---- */
+.stack{display:flex;flex-direction:column;gap:14px}
+.band{position:relative;overflow:hidden;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:18px 22px;border-radius:14px;box-shadow:var(--lift);background:linear-gradient(135deg,var(--a),var(--b));color:var(--ink)}
+.band::before{content:"";position:absolute;right:-60px;top:-70px;width:260px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--glow),transparent 72%);opacity:.85;pointer-events:none}
+.band::after{content:"";position:absolute;left:-40px;bottom:-90px;width:200px;height:160px;border-radius:50%;background:radial-gradient(closest-side,var(--glow2,var(--glow)),transparent 72%);opacity:.45;pointer-events:none}
+.band > *{position:relative}
+.band[data-tone=cele]{--a:var(--cele-a);--b:var(--cele-b);--glow:var(--cele-glow);--glow2:#ffd9a3;--voice:var(--cele-voice);--voice-deep:var(--cele-voice-deep);--text:var(--cele-text)}
+.band[data-tone=head]{--a:var(--head-a);--b:var(--head-b);--glow:var(--head-glow);--glow2:#dbe9e0;--voice:var(--head-voice);--voice-deep:var(--head-voice-deep);--text:var(--head-text)}
+.band[data-tone=need]{--a:var(--need-a);--b:var(--need-b);--glow:var(--need-glow);--glow2:#ffe6b8;--voice:var(--need-voice);--voice-deep:var(--need-voice-deep);--text:var(--need-text)}
+.band[data-tone=alrm]{--a:var(--alrm-a);--b:var(--alrm-b);--glow:var(--alrm-glow);--glow2:#ffd0c4;--voice:var(--alrm-voice);--voice-deep:var(--alrm-voice-deep);--text:var(--alrm-text)}
+.k{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--voice)}
+.t{font-size:16px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.s{flex-basis:100%;margin-top:-4px;color:var(--text);font-size:14px;max-width:72ch}
+.meta{flex-basis:100%;font-size:11.5px;color:var(--text);opacity:.85}
+.meta b{font-weight:600;color:var(--ink)}
+.num{font:600 34px/1 var(--font-mono);letter-spacing:-.02em;color:var(--voice)}
+.art{font-size:22px;line-height:1}
+.av{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:600;color:#fff;background:#3a6ea5}
+.role{font-size:12.5px;color:var(--text)}
+.cta{margin-left:auto;white-space:nowrap;font-weight:500;font-size:14px;color:#fff;background:var(--voice);border-radius:9px;padding:8px 14px;transition:transform 160ms var(--ease),background 160ms ease;cursor:pointer}
+.cta:hover{background:var(--voice-deep)}
+.cta:active{transform:scale(.97)}
+.cta.ghost{background:rgba(255,255,255,.7);color:var(--voice-deep)}
+.pager{font:500 12px var(--font-mono);color:var(--text);display:inline-flex;gap:8px;align-items:center;margin-left:auto}
+.pager .cta{margin-left:0}
+.pager + .pager{margin-left:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.72);color:var(--ink);transition:transform 120ms var(--ease);cursor:pointer}
+.chip:active{transform:scale(.96)}
+.chip.on{background:var(--voice);color:#fff}
+.chip.count{margin-left:auto;background:rgba(255,255,255,.5);color:var(--text)}
+.story{flex-basis:100%;display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:rgba(255,255,255,.55);border-radius:10px}
+.story b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text)}
+.story p{margin:0;font-size:13px;color:var(--body)}
+.team{display:flex;align-items:center}
+.team .av{margin-left:-7px;box-shadow:0 0 0 2px #fff}
+.team .av:first-child{margin-left:0}
+.team small{margin-left:8px;font-size:11.5px;color:var(--text);white-space:nowrap}
+.panels{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.panel{background:rgba(255,255,255,.62);border-radius:10px;padding:10px 12px;font-size:12.5px}
+.panel b{display:block;font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text);margin-bottom:6px}
+.panel .row{display:flex;justify-content:space-between;padding:3px 0;color:var(--body)}
+.panel .row em{font:600 12px var(--font-mono);font-style:normal;color:var(--voice)}
+.slides{flex-basis:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.slide{background:rgba(255,255,255,.62);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px}
+.slide b{font:700 11px var(--font-sans);letter-spacing:.13em;text-transform:uppercase;color:var(--text)}
+.slide strong{font-size:14px;font-weight:600}
+.slide span{font-size:12px;color:var(--body)}
+.slide .w{display:flex;align-items:center;gap:8px;margin-top:4px}
+.slide .w .av{width:24px;height:24px;font-size:9px}
+
+/* toast */
+.toast{width:340px;background:#fff;border-radius:14px;box-shadow:0 12px 32px -8px rgba(31,30,26,.28),0 2px 6px rgba(31,30,26,.08);padding:14px 16px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.toast::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--need-glow),var(--need-voice))}
+.toast .k{color:var(--need-voice)}
+.toast .t{white-space:normal;font-size:15px}
+.toast .s{flex-basis:auto;margin:0;color:var(--body);font-size:12.5px}
+.toast input{height:36px;padding:0 10px;border:0;border-radius:8px;background:var(--shelf);font:12.5px var(--font-sans);color:var(--ink)}
+.toast input::placeholder{color:var(--muted-soft)}
+.toast input:focus{outline:2px solid var(--need-glow);outline-offset:1px}
+.toast .row{display:flex;gap:8px;align-items:center}
+.toast .cta{margin-left:0;background:var(--need-voice)}
+.toast .cta.ghost{color:var(--need-voice-deep);background:var(--shelf)}
+.two{display:grid;grid-template-columns:1fr 340px;gap:14px;align-items:start}
+
+/* plain mode column */
+.plain .band{background:var(--card);box-shadow:var(--lift)}
+.plain .band::before,.plain .band::after{display:none}
+.plain .band .k{color:var(--voice)}
+.plain .band .s,.plain .band .meta{color:var(--body)}
+.plain .num,.plain .art{display:none}
+
+@media (max-width:720px){
+  .fam{grid-template-columns:1fr 1fr}
+  .band{padding:16px 18px}
+  .t{white-space:normal}
+  .panels,.slides{grid-template-columns:1fr}
+  .two{grid-template-columns:1fr}
+  .cta,.pager{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Dashboard bands, one look per tone</h1>
+  <p class="lede">Every full-width strip on the dashboard now belongs to one of four families. The shape stays identical (kicker, title, one line, meta, button, pager). Only the wash, the glow and the voice colour change. No borders anywhere; the wash and a soft offset shadow carry the edge. Brand red is kept for one family only, so it means something again.</p>
+
+  <div class="fam">
+    <div class="cele"><i></i><b>Celebration</b><span>Good news about people or work.</span><small>rose · apricot · lilac</small></div>
+    <div class="head"><i></i><b>Heads-up</b><span>Know it, nothing to do.</span><small>sky · sage</small></div>
+    <div class="need"><i></i><b>Needs action</b><span>Someone must do something.</span><small>honey · amber</small></div>
+    <div class="alrm"><i></i><b>Alarm</b><span>Something is wrong. Brand red, and only here.</span><small>red · coral</small></div>
+  </div>
+
+  <h2>Celebration</h2>
+  <p class="rule">Birthday, Big Deal, Victory Bell, Wrapped, and every Awards slide. Warm wash from apricot into rose with a lilac glow. Voice is a deep rose, <b>never brand red</b>. The button is the one solid element on the band.</p>
+  <div class="stack">
+    <section class="band" data-tone="cele">
+      <span class="k">Today</span>
+      <span class="av" style="background:#c2417a">HM</span>
+      <span class="t">Happy birthday, Yati</span>
+      <span class="role">Sr Project Manager</span>
+      <span class="s">Say it in person if you can, or drop a line on the Wall.</span>
+      <span class="cta">Wish her</span>
+    </section>
+
+    <section class="band" data-tone="cele">
+      <span class="k">Big deal alert</span>
+      <span class="t">iLPF UAT completed</span>
+      <span class="team"><span class="av" style="background:#3a6ea5">MS</span><span class="av" style="background:#8e2558">KU</span><span class="av" style="background:#1f8a65">HM</span><small>+2 more</small></span>
+      <div class="story"><b>What it took</b><p>Three weeks of late nights, 212 test cases, zero showstoppers left. KDN signed off UAT on Friday.</p></div>
+      <span class="meta">Raised by <b>Kussairi</b> · KDN: iLPF · Track TRK-MS-42 · on the dashboard until Sat 12 Sep</span>
+      <div class="chips"><span class="chip">⚡ Power</span><span class="chip on">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">😨 Noted With Fear</span><span class="chip">🆘 Send Help</span><span class="chip">🫡 Respect</span><span class="chip count">1 · Legend</span></div>
+      <span class="pager">1 / 4 <span class="cta ghost">›</span></span>
+    </section>
+
+    <section class="band" data-tone="cele">
+      <span class="k">We have movement</span>
+      <span class="art">🔔</span>
+      <span class="t">2.0 Release, dark mode is officially Done.</span>
+      <span class="av">MS</span><span class="role">Shazwan</span>
+      <span class="s"><em>Dark mode shipped. Eyes everywhere thank you.</em></span>
+      <span class="meta">Rung by <b>Shazwan</b> · AmanahKu · on the dashboard until Thu 10 Sep, 14:48 · then on the Wins page</span>
+      <div class="chips"><span class="chip on">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤌 Chef's Kiss</span><span class="chip">🫡 Respect</span><span class="chip count">1 · Power</span></div>
+      <span class="pager">2 / 4 <span class="cta ghost">›</span></span>
+    </section>
+
+    <section class="band" data-tone="cele">
+      <span class="k">September, wrapped</span>
+      <span class="num">286</span>
+      <span class="t">Unijaya's September in one breath</span>
+      <span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span>
+      <span class="meta">Company totals, frozen with the awards.</span>
+      <div class="chips"><span class="chip">⚡ Power</span><span class="chip">🏆 Legend</span><span class="chip">🤯 How Did You Do This?</span><span class="chip">🧾 Claim Bila?</span></div>
+      <span class="cta">My Wrapped</span>
+      <span class="pager">3 / 4 <span class="cta ghost">›</span></span>
+    </section>
+
+    <section class="band" data-tone="cele">
+      <span class="k">Awards</span>
+      <span class="t">September's winners</span>
+      <span class="s">Frozen on the 1st, on the dashboard until the 7th.</span>
+      <div class="slides">
+        <div class="slide"><b>Done and dusted</b><strong>Most cards closed</strong><span>27 cards</span><div class="w"><span class="av" style="background:#c2417a">HM</span>Yati</div></div>
+        <div class="slide"><b>Chief firefighter</b><strong>Most high-priority handled</strong><span>8 fires</span><div class="w"><span class="av">MS</span>Shazwan</div></div>
+        <div class="slide"><b>Mystery award</b><strong>Chief Snack Negotiator</strong><span>"Nobody knew this category existed until 8:00 this morning."</span><div class="w"><span class="av" style="background:#8e2558">KU</span>Kussairi</div></div>
+      </div>
+      <span class="cta">See all awards</span>
+    </section>
+  </div>
+
+  <h2>Heads-up</h2>
+  <p class="rule">Holiday eve, and any future "for your information" strip. Cool sky wash with a sage glow. Calm by design, it should feel like a note on the fridge.</p>
+  <div class="stack">
+    <section class="band" data-tone="head">
+      <span class="k">Holiday eve</span>
+      <span class="art">🌙</span>
+      <span class="t">Malaysia Day tomorrow</span>
+      <span class="s">Happy holiday. Rest well, see you back Thursday.</span>
+      <span class="meta">Office closed Wed 16 Sep · claims and leave still submit as usual</span>
+    </section>
+    <section class="band" data-tone="head">
+      <span class="k">This weekend</span>
+      <span class="av" style="background:#1f8a65">AR</span>
+      <span class="t">Two birthdays on Saturday</span>
+      <span class="s">Aiman and Rina. The Wall is open if you want to leave a line early.</span>
+      <span class="cta ghost">Open the Wall</span>
+    </section>
+  </div>
+
+  <h2>Needs action</h2>
+  <p class="rule">Management band for directors, the "ring the bell?" prompt, anything with a button someone should press today. Honey wash, amber voice. Warm, not alarming: it asks, it does not shout.</p>
+  <div class="two">
+    <div class="stack">
+      <section class="band" data-tone="need">
+        <span class="k">Management</span>
+        <span class="t">Three things need a director today</span>
+        <span class="s">Two verified claims waiting for final approval, one overdue milestone.</span>
+        <div class="panels">
+          <div class="panel"><b>Waiting on you</b><div class="row"><span>Claim, Shazwan, site travel</span><em>RM 184</em></div><div class="row"><span>Claim, Kussairi, client lunch</span><em>RM 96</em></div></div>
+          <div class="panel"><b>Overdue by owner</b><div class="row"><span>Kussairi · iLPF go-live checklist</span><em>3 d</em></div></div>
+        </div>
+        <span class="cta">Review now</span>
+      </section>
+    </div>
+    <div class="toast">
+      <span class="k">Milestone done</span>
+      <span class="t">Ring the bell for "2.0 Release"?</span>
+      <span class="s">Add a line, or leave it blank.</span>
+      <input type="text" placeholder="Optional line…">
+      <div class="row"><span class="cta">Ring it</span><span class="cta ghost">Not this one</span></div>
+    </div>
+  </div>
+
+  <h2>Alarm</h2>
+  <p class="rule">Nothing lives here today. Reserved for "something is wrong": a failed payroll run, a locked account, a sync that stopped. Brand red wash and voice. Because no celebration uses red any more, this one will be read the moment it appears.</p>
+  <div class="stack">
+    <section class="band" data-tone="alrm">
+      <span class="k">Payroll</span>
+      <span class="art">⚠️</span>
+      <span class="t">September payroll did not send</span>
+      <span class="s">Bank file rejected 2 of 31 rows. Nothing was paid. Fix the two rows and run it again.</span>
+      <span class="meta">Stopped Tue 30 Sep, 16:02 · rows 14 and 27 · nobody else sees this band</span>
+      <span class="cta">Open payroll</span>
+    </section>
+  </div>
+
+  <h2>Keep it plain</h2>
+  <p class="rule">Same families, wash and glow removed, white card. The voice colour on the kicker and button is the only trace of the family, so plain users still know a celebration from an alarm.</p>
+  <div class="stack plain">
+    <section class="band" data-tone="cele">
+      <span class="k">September, wrapped</span>
+      <span class="t">Unijaya's September in one breath</span>
+      <span class="s">286 cards closed, 19 lessons shared, 7 fires extinguished and only 43 "urgent" tasks.</span>
+      <span class="cta">My Wrapped</span>
+    </section>
+    <section class="band" data-tone="need">
+      <span class="k">Management</span>
+      <span class="t">Three things need a director today</span>
+      <span class="s">Two verified claims waiting for final approval, one overdue milestone.</span>
+      <span class="cta">Review now</span>
+    </section>
+    <section class="band" data-tone="alrm">
+      <span class="k">Payroll</span>
+      <span class="t">September payroll did not send</span>
+      <span class="s">Bank file rejected 2 of 31 rows. Nothing was paid.</span>
+      <span class="cta">Open payroll</span>
+    </section>
+  </div>
+</div>
+</body>
+</html>

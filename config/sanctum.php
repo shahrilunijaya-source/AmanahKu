@@ -37,7 +37,19 @@ return [
     |
     */
 
-    'guard' => ['web'],
+    // CR-06a / S09: empty on purpose. /api/v1 is a machine, token-only API — no
+    // EnsureFrontendRequestsAreStateful in its middleware chain, so it never does
+    // cookie/session auth. Leaving 'web' here was inert for a real caller, but it
+    // is actively wrong for a test acting as a signed-in web user in the same
+    // process before making a Bearer-token request (browser MCP scripts, an
+    // acceptance test hitting the Projects register then the API): App\Models\User
+    // does not use HasApiTokens, so Sanctum's guard sees a session user, decides it
+    // "doesn't support tokens", and returns it AS the authenticated party rather
+    // than falling through to the bearer token at all — the request never reaches
+    // token resolution, so ApiTenant sees a tokenable with no currentAccessToken()
+    // and 401s. Empty here skips the session check outright, every /api/v1 request
+    // is Sanctum-token-authed exactly as ApiTenant already documents it.
+    'guard' => [],
 
     /*
     |--------------------------------------------------------------------------

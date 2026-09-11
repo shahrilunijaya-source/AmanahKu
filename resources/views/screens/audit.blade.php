@@ -23,13 +23,23 @@
     ],
 ])
 <div class="uj-card">
-    <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Activity log' : 'Log aktiviti'">Activity log</h3><span style="font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Last' : 'Terkini'">Last</span> {{ $logs->count() }} <span x-text="$store.ui.lang==='en' ? 'events' : 'acara'">events</span></span></div>
+    <div class="uj-card-head"><h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Activity log' : 'Log aktiviti'">Activity log</h3><span style="font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:12px;"><span><span x-text="$store.ui.lang==='en' ? 'Last' : 'Terkini'">Last</span> {{ $logs->count() }} <span x-text="$store.ui.lang==='en' ? 'events' : 'acara'">events</span></span>
+        @if (in_array(\App\Support\Permissions::effectiveRole(request()->attributes->get('tenantRole', 'employee')), ['management', 'hr'], true))
+            <a href="{{ route('audit.export') }}" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? 'Export CSV' : 'Eksport CSV'">Export CSV</a>
+        @endif
+    </span></div>
     @forelse ($logs as $log)
         @php $verb = explode(' ', $log->action)[0]; [$col, $path] = $icon[$verb] ?? ['var(--muted)', 'M12 8v4l3 2']; @endphp
-        <div style="display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:13px 20px;border-bottom:1px solid var(--hairline-soft);">
             <div style="width:32px;height:32px;border-radius:8px;background:var(--canvas);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ $col }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $path }}"></path></svg></div>
             <div style="flex:1;min-width:0;">
                 <div style="font-size:13.5px;color:var(--ink);"><span style="font-weight:600;">{{ $log->action }}</span>@if ($log->target) — {{ $log->target }}@endif</div>
+                @if ($log->field)
+                    <div style="font-size:12.5px;color:var(--ink);font-family:var(--font-mono);word-break:break-word;">{{ $log->field }}: <span style="color:var(--muted);">{{ $log->old }}</span> &rarr; {{ $log->new }}</div>
+                @endif
+                @if ($log->reason)
+                    <div style="font-size:12px;color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Reason' : 'Sebab'">Reason</span>: {{ $log->reason }}</div>
+                @endif
                 <div style="font-size:11.5px;color:var(--muted);">{{ $log->actor_name }}</div>
             </div>
             <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $log->created_at->format('j M, H:i') }}</span>

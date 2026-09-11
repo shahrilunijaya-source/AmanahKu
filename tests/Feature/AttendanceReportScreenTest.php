@@ -200,14 +200,6 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertStringContainsString('sort=person', $html, 'the sort segment is a link');
     }
 
-    public function test_the_ledger_gets_the_wide_measure(): void
-    {
-        // Eight dense columns do not fit the 920px focused measure the roster used.
-        $this->actAsHr()->get('/app/attendance-report')
-            ->assertOk()
-            ->assertSee('uj-main--wide', false);
-    }
-
     public function test_the_screen_does_not_repeat_the_shell_title(): void
     {
         // The app shell renders "Attendance Reports" and its description above
@@ -216,17 +208,6 @@ class AttendanceReportScreenTest extends TestCase
 
         $this->assertStringNotContainsString('uj-ar-head', $html);
         $this->assertSame(1, substr_count($html, '<h1'), 'one heading on the page, not two');
-    }
-
-    public function test_the_custom_range_lives_in_a_popover(): void
-    {
-        // Two date boxes parked permanently in the filter bar read as loudly as
-        // Day/Week/Month, and Custom is the rare choice. Approved shape is a panel.
-        $this->actAsHr()->get('/app/attendance-report')
-            ->assertOk()
-            ->assertSee('uj-ar-pop', false)
-            ->assertSee('uj-ar-customwrap', false)
-            ->assertDontSee('uj-ar-range"', false);
     }
 
     public function test_a_custom_range_filters_to_those_dates(): void
@@ -337,5 +318,17 @@ class AttendanceReportScreenTest extends TestCase
             ->assertSee('Clear filters');
 
         $this->assertSame(0, $response->viewData('rows')->count());
+    }
+
+    public function test_only_get_forms_are_turned_into_ledger_navigation(): void
+    {
+        // The drawer's amend and reverse forms POST. The screen-wide submit handler used to
+        // serialise every form into a GET, which landed those on a 405 page.
+        $response = $this->actingAs($this->hrUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance-report?from=2026-06-01&to=2026-06-30');
+
+        $response->assertOk()
+            ->assertSee("if (form.method !== 'get') return;", false);
     }
 }

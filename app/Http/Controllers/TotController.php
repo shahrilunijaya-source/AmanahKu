@@ -8,17 +8,25 @@ use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\KnowledgeContribution;
+use App\Models\Reaction;
+use App\Models\TotAction;
+use App\Models\TotAttendance;
 use App\Models\TotComment;
 use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
+use App\Models\TotSlot;
+use App\Models\WorkItem;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class TotController extends Controller
 {
@@ -37,7 +45,11 @@ class TotController extends Controller
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
         $year = (int) ($request->query('year') ?: now()->year);
 
-        $saved = TotSession::with(['presenter', 'presenters'])
+        $saved = TotSession::with([
+            'presenter', 'presenters', 'chair',
+            'slots.presenters', 'slots.reactions', 'attendance.employee',
+            'actions.owner', 'actions.slot', 'actions.workItem', 'actions.helpers',
+        ])
             ->where('year', $year)
             ->get()
             ->keyBy('month');
@@ -58,7 +70,7 @@ class TotController extends Controller
             'canManage' => $privileged,
             'canAssignPresenter' => $this->canAssignPresenter($request),
             'assignableEmployees' => $this->assignableEmployees(),
-            'reactionCounts' => $this->reactionCounts($ids),
+            'reactionCounts' => $this->reactionCounts($ids, includeSlots: true),
             'myReactions' => $this->myReactions($ids, $employee),
             'myParticipation' => $this->myParticipation($ids, $employee),
             // The one slot this viewer presents in the displayed year, if any. A
@@ -217,6 +229,15 @@ class TotController extends Controller
             $rules['held_on'] = ['nullable', 'date'];
         }
 
+        // CR-09: chair, Nota Perbincangan link and next-month agenda belong to whoever may
+        // manage the session as a whole (PRIVILEGED_ROLES, a plain manager, or the chair
+        // themself) — a narrower set than $privileged and independent of tot.assign/presenter.
+        if ($this->canManageSession($request, $session)) {
+            $rules['chair_employee_id'] = ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)];
+            $rules['nota_url'] = ['nullable', 'url', 'max:500'];
+            $rules['next_agenda'] = ['nullable', 'string', 'max:4000'];
+        }
+
         // The editor opens with rows a slot may never fill (a blank one, and the two
         // pre-labelled Google Meet / Slide rows), so the rules below would reject the whole
         // save over a row nobody touched. Drop the untouched ones before validating. A row
@@ -305,6 +326,494 @@ class TotController extends Controller
         return back()->with('ok', 'TOT slot updated.');
     }
 
+    // ── CR-09: ordered slots inside a session ───────────────────────
+
+    /** Append a new slot at the next position. Gated to canManageSession(). */
+    public function storeSlot(Request $request, TotSession $session): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $data = $request->validate($this->slotRules(app(CurrentTenant::class)->id()));
+
+        $slot = TotSlot::create([
+            'tenant_id' => $session->tenant_id,
+            'session_id' => $session->id,
+            'position' => (int) $session->slots()->max('position') + 1,
+            'title' => $data['title'],
+            'kind' => $data['kind'],
+            'format' => $data['format'] ?? null,
+            'status' => $data['status'] ?? null,
+            'summary' => $data['summary'] ?? null,
+        ]);
+
+        $this->applySlotPresenters($slot, $data);
+
+        AuditLog::record('Added TOT slot', sprintf('%04d-%02d: %s', $session->year, $session->month, $slot->title));
+
+        return $request->expectsJson()
+            ? response()->json(['id' => $slot->id])
+            : back()->with('ok', 'Slot added.');
+    }
+
+    /** Edit a slot's fields, presenters and/or position. 404 when it is not this session's. */
+    public function updateSlot(Request $request, TotSession $session, TotSlot $slot): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        $this->assertSlotInSession($session, $slot);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $rules = $this->slotRules(app(CurrentTenant::class)->id());
+        $rules['title'][0] = 'sometimes';
+        $rules['kind'][0] = 'sometimes';
+        $rules['position'] = ['nullable', 'integer', 'min:1'];
+
+        $data = $request->validate($rules);
+
+        // Fill only what this request actually carried — a position-only reorder must not
+        // null out title/format/status just because Validator::validated() reports those
+        // nullable keys too.
+        $fillable = collect(['title', 'kind', 'format', 'status', 'summary'])
+            ->filter(fn ($key) => $request->has($key))
+            ->mapWithKeys(fn ($key) => [$key => $data[$key] ?? null]);
+        $slot->fill($fillable->all());
+
+        if ($request->filled('position')) {
+            $slot->position = (int) $data['position'];
+        }
+        $slot->save();
+
+        // Only a request that actually carries presenter fields may change the team —
+        // otherwise a position-only reorder would silently wipe it (same rule the session
+        // save uses, see carriesPresenters()).
+        if ($request->has('presenters') || $request->has('support')) {
+            $this->applySlotPresenters($slot, $data);
+        }
+
+        AuditLog::record('Updated TOT slot', sprintf('%04d-%02d: %s', $session->year, $session->month, $slot->title));
+
+        return $request->expectsJson()
+            ? response()->json(['id' => $slot->id])
+            : back()->with('ok', 'Slot updated.');
+    }
+
+    /** Remove a slot entirely. Gated to canManageSession(). */
+    public function destroySlot(Request $request, TotSession $session, TotSlot $slot): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        $this->assertSlotInSession($session, $slot);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $label = sprintf('%04d-%02d: %s', $session->year, $session->month, $slot->title);
+        $slot->delete();
+
+        AuditLog::record('Deleted TOT slot', $label);
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Slot removed.');
+    }
+
+    /** Anybody in the workspace may post to a slot's own discussion thread. */
+    public function slotComment(Request $request, TotSession $session, TotSlot $slot): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        $this->assertSlotInSession($session, $slot);
+
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:2000'],
+        ]);
+
+        TotComment::create([
+            'session_id' => $session->id,
+            'slot_id' => $slot->id,
+            'employee_id' => $employee->id,
+            'body' => $data['body'],
+        ]);
+
+        return $request->expectsJson()
+            ? response()->json(['comments' => $this->slotCommentRows($request, $slot)])
+            : back()->with('ok', 'Comment posted.');
+    }
+
+    /** One slot's thread, oldest first, same row shape as the session thread. */
+    public function slotComments(Request $request, TotSession $session, TotSlot $slot): JsonResponse
+    {
+        $this->assertSameTenant($session);
+        $this->assertSlotInSession($session, $slot);
+
+        return response()->json(['comments' => $this->slotCommentRows($request, $slot)]);
+    }
+
+    /** One person's reaction on one slot, same toggle rule as the session-level react(). */
+    public function slotReact(Request $request, TotSession $session, TotSlot $slot): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        $this->assertSlotInSession($session, $slot);
+
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee, 403, 'No employee profile in this workspace.');
+
+        $data = $request->validate([
+            'emoji' => ['required', 'string', 'in:'.implode(',', Reaction::activeKeys())],
+        ]);
+
+        $had = TotReaction::where('slot_id', $slot->id)->where('employee_id', $employee->id)->pluck('emoji');
+        TotReaction::where('slot_id', $slot->id)->where('employee_id', $employee->id)->delete();
+
+        if (! $had->contains($data['emoji'])) {
+            try {
+                TotReaction::create([
+                    'session_id' => $session->id,
+                    'slot_id' => $slot->id,
+                    'employee_id' => $employee->id,
+                    'emoji' => $data['emoji'],
+                ]);
+            } catch (QueryException $e) {
+                if (! str_starts_with((string) $e->getCode(), '23')) {
+                    throw $e;
+                }
+            }
+        }
+
+        $counts = TotReaction::where('slot_id', $slot->id)->get()->groupBy('emoji')->map->count();
+
+        return $request->expectsJson()
+            ? response()->json(['reactions' => $counts])
+            : back();
+    }
+
+    // ── CR-09: attendance ────────────────────────────────────────────
+
+    /**
+     * Replaces the whole attendance list for this session. Validation runs (and can fail)
+     * before anything is deleted, so a rejected save leaves the previous list untouched.
+     */
+    public function storeAttendance(Request $request, TotSession $session): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $session->tenant_id);
+
+        $data = $request->validate([
+            'present' => ['present', 'array'],
+            'present.*' => ['integer', $belongsToTenant],
+            'absent' => ['present', 'array'],
+            'absent.*.employee_id' => ['required', 'integer', $belongsToTenant],
+            'absent.*.reason' => ['required', 'string', 'max:300'],
+        ]);
+
+        $presentIds = collect($data['present'])->map(fn ($id) => (int) $id)->unique()->values();
+        $absentRows = collect($data['absent'])->map(fn ($row) => [
+            'employee_id' => (int) $row['employee_id'], 'reason' => $row['reason'],
+        ]);
+
+        abort_if(
+            $presentIds->intersect($absentRows->pluck('employee_id'))->isNotEmpty(),
+            422,
+            'An attendee cannot be marked both present and absent.'
+        );
+
+        DB::transaction(function () use ($session, $presentIds, $absentRows): void {
+            TotAttendance::where('session_id', $session->id)->delete();
+
+            $now = now();
+            $rows = $presentIds->map(fn ($id) => [
+                'tenant_id' => $session->tenant_id, 'session_id' => $session->id,
+                'employee_id' => $id, 'present' => true, 'reason' => null,
+                'created_at' => $now, 'updated_at' => $now,
+            ])->concat($absentRows->map(fn ($row) => [
+                'tenant_id' => $session->tenant_id, 'session_id' => $session->id,
+                'employee_id' => $row['employee_id'], 'present' => false, 'reason' => $row['reason'],
+                'created_at' => $now, 'updated_at' => $now,
+            ]));
+
+            if ($rows->isNotEmpty()) {
+                DB::table('tot_attendance')->insert($rows->all());
+            }
+        });
+
+        AuditLog::record(
+            'Recorded TOT attendance',
+            sprintf('%04d-%02d: %d hadir, %d tidak hadir', $session->year, $session->month, $presentIds->count(), $absentRows->count())
+        );
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Attendance saved.');
+    }
+
+    // ── CR-09/CR-10: Keputusan/Tindakan Susulan ───────────────────────
+
+    /**
+     * Add one tindakan row. Gated to canManageSession(). CR-10: `owners[]` (first =
+     * Pemilik written to owner_employee_id, the rest = helpers into tot_action_helper);
+     * `owner_employee_id` alone still works for CR-09 callers. `create_card` (default off,
+     * so the CR-09 two-step flow through tot.actions.card stays valid) makes the card in
+     * the same request when an owner is present.
+     */
+    public function storeAction(Request $request, TotSession $session): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $this->dropBlankOwnerRows($request);
+
+        $tenantId = app(CurrentTenant::class)->id();
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
+
+        $data = $request->validate([
+            'action' => ['required', 'string', 'max:300'],
+            'owner_employee_id' => ['nullable', 'integer', $belongsToTenant],
+            'owners' => ['nullable', 'array'],
+            'owners.*' => ['integer', $belongsToTenant],
+            'target_date' => ['nullable', 'date'],
+            'slot_id' => ['nullable', 'integer', Rule::exists('tot_slots', 'id')->where('session_id', $session->id)],
+            'create_card' => ['nullable', 'boolean'],
+        ]);
+
+        $ownerIds = $this->ownerIdsFrom($data);
+        $ownerId = $ownerIds[0] ?? ($data['owner_employee_id'] ?? null);
+        $helperIds = $ownerIds !== [] ? array_slice($ownerIds, 1) : [];
+
+        $action = TotAction::create([
+            'tenant_id' => $tenantId,
+            'session_id' => $session->id,
+            'slot_id' => $data['slot_id'] ?? null,
+            'position' => (int) $session->actions()->max('position') + 1,
+            'action' => $data['action'],
+            'owner_employee_id' => $ownerId,
+            'target_date' => $data['target_date'] ?? null,
+        ]);
+
+        if ($helperIds !== []) {
+            $action->helpers()->sync($helperIds);
+        }
+
+        AuditLog::record('Added TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action));
+
+        $payload = ['id' => $action->id];
+        $status = 200;
+
+        if ($request->boolean('create_card') && $ownerId !== null) {
+            $card = $this->makeActionCard($session, $action);
+            $payload['work_item'] = ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')];
+            $status = 201;
+        }
+
+        return $request->expectsJson()
+            ? response()->json($payload, $status)
+            : back()->with('ok', 'Tindakan added.');
+    }
+
+    /**
+     * CR-10: edit action text, owners[] (Pemilik + helpers), Sasaran and the linked slot.
+     * While no T.A.A. card exists everything here is editable. Once the card exists
+     * (`work_item_id` set), Sasaran and the Pemilik are locked (dates contract Rule 4 —
+     * the card's due date already answers 422 through BoardRules::assertDueDateLocked, this
+     * mirrors the same rule on the row that fed it); action text still updates the card
+     * title and helpers still re-sync to the card's participants.
+     */
+    public function updateAction(Request $request, TotSession $session, TotAction $action): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($action->session_id === $session->id, 404);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $this->dropBlankOwnerRows($request);
+
+        $tenantId = app(CurrentTenant::class)->id();
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
+
+        $data = $request->validate([
+            'action' => ['sometimes', 'required', 'string', 'max:300'],
+            'owners' => ['sometimes', 'array'],
+            'owners.*' => ['integer', $belongsToTenant],
+            'target_date' => ['sometimes', 'nullable', 'date'],
+            'slot_id' => ['sometimes', 'nullable', 'integer', Rule::exists('tot_slots', 'id')->where('session_id', $session->id)],
+        ]);
+
+        $hasCard = $action->work_item_id !== null;
+        $ownerIds = array_key_exists('owners', $data) ? $this->ownerIdsFrom($data) : null;
+        $newOwnerId = $ownerIds !== null ? ($ownerIds[0] ?? null) : $action->owner_employee_id;
+
+        // QA F1: ValidationException, not abort(), so the drawer's plain form post lands
+        // back on the screen with a toast instead of a bare 422 page; JSON callers still get 422.
+        if ($hasCard && array_key_exists('target_date', $data)) {
+            $incoming = $data['target_date'] !== null ? Carbon::parse($data['target_date'])->format('Y-m-d') : null;
+            if ($incoming !== $action->target_date?->format('Y-m-d')) {
+                throw ValidationException::withMessages(['target_date' => 'Sasaran is locked once the T.A.A. task exists.']);
+            }
+        }
+        if ($hasCard && $ownerIds !== null && $newOwnerId !== $action->owner_employee_id) {
+            throw ValidationException::withMessages(['owners' => 'The Pemilik cannot change once the T.A.A. task exists; reassign the card on the board instead.']);
+        }
+
+        if (array_key_exists('action', $data)) {
+            $action->action = $data['action'];
+        }
+        if (array_key_exists('target_date', $data) && ! $hasCard) {
+            $action->target_date = $data['target_date'];
+        }
+        if (array_key_exists('slot_id', $data)) {
+            $action->slot_id = $data['slot_id'];
+        }
+        if ($ownerIds !== null) {
+            $action->owner_employee_id = $newOwnerId;
+        }
+        $action->save();
+
+        $helperIds = $ownerIds !== null ? array_slice($ownerIds, 1) : null;
+        if ($helperIds !== null) {
+            $action->helpers()->sync($helperIds);
+        }
+
+        if ($hasCard) {
+            if (array_key_exists('action', $data)) {
+                $action->workItem->update(['title' => $data['action']]);
+            }
+            if ($helperIds !== null) {
+                $action->workItem->participants()->sync(
+                    collect($helperIds)->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all()
+                );
+            }
+        }
+
+        AuditLog::record('Updated TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action));
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Tindakan updated.');
+    }
+
+    /**
+     * CR-10: delete the row. The card, if any, is archived and cancelled — never deleted,
+     * same pair WorkItemController::cancel() writes — so the board's existing
+     * whereNull('archived_at') query drops it and history stays honest.
+     */
+    public function deleteAction(Request $request, TotSession $session, TotAction $action): RedirectResponse|JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($action->session_id === $session->id, 404);
+        abort_unless($this->canManageSession($request, $session), 403);
+
+        $text = $action->action;
+        $card = $action->workItem;
+        if ($card !== null) {
+            $card->update(['archived_at' => now(), 'cancelled_at' => now()]);
+        }
+        $action->delete();
+
+        AuditLog::record('Deleted TOT tindakan', sprintf('%04d-%02d: %s', $session->year, $session->month, $text));
+
+        return $request->expectsJson()
+            ? response()->json(['ok' => true])
+            : back()->with('ok', 'Tindakan deleted.');
+    }
+
+    /**
+     * "Create T.A.A. task": makes one work_items row for the tindakan's owner. Dates
+     * contract Rule 4 — no target date means the next TOT Saturday, and the card's due
+     * date is locked from here on by the model's own saving() guard, same as every card.
+     */
+    public function createActionCard(Request $request, TotSession $session, TotAction $action): JsonResponse
+    {
+        $this->assertSameTenant($session);
+        abort_unless($action->session_id === $session->id, 404);
+        abort_unless($this->canCreateTaaCard($request, $action), 403);
+        abort_if($action->work_item_id !== null, 422, 'This tindakan already has a T.A.A. card.');
+        abort_if($action->owner_employee_id === null, 422, 'This tindakan has no owner to create a card for.');
+
+        $card = $this->makeActionCard($session, $action);
+
+        AuditLog::record(
+            'Created T.A.A. task from TOT tindakan',
+            sprintf('%04d-%02d: %s', $session->year, $session->month, $action->action)
+        );
+
+        return response()->json([
+            'ok' => true,
+            'work_item' => ['id' => $card->id, 'due_at' => $card->due_at->format('Y-m-d'), 'due_text' => $card->due_at->format('j M Y')],
+        ], 201);
+    }
+
+    /**
+     * The first id posted is the Pemilik, the rest are helpers — same shape whether it
+     * came in as `owners[]` (CR-10) or the caller only ever sent `owner_employee_id`
+     * (CR-09, no `owners` key at all).
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<int>
+     */
+    private function ownerIdsFrom(array $data): array
+    {
+        return collect($data['owners'] ?? [])->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * The screen's Pemilik select carries a blank "—" option so a tindakan can be saved
+     * without an owner; dropped here (never validated) rather than rejected, same rule
+     * WorkItemController::isUntouchedLinkRow() drops an empty link row.
+     */
+    private function dropBlankOwnerRows(Request $request): void
+    {
+        if (is_array($request->input('owners'))) {
+            $request->merge(['owners' => array_values(array_filter(
+                $request->input('owners'),
+                fn ($id) => $id !== null && $id !== '',
+            ))]);
+        }
+    }
+
+    /**
+     * CR-10: build the T.A.A. card for a tindakan row, shared by the one-step
+     * (storeAction with create_card) and the two-step (createActionCard) paths. Tags
+     * the row's own helpers (tot_action_helper) as card participants with role
+     * `helper`, stamps the `tot` label and a link back to the session.
+     */
+    private function makeActionCard(TotSession $session, TotAction $action): WorkItem
+    {
+        $hasDate = $action->target_date !== null;
+        $dueAt = $hasDate ? $action->target_date : $this->nextTotSaturdayAfter($session);
+
+        $linkLabel = 'TOT '.$session->session_date->format('F Y');
+        if ($action->slot) {
+            $linkLabel .= ' · '.$action->slot->title;
+        }
+        $linkUrl = route('app.screen', 'tot').'?year='.$session->year.'&month='.$session->month;
+
+        $card = WorkItem::create([
+            'tenant_id' => $session->tenant_id,
+            'employee_id' => $action->owner_employee_id,
+            'title' => $action->action,
+            'type' => 'task',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'progress' => 0,
+            'due_at' => $dueAt,
+            'due_label' => $hasDate ? null : 'Bulan hadapan',
+            'labels' => ['tot'],
+            'links' => [['label' => $linkLabel, 'url' => $linkUrl]],
+            'sort_order' => (int) WorkItem::where('employee_id', $action->owner_employee_id)->where('status', 'todo')->max('sort_order') + 1,
+        ]);
+
+        $action->work_item_id = $card->id;
+        $action->save();
+
+        $helperIds = $action->helpers()->pluck('employees.id')->all();
+        if ($helperIds !== []) {
+            $card->participants()->sync(
+                collect($helperIds)->mapWithKeys(fn (int $id) => [$id => ['role' => 'helper']])->all()
+            );
+        }
+
+        return $card;
+    }
+
     /** Anybody in the workspace may post to a session thread. */
     public function comment(Request $request, TotSession $session): RedirectResponse|JsonResponse
     {
@@ -343,6 +852,7 @@ class TotController extends Controller
 
         $rows = TotComment::with('employee')
             ->where('session_id', $session->id)
+            ->whereNull('slot_id')
             ->orderBy('created_at')
             ->get()
             ->map(fn (TotComment $c) => [
@@ -398,18 +908,22 @@ class TotController extends Controller
         $employee = $request->attributes->get('employee');
         abort_unless($employee, 403, 'No employee profile in this workspace.');
 
+        // CR-30: a key from the tenant's reaction set, stored in the emoji column.
         $data = $request->validate([
-            'emoji' => ['required', 'string', 'in:'.implode(',', TotSession::EMOJI)],
+            'reaction' => ['required', 'string', 'in:'.implode(',', Reaction::activeKeys())],
         ]);
+        $data['emoji'] = $data['reaction'];
 
         // One emoji per person per session. Whatever they had goes, and only a
         // genuinely different emoji comes back — pressing the one you already
         // left is the undo.
         $had = TotReaction::where('session_id', $session->id)
+            ->whereNull('slot_id')
             ->where('employee_id', $employee->id)
             ->pluck('emoji');
 
         TotReaction::where('session_id', $session->id)
+            ->whereNull('slot_id')
             ->where('employee_id', $employee->id)
             ->delete();
 
@@ -575,6 +1089,7 @@ class TotController extends Controller
 
         $mine = $employee
             ? TotReaction::where('session_id', $session->id)
+                ->whereNull('slot_id')
                 ->where('employee_id', $employee->id)
                 ->pluck('emoji')->all()
             : [];
@@ -597,7 +1112,7 @@ class TotController extends Controller
             'mine' => $mine,
             'watched' => $this->watchedCounts([$session->id])[$session->id] ?? 0,
             'iWatched' => $participation?->watched_at !== null,
-            'comments' => TotComment::where('session_id', $session->id)->count(),
+            'comments' => TotComment::where('session_id', $session->id)->whereNull('slot_id')->count(),
             'myScore' => $participation?->score,
             'myNote' => $participation?->note,
             'score' => $summary === null ? null : [
@@ -711,10 +1226,23 @@ class TotController extends Controller
         abort_unless($record->tenant_id === app(CurrentTenant::class)->id(), 404);
     }
 
-    /** 403 unless the actor is privileged, holds tot.assign, or is the presenter of this slot. */
+    /**
+     * 403 unless the actor is privileged, holds tot.assign, is the presenter of this slot,
+     * or (CR-09) may manage the session as a whole AND the request only touches the
+     * session-management fields (chair_employee_id/nota_url/next_agenda) that
+     * canManageSession() gates below — a plain manager or the session's chair gets no
+     * wider access than that through this same endpoint; a request that also carries the
+     * legacy material/presenter/status fields still needs canAssignPresenter or to be the
+     * presenter, exactly as before CR-09.
+     */
     private function authorizeSlotEdit(Request $request, TotSession $session, ?Employee $employee): void
     {
         if ($this->canAssignPresenter($request)) {
+            return;
+        }
+
+        $sessionOnlyFields = ['chair_employee_id', 'nota_url', 'next_agenda', 'year', 'month', '_token'];
+        if ($this->canManageSession($request, $session) && ! array_diff(array_keys($request->all()), $sessionOnlyFields)) {
             return;
         }
 
@@ -792,6 +1320,112 @@ class TotController extends Controller
             : 'solo';
     }
 
+    // ── CR-09 helpers ────────────────────────────────────────────────
+
+    /** Who may edit this session, its slots, attendance and tindakan (see TotSession::isManagedBy). */
+    private function canManageSession(Request $request, TotSession $session): bool
+    {
+        return $session->isManagedBy($this->tenantRole($request), $request->attributes->get('employee'));
+    }
+
+    /** Who may click "Create T.A.A. task" on this tindakan (see TotAction::canCreateCardBy). */
+    private function canCreateTaaCard(Request $request, TotAction $action): bool
+    {
+        return $action->canCreateCardBy($this->tenantRole($request), $request->attributes->get('employee'));
+    }
+
+    /** 404 unless the route-bound slot actually belongs to the route-bound session. */
+    private function assertSlotInSession(TotSession $session, TotSlot $slot): void
+    {
+        abort_unless($slot->session_id === $session->id, 404);
+    }
+
+    /** Validation rules shared by storeSlot() and updateSlot(). */
+    private function slotRules(int $tenantId): array
+    {
+        $belongsToTenant = Rule::exists('employees', 'id')->where('tenant_id', $tenantId);
+
+        return [
+            'title' => ['required', 'string', 'max:200'],
+            'kind' => ['required', Rule::in(TotSlot::KINDS)],
+            'format' => ['nullable', Rule::in(TotSlot::FORMATS)],
+            'status' => ['nullable', Rule::in(TotSlot::STATUSES)],
+            'presenter_mode' => ['nullable', Rule::in(TotSlot::PRESENTER_MODES)],
+            'presenters' => ['nullable', 'array'],
+            'presenters.*' => ['integer', $belongsToTenant],
+            'support' => ['nullable', 'array'],
+            'support.*' => ['integer', $belongsToTenant],
+            'summary' => ['nullable', 'string', 'max:4000'],
+        ];
+    }
+
+    /**
+     * The presenter team for one slot: the union of `presenters` and `support`, with a
+     * `support` (sokongan) row's pivot flag set. Mirrors TotSession's own solo/team pivot
+     * pattern (presenterIdsFrom/presenterModeFrom) but keyed on the slot's own presenter_mode
+     * column rather than a derived count, same reasoning as add_presenter_mode_to_tot_sessions.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function applySlotPresenters(TotSlot $slot, array $data): void
+    {
+        $presenters = collect($data['presenters'] ?? [])->map(fn ($id) => (int) $id);
+        $support = collect($data['support'] ?? [])->map(fn ($id) => (int) $id);
+        $union = $presenters->merge($support)->unique()->values();
+
+        $slot->presenters()->sync(
+            $union->mapWithKeys(fn ($id) => [$id => ['support' => $support->contains($id)]])->all()
+        );
+
+        $slot->presenter_mode = in_array($data['presenter_mode'] ?? null, TotSlot::PRESENTER_MODES, true)
+            ? $data['presenter_mode']
+            : ($union->count() > 1 ? 'team' : 'solo');
+        $slot->save();
+        $slot->unsetRelation('presenters');
+    }
+
+    /**
+     * One slot's discussion thread, oldest first, same row shape as the session-level
+     * thread (comments()) but "presenter" means presenter of THIS slot.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function slotCommentRows(Request $request, TotSlot $slot): array
+    {
+        $employee = $request->attributes->get('employee');
+        $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $presenterIds = $slot->presenters()->pluck('employees.id');
+
+        return TotComment::with('employee')
+            ->where('slot_id', $slot->id)
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (TotComment $c) => [
+                'id' => $c->id,
+                'name' => $c->employee->display_name,
+                'initials' => $c->employee->initials ?? '',
+                'color' => $c->employee->avatar_color ?? '#3a6ea5',
+                'presenter' => $presenterIds->contains($c->employee_id),
+                'body' => $c->body,
+                'at' => $c->created_at?->format('j M') ?? '',
+                'canDelete' => $privileged || ($employee && $c->employee_id === $employee->id),
+            ])
+            ->all();
+    }
+
+    /** The first Saturday of the month after the session's own month/year. */
+    private function nextTotSaturdayAfter(TotSession $session): Carbon
+    {
+        $month = (int) $session->month + 1;
+        $year = (int) $session->year;
+        if ($month > 12) {
+            $month = 1;
+            $year++;
+        }
+
+        return TotSession::firstSaturday($year, $month);
+    }
+
     /**
      * The people the presenter picker offers, by name rather than by database id: the person
      * who runs the roster is not HR and has no reason to know anybody's numeric id.
@@ -827,13 +1461,16 @@ class TotController extends Controller
      * @param  list<int>  $ids
      * @return array<int, array<string, int>>
      */
-    private function reactionCounts(array $ids): array
+    private function reactionCounts(array $ids, bool $includeSlots = false): array
     {
         if ($ids === []) {
             return [];
         }
 
+        // The list row adds slot reactions in (people react on the slot once a session
+        // has slots); the session-level bar itself only ever counts its own.
         return TotReaction::whereIn('session_id', $ids)
+            ->when(! $includeSlots, fn ($q) => $q->whereNull('slot_id'))
             ->get()
             ->groupBy('session_id')
             ->map(fn (Collection $rows) => $rows->groupBy('emoji')->map->count()->all())
@@ -854,6 +1491,7 @@ class TotController extends Controller
         }
 
         return TotReaction::whereIn('session_id', $ids)
+            ->whereNull('slot_id')
             ->where('employee_id', $employee->id)
             ->get()
             ->groupBy('session_id')
@@ -940,6 +1578,7 @@ class TotController extends Controller
         }
 
         return TotComment::whereIn('session_id', $ids)
+            ->whereNull('slot_id')
             ->selectRaw('session_id, count(*) as aggregate')
             ->groupBy('session_id')
             ->pluck('aggregate', 'session_id')

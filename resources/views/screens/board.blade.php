@@ -42,7 +42,8 @@
     {{-- One board, all work types. Chips filter the cards live — no page reload. --}}
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:16px;flex-wrap:wrap;">
         @foreach (['all' => ['All work', 'Semua kerja'], 'task' => ['Tasks', 'Tugas'], 'assignment' => ['Assignments', 'Tugasan'], 'adhoc' => ['Adhoc', 'Adhoc']] as $fk => $fl)
-            <button type="button" @click="setFilter('{{ $fk }}')"
+            @php $fkTip = ['all' => ['Everything on your plate, all three kinds', 'Semua kerja anda, ketiga-tiga jenis'], 'task' => ['Work you set for yourself', 'Kerja yang anda tetapkan sendiri'], 'assignment' => ['Handed to you by someone else', 'Diberi oleh orang lain'], 'adhoc' => ['Small one-off jobs, no project', 'Kerja kecil sekali lalu, tiada projek']][$fk]; @endphp
+            <button type="button" @click="setFilter('{{ $fk }}')" data-tip-below data-tip-start :data-tip="$store.ui.lang==='en' ? @js($fkTip[0]) : @js($fkTip[1])"
                     :style="filter === '{{ $fk }}'
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
@@ -52,7 +53,7 @@
             </button>
         @endforeach
             <span style="width:1px;height:20px;background:var(--hairline);margin:0 3px;"></span>
-            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen"
+            <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen" data-tip-below :data-tip="$store.ui.lang==='en' ? 'Narrow by role, label or due date' : 'Tapis ikut peranan, label atau tarikh akhir'"
                     :style="filtersOpen || activeFilterCount > 0
                         ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' }
                         : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
@@ -61,6 +62,28 @@
                 <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount"
                       style="min-width:16px;height:16px;line-height:16px;text-align:center;font-size:10.5px;font-family:var(--font-mono);background:rgba(255,255,255,.28);border-radius:9999px;padding:0 4px;"></span>
             </button>
+            <input type="search" x-model="search" @input="applyFilter()"
+                   :placeholder="$store.ui.lang==='en' ? 'Search card title…' : 'Cari tajuk kad…'"
+                   :aria-label="$store.ui.lang==='en' ? 'Search card title' : 'Cari tajuk kad'"
+                   style="width:220px;max-width:100%;padding:7px 14px;font-size:12.5px;border:1px solid var(--hairline);border-radius:9999px;background:#fff;color:var(--ink);outline:none;">
+    </div>
+
+    {{-- CR-04 role chips: whose work this is for me. Assigned is the default view and
+         the column badges count it alone; Tagged (Helper / FYI) and Reviewing show the
+         cards I hold another role on. Client-side like the type chips above. --}}
+    <div class="wb-roles" style="display:flex;align-items:center;gap:7px;margin:-8px 0 16px;flex-wrap:wrap;">
+        <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;" x-text="$store.ui.lang==='en' ? 'Mine' : 'Saya'">Mine</span>
+        @foreach (['assigned' => ['Assigned', 'Ditugaskan'], 'tagged' => ['Tagged', 'Ditanda'], 'reviewing' => ['Reviewing', 'Menyemak'], 'all' => ['All', 'Semua']] as $rk => $rl)
+            @php $rkTip = ['assigned' => ['Cards that are yours to do', 'Kad yang anda perlu buat'], 'tagged' => ['Cards where you help or just watch', 'Kad di mana anda bantu atau hanya lihat'], 'reviewing' => ['Cards you sign off once the owner is done', 'Kad yang anda sahkan selepas pemilik siap'], 'all' => ['Every card you have a hand in', 'Semua kad yang anda terlibat']][$rk]; @endphp
+            <button type="button" data-role-filter="{{ $rk }}" @click="setRoleFilter('{{ $rk }}')" data-tip-below data-tip-start :data-tip="$store.ui.lang==='en' ? @js($rkTip[0]) : @js($rkTip[1])"
+                    :style="roleFilter === '{{ $rk }}'
+                        ? { background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' }
+                        : { background: '#fff', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                    style="padding:5px 12px;font-size:12px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background-color .14s var(--ease),color .14s var(--ease),border-color .14s var(--ease);">
+                <span x-text="$store.ui.lang==='en' ? @js($rl[0]) : @js($rl[1])">{{ $rl[0] }}</span>
+                <span x-text="roleCounts['{{ $rk }}']" style="font-size:11px;opacity:.7;font-family:var(--font-mono);"></span>
+            </button>
+        @endforeach
     </div>
 
     <div x-show="filtersOpen" x-cloak>
@@ -134,7 +157,7 @@
         @foreach ($columns as $key => $col)
             <button type="button" class="wb-pill" :class="{ 'is-on': idx === {{ $loop->index }} }"
                     @click="$refs.cols.children[{{ $loop->index }}].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })">
-                {{ $col['title'] }} <i data-count="{{ $key }}">{{ $col['cards']->count() }}</i>
+                {{ $col['title'] }} <i data-count="{{ $key }}">{{ $col['assigned'] }}</i>
             </button>
         @endforeach
     </div>
@@ -144,9 +167,9 @@
             <div class="wb-col">
                 <div class="wb-colh">
                     <span style="font-size:13px;font-weight:600;color:var(--ink);">{{ $col['title'] }}</span>
-                    <span data-count="{{ $key }}" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 8px;border-radius:9999px;">{{ $col['cards']->count() }}</span>
+                    <span data-count="{{ $key }}" style="font-size:11px;font-weight:600;color:var(--muted);background:var(--hairline-soft);padding:1px 8px;border-radius:9999px;">{{ $col['assigned'] }}</span>
                     @if ($key === 'done' && $employee)
-                        <button type="button" @click="openArchived()" x-show="archivedCount > 0" x-cloak
+                        <button type="button" @click="openArchived()" x-show="archivedCount > 0" x-cloak data-tip-end :data-tip="$store.ui.lang==='en' ? 'Done cards swept off the board. Restore from here.' : 'Kad selesai yang disapu dari papan. Pulihkan dari sini.'"
                                 style="margin-left:auto;font-size:11px;font-weight:600;color:var(--muted);background:transparent;cursor:pointer;text-decoration:underline;padding:0;">
                             <span x-text="($store.ui.lang==='en' ? 'Archived' : 'Diarkibkan') + ' (' + archivedCount + ')'"></span>
                         </button>
@@ -155,7 +178,7 @@
 
                 <div data-list="{{ $key }}" style="display:flex;flex-direction:column;gap:10px;min-height:24px;">
                     @forelse ($col['cards'] as $c)
-                        @include('partials.work-card', ['c' => $c])
+                        @include('partials.work-card', ['c' => $c, 'viewerId' => $employee?->id])
                     @empty
                         <div data-empty class="wc-empty">
                             <span x-text="$store.ui.lang==='en' ? 'Nothing here yet.' : 'Belum ada apa-apa.'"></span>
@@ -165,10 +188,20 @@
 
                 @if ($employee)
                     <div style="margin-top:10px;">
-                        <button type="button" :disabled="busy" @click="addCard('{{ $key }}')"
+                        {{-- Due dates lock on first save (date-calendar-rules §1), so the date is
+                             picked before the card exists: the button opens a one-line composer. --}}
+                        <button type="button" :disabled="busy" x-show="adding !== '{{ $key }}'" @click="openAdd('{{ $key }}')" data-tip-start :data-tip="$store.ui.lang==='en' ? 'You pick the due date first. It locks once saved.' : 'Pilih tarikh akhir dahulu. Dikunci selepas disimpan.'"
                                 style="width:100%;text-align:left;padding:9px 12px;border:1px dashed var(--hairline);border-radius:10px;background:transparent;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;">
                             <span x-text="$store.ui.lang==='en' ? '+ Add a card' : '+ Tambah kad'"></span>
                         </button>
+                        <div x-show="adding === '{{ $key }}'" x-cloak class="wc-add" @keydown.escape="adding = null">
+                            <label class="wc-add-label" x-text="$store.ui.lang==='en' ? 'Due date (locked once saved)' : 'Tarikh akhir (dikunci selepas disimpan)'"></label>
+                            <div class="wc-add-row">
+                                <input type="date" class="wc-add-date" x-model="addingDue" x-ref="addDue-{{ $key }}" :disabled="busy" @keydown.enter.prevent="addCard('{{ $key }}')">
+                                <button type="button" class="wc-add-go" :disabled="busy || !addingDue" @click="addCard('{{ $key }}')" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'"></button>
+                                <button type="button" class="wc-add-x" :disabled="busy" @click="adding = null" aria-label="Cancel">&times;</button>
+                            </div>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -185,6 +218,24 @@
          view-only copy (see resources/views/screens/team-board.blade.php). --}}
     @if ($employee)
     @include('partials.work-drawer', ['interactive' => true, 'priLabel' => $priLabel])
+
+    {{-- CR-28: "Ring the bell?" toast — offered right after a Milestone card lands
+         in Done (move()'s JSON `bell` key), never for a non-milestone card. --}}
+    <template x-if="ringPrompt">
+        <div class="uj-vb-prompt" role="status">
+            <span class="k" x-text="$store.ui.lang==='en' ? 'Milestone done' : 'Pencapaian selesai'"></span>
+            <span class="t" x-text="ringPrompt && ringPrompt.prompt"></span>
+            <span class="s" x-text="$store.ui.lang==='en' ? 'Add a line, or leave it blank.' : 'Tambah satu baris, atau biar kosong.'"></span>
+            <input type="text" x-model="ringPrompt.line" maxlength="160"
+                   :placeholder="$store.ui.lang==='en' ? 'Optional line…' : 'Baris pilihan…'">
+            <span class="row">
+                <button type="button" class="uj-btn-primary" @click="ringFromPrompt()"
+                        x-text="$store.ui.lang==='en' ? 'Ring it' : 'Bunyikan'"></button>
+                <button type="button" class="uj-btn-ghost" @click="ringPrompt = null"
+                        x-text="$store.ui.lang==='en' ? 'Not now' : 'Bukan sekarang'"></button>
+            </span>
+        </div>
+    </template>
 
     {{-- Archived-cards panel: reached only from the Done column's "Archived (N)"
          link. A card lands here via archiveCard() (shake + fade, see work-board.js)
@@ -208,9 +259,10 @@
                     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);">
                         <div style="flex:1;min-width:0;">
                             <p style="font-size:13px;font-weight:600;color:var(--ink);margin:0 0 2px;text-wrap:pretty;" x-text="a.title"></p>
-                            <p style="font-size:11px;color:var(--muted);margin:0;" x-text="($store.ui.lang==='en' ? 'Archived ' : 'Diarkibkan ') + a.archived_at"></p>
+                            <p style="font-size:11px;color:var(--muted);margin:0;" x-text="(a.cancelled ? ($store.ui.lang==='en' ? 'Cancelled ' : 'Dibatalkan ') : ($store.ui.lang==='en' ? 'Archived ' : 'Diarkibkan ')) + a.archived_at"></p>
                         </div>
-                        <button type="button" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;" @click="reopenCard(a.id)">
+                        {{-- A cancelled card stays cancelled (date-calendar-rules §1): no Reopen. --}}
+                        <button type="button" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;" x-show="!a.cancelled" @click="reopenCard(a.id)">
                             <span x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'"></span>
                         </button>
                     </div>

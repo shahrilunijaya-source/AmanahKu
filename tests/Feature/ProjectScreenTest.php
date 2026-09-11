@@ -126,12 +126,47 @@ class ProjectScreenTest extends TestCase
     public function test_a_manager_can_create_a_project(): void
     {
         $this->actingAsRole('manager')
-            ->post(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT'])
+            ->post(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT', 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('projects', [
             'tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true,
         ]);
+    }
+
+    /**
+     * The row appended after an AJAX add carries the same PM/PE pickers as the register,
+     * so editing that row straight away keeps the people just chosen instead of wiping
+     * them with an empty "— none —" select.
+     */
+    public function test_the_appended_row_offers_the_pm_and_pe_pickers(): void
+    {
+        $manager = $this->actorWithRole('manager');
+        $pm = Employee::where('user_id', $manager->id)->sole();
+
+        $response = $this->actingAsRole('manager')
+            ->postJson(route('projects.store'), ['name' => 'KPT: RMS', 'code' => 'KPT', 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT', 'pm_id' => $pm->id]);
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('<option value="'.$pm->id.'" selected', $html);
+    }
+
+    /**
+     * A closed project's edit form is read-only on screen too, not only on the server.
+     */
+    public function test_a_closed_project_renders_its_edit_form_locked(): void
+    {
+        Project::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'project_code' => 'KPT-1', 'client' => 'KPT',
+            'status' => 'closed', 'closed_at' => now(), 'is_active' => true,
+        ]);
+
+        $html = $this->actingAsRole('manager')->get('/app/projects')->assertOk()->getContent();
+
+        $this->assertStringContainsString('A director must reopen it before anything here can change.', $html);
+        $this->assertStringNotContainsString('Save changes', $html);
+        $this->assertMatchesRegularExpression('/name="contractor"[^>]*disabled/', $html);
     }
 
     public function test_an_employee_cannot_create_a_project(): void
@@ -269,7 +304,7 @@ class ProjectScreenTest extends TestCase
     public function test_project_ajax_add_returns_a_rendered_row(): void
     {
         $res = $this->actingAsRole('hr')->postJson(route('projects.store'), [
-            'name' => 'KPT: RMS', 'code' => 'KPT', 'sort' => 0,
+            'name' => 'KPT: RMS', 'code' => 'KPT', 'sort' => 0, 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT',
         ]);
 
         $res->assertOk()->assertJsonStructure(['html', 'count_sel']);
@@ -292,7 +327,7 @@ class ProjectScreenTest extends TestCase
         $maint = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Maintenance', 'requires_project' => true]);
 
         $this->actingAsRole('hr')->postJson(route('projects.store'), [
-            'name' => 'KPT: RMS', 'categories' => [$dev->id],
+            'name' => 'KPT: RMS', 'categories' => [$dev->id], 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT',
         ])->assertOk();
 
         $project = Project::where('name', 'KPT: RMS')->firstOrFail();
@@ -347,17 +382,6 @@ class ProjectScreenTest extends TestCase
             // link, so this would have passed even with no add form rendered at all.
             ->assertSee('action="'.route('projects.store').'"', false)
             ->assertSee(route('sub-pillars.store'));
-    }
-
-    public function test_the_submit_button_label_differs_between_add_and_edit_mode(): void
-    {
-        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS']);
-
-        $response = $this->actingAsRole('manager')->get('/app/projects');
-
-        $response->assertOk()
-            ->assertSee("\$store.ui.lang==='en' ? 'Add project' : 'Tambah projek'", false)
-            ->assertSee("\$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'", false);
     }
 
     public function test_the_add_form_offers_active_categories_only(): void

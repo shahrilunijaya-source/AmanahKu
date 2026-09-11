@@ -4,7 +4,7 @@
 @php $e = $row['event']; $counts = $row['counts']; @endphp
 <div style="padding:14px 20px;border-bottom:1px solid var(--hairline-soft);display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
     <div style="min-width:0;">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);">{{ $e->title }}</div>
+        <div style="font-size:13px;font-weight:600;"><a href="{{ route('events.show', $e) }}" style="color:var(--ink);text-decoration:none;">{{ $e->title }}</a></div>
         <div style="font-size:12px;color:var(--muted);">
             <span x-text="$store.ui.lang==='en' ? @js($typeLabel[$e->type] ?? $e->type) : @js($typeLabelMs[$e->type] ?? $typeLabel[$e->type] ?? $e->type)">{{ $typeLabel[$e->type] ?? $e->type }}</span>
             · {{ $e->event_date->format('j M Y') }}

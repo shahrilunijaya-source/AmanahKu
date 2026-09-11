@@ -147,12 +147,23 @@ class AppearanceTest extends TestCase
         $this->actingInTenant()->postJson(route('account.appearance'), ['wallpaper' => 'upload'])->assertStatus(422);
     }
 
+    public function test_a_phone_sized_photo_up_to_ten_megabytes_is_accepted(): void
+    {
+        Storage::fake('public');
+
+        $this->actingInTenant()->post(route('account.appearance'), [
+            'wallpaper' => 'upload', 'photo' => UploadedFile::fake()->image('phone.jpg', 1200, 800)->size(8000),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('upload', $this->user->fresh()->appearance['wallpaper']);
+    }
+
     public function test_oversize_or_non_image_upload_is_rejected(): void
     {
         Storage::fake('public');
 
         $this->actingInTenant()->postJson(route('account.appearance'), [
-            'wallpaper' => 'upload', 'photo' => UploadedFile::fake()->create('big.jpg', 6000, 'image/jpeg'),
+            'wallpaper' => 'upload', 'photo' => UploadedFile::fake()->create('big.jpg', 11000, 'image/jpeg'),
         ])->assertStatus(422);
 
         $this->actingInTenant()->postJson(route('account.appearance'), [
@@ -233,7 +244,7 @@ class AppearanceTest extends TestCase
     {
         $html = $this->actingInTenant()->get(route('app.screen', 'security'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('Appearance', $html);
+        $this->assertStringContainsString('Background', $html);
         foreach (['dawn', 'dusk', 'paper', 'moss', 'slate', 'sand'] as $key) {
             $this->assertStringContainsString('data-wallpaper="preset:'.$key.'"', $html);
         }
@@ -256,6 +267,6 @@ class AppearanceTest extends TestCase
     {
         $html = $this->actingInTenant()->get(route('app.screen', 'dash'))->getContent();
 
-        $this->assertStringContainsString(route('app.screen', 'security').'#appearance', $html);
+        $this->assertStringContainsString(route('app.screen', ['screen' => 'security', 'section' => 'appearance']), $html);
     }
 }

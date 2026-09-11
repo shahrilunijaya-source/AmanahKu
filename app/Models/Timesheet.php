@@ -6,6 +6,8 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use App\Timesheet\DayCapacity;
+use App\Timesheet\DayRules;
+use App\Timesheet\LockedDays;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -66,6 +68,56 @@ class Timesheet extends Model
     public function entries(): HasMany
     {
         return $this->hasMany(TimesheetEntry::class);
+    }
+
+    /** @return HasMany<TimesheetDay, $this> */
+    public function days(): HasMany
+    {
+        return $this->hasMany(TimesheetDay::class);
+    }
+
+    /**
+     * Derive and persist the week-level status from its per-day rows (CR-03): 'submitted'
+     * once every working day that isn't fully locked by leave/holiday is submitted or
+     * approved (submitted_at = the latest day's), 'approved' once all of those are
+     * approved, else 'draft'. Called after every day action so the week-level status a
+     * report or the roster reads never drifts from the days that actually back it.
+     */
+    public function refreshStatusFromDays(): void
+    {
+        $locked = app(LockedDays::class)->forWeek($this->employee, $this->week_start);
+        $candidates = array_filter(
+            (new DayRules)->weekWorkingDays($this->week_start),
+            fn (string $iso) => ! (($locked[$iso]['percentage'] ?? 0) >= DayCapacity::for($iso)),
+        );
+
+        if ($candidates === []) {
+            return;
+        }
+
+        $days = $this->days()->whereIn('entry_date', $candidates)->get()->keyBy(fn (TimesheetDay $d) => $d->entry_date->toDateString());
+
+        $allApproved = true;
+        $allSubmittedOrApproved = true;
+        $latestSubmittedAt = null;
+        foreach ($candidates as $iso) {
+            $day = $days->get($iso);
+            $status = $day?->status;
+
+            if ($status !== TimesheetDay::STATUS_APPROVED) {
+                $allApproved = false;
+            }
+            if (! in_array($status, [TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED], true)) {
+                $allSubmittedOrApproved = false;
+            }
+            if ($day?->submitted_at !== null && ($latestSubmittedAt === null || $day->submitted_at->greaterThan($latestSubmittedAt))) {
+                $latestSubmittedAt = $day->submitted_at;
+            }
+        }
+
+        $status = $allApproved ? 'approved' : ($allSubmittedOrApproved ? 'submitted' : 'draft');
+
+        $this->forceFill(['status' => $status, 'submitted_at' => $allSubmittedOrApproved ? $latestSubmittedAt : null])->save();
     }
 
     /**

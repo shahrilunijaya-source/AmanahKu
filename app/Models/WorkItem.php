@@ -2,24 +2,41 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsChanges;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasAuditedFields;
 use App\Models\Scopes\ParentOnly;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use RuntimeException;
 
 /**
  * `due_at` has a `date` cast, so it reads back as a Carbon instance rather than
  * the string the schema reports.
  *
+ * `type` includes `event` since 2026_09_08_100000, added with a raw ALTER the
+ * migration parser cannot read, so it is declared here.
+ *
  * @property Carbon|null $due_at
+ * @property 'assignment'|'task'|'adhoc'|'event' $type
+ * @property 'todo'|'prog'|'review'|'done' $status
+ * @property Carbon|null $assigned_at
+ * @property Carbon|null $archived_at
+ * @property Carbon|null $cancelled_at
+ * @property Carbon|null $done_at
+ * @property Carbon|null $auto_closed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  * @property int|null $parent_id
  */
-class WorkItem extends Model
+class WorkItem extends Model implements HasAuditedFields
 {
+    use AuditsChanges;
     use BelongsToTenant;
 
     protected $guarded = [];
@@ -38,16 +55,112 @@ class WorkItem extends Model
         'blocked' => ['Blocked', '#f76808'],
         'client' => ['Client', '#8a4bdb'],
         'internal' => ['Internal', '#5a6b7b'],
+        // CR-18: stamped by the recurring engine on every card it makes.
+        'recurring' => ['Recurring', '#1c7c54'],
+        // CR-10: stamped on every card a TOT tindakan makes for its owner.
+        'tot' => ['TOT Action', '#2563eb'],
+        // CR-21: stamped on every card an Office Request raises for the Admin team.
+        'office' => ['Office Request', '#0e9488'],
+        // CR-34: stamped on every system-generated card (the Friday management-meeting
+        // task; CR-19 auto-done and CR-14a awards both read this marker).
+        'system' => ['System', '#475569'],
     ];
 
     protected function casts(): array
     {
-        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'done_at' => 'datetime', 'labels' => 'array', 'links' => 'array'];
+        return ['due_at' => 'date', 'assigned_at' => 'datetime', 'archived_at' => 'datetime', 'cancelled_at' => 'datetime', 'done_at' => 'datetime', 'auto_closed_at' => 'datetime', 'labels' => 'array', 'links' => 'array', 'is_milestone' => 'boolean'];
     }
 
     protected static function booted(): void
     {
         static::addGlobalScope(new ParentOnly);
+
+        // Backstop for BoardRules::assertDueDateLocked(): every writer (controller, MCP
+        // tool) is expected to call that guard before saving, but a stray
+        // `$item->update(['due_at' => ...])` anywhere else must not slip past it. See
+        // docs/build/contracts/dates.md Rule 1.
+        static::saving(function (WorkItem $model) {
+            if ($model->exists
+                && $model->isDirty('due_at')
+                && $model->getOriginal('due_at') !== null
+                && $model->type !== 'event'
+            ) {
+                throw new RuntimeException('Work item due dates are locked after the first save (work_items.due_at).');
+            }
+        });
+    }
+
+    /** Fields the Global Clause requires an audit entry for on change. */
+    public function audited(): array
+    {
+        return [
+            'due_at', 'priority', 'status', 'done_at', 'employee_id', 'archived_at', 'cancelled_at',
+            'title', 'type', 'project_id', 'timesheet_category_id', 'parent_id', 'reviewer_id', 'company_event_id',
+        ];
+    }
+
+    /** Card roles a tagged person may hold (docs/build/contracts/roles.md). */
+    public const TAG_ROLES = ['helper', 'fyi'];
+
+    /** Visible label per card role for someone who is not the Assigned owner. */
+    public const ROLE_LABELS = [
+        'helper' => 'Tagged – Helper',
+        'fyi' => 'Tagged – FYI',
+        'reviewer' => 'Reviewer',
+    ];
+
+    /**
+     * This card's role for one person: assigned, reviewer, helper, fyi, or null when
+     * they hold none. Reads the loaded participants when present so a board render
+     * never lazy-loads per card.
+     */
+    public function roleFor(int $employeeId): ?string
+    {
+        if ($this->employee_id === $employeeId) {
+            return 'assigned';
+        }
+        if ($this->reviewer_id === $employeeId) {
+            return 'reviewer';
+        }
+        $participants = $this->relationLoaded('participants') ? $this->participants : $this->participants()->get();
+        $row = $participants->firstWhere('id', $employeeId);
+
+        return $row ? ($row->pivot->role ?? 'helper') : null;
+    }
+
+    public function isEvent(): bool
+    {
+        return $this->type === 'event';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
+    }
+
+    /**
+     * CR-19: an event attendee card whose event has ended but whose RSVP is still
+     * undecided (going/registered/maybe) — the scheduler never closes it by time, it only
+     * notifies the organiser; only marking attendance (attended/did_not_attend) or
+     * withdrawing the invitation moves it, via App\Support\AutoDone.
+     */
+    public function isPendingAttendance(): bool
+    {
+        if ($this->type !== 'event' || $this->company_event_id === null) {
+            return false;
+        }
+        if ($this->auto_closed_at !== null || $this->archived_at !== null || $this->cancelled_at !== null) {
+            return false;
+        }
+
+        $event = $this->companyEvent;
+        if (! $event || ! $event->isOver()) {
+            return false;
+        }
+
+        $response = EventRsvp::where('company_event_id', $event->id)->where('employee_id', $this->employee_id)->value('response');
+
+        return in_array($response, ['going', 'registered', 'maybe'], true);
     }
 
     /**
@@ -239,6 +352,38 @@ class WorkItem extends Model
      */
     public function participants(): BelongsToMany
     {
-        return $this->belongsToMany(Employee::class, 'work_item_participant');
+        return $this->belongsToMany(Employee::class, 'work_item_participant')->withPivot('role');
+    }
+
+    /**
+     * The one person who may move this card from In Review to Done when set. Never
+     * the Assigned owner. See docs/build/contracts/roles.md.
+     *
+     * @return BelongsTo<Employee, $this>
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'reviewer_id');
+    }
+
+    /**
+     * CR-18: the Event this card produced (the social activity's "Create Event" step).
+     * Set through WorkItemController::linkEvent(); the done rule reads it.
+     *
+     * @return BelongsTo<CompanyEvent, $this>
+     */
+    public function companyEvent(): BelongsTo
+    {
+        return $this->belongsTo(CompanyEvent::class);
+    }
+
+    /**
+     * The recurring period this card was made for, when the engine made it.
+     *
+     * @return HasOne<RecurringTaskOccurrence, $this>
+     */
+    public function recurringOccurrence(): HasOne
+    {
+        return $this->hasOne(RecurringTaskOccurrence::class);
     }
 }

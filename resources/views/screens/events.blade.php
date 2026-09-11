@@ -82,7 +82,8 @@
                     <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;">
                             <span class="uj-pill" style="background:var(--hairline-soft);color:{{ $typeColor[$e->type] ?? 'var(--muted)' }};" x-text="$store.ui.lang==='en' ? @js($typeLabel[$e->type] ?? $e->type) : @js($typeLabelMs[$e->type] ?? $typeLabel[$e->type] ?? $e->type)">{{ $typeLabel[$e->type] ?? $e->type }}</span>
-                            <span style="font-size:13.5px;font-weight:600;color:var(--ink);">{{ $e->title }}</span>
+                            {{-- QA F1: the title opens the CR-11 event page (attendees, post-event sharing). --}}
+                            <a href="{{ route('events.show', $e) }}" style="font-size:13.5px;font-weight:600;color:var(--ink);text-decoration:none;">{{ $e->title }}</a>
                         </div>
                         <div style="display:flex;gap:10px;align-items:start;flex-shrink:0;">
                             @include('partials.event-edit-buttons', ['e' => $e])
@@ -250,6 +251,10 @@
 
                                     <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Time' : 'Masa'">Time</label><input class="tot-field" name="start_time" value="{{ old('start_time') }}" maxlength="40" placeholder="10:00 AM – 12:00 PM"></div>
                                     <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label><input class="tot-field" name="location" value="{{ old('location') }}" maxlength="160"></div>
+
+                                    {{-- QA F2 (CR-11): the exact slot the attendee cards, the calendar port and the post-event unlock (ends_at) run on. --}}
+                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Starts (date & time)' : 'Bermula (tarikh & masa)'">Starts (date & time)</label><input class="tot-field" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}"></div>
+                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Ends (date & time)' : 'Tamat (tarikh & masa)'">Ends (date & time)</label><input class="tot-field" type="datetime-local" name="ends_at" value="{{ old('ends_at') }}"></div>
 
                                     <div x-show="external" x-cloak style="grid-column:span 2;">
                                         <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Map link' : 'Pautan peta'">Map link</label>

@@ -13,6 +13,7 @@ use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\Amanahku;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -227,6 +228,10 @@ class DashboardWidgetsTest extends TestCase
     /** 8. A saved order drives the layout, and a widget it never saw still shows up. */
     public function test_saved_order_drives_the_layout(): void
     {
+        // A Wednesday morning: from Friday 3 PM to Monday 9 AM the Friday sign-off
+        // card exists and anchors itself right after 'tasks', which is correct but
+        // would shift 'summary' out of second place.
+        $this->travelTo('2026-09-09 10:00:00');
         $employee = $this->userWithRole('employee', 'employee@acme.test');
         $this->employeeFor($employee);
         $employee->dashboard_prefs = ['dash' => [
@@ -545,6 +550,43 @@ class DashboardWidgetsTest extends TestCase
         $this->assertSame(1, $calendar['days'][now()->toDateString()]['marks']['company']['count']);
     }
 
+    /**
+     * A report's leave that the manager verified but nobody has finally approved
+     * yet shows on the manager's own dashboard as "awaiting", and nowhere else.
+     */
+    public function test_calendar_shows_verified_leave_awaiting_approval_only_to_its_verifier(): void
+    {
+        $manager = $this->userWithRole('manager', 'await-mgr@acme.test');
+        $mgrEmployee = $this->employeeFor($manager);
+
+        $staff = $this->userWithRole('employee', 'await-staff@acme.test');
+        $staffEmployee = $this->employeeFor($staff, $mgrEmployee->id);
+        $staffEmployee->update(['name' => 'Await Staff']);
+
+        $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual']);
+        LeaveRequest::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $staffEmployee->id,
+            'leave_type_id' => $type->id, 'status' => 'verified',
+            'verified_by_id' => $mgrEmployee->id, 'verified_at' => now(),
+            'date_from' => now(), 'date_to' => now(), 'days' => 1,
+        ]);
+
+        $this->actAs($manager);
+        $entries = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'][now()->toDateString()]['entries'];
+        $awaiting = collect($entries)->firstWhere('kind', 'awaiting');
+
+        $this->assertNotNull($awaiting);
+        $this->assertSame(1, $awaiting['level']);
+        $this->assertSame('Waiting for approval · verified by you', $awaiting['sub']);
+
+        // A coworker with no part in this approval sees nothing about it.
+        $coworker = $this->userWithRole('employee', 'await-coworker@acme.test');
+        $this->employeeFor($coworker);
+        $this->actAs($coworker);
+        $entries = $this->get('/app/dash')->assertOk()->viewData('widgets')['calendar']['days'][now()->toDateString()]['entries'] ?? [];
+        $this->assertNull(collect($entries)->firstWhere('kind', 'awaiting'));
+    }
+
     /** Nobody reporting to you means no Team tab — it would only repeat Personal. */
     public function test_calendar_drops_the_team_tab_for_someone_with_no_reports(): void
     {
@@ -679,5 +721,41 @@ class DashboardWidgetsTest extends TestCase
         $w = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => 'not-a-month']))->assertOk()->viewData('w');
 
         $this->assertSame('Sep 2026', $w['pnav']['label']);
+    }
+
+    /** CR-15: the Profile Test lives on the dashboard now, not in the sidebar. */
+    public function test_working_style_card_invites_the_untested_and_shows_the_result_after(): void
+    {
+        $user = $this->userWithRole('employee', 'style@acme.test');
+        $employee = $this->employeeFor($user);
+        $this->actAs($user);
+
+        $this->assertContains('style', $this->shownWidgets());
+
+        $page = $this->get('/app/dash')->assertOk();
+        $page->assertSee('Discover your working style');
+        $page->assertSee('/app/profile-test');
+        $this->assertNull($page->viewData('widgets')['style']['archetype']);
+
+        $employee->profileTestResult()->create([
+            'animal_archetype' => 'fox',
+            'totals' => ['rabbit' => 1, 'tortoise' => 0, 'fox' => 3, 'sloth' => 0],
+            'submitted_at' => now(),
+        ]);
+
+        $page = $this->get('/app/dash')->assertOk();
+        $page->assertSee('Retake the test')->assertSee('Fox')->assertSee('75%');
+        $bars = collect($page->viewData('widgets')['style']['bars'])->pluck('pct', 'key')->all();
+        $this->assertSame(['rabbit' => 25, 'tortoise' => 0, 'fox' => 75, 'sloth' => 0], $bars);
+    }
+
+    public function test_the_profile_test_left_the_sidebar_but_still_opens(): void
+    {
+        $user = $this->userWithRole('employee', 'style2@acme.test');
+        $this->employeeFor($user);
+        $this->actAs($user);
+
+        $this->assertFalse(collect(Amanahku::nav())->contains('id', 'profile-test'));
+        $this->get('/app/profile-test')->assertOk();
     }
 }

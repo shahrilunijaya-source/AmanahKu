@@ -244,9 +244,10 @@ class LeaveScreenTabsTest extends TestCase
 
     /**
      * Same trap on the withdrawal path: a request the manager verified and the applicant
-     * then pulled was never approved by anyone, so it is nobody's approved history.
+     * then pulled was never approved by anyone. It is the manager's verified history,
+     * tagged as withdrawn, never an approval.
      */
-    public function test_a_withdrawal_before_approval_is_not_the_verifiers_approved_history(): void
+    public function test_a_withdrawal_before_approval_stays_in_the_verifiers_verified_history(): void
     {
         $manager = $this->member('manager', 'Manager');
         $staff = $this->member('employee', 'Staff', $manager->id);
@@ -258,7 +259,53 @@ class LeaveScreenTabsTest extends TestCase
 
         $this->screenAs($manager)
             ->assertOk()
-            ->assertSee('You have not approved anything this year.');
+            ->assertSee('Verified this year')
+            ->assertSee('withdrawn by applicant')
+            ->assertDontSee('Approved this year');
+    }
+
+    /**
+     * A plain manager never gives final approval, so an "Approved" list would read 0 for
+     * them forever. Their history is what they verified, whatever management did next.
+     */
+    public function test_a_plain_manager_sees_what_they_verified_not_what_was_approved(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $staff = $this->member('employee', 'Staff', $manager->id);
+        $other = $this->member('manager', 'Other Manager', $management->id);
+
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'verified', 'verified_by_id' => $manager->id, 'verified_at' => now(),
+        ]);
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'approved', 'verified_by_id' => $manager->id, 'verified_at' => now(),
+            'approved_by_id' => $management->id, 'approved_at' => now(),
+        ]);
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'rejected', 'verified_by_id' => $manager->id, 'verified_at' => now(),
+            'rejected_by_id' => $management->id, 'rejected_at' => now(),
+        ]);
+        // Verified by somebody else, and one verified last year: neither is this year's history.
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'verified', 'verified_by_id' => $other->id, 'verified_at' => now(),
+        ]);
+        $this->submittedRequestFor($staff)->update([
+            'status' => 'approved', 'verified_by_id' => $manager->id, 'verified_at' => now()->subYear(),
+        ]);
+
+        $this->screenAs($manager)->assertOk()
+            ->assertViewHas('leaveVerifiedByMe', fn ($c) => $c->count() === 3)
+            ->assertSee('Verified this year')
+            ->assertSee('with management')
+            ->assertSee('declined by management')
+            ->assertDontSee('Approved this year');
+
+        // The director keeps the approved list; verifying is not their history.
+        $this->screenAs($management)->assertOk()
+            ->assertViewHas('leaveVerifiedByMe', fn ($c) => $c->isEmpty())
+            ->assertSee('Approved this year')
+            ->assertDontSee('Verified this year');
     }
 
     public function test_the_immediate_superior_gets_the_verify_queue(): void
@@ -742,14 +789,18 @@ class LeaveScreenTabsTest extends TestCase
             'days' => 1, 'remark' => 'Worked 31 Aug',
         ])->assertRedirect();
 
+        // A working day, whatever weekday the suite runs on: a weekend date counts
+        // as zero days and there would be nothing to spend or refund.
+        $day = now()->addDays(10)->nextWeekday()->toDateString();
         $this->applyAs($staff, [
             'leave_type_id' => $type->id,
-            'date_from' => now()->addDays(10)->toDateString(),
-            'date_to' => now()->addDays(10)->toDateString(),
+            'date_from' => $day,
+            'date_to' => $day,
             'reason' => 'Rest.',
         ])->assertRedirect();
 
         $leave = LeaveRequest::where('leave_type_id', $type->id)->sole();
+        $this->assertEquals(1.0, (float) $leave->days);
         $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id])
             ->post(route('leave.verify', $leave))->assertRedirect();
         $this->actingAs($director->user)->withSession(['current_tenant' => $this->tenant->id])
