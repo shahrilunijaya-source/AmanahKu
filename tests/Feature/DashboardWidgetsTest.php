@@ -228,6 +228,10 @@ class DashboardWidgetsTest extends TestCase
     /** 8. A saved order drives the layout, and a widget it never saw still shows up. */
     public function test_saved_order_drives_the_layout(): void
     {
+        // A Wednesday morning: from Friday 3 PM to Monday 9 AM the Friday sign-off
+        // card exists and anchors itself right after 'tasks', which is correct but
+        // would shift 'summary' out of second place.
+        $this->travelTo('2026-09-09 10:00:00');
         $employee = $this->userWithRole('employee', 'employee@acme.test');
         $this->employeeFor($employee);
         $employee->dashboard_prefs = ['dash' => [
