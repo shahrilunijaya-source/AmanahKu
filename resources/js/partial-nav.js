@@ -170,6 +170,17 @@ async function go(url, { push = true } = {}) {
     // reached from a 920px screen stayed capped and centred until a full reload.
     main.className = fresh.className;
     main.innerHTML = fresh.innerHTML;
+    // innerHTML never runs <script> tags, so a screen that defines its Alpine component
+    // inline (office-requests, event-show) arrived with that component undefined and its
+    // x-show toggles broken: Office Requests opened with the new-request form showing.
+    // Re-creating each script runs it now, in order and in this same tick, before
+    // Alpine's MutationObserver gets to initialise the new markup.
+    main.querySelectorAll('script').forEach((old) => {
+        const script = document.createElement('script');
+        for (const attr of old.attributes) { script.setAttribute(attr.name, attr.value); }
+        script.textContent = old.textContent;
+        old.replaceWith(script);
+    });
     // The new screen arrives from the side, so the swap reads as one region changing
     // rather than the whole page blinking.
     main.querySelector('.uj-fade')?.classList.add('uj-slide');
