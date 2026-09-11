@@ -16,7 +16,8 @@
 @endphp
 <div class="uj-dw-body">
     <div class="uj-fr" x-data="fridaySignOff(@js(route('friday.signoff')))">
-        <span class="uj-fr-k">{{ $plain ? 'Friday sign-off' : 'FRIDAY SIGN-OFF · CLOSES MON 9 AM' }}</span>
+        {{-- The widget head already says "Friday sign-off"; this line only adds when it closes. --}}
+        <span class="uj-fr-k">{{ $plain ? 'Closes Monday 9 AM' : 'CLOSES MON 9 AM' }}</span>
 
         @if ($w['voted'])
             <div data-friday-done>
