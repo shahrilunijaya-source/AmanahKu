@@ -141,6 +141,12 @@
     - tag: added
       text: "Learning is now The Playground, with Events under it, and a My working style card sits on the dashboard."
       text_ms: "Learning kini The Playground, dengan Acara di bawahnya, dan kad Gaya kerja saya duduk di papan pemuka."
+    - tag: added
+      text: "Search cards by title on My Work, and inside a person's window on the Team Board. Searching a task on the Team Board opens that person already narrowed to it."
+      text_ms: "Cari kad ikut tajuk di Kerja Saya, dan dalam tetingkap seseorang di Papan Pasukan. Mencari tugasan di Papan Pasukan membuka orang itu yang sudah ditapis kepadanya."
+      link: "/app/board"
+      link_text: "Open My Work"
+      link_text_ms: "Buka Kerja Saya"
     - tag: improved
       text: "Hover any field, chip or button on the board, Office Requests and TOT to see what it does."
       text_ms: "Letak tetikus pada mana-mana medan, cip atau butang di papan, Permintaan Pejabat dan TOT untuk melihat fungsinya."

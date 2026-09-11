@@ -70,6 +70,7 @@ export function registerTeamBoard(Alpine) {
             priorityFilter: '',
             projectFilter: '',
             labelFilter: null,
+            search: '', // card title text, case-insensitive "contains"
             _closeTimer: null,
         },
         winVisibleCount: 0,
@@ -298,6 +299,13 @@ export function registerTeamBoard(Alpine) {
             this.win.priorityFilter = '';
             this.win.projectFilter = '';
             this.win.labelFilter = null;
+            // Carry the table search in only when it hit one of this person's
+            // card titles; a name-only hit would otherwise open an empty window.
+            const q = this.search.trim().toLowerCase();
+            this.win.search = q && this.$refs.winTaskBody
+                && [...this.$refs.winTaskBody.querySelectorAll(`[data-owner-id="${id}"] .wc-title`)].some((t) => t.textContent.toLowerCase().includes(q))
+                ? this.search.trim()
+                : '';
             this.applyWinFilter();
 
             this.win.show = true;
@@ -393,10 +401,12 @@ export function registerTeamBoard(Alpine) {
                 return;
             }
             const ownerId = String(this.win.person.id);
+            const q = this.win.search.trim().toLowerCase();
             let visible = 0;
             body.querySelectorAll('[data-id]').forEach((row) => {
                 const labels = (row.dataset.labels || '').split(',').filter(Boolean);
                 const matches = row.dataset.ownerId === ownerId
+                    && (!q || (row.querySelector('.wc-title')?.textContent || '').toLowerCase().includes(q))
                     && (!this.win.typeFilter || row.dataset.type === this.win.typeFilter)
                     && (!this.win.priorityFilter || row.dataset.priority === this.win.priorityFilter)
                     && (!this.win.projectFilter || row.dataset.project === this.win.projectFilter)
