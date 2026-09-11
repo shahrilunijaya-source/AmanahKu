@@ -5491,6 +5491,11 @@ form.uj-or-fields { padding: 20px; }
 
 /* --- CR-29: Friday sign-off widget (docs/build/sessions/S25/mockup) --- */
 .uj-fr { display:flex; flex-direction:column; gap:12px; }
+/* The prompt and done states are one wrapper each, so .uj-fr's gap never reached
+   the heading, tiles, win field and footer inside them; space them here. */
+.uj-fr > [data-friday-signoff], .uj-fr > [data-friday-done] { display:flex; flex-direction:column; gap:12px; }
+.uj-fr-q { margin-bottom:-4px; }
+.uj-fr-meta { padding-top:2px; }
 .uj-fr-k { display:block; font:600 11px var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--red); }
 .uj-fr-q { display:block; font-size:16px; font-weight:600; color:var(--ink); line-height:1.3; }
 .uj-fr-moods { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
@@ -5499,8 +5504,9 @@ form.uj-or-fields { padding: 20px; }
 .uj-fr-mood .uj-fr-art { font-size:18px; line-height:1; }
 .uj-fr-mood.is-on { border-color:var(--red); background:#fdf2f2; }
 .uj-fr-win { display:flex; flex-direction:column; gap:6px; }
-.uj-fr-win label { font-size:12px; color:var(--muted); }
-.uj-fr-win input[type=text] { width:100%; height:36px; padding:0 12px; border:1px solid var(--hairline); border-radius:8px; font-size:13px; color:var(--ink); background:#fff; }
+.uj-fr-win label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--muted); }
+.uj-fr-win input[type=text] { width:100%; height:40px; padding:0 12px; border:1px solid var(--hairline); border-radius:10px; font-size:13px; color:var(--ink); background:#fff; outline:none; transition:border-color .14s, box-shadow .14s; }
+.uj-fr-win input[type=text]:focus { border-color:var(--red); box-shadow:0 0 0 3px var(--red-tint); }
 .uj-fr-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 .uj-fr-share { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--body); }
 .uj-fr .uj-btn-primary { height:36px; padding:0 16px; font-size:13px; display:inline-flex; align-items:center; white-space:nowrap; flex-shrink:0; }
