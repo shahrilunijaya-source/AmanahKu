@@ -268,6 +268,8 @@ class WorkItemController extends Controller
                     && ($workItem->employee_id === $employee->id
                         || in_array(Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee')), BoardRules::ASSIGNER_ROLES, true)),
                 'viewer_role' => $workItem->roleFor($employee->id),
+                // Opened from the Archived panel's View: the drawer shows it read-only.
+                'archived' => $workItem->archived_at !== null,
                 // CR-08: PM and above, or the project's PE/PM, may push a comment to Track.
                 // The tick is disabled (with the reason) when the project is not linked
                 // or the card is Internal. Default off for everyone, never remembered.

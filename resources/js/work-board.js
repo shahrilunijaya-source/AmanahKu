@@ -103,6 +103,7 @@ export function registerWorkBoard(Alpine) {
             // The overview beside the drawer: { parent, children } from the server, for a
             // parent and for a child alike (null until loaded). See partials.work-overview.
             family: null,
+            fromArchived: false,
             // Phone: the overview is a bottom sheet over the drawer, opened from the
             // Subtasks pill. Desktop ignores this (the panel sits beside the drawer).
             ovOpen: false,
@@ -860,6 +861,9 @@ export function registerWorkBoard(Alpine) {
         },
 
         lockedReasonText(card) {
+            if (card.archived) {
+                return this.t('This card is archived, so it is read-only here.', 'Kad ini diarkibkan, jadi ia baca-sahaja di sini.');
+            }
             const who = card.owner_name || this.t('Someone else', 'Orang lain');
             if (card.viewer_role === 'reviewer') {
                 return this.t(
@@ -954,7 +958,7 @@ export function registerWorkBoard(Alpine) {
                 // Read-only unless the server says this viewer may manage the card. Covers
                 // both a tac's assignee (edits belong to the assigner) and a shared card's
                 // participant (edits belong to the owner) — either way, move + comment only.
-                this.drawer.locked = !!card.assigned_by || card.can_manage === false;
+                this.drawer.locked = !!card.archived || !!card.assigned_by || card.can_manage === false;
                 this.drawer.lockedReason = this.lockedReasonText(card);
                 this.drawer.sub = this.subline(card);
                 this.drawer.comments = comments;
@@ -1100,6 +1104,11 @@ export function registerWorkBoard(Alpine) {
             this.drawer.editingLinkIdx = null;
             this.closeMention();
             const trigger = this.drawer.trigger;
+            // Opened via View in the Archived panel: closing goes back to that list.
+            if (this.drawer.fromArchived) {
+                this.drawer.fromArchived = false;
+                this.openArchived();
+            }
             clearTimeout(this.drawer._closeTimer);
             this.drawer._closeTimer = setTimeout(() => {
                 this.drawer.show = false;
@@ -1248,6 +1257,14 @@ export function registerWorkBoard(Alpine) {
             } catch (err) {
                 this.$store.toast.error(this.t('Could not load archived cards.', 'Tidak dapat memuatkan kad diarkibkan.'));
             }
+        },
+
+        // View swaps the Archived panel for the card's drawer, read-only; closing
+        // the drawer brings the panel back (see closeDrawer()).
+        viewArchived(id) {
+            this.archivedOpen = false;
+            this.drawer.fromArchived = true;
+            this.openCardCore(String(id), null);
         },
 
         // Reopen puts the card back at To Do (the one way back onto the board).

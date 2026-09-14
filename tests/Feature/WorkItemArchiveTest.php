@@ -90,6 +90,15 @@ class WorkItemArchiveTest extends TestCase
         $this->assertSame('todo', $item->status);
     }
 
+    public function test_card_payload_flags_an_archived_card_so_the_drawer_opens_read_only(): void
+    {
+        $item = $this->card(['status' => 'done']);
+        $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->assertJsonPath('card.archived', false);
+
+        $item->update(['archived_at' => now()]);
+        $this->actingInTenant()->getJson("/app/board/{$item->id}")->assertOk()->assertJsonPath('card.archived', true);
+    }
+
     public function test_moving_a_card_to_done_stamps_done_at(): void
     {
         $item = $this->card(['status' => 'todo']);
