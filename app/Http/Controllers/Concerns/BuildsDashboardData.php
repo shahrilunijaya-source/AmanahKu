@@ -28,10 +28,12 @@ use App\Support\RequestGuidance;
 use App\Support\StuckRequests;
 use App\Support\WorkforceInsights;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\ApprovalQueue;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -519,7 +521,41 @@ trait BuildsDashboardData
             }
         }
 
+        $viewer = $request->attributes->get('employee');
+        if ($viewer && $features->screenAllowed($tenant, 'timesheet-reports') && ($timesheetRow = $this->timesheetQueueRow($viewer))) {
+            $rows->prepend($timesheetRow);
+        }
+
         return $rows->values();
+    }
+
+    /**
+     * One row for every timesheet day the viewer's reports sent in and nobody has approved
+     * yet, rather than a row per day: staff send days in daily, so per-day rows would bury
+     * the leave and claims beside them. Null when nothing is waiting.
+     */
+    private function timesheetQueueRow(Employee $viewer): ?array
+    {
+        $summary = app(ApprovalQueue::class)->summary($viewer);
+        if ($summary['days'] === 0) {
+            return null;
+        }
+
+        $oldest = Carbon::parse($summary['oldest']);
+
+        return [
+            'month' => $oldest->format('M'),
+            'day' => $oldest->format('d'),
+            'kind' => 'Timesheet',
+            'stage' => 'approve',
+            'label' => null,
+            'title' => $summary['days'].' timesheet '.Str::plural('day', $summary['days']).' from '.$summary['people'].' '.Str::plural('person', $summary['people']),
+            'sub' => 'Oldest '.$oldest->format('D j M'),
+            'body' => 'Your team sent these days in and they are waiting for you. Approving is optional; a day you return goes back to the person with your note.',
+            'actions' => [
+                ['label' => 'Review timesheets', 'url' => route('app.screen', ['screen' => 'timesheet-reports', 'tab' => 'approve']), 'primary' => true],
+            ],
+        ];
     }
 
     /** One verify/approve queue row, in the shared ROW ARRAY shape. */

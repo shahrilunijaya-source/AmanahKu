@@ -21,9 +21,18 @@
     $activeFilterParts = array_filter([$dept, $selCatName, $selProjName, $q !== '' ? '"'.$q.'"' : null]);
     $activeFilterName = count($activeFilterParts) > 0 ? implode(' + ', $activeFilterParts) : 'This period';
 
-    // Which tab opens. Defaults to this week, so an unfilled sheet is the first
-    // thing seen. ?tab=report deep-links the other one.
-    $tab = request()->query('tab') === 'report' ? 'report' : 'week';
+    // Days from the viewer's own reports waiting on them, for the "To approve" tab.
+    $approvalQueue = $approvalQueue ?? [];
+    $approveCount = collect($approvalQueue)->sum(fn ($p) => count($p['days']));
+
+    // Which tab opens. "To approve" when something is waiting on the viewer, else this
+    // week, so an unfilled sheet is the first thing seen. ?tab= deep-links any of them;
+    // ?tab=approve with nothing waiting falls back to this week.
+    $tab = match (request()->query('tab')) {
+        'report' => 'report',
+        'week' => 'week',
+        default => $approveCount > 0 ? 'approve' : 'week',
+    };
 
     // Rows the chase tab is about, so the tab label can carry the number.
     $oweCount = collect($tsRoster ?? [])->where('status', '!=', 'done')->count();
@@ -95,10 +104,18 @@
          the period that is closed. An underline bar, not another uj-tr-pills group — the
          report tab already contains one, and two identical pill rows would read as one
          control with six options. --}}
-    <div class="uj-tr-tabs" role="tablist">
+    <div class="uj-tr-tabs" role="tablist" x-data="{ approveLeft: {{ $approveCount }} }" @ts-approvals-left.window="approveLeft = $event.detail">
+        @if ($approveCount > 0)
+            <button type="button" id="tr-tab-approve" class="uj-tr-tab" role="tab" :data-on="tab==='approve'"
+                :aria-selected="tab==='approve'" aria-controls="tr-panel-approve" :tabindex="tab==='approve' ? 0 : -1"
+                @click="setTab('approve')" @keydown.right.prevent="stepTab(1)" @keydown.left.prevent="stepTab(-1)">
+                <span x-text="$store.ui.lang==='en' ? 'To approve' : 'Untuk diluluskan'">To approve</span>
+                <span class="uj-tr-tabcount" x-show="approveLeft > 0" x-text="approveLeft">{{ $approveCount }}</span>
+            </button>
+        @endif
         <button type="button" id="tr-tab-week" class="uj-tr-tab" role="tab" :data-on="tab==='week'"
             :aria-selected="tab==='week'" aria-controls="tr-panel-week" :tabindex="tab==='week' ? 0 : -1"
-            @click="setTab('week')" @keydown.right.prevent="setTab('report')" @keydown.left.prevent="setTab('report')">
+            @click="setTab('week')" @keydown.right.prevent="stepTab(1)" @keydown.left.prevent="stepTab(-1)">
             <span x-text="$store.ui.lang==='en' ? 'This week' : 'Minggu ini'">This week</span>
             @if ($oweCount > 0)
                 <span class="uj-tr-tabcount">{{ $oweCount }}</span>
@@ -106,10 +123,16 @@
         </button>
         <button type="button" id="tr-tab-report" class="uj-tr-tab" role="tab" :data-on="tab==='report'"
             :aria-selected="tab==='report'" aria-controls="tr-panel-report" :tabindex="tab==='report' ? 0 : -1"
-            @click="setTab('report')" @keydown.right.prevent="setTab('week')" @keydown.left.prevent="setTab('week')">
+            @click="setTab('report')" @keydown.right.prevent="stepTab(1)" @keydown.left.prevent="stepTab(-1)">
             <span x-text="$store.ui.lang==='en' ? 'Where time went' : 'Ke mana masa pergi'">Where time went</span>
         </button>
     </div>
+
+    @if ($approveCount > 0)
+        <div x-show="tab==='approve'" x-cloak role="tabpanel" id="tr-panel-approve" aria-labelledby="tr-tab-approve" tabindex="0">
+            @include('partials.timesheet-report.approvals', ['queue' => $approvalQueue, 'total' => $approveCount])
+        </div>
+    @endif
 
     {{-- This-week compliance roster — who still owes a sheet. Access is the screen's own
          403 gate (management/HR/superiors, see AppController::canSeeAll), not a role check

@@ -21,6 +21,7 @@ use App\Services\DataScope;
 use App\Services\MandayRateService;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use App\Timesheet\ApprovalQueue;
 use App\Timesheet\BoardSuggestions;
 use App\Timesheet\DayRules;
 use App\Timesheet\LockedDays;
@@ -744,6 +745,9 @@ class TimesheetController extends Controller
             'tsDeadline' => app(TimesheetCompliance::class)->deadline(Carbon::now()->startOfWeek()),
             'tsWeekStart' => Carbon::now()->startOfWeek()->toDateString(),
             'tsNudged' => $tsNudged,
+            // "To approve" tab: submitted days from the viewer's own reports, grouped by
+            // person. Empty for HR / management without reports (see ApprovalQueue).
+            'approvalQueue' => $employee ? app(ApprovalQueue::class)->forManager($employee) : [],
             // Filter dropdown options + current selection.
             'filterCategories' => TimesheetCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'filterProjects' => Project::where('is_active', true)->orderBy('name')->get(['id', 'name']),
