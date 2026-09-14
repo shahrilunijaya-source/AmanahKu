@@ -245,6 +245,15 @@ export function registerTimesheetReport(Alpine) {
             this.staffWeekError = false;
         },
 
+        // Arrow keys across whichever tabs rendered (To approve only shows while days wait).
+        stepTab(dir) {
+            const tabs = [...this.$root.querySelectorAll('[role=tab]')];
+            const at = tabs.findIndex((el) => el.id === `tr-tab-${this.tab}`);
+            const next = tabs[(at + dir + tabs.length) % tabs.length];
+            this.setTab(next.id.replace('tr-tab-', ''));
+            next.focus();
+        },
+
         navigate(nextSel, dir) {
             const restoreId = this.sel.key;
             this.direction = dir;
