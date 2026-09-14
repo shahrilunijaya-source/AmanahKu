@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Timesheet;
 
 use App\Models\Employee;
+use App\Models\Project;
 use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use Illuminate\Support\Collection;
@@ -104,13 +105,21 @@ final class ApprovalQueue
             'returnReason' => $day->resubmitted ? $day->return_reason : null,
             'percent' => round((float) $entries->sum('percentage'), 2),
             'lines' => $entries->sortByDesc(fn (TimesheetEntry $e) => (float) $e->percentage)
-                ->map(fn (TimesheetEntry $e) => [
-                    'card' => (string) ($e->workItem->title ?? $e->category?->name ?? $e->project ?? ''),
-                    'project' => $e->projectRef?->name,
-                    'category' => $e->category?->name,
-                    'colour' => $e->category?->colour(),
-                    'percent' => round((float) $e->percentage, 2),
-                ])->values()->all(),
+                ->map(fn (TimesheetEntry $e) => $this->lineRow($e))->values()->all(),
+        ];
+    }
+
+    /** @return array{card: string, project: ?string, category: ?string, colour: ?string, percent: float} */
+    private function lineRow(TimesheetEntry $e): array
+    {
+        $project = $e->getRelationValue('projectRef'); // eager-loaded; the relation has no generic type for phpstan
+
+        return [
+            'card' => (string) ($e->workItem->title ?? $e->category->name ?? $e->project ?? ''),
+            'project' => $project instanceof Project ? $project->name : null,
+            'category' => $e->category?->name,
+            'colour' => $e->category?->colour(),
+            'percent' => round((float) $e->percentage, 2),
         ];
     }
 }
