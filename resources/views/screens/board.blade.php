@@ -261,6 +261,9 @@
                             <p style="font-size:13px;font-weight:600;color:var(--ink);margin:0 0 2px;text-wrap:pretty;" x-text="a.title"></p>
                             <p style="font-size:11px;color:var(--muted);margin:0;" x-text="(a.cancelled ? ($store.ui.lang==='en' ? 'Cancelled ' : 'Dibatalkan ') : ($store.ui.lang==='en' ? 'Archived ' : 'Diarkibkan ')) + a.archived_at"></p>
                         </div>
+                        <button type="button" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;" @click="viewArchived(a.id)">
+                            <span x-text="$store.ui.lang==='en' ? 'View' : 'Lihat'"></span>
+                        </button>
                         {{-- A cancelled card stays cancelled (date-calendar-rules §1): no Reopen. --}}
                         <button type="button" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:12px;flex-shrink:0;" x-show="!a.cancelled" @click="reopenCard(a.id)">
                             <span x-text="$store.ui.lang==='en' ? 'Reopen' : 'Buka semula'"></span>
