@@ -274,15 +274,6 @@
                     </div>
                 </div>
 
-                <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Career timeline' : 'Garis masa kerjaya'">Career timeline</span></div>
-                    @forelse ($p->careerTimeline->sortByDesc('sort') as $c)
-                        <div style="display:flex;gap:14px;padding-bottom:16px;"><div style="width:10px;height:10px;border-radius:50%;background:{{ Amanahku::SWATCH[$c->category] ?? 'var(--muted-soft)' }};margin-top:4px;flex-shrink:0;"></div><div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $c->title }}</div><div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $c->date_label }}</div></div></div>
-                    @empty
-                        <div style="padding:24px 4px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No career history yet.' : 'Tiada sejarah kerjaya lagi.'">No career history yet.</div>
-                    @endforelse
-                </div>
-
                 @if ($p->skills)
                 <div>
                     <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Skills' : 'Kemahiran'">Skills</span></div>

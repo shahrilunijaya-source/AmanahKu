@@ -117,7 +117,7 @@ trait BuildsPeopleData
 
     private function profileData(Request $request): array
     {
-        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'careerTimeline', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
+        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
 
         // A specific employee (from a directory row), else the signed-in user's own record.
         // No arbitrary showcase fallback: an unresolved employee renders the empty state, not

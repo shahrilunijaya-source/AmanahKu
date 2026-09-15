@@ -351,11 +351,6 @@ class Employee extends Model
         return $this->hasMany(KpiItem::class);
     }
 
-    public function careerTimeline(): HasMany
-    {
-        return $this->hasMany(CareerTimelineEntry::class)->orderBy('sort');
-    }
-
     /** Employment columns that the Timeline snapshots and the Progression forms edit. */
     public const EMPLOYMENT_FIELDS = [
         'department_id', 'branch_id', 'position_id', 'reports_to_id', 'employment_type_id',
