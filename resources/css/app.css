@@ -2209,9 +2209,34 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-dw-cal-in:focus { outline:none; border-color:var(--red); box-shadow:0 0 0 3px var(--red-tint); }
 .uj-dw-cal-in:disabled { background:var(--shelf); color:var(--muted-soft); }
 .uj-dw-cal-time { display:flex; align-items:center; gap:8px; color:var(--muted); }
-.uj-dw-cal-time input { width:auto; flex:1; }
+.uj-dw-cal-time .uj-dw-cal-sel { width:auto; flex:1; }
+.uj-dw-cal-add { flex-wrap:wrap; align-items:center; }
+.uj-dw-cal-add-h { font-size:var(--t-micro); color:var(--muted); }
+.uj-dw-cal-fh .t { margin:0; font-size:var(--t-sm); font-weight:600; color:var(--ink); }
+.uj-dw-cal-fh .s { margin:2px 0 0; font-size:var(--t-micro); color:var(--muted); }
+.uj-dw-cal-lbl { display:flex; flex-direction:column; gap:4px; font-size:var(--t-micro); font-weight:500; color:var(--body); }
+.uj-dw-cal-lbl em { font-style:normal; font-weight:400; color:var(--muted); }
+/* Our own time dropdown: a button that looks like the text inputs next to it. */
+.uj-dw-cal-sel { display:flex; align-items:center; justify-content:space-between; gap:6px; text-align:left; cursor:pointer; }
+.uj-dw-cal-sel svg { width:14px; height:14px; color:var(--muted); flex-shrink:0; }
+.uj-dw-cal-sel[aria-expanded="true"] { border-color:var(--red); box-shadow:0 0 0 3px var(--red-tint); }
+.uj-dw-cal-sel:disabled { cursor:not-allowed; }
+.uj-dw-cal-times { position:relative; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:2px; max-height:188px; }
+.uj-dw-cal-pick-list.uj-dw-cal-times button { align-items:center; }
+.uj-dw-cal-pick-list.uj-dw-cal-times button:hover { background:var(--canvas); }
+.uj-dw-cal-times .wide { grid-column:1 / -1; }
 .uj-dw-cal-err { margin:0; font-size:var(--t-micro); color:var(--red); }
 .uj-dw-cal-acts { display:flex; justify-content:flex-end; gap:8px; }
+/* Pin picker: search box with its own list, not the browser's select. The list sits in the flow, since .uj-dw clips anything floating past its edge. */
+.uj-dw-cal-pick { position:relative; }
+.uj-dw-cal-pick-list { margin-top:4px; background:var(--card); border:1px solid var(--hairline); border-radius:10px; box-shadow:var(--shadow-menu); padding:4px; max-height:220px; overflow-y:auto; }
+.uj-dw-cal-pick-list button { width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; border:0; background:none; cursor:pointer; padding:7px 9px; border-radius:7px; }
+.uj-dw-cal-pick-list button[data-active] { background:var(--canvas); }
+.uj-dw-cal-pick-list button[aria-selected="true"] .t { color:var(--red); }
+.uj-dw-cal-pick-list .t { font-size:var(--t-sm); color:var(--ink); line-height:1.35; }
+.uj-dw-cal-pick-list .m { font-size:var(--t-micro); color:var(--muted); }
+.uj-dw-cal-pick-list .m:empty { display:none; }
+.uj-dw-cal-pick-none { margin:0; padding:9px 10px; font-size:var(--t-sm); color:var(--muted); }
 .uj-dw-cal-tag[data-k="pending"] { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1px var(--hairline); }
 
 /* ── accordion (Pending tasks) ── */

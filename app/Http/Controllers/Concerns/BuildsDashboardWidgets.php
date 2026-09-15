@@ -371,11 +371,13 @@ trait BuildsDashboardWidgets
         }
 
         $days['pinnable'] = $employee === null ? [] : CalendarNoteController::pinnable($employee)
-            ->get(['id', 'title', 'due_at'])
+            ->with('participants:employees.id')
+            ->get(['id', 'title', 'due_at', 'employee_id', 'reviewer_id'])
             ->map(fn (WorkItem $card): array => [
                 'id' => $card->id,
                 'title' => (string) $card->title,
                 'due' => $card->due_at?->format('j M'),
+                'role' => WorkItem::ROLE_LABELS[$card->roleFor($employee->id)] ?? null,
             ])
             ->all();
 
