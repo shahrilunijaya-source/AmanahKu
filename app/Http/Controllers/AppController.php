@@ -159,7 +159,7 @@ class AppController extends Controller
         }
 
         // Administration screens are restricted to privileged roles.
-        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load', 'recurring', 'management-meeting'], true)) {
+        if (in_array($screen, ['setup', 'settings', 'roles', 'cases', 'profile-test-admin', 'attendance-admin', 'position', 'timesheet-setup', 'leave-setup', 'staff-load', 'recurring', 'management-meeting', 'progression'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
         }
         // The all-staff timesheet view used to sit behind a tighter management/HR gate
@@ -562,6 +562,7 @@ class AppController extends Controller
             'assets' => $this->assetsData($request),
             'training' => $this->trainingData($request),
             'orgchart' => app(OrgController::class)->screenData($request, $employee),
+            'progression' => app(ProgressionController::class)->screenData($request),
             'reports' => $this->reportsData(),
             'handbook' => $this->handbookData($employee),
             'settings' => $this->settingsData($request),

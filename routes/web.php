@@ -66,6 +66,7 @@ use App\Http\Controllers\PlotTwistController;
 use App\Http\Controllers\PositionController;
 use App\Http\Controllers\ProbationController;
 use App\Http\Controllers\ProfileTestController;
+use App\Http\Controllers\ProgressionController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ReactionController;
 use App\Http\Controllers\RecruitmentController;
@@ -332,6 +333,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');
         Route::post('/app/employees/{employee}/cover/delete', [EmployeeCoverController::class, 'destroy'])->name('employees.cover.destroy');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
+        Route::post('/app/progression/{employee}/confirm', [ProgressionController::class, 'confirm'])->whereNumber('employee')->name('progression.confirm');
+        Route::post('/app/progression/{employee}/update', [ProgressionController::class, 'update'])->whereNumber('employee')->name('progression.update');
+        Route::post('/app/progression/{employee}/resign', [ProgressionController::class, 'resign'])->whereNumber('employee')->name('progression.resign');
+        Route::post('/app/progression/{employee}/rehire', [ProgressionController::class, 'rehire'])->whereNumber('employee')->name('progression.rehire');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
         Route::post('/app/onboarding/tasks/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.toggle');
