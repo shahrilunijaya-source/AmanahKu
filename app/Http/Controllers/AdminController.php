@@ -81,6 +81,34 @@ class AdminController extends Controller
         return back()->with('ok', 'Company settings saved.');
     }
 
+    /** Short day names in ISO order, for the audit line. */
+    private const DAY_NAMES = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+
+    /**
+     * Which ISO weekdays are working days for this company. Forward-only: stored leave
+     * day counts, submitted weeks and past attendance reports are not recalculated.
+     * tot_saturday is deliberately not accepted here (Unijaya-only, set by migration).
+     */
+    public function updateWorkWeek(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+
+        $data = $request->validate([
+            'work_days' => ['required', 'array', 'min:1'],
+            'work_days.*' => ['integer', 'between:1,7', 'distinct'],
+        ]);
+
+        $days = array_map('intval', $data['work_days']);
+        sort($days);
+        $days = array_values($days);
+
+        app(CurrentTenant::class)->get()->update(['work_days' => $days]);
+
+        AuditLog::record('Updated work week', implode(', ', array_map(fn (int $d) => self::DAY_NAMES[$d], $days)));
+
+        return back()->with('ok', count($days).' working day'.(count($days) === 1 ? '' : 's').' saved.');
+    }
+
     /**
      * Persist this company's feature overrides. Only tenant-scope keys are
      * accepted; platform-scope keys (e.g. platform.registration) are never

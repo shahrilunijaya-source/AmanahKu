@@ -86,6 +86,45 @@
 
     <div style="{{ $only ? '' : 'flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;' }}">
 
+        @if (!empty($canManageFeatures) && (! $only || $only === 'work_week'))
+        {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days. Read by
+             App\Support\WorkWeek. Forward-only; the TOT flag is Unijaya-only and has no UI. --}}
+        <div class="uj-card" style="padding:20px;"
+             x-data="{
+                days: @js(\App\Support\WorkWeek::for()->workingDays()),
+                names: { en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], ms: ['Isn','Sel','Rab','Kha','Jum','Sab','Ahd'] },
+                has(n) { return this.days.includes(n); },
+                toggle(n) { this.has(n) ? this.days = this.days.filter(d => d !== n) : this.days.push(n); },
+             }">
+            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Work week' : 'Minggu bekerja'">Work week</h3>
+            <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.' : 'Hari mana dikira sebagai hari bekerja. Baki cuti, kapasiti timesheet dan laporan kehadiran semuanya mengikut ini.'">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p>
+
+            <form method="post" action="{{ route('admin.workweek.update') }}">
+                @csrf
+                @if ($errors->has('work_days') || $errors->has('work_days.*'))<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:12px;" x-text="$store.ui.lang==='en' ? 'Pick at least one working day.' : 'Pilih sekurang-kurangnya satu hari bekerja.'">Pick at least one working day.</div>@endif
+
+                <div style="display:flex;gap:6px;margin-bottom:14px;">
+                    <template x-for="n in [1,2,3,4,5,6,7]" :key="n">
+                        <button type="button" @click="toggle(n)" :aria-pressed="has(n)"
+                                :style="has(n) ? 'border-color:var(--red);background:var(--red-tint);' : ''"
+                                style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 8px;border:1px solid var(--hairline);border-radius:10px;background:#fff;cursor:pointer;flex:1;min-width:0;user-select:none;">
+                            <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="names[$store.ui.lang==='en' ? 'en' : 'ms'][n-1]"></span>
+                            <span style="font-size:11px;" :style="has(n) ? 'color:var(--red);' : 'color:var(--muted);'" x-text="has(n) ? ($store.ui.lang==='en' ? 'Work' : 'Kerja') : ($store.ui.lang==='en' ? 'Off' : 'Cuti')"></span>
+                        </button>
+                    </template>
+                </div>
+                <template x-for="d in days" :key="'wd'+d"><input type="hidden" name="work_days[]" :value="d"></template>
+
+                @include('partials.hint', ['en' => 'Applies from today. Past records are not recalculated.', 'ms' => 'Berkuat kuasa dari hari ini. Rekod lepas tidak dikira semula.'])
+
+                <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;" :disabled="days.length === 0"><span x-text="$store.ui.lang==='en' ? 'Save work week' : 'Simpan minggu bekerja'">Save work week</span></button>
+                    <span style="font-size:12.5px;color:var(--muted);" x-text="days.length + ' ' + ($store.ui.lang==='en' ? (days.length === 1 ? 'working day' : 'working days') : 'hari bekerja')">5 working days</span>
+                </div>
+            </form>
+        </div>
+        @endif
+
         @if (! $only || $only === 'branches')
         {{-- Branches: name + state CRUD. Geofence/hours live on the Attendance Setup screen. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
