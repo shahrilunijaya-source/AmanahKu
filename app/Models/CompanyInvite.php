@@ -9,11 +9,15 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * A one-use, seven-day signup link a super-admin hands to the person in charge of a
  * new company. Platform-level (not tenant-scoped): it exists before the tenant does.
  * The token is the only credential — 40 random characters, never listed publicly.
+ *
+ * @property Carbon $expires_at
+ * @property ?Carbon $used_at
  */
 class CompanyInvite extends Model
 {
@@ -58,16 +62,19 @@ class CompanyInvite extends Model
         return route('register', ['invite' => $this->token]);
     }
 
+    /** @return BelongsTo<CompanyCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(CompanyCategory::class, 'company_category_id');
     }
 
+    /** @return BelongsTo<Tenant, $this> */
     public function usedByTenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class, 'used_by_tenant_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
