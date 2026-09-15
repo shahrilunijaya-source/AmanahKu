@@ -117,7 +117,7 @@ trait BuildsPeopleData
 
     private function profileData(Request $request): array
     {
-        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
+        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'familyMembers', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
 
         // A specific employee (from a directory row), else the signed-in user's own record.
         // No arbitrary showcase fallback: an unresolved employee renders the empty state, not
@@ -165,6 +165,10 @@ trait BuildsPeopleData
         // record). Editing follows canEdit; salary on these tabs is director/HR only, so a
         // self-view never shows pay here (the Money tab covers that).
         $employmentGate = $e && (($own && $own->id === $e->id) || $canEdit);
+
+        // Personal + Family tabs share that audience. The person may edit their own; identity
+        // documents (NRIC/passport/permit) stay HR/management only (canEditIdentity).
+        $canEditPersonal = $e && ($canEdit || ($own && $own->id === $e->id));
 
         // Every tab/section gate is canViewFull (or canSeeMoney for the pay dossier) ANDed
         // with the tenant's module flag — a tab must never render for a module the tenant
@@ -270,6 +274,10 @@ trait BuildsPeopleData
             'employmentGate' => $employmentGate,
             'canEditEmployment' => $canEdit,
             'progressions' => $employmentGate ? $e->progressions : collect(),
+            'personalGate' => $employmentGate,
+            'canEditPersonal' => $canEditPersonal,
+            'canEditIdentity' => $canEdit,
+            'familyMembers' => $employmentGate ? $e->familyMembers : collect(),
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
             // Salary is board + HR only — gates the salary field inside the edit form so the
             // management role can edit everyone without seeing or changing pay (same rule as

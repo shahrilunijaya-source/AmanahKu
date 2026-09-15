@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family'], true)) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -235,6 +235,10 @@
                 $tabs[] = ['employment', 'Employment', 'Pekerjaan'];
                 $tabs[] = ['timeline', 'Timeline', 'Garis Masa'];
             }
+            if ($personalGate ?? false) {
+                $tabs[] = ['personal', 'Personal', 'Peribadi'];
+                $tabs[] = ['family', 'Family', 'Keluarga'];
+            }
             $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
@@ -317,6 +321,12 @@
                 {{-- Employment · the Worksy employment record; Timeline · one card per progression row --}}
                 <div x-show="tab === 'employment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.employment-tab')</div>
                 <div x-show="tab === 'timeline'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.timeline-tab')</div>
+            @endif
+
+            @if ($personalGate ?? false)
+                {{-- Personal · Worksy personal information; Family · parents, spouse, children, dependents --}}
+                <div x-show="tab === 'personal'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.personal-tab')</div>
+                <div x-show="tab === 'family'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.family-tab')</div>
             @endif
 
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
