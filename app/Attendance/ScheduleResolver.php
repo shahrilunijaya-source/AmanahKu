@@ -66,7 +66,14 @@ class ScheduleResolver
         $best = null;
         $bestDistance = null;
 
-        foreach ($this->configuredSites($employee->tenant_id) as [$type, $label, $sLat, $sLng, $radius]) {
+        // Allow-list from the profile Work tab: when HR listed sites for this person, only
+        // those client sites count as "on-site". Branches are never restricted. Empty list = any.
+        $allowed = $employee->allowedWorkSites()->pluck('work_sites.id')->all();
+
+        foreach ($this->configuredSites($employee->tenant_id) as [$type, $label, $sLat, $sLng, $radius, $id]) {
+            if ($type === 'client' && $allowed !== [] && ! in_array($id, $allowed, true)) {
+                continue;
+            }
             $distance = Geo::distanceMeters($lat, $lng, $sLat, $sLng);
             if ($distance <= $radius && ($bestDistance === null || $distance < $bestDistance)) {
                 $best = [$type, $label, $sLat, $sLng, $radius];
@@ -95,7 +102,7 @@ class ScheduleResolver
     /**
      * Every geofenced branch and client site in the tenant.
      *
-     * @return list<array{0:string,1:string,2:float,3:float,4:int}> type, label, lat, lng, radius
+     * @return list<array{0:string,1:string,2:float,3:float,4:int,5:int}> type, label, lat, lng, radius, id
      */
     public function configuredSites(int $tenantId): array
     {
@@ -103,11 +110,11 @@ class ScheduleResolver
         // company has tens of them, not thousands — add a bounding-box WHERE if that changes.
         $branches = Branch::where('tenant_id', $tenantId)
             ->whereNotNull('latitude')->whereNotNull('longitude')->get()
-            ->map(fn (Branch $b) => ['office', $b->name, (float) $b->latitude, (float) $b->longitude, (int) $b->radius_m]);
+            ->map(fn (Branch $b) => ['office', $b->name, (float) $b->latitude, (float) $b->longitude, (int) $b->radius_m, (int) $b->id]);
 
         $sites = WorkSite::where('tenant_id', $tenantId)
             ->whereNotNull('latitude')->whereNotNull('longitude')->get()
-            ->map(fn (WorkSite $s) => ['client', $s->name, (float) $s->latitude, (float) $s->longitude, (int) $s->radius_m]);
+            ->map(fn (WorkSite $s) => ['client', $s->name, (float) $s->latitude, (float) $s->longitude, (int) $s->radius_m, (int) $s->id]);
 
         return $branches->concat($sites)->values()->all();
     }
