@@ -269,7 +269,7 @@
             <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);flex-wrap:wrap;">
                 @foreach ($tabs as $tab)
                     <button type="button" data-tab="{{ $tab[0] }}" @click="tab = '{{ $tab[0] }}'"
-                        style="font-size:13px;padding:7px 12px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
+                        style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
                         :style="tab === '{{ $tab[0] }}' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }"
                         x-text="$store.ui.lang==='en' ? @js($tab[1]) : @js($tab[2])">{{ $tab[1] }}</button>
                 @endforeach
