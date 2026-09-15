@@ -353,7 +353,7 @@ class Employee extends Model
 
     /** Employment columns that the Timeline snapshots and the Progression forms edit. */
     public const EMPLOYMENT_FIELDS = [
-        'department_id', 'branch_id', 'position_id', 'reports_to_id', 'employment_type_id',
+        'department_id', 'branch_id', 'position_id', 'staff_level_id', 'position', 'level', 'reports_to_id', 'employment_type_id',
         'division', 'section', 'job_grade', 'category', 'line',
         'probation_months', 'probation_days', 'resign_notice_months', 'resign_notice_days',
         'short_notice_months', 'short_notice_days',
