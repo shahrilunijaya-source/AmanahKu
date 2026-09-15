@@ -42,6 +42,14 @@ class SalaryStructure extends Model
         'zakat_monthly',
         'cp38_monthly',
         'skbbk_opt_in',
+        // Worksy Bank & Statutory tab (2026-09-28). Read by no calculation; reference data only.
+        'bank_holder_name',
+        'tax_resident',
+        'tax_category',
+        'employee_tax_status',
+        'child_relief_breakdown',
+        'epf_scheme',
+        'socso_category',
     ];
 
     protected function casts(): array
@@ -58,6 +66,8 @@ class SalaryStructure extends Model
             'disabled_spouse' => 'boolean',
             'zakat_monthly' => 'float',
             'cp38_monthly' => 'float',
+            'tax_resident' => 'boolean',
+            'child_relief_breakdown' => 'array',
             'skbbk_opt_in' => 'boolean',
         ];
     }

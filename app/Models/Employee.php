@@ -378,6 +378,32 @@ class Employee extends Model
         return $this->hasMany(EmployeeFamilyMember::class)->orderBy('relation')->orderBy('date_of_birth');
     }
 
+    /** Experience tab rows. */
+    public function workHistories(): HasMany
+    {
+        return $this->hasMany(EmployeeWorkHistory::class)->orderByDesc('joined_on');
+    }
+
+    public function educations(): HasMany
+    {
+        return $this->hasMany(EmployeeEducation::class)->orderByDesc('to_year');
+    }
+
+    public function certificates(): HasMany
+    {
+        return $this->hasMany(EmployeeCertificate::class)->orderByDesc('awarded_on');
+    }
+
+    public function awards(): HasMany
+    {
+        return $this->hasMany(EmployeeAward::class)->orderByDesc('year');
+    }
+
+    public function languages(): HasMany
+    {
+        return $this->hasMany(EmployeeLanguage::class)->orderBy('language');
+    }
+
     /** Employment history, newest first (append-only, see EmployeeProgression). */
     public function progressions(): HasMany
     {
