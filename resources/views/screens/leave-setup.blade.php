@@ -82,6 +82,13 @@
                 @csrf
                 <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Load standard Malaysian set' : 'Muat set standard Malaysia'">Load standard Malaysian set</span></button>
             </form>
+            @include('partials.coachmark', [
+                'key' => 'guide-leave-types',
+                'when' => "\$store.guide.current === 'leave_types'",
+                'anchor' => 'button[type=submit]',
+                'en' => ['title' => 'Load the standard set', 'body' => 'Click Load standard Malaysian set. You can change the days on each type after; one type is enough for staff to be let in.'],
+                'ms' => ['title' => 'Muat set standard', 'body' => 'Klik Muat set standard Malaysia. Anda boleh ubah bilangan hari setiap jenis selepas itu; satu jenis sudah cukup untuk staf dibenarkan masuk.'],
+            ])
         </div>
     @endif
 

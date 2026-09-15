@@ -136,6 +136,13 @@
                     </button>
                 @endif
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-branches',
+                'when' => "\$store.guide.current === 'branches'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add your first branch', 'body' => 'Click + Add, give the branch a name and address, then click Add branch. The map pin can wait; it comes up in the attendance step.'],
+                'ms' => ['title' => 'Tambah cawangan pertama anda', 'body' => 'Klik + Tambah, beri nama dan alamat cawangan, kemudian klik Tambah cawangan. Pin peta boleh ditunggu; ia muncul dalam langkah kehadiran.'],
+            ])
 
             @if ($canManageFeatures)
                 @php $bfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
@@ -236,6 +243,13 @@
                     </button>
                 @endif
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-departments',
+                'when' => "\$store.guide.current === 'departments'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add a department', 'body' => 'Click + Add, type the department name and click Add. One is enough to start; staff are grouped under these.'],
+                'ms' => ['title' => 'Tambah jabatan', 'body' => 'Klik + Tambah, taip nama jabatan dan klik Tambah. Satu sudah cukup untuk mula; staf dikumpulkan di bawah ini.'],
+            ])
 
             @if ($canManageFeatures)
                 <form x-show="adding" x-cloak method="post" action="{{ route('admin.departments.store') }}" style="display:flex;gap:8px;margin-bottom:14px;">
@@ -537,6 +551,12 @@
         </div>
 
         <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;margin-top:22px;"><span x-text="$store.ui.lang==='en' ? 'Save features' : 'Simpan ciri'">Save features</span></button>
+        @include('partials.coachmark', [
+            'key' => 'guide-modules',
+            'when' => "\$store.guide.current === 'modules'",
+            'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company runs on, then click Save features. Turning payroll on here adds the payroll step to the guide.'],
+            'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Menghidupkan gaji di sini menambah langkah gaji ke panduan.'],
+        ])
     </form>
 </div>
 @endif

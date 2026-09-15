@@ -41,6 +41,12 @@
         </span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="open ? 'transform:rotate(180deg);transition:.15s' : 'transition:.15s'"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    @include('partials.coachmark', [
+        'key' => 'guide-timesheet-categories',
+        'when' => "\$store.guide.current === 'timesheet_categories'",
+        'en' => ['title' => 'Add a category', 'body' => 'Click Add category, give it a name and click Save. Staff log their week against these.'],
+        'ms' => ['title' => 'Tambah kategori', 'body' => 'Klik Tambah kategori, beri nama dan klik Simpan. Staf merekod minggu mereka mengikut kategori ini.'],
+    ])
     <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
         @include('partials.ts-category-form', ['category' => null, 'action' => route('timesheet.admin.categories.store'), 'ajaxTarget' => '#ts-categories'])
     </div>

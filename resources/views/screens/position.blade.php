@@ -161,6 +161,13 @@
                     <span x-show="showAdd" x-cloak><span x-text="$store.ui.lang==='en' ? 'Close' : 'Tutup'">Close</span></span>
                 </button>
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-positions',
+                'when' => "\$store.guide.current === 'positions'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add your first position band', 'body' => 'Click + New band, fill in the job title, department and salary band, then click Add position.'],
+                'ms' => ['title' => 'Tambah band jawatan pertama', 'body' => 'Klik + Band baru, isi jawatan, jabatan dan band gaji, kemudian klik Tambah jawatan.'],
+            ])
 
             <div x-show="showAdd" x-cloak style="padding:4px 20px 20px;border-top:1px solid var(--hairline-soft);">
                 <form method="post" action="{{ route('position.store') }}" style="padding-top:14px;">

@@ -354,4 +354,46 @@ class SetupGuideTest extends TestCase
         $this->assertStringContainsString("\$store.guide.on(['staff-load'])", $html);
         $this->assertStringContainsString("\$store.guide.on(['setup'])", $html);
     }
+
+    // ── Coachmark pointers on the target screens ──────────────────────────────
+
+    public function test_settings_carries_pointers_for_modules_branches_and_departments(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+
+        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/settings')->assertOk()->getContent();
+
+        $this->assertStringContainsString("\$store.guide.current === 'modules'", $html);
+        $this->assertStringContainsString("\$store.guide.current === 'branches'", $html);
+        $this->assertStringContainsString("\$store.guide.current === 'departments'", $html);
+    }
+
+    public function test_each_critical_screen_carries_its_pointer(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        $as = fn () => $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id]);
+
+        $as()->get('/app/position')->assertOk()->assertSee("\$store.guide.current === 'positions'", false);
+        $as()->get('/app/staff-load')->assertOk()->assertSee("\$store.guide.current === 'staff'", false);
+        $as()->get('/app/attendance-admin')->assertOk()->assertSee("\$store.guide.current === 'attendance_policy'", false);
+        $as()->get('/app/leave-setup')->assertOk()->assertSee("\$store.guide.current === 'leave_types'", false);
+        $as()->get('/app/timesheet-setup')->assertOk()->assertSee("\$store.guide.current === 'timesheet_categories'", false);
+    }
+
+    public function test_pointers_are_absent_once_setup_is_finished_and_the_store_is_empty(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        CompanySetupProgress::forCurrentTenant()->update(['completed_at' => now()]);
+
+        // The include still renders (it is a static Blade include) but the store has no
+        // steps, so the expression is false and the bubble never shows; what must be
+        // absent is any step data that could make it true.
+        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/settings')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('id="uj-guide-steps"', $html);
+        $this->assertStringNotContainsString('"key":"branches"', $html);
+    }
 }

@@ -37,6 +37,13 @@
         </div>
         <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;margin-top:16px;"><span x-text="$store.ui.lang==='en' ? 'Add employee' : 'Tambah pekerja'">Add employee</span></button>
     </form>
+    @include('partials.coachmark', [
+        'key' => 'guide-staff',
+        'when' => "\$store.guide.current === 'staff'",
+        'anchor' => 'button[type=submit]',
+        'en' => ['title' => 'Add your people', 'body' => 'Fill the form above and click Add employee, or upload a CSV under Bulk import staff below. This step ticks once someone besides you is on the books.'],
+        'ms' => ['title' => 'Tambah kakitangan anda', 'body' => 'Isi borang di atas dan klik Tambah pekerja, atau muat naik CSV di bawah Import staf pukal. Langkah ini selesai apabila ada orang selain anda dalam rekod.'],
+    ])
 </div>
 
 {{-- ── Bulk import from CSV ──────────────────────────────────────────── --}}
