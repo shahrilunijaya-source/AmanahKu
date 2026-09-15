@@ -202,4 +202,33 @@ class SetupGuideTest extends TestCase
 
         $this->assertContains('payroll_setup', array_column(SetupGuide::forRequest($this->requestAs('hr'))['steps'], 'key'));
     }
+
+    // ── Coachmark $when ───────────────────────────────────────────────────────
+
+    public function test_coachmark_with_when_renders_the_expression_and_never_writes_localstorage(): void
+    {
+        $html = view('partials.coachmark', [
+            'key' => 'guide-branches',
+            'when' => "\$store.guide.current === 'branches'",
+            'en' => ['title' => 'Add your first branch', 'body' => 'Click + Add.'],
+        ])->render();
+
+        $this->assertStringContainsString("get show() { return ! this.closed && (\$store.guide.current === 'branches'); }", $html);
+        $this->assertStringContainsString('closed: false', $html);
+        $this->assertStringNotContainsString("localStorage.setItem('amanahku-coach-guide-branches'", $html);
+        $this->assertStringNotContainsString("localStorage.getItem('amanahku-coach-guide-branches')", $html);
+        $this->assertStringContainsString('uj-coach-bubble', $html);
+    }
+
+    public function test_coachmark_without_when_still_remembers_dismissal_in_localstorage(): void
+    {
+        $html = view('partials.coachmark', [
+            'key' => 'plain',
+            'en' => ['title' => 'T', 'body' => 'B'],
+        ])->render();
+
+        $this->assertStringContainsString("show: localStorage.getItem('amanahku-coach-plain') !== '1'", $html);
+        $this->assertStringContainsString("localStorage.setItem('amanahku-coach-plain', '1')", $html);
+        $this->assertStringNotContainsString('get show()', $html);
+    }
 }
