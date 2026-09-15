@@ -25,7 +25,7 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 ### Signup side
 
 - URL: `/register?invite=<token>`. Fortify's register view is replaced by a signup page that needs a valid token. No token, unknown, used or expired: 404. Nothing on the public site links to it.
-- Form: company name, your name, email, password, password confirmation. Company name is the only company field; everything else is filled later in Company Settings.
+- Form: company name, your name, email, password, password confirmation. Company name is the only company field; everything else is filled later in Company Settings. If the email already belongs to an account, see edge cases: sign in, then the link attaches that user.
 - On submit, inside one transaction:
   - Tenant: slug from name (unique), initials, brand colour default, `plan` default, `company_category_id` from the invite, `status` active, `onboarding_enforced` true, `work_days` default `[1,2,3,4,5]`, `tot_saturday` false.
   - Same seeds as superadmin create: feature package by category level, payroll items, timesheet categories, greeting bank, easter-egg bank.
@@ -95,6 +95,36 @@ Each step in `stepDefs()` gains `guide` and `guide_ms`: one sentence, imperative
 - No new state table. Progress is Launch Center's, dismissals are localStorage.
 - No guide for staff-side screens. This is the first HR's setup path only.
 
+## Edge cases and decisions
+
+Signup
+- Email already has an account: no duplicate. Signup page detects it and asks them to sign in; once signed in, the same link attaches the existing user as `hr` of the new company (name and password fields skipped). Workspace picker then shows both companies.
+- Company name collision: slug gets a numeric suffix. Names are not unique.
+- Same link submitted twice or by two people: the invite row is locked `FOR UPDATE` inside the transaction; the second submit gets "This link has already been used".
+- Validation failure on submit: token travels in a hidden field so the form re-renders with it.
+- `platform.registration` off: existing blocked response. Pending invites are not deleted.
+- Revoke only on pending rows. Used rows link to the company instead.
+- A superadmin opening a link is refused with "You already see every company". Superadmins create companies from the Companies page.
+- Signup done, tab closed: next login lands in the workspace picker, guide resumes at the first undone step.
+
+Work week
+- At least one working day, enforced on save.
+- Changing work days is forward-only. Stored leave day counts, submitted timesheet weeks and past attendance reports are not recalculated. The panel says so.
+- Saturday ticked as a full work day overrides the hidden TOT half-day (only Unijaya has the flag, the helper handles the precedence).
+- Public holidays keep working as today: callers check the holiday after the work-day check, so a holiday on a non-work day changes nothing.
+- A week with zero working days (all holidays, or a Sat/Sun-only company on a holiday week): timesheet capacity is 0 and the submit gate treats it as nothing to fill, not blocked. Covered by a test.
+- Tenant factory defaults `work_days` to Mon to Fri and `tot_saturday` false; Unijaya-shaped tests set the flag on explicitly.
+
+Guide
+- "Skip for now" only advances the dock. It never marks a critical auto step done, the launch lock still holds staff out, and the Finish step lists skipped steps.
+- Steps done another way (CSV import instead of one-by-one) tick because detection is data-based.
+- Turning a module off drops its step; the dock count shrinks with it.
+- Two HR users: progress is shared (data), collapse and dismissals are per browser.
+- Phone: dock sits above the phone nav and collapses to a pill; the bubble is the existing phone-safe coachmark.
+- Migration stamps `completed_at` on every tenant that already has active staff, so Unijaya and any live company never see the dock. Companies created by superadmin from the Companies page do get it.
+- Superadmin browsing a new company sees the dock too. Intended.
+- Re-running the walkthrough after Finish is out of scope; Launch Center remains the checklist.
+
 ## Out of scope
 
 - No setup wizard (Launch Center is the wizard; the guide walks it).
@@ -105,6 +135,7 @@ Each step in `stepDefs()` gains `guide` and `guide_ms`: one sentence, imperative
 
 ## Tests
 
+- Signup: existing email is told to sign in, and a signed-in user with the link gets attached as `hr` without a new user row. Superadmin with a link is refused. Same token twice fails on the second.
 - Signup: valid token creates tenant, branch, department, HR user, employee, seeds, marks invite used, logs in, lands on Launch Center. Missing, unknown, used and expired tokens all 404. `platform.registration` off gives the existing blocked response. Second submit with the same token fails.
 - Superadmin: generate, list, revoke invites. Non-superadmin gets 403.
 - Provisioner: superadmin create still produces the same rows as before (existing tests stay green).
