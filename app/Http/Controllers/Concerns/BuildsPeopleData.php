@@ -17,6 +17,7 @@ use App\Models\HandbookSection;
 use App\Models\LeaveRequest;
 use App\Models\LoanRequest;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PolicyAcknowledgement;
 use App\Models\Position;
 use App\Models\ProbationReview;
@@ -117,7 +118,7 @@ trait BuildsPeopleData
 
     private function profileData(Request $request): array
     {
-        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'familyMembers', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
+        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'familyMembers', 'salaryStructure', 'workHistories', 'educations.document', 'certificates.document', 'awards.document', 'languages', 'documents', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
 
         // A specific employee (from a directory row), else the signed-in user's own record.
         // No arbitrary showcase fallback: an unresolved employee renders the empty state, not
@@ -169,6 +170,14 @@ trait BuildsPeopleData
         // Personal + Family tabs share that audience. The person may edit their own; identity
         // documents (NRIC/passport/permit) stay HR/management only (canEditIdentity).
         $canEditPersonal = $e && ($canEdit || ($own && $own->id === $e->id));
+
+        // Bank & Statutory: the salary structure seen from the profile. Same audience as Money
+        // (self or director/HR); only director/HR may edit, and a self-view masks the account no.
+        $canEditSalaryStructure = $this->hasTenantRole($request, ['director', 'hr']);
+        $bankGate = $canSeeMoney;
+        // Experience: same audience as Employment (self or management/HR). TP3 figures are money, director/HR only.
+        $experienceGate = $employmentGate;
+        $canEditExperience = $canEditPersonal;
 
         // Every tab/section gate is canViewFull (or canSeeMoney for the pay dossier) ANDed
         // with the tenant's module flag — a tab must never render for a module the tenant
@@ -278,6 +287,12 @@ trait BuildsPeopleData
             'canEditPersonal' => $canEditPersonal,
             'canEditIdentity' => $canEdit,
             'familyMembers' => $employmentGate ? $e->familyMembers : collect(),
+            'bankGate' => $bankGate,
+            'canEditSalaryStructure' => $canEditSalaryStructure,
+            'experienceGate' => $experienceGate,
+            'canEditExperience' => $canEditExperience,
+            'openingFigures' => ($experienceGate && $canEditSalaryStructure) ? PayrollOpeningFigure::where('employee_id', $e->id)->orderByDesc('year')->get() : collect(),
+            'documents' => $experienceGate ? $e->documents : collect(),
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
             // Salary is board + HR only — gates the salary field inside the edit form so the
             // management role can edit everyone without seeing or changing pay (same rule as

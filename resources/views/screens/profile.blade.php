@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family'], true)) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family', 'bank'], true) && ! str_starts_with((string) session('form'), 'experience:')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }}, editBank: {{ ($errors->any() && session('form') === 'bank') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -239,6 +239,12 @@
                 $tabs[] = ['personal', 'Personal', 'Peribadi'];
                 $tabs[] = ['family', 'Family', 'Keluarga'];
             }
+            if ($bankGate ?? false) {
+                $tabs[] = ['bank', 'Bank & Statutory', 'Bank & Statutori'];
+            }
+            if ($experienceGate ?? false) {
+                $tabs[] = ['experience', 'Experience', 'Pengalaman'];
+            }
             $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
@@ -252,7 +258,7 @@
             if ($moneyShow) {
                 $tabs[] = ['money', 'Money', 'Wang'];
             }
-            $tabs[] = ['assets', 'Assets & Training', 'Aset & Latihan'];
+            $tabs[] = ['assets', 'Assets', 'Aset'];
         @endphp
         <div class="uj-card" x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'overview' }">
             <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
@@ -327,6 +333,15 @@
                 {{-- Personal · Worksy personal information; Family · parents, spouse, children, dependents --}}
                 <div x-show="tab === 'personal'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.personal-tab')</div>
                 <div x-show="tab === 'family'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.family-tab')</div>
+            @endif
+
+            @if ($bankGate ?? false)
+                {{-- Bank & Statutory · the salary structure (SalaryStructure) as Worksy shows it --}}
+                <div x-show="tab === 'bank'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.bank-tab')</div>
+            @endif
+            @if ($experienceGate ?? false)
+                {{-- Experience · TP3, previous employment, education, certificates, awards, languages, training, skills --}}
+                <div x-show="tab === 'experience'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.experience-tab')</div>
             @endif
 
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
@@ -706,7 +721,7 @@
             </div>
             @endif
 
-            {{-- Assets & Training · merged --}}
+            {{-- Assets · training moved to the Experience tab --}}
             <div x-show="tab === 'assets'" x-cloak style="padding:6px 0;">
                 <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Assets' : 'Aset'">Assets</span></div>
                 @forelse ($p->assets as $a)
@@ -719,17 +734,6 @@
                     <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No assets assigned to this person.' : 'Tiada aset ditugaskan kepada orang ini.'">No assets assigned to this person.</div>
                 @endforelse
 
-                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:16px 20px 6px;border-top:1px solid var(--hairline-soft);margin-top:8px;"><span x-text="$store.ui.lang==='en' ? 'Training' : 'Latihan'">Training</span></div>
-                @forelse ($p->trainingRecords as $r)
-                    @php $isOverdue = $r->status !== 'completed' && $r->due_at && $r->due_at->isPast(); @endphp
-                    <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $r->provider }}@if ($r->mandatory) · <span style="color:var(--red);font-weight:600;">Mandatory</span>@endif</div></div>
-                        <span style="font-size:12px;font-family:var(--font-mono);color:{{ $isOverdue ? 'var(--error)' : 'var(--muted)' }};white-space:nowrap;">{{ $r->due_at?->format('j M Y') ?? '—' }}{{ $isOverdue ? ' ⚠' : '' }}</span>
-                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $tSc[$r->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $tSc[$r->status] ?? 'var(--muted)' }};"></span>{{ $tSl[$r->status] ?? ucfirst($r->status) }}</span>
-                    </div>
-                @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No training records.' : 'Tiada rekod latihan.'">No training records.</div>
-                @endforelse
             </div>
         </div>
     </div>
