@@ -10,6 +10,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\DashboardBands;
 use App\Support\DashboardWidgets;
+use App\Support\EasterEggBank;
+use App\Support\GreetingBank;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -83,11 +85,36 @@ class DashboardBandsTest extends TestCase
             ->assertSee('uj-db-moment', false)
             ->assertSee('data-kind="holiday-eve"', false)
             ->assertSee('Malaysia Day tomorrow')
-            ->assertSee('Selamat Hari Malaysia. See you Thu 17 Sep.')
+            ->assertSee('Selamat Hari Malaysia. Back on Thu 17 Sep.')
             ->assertSee('uj-db-fold', false);
 
         $this->travelTo(CarbonImmutable::parse('2026-09-16 10:00:00'));
         $this->get('/app/dash')->assertOk()->assertDontSee('uj-db-band', false);
+    }
+
+    /** Before 3pm on the eve the dashboard stays in workday tone; the send-off waits for the afternoon. */
+    public function test_the_holiday_eve_send_off_waits_until_the_afternoon(): void
+    {
+        PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Malaysia Day', 'date' => '2026-09-16']);
+        GreetingBank::seed($this->tenant->id);
+        EasterEggBank::seed($this->tenant->id);
+        $this->signIn();
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-15 09:57:00'));
+        $this->get('/app/dash')->assertOk()
+            ->assertSee('Malaysia Day tomorrow')
+            ->assertSee('Back on Thu 17 Sep.')
+            ->assertDontSee('Rest well')
+            ->assertDontSee('Holiday tomorrow, Emysha')
+            ->assertDontSee('one sleep away')
+            ->assertDontSee('Tomorrow is a holiday')
+            ->assertDontSee('Last push before the holiday')
+            ->assertDontSee('data-egg="holiday_eve"', false);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-15 15:00:00'));
+        $this->get('/app/dash')->assertOk()
+            ->assertSee('Rest well, see you back soon. See you Thu 17 Sep.')
+            ->assertSee('data-egg="holiday_eve"', false);
     }
 
     /** Several active moments share one slot, rotating by day rather than stacking. */
