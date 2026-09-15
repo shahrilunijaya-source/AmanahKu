@@ -32,8 +32,16 @@ class ProgressionController extends EmploymentRecordController
         $selected = $request->filled('emp') ? $staff->firstWhere('id', (int) $request->query('emp')) : null;
         $selected?->load(['progressions.recordedBy', 'reportsTo', 'branch', 'employmentType']);
         $action = in_array($request->query('action'), self::ACTIONS, true) ? $request->query('action') : 'confirmation';
+        $canBatchSalary = $this->hasTenantRole($request, ['director', 'hr']);
+        $batch = in_array($request->query('batch'), ['update', 'salary'], true) ? $request->query('batch') : null;
+        if ($batch === 'salary' && ! $canBatchSalary) {
+            $batch = null;
+        }
 
         return [
+            'batch' => $batch,
+            'canBatchSalary' => $canBatchSalary,
+            'batchStaff' => $batch ? $staff->load(['branch', 'reportsTo', 'employmentType']) : collect(),
             'staff' => $staff,
             'selected' => $selected,
             'action' => $action,

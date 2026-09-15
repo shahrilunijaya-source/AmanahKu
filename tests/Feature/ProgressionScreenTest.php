@@ -143,4 +143,15 @@ class ProgressionScreenTest extends TestCase
         $this->post("/app/progression/{$stranger->id}/confirm", ['confirmed_on' => '2026-07-05'])->assertNotFound();
         $this->assertSame('probation', Employee::withoutGlobalScopes()->find($stranger->id)->status);
     }
+
+    public function test_batch_modes_render_for_hr_and_salary_mode_hidden_from_plain_management(): void
+    {
+        $this->login('hr');
+        $a = $this->emp('A', ['salary' => 1000]);
+        $this->get('/app/progression?batch=update')->assertOk()->assertSee('name="fields[]"', false)->assertSee('data-emp="'.$a->id.'"', false)->assertSee(route('progression.batch.update'));
+        $this->get('/app/progression?batch=salary')->assertOk()->assertSee('name="mode"', false)->assertSee('data-salary="1000.00"', false)->assertSee(route('progression.batch.salary'));
+        $this->login('management');
+        $this->get('/app/progression')->assertOk()->assertDontSee('data-batch-mode="salary"', false)->assertSee('data-batch-mode="update"', false);
+        $this->get('/app/progression?batch=salary')->assertOk()->assertDontSee('name="mode"', false);
+    }
 }

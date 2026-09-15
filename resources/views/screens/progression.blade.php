@@ -25,7 +25,27 @@
         'rehire' => ['Rehire', 'Ambil Semula'],
     ];
     $screenUrl = route('app.screen', 'progression');
+    $batchModes = ['update' => ['Batch Progression Update', 'Kemas Kini Berkumpulan'], 'salary' => ['Batch Salary Adjustment', 'Pelarasan Gaji Berkumpulan']];
+    if (! $canBatchSalary) {
+        unset($batchModes['salary']);
+    }
+    $modeBtn = 'height:32px;display:inline-flex;align-items:center;padding:0 14px;font-size:12.5px;text-decoration:none;';
+    $modeOn = 'background:var(--red);color:#fff;border-color:var(--red);';
 @endphp
+
+{{-- Mode strip: one person, or a batch run on many --}}
+<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+    <a href="{{ $screenUrl }}" class="uj-btn-ghost" style="{{ $modeBtn }}{{ $batch ? '' : $modeOn }}">{!! $L('Single staff', 'Seorang staf') !!}</a>
+    @foreach ($batchModes as $key => [$en, $ms])
+        <a href="{{ $screenUrl }}?batch={{ $key }}" class="uj-btn-ghost" data-batch-mode="{{ $key }}" style="{{ $modeBtn }}{{ $batch === $key ? $modeOn : '' }}">{!! $L($en, $ms) !!}</a>
+    @endforeach
+</div>
+
+@if ($batch)
+<div class="uj-card" style="padding:20px;">
+    @include("partials.progression.batch-$batch")
+</div>
+@else
 
 <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
     {{-- Staff picker --}}
@@ -79,4 +99,5 @@
         @endif
     </div>
 </div>
+@endif
 @endsection
