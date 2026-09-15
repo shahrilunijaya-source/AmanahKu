@@ -2,6 +2,7 @@
      which must define ids (selected ids as strings), f {dept, branch, pos, status}, show(row), visible(). --}}
 <div class="uj-section-head">{!! $L('1 · Pick staff', '1 · Pilih staf') !!}</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 12px;">
+    <input type="search" x-model="f.q" placeholder="Search name…" style="{{ $fs }}" />
     <select x-model="f.dept" style="{{ $fs }}"><option value="">All departments</option>@foreach ($allDepartments as $o)<option value="{{ $o->id }}">{{ $o->name }}</option>@endforeach</select>
     <select x-model="f.branch" style="{{ $fs }}"><option value="">All branches</option>@foreach ($allBranches as $o)<option value="{{ $o->id }}">{{ $o->name }}</option>@endforeach</select>
     <select x-model="f.pos" style="{{ $fs }}"><option value="">All positions</option>@foreach ($allPositions as $o)<option value="{{ $o->id }}">{{ $o->title }}</option>@endforeach</select>

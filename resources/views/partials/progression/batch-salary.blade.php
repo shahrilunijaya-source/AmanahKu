@@ -3,8 +3,8 @@
     $th = 'padding:6px 8px;';
 @endphp
 <form method="post" action="{{ route('progression.batch.salary') }}" style="display:flex;flex-direction:column;gap:18px;"
-      x-data="{ ids: @js(array_map('strval', (array) old('employee_ids', []))), f: { dept: '', branch: '', pos: '', status: '' }, mode: @js(old('mode', 'increase_percent')), value: @js(old('value', '')),
-                show(row) { const d = row.dataset; return (!this.f.dept || d.dept === this.f.dept) && (!this.f.branch || d.branch === this.f.branch) && (!this.f.pos || d.pos === this.f.pos) && (!this.f.status || d.status === this.f.status); },
+      x-data="{ ids: @js(array_map('strval', (array) old('employee_ids', []))), f: { q: '', dept: '', branch: '', pos: '', status: '' }, mode: @js(old('mode', 'increase_percent')), value: @js(old('value', '')),
+                show(row) { const d = row.dataset; return (!this.f.q || d.name.toLowerCase().includes(this.f.q.toLowerCase())) && (!this.f.dept || d.dept === this.f.dept) && (!this.f.branch || d.branch === this.f.branch) && (!this.f.pos || d.pos === this.f.pos) && (!this.f.status || d.status === this.f.status); },
                 visible() { return [...$el.querySelectorAll('tr[data-emp]')].filter(r => this.show(r)).map(r => r.dataset.emp); },
                 rows() { return [...$el.querySelectorAll('tr[data-emp]')].filter(r => this.ids.includes(r.dataset.emp)); },
                 calc(cur) { const v = parseFloat(this.value) || 0; const n = this.mode === 'increase_amount' ? cur + v : this.mode === 'increase_percent' ? cur * (1 + v / 100) : v; return Math.round(n * 100) / 100; },
