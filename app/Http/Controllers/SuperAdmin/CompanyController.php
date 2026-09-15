@@ -7,6 +7,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\CompanyCategory;
+use App\Models\CompanyInvite;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -32,7 +33,7 @@ class CompanyController extends Controller
 {
     private const PLANS = ['Enterprise', 'Business', 'Starter'];
 
-    /** List every company with headline counts. */
+    /** List every company with headline counts, plus the signup links card. */
     public function index(): ViewContract
     {
         $companies = Tenant::query()
@@ -45,6 +46,9 @@ class CompanyController extends Controller
             'companies' => $companies,
             'failedJobs' => $this->failedJobSummary(),
             'stuckJobs' => $this->stuckJobCount(),
+            'invites' => CompanyInvite::with(['category', 'usedByTenant'])->latest()->get(),
+            // Stage 3 first: it is the spec default for self-serve companies.
+            'categories' => CompanyCategory::orderByDesc('level')->get(),
         ]);
     }
 

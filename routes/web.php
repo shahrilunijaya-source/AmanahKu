@@ -91,6 +91,7 @@ use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
+use App\Http\Controllers\SuperAdmin\CompanyInviteController as SuperCompanyInviteController;
 use App\Http\Controllers\SuperAdmin\ErrorEventController;
 use App\Http\Controllers\SuperAdmin\FeatureController;
 use App\Http\Controllers\SurveyController;
@@ -192,6 +193,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
+        // Signup links: one-use, seven-day invites that let the person in charge of a
+        // new company provision it themselves (see CompanySignupController).
+        Route::post('/invites', [SuperCompanyInviteController::class, 'store'])->name('invites.store');
+        Route::post('/invites/{invite}/delete', [SuperCompanyInviteController::class, 'destroy'])->name('invites.destroy');
 
         // Machine API keys, per company. An app key belongs to an ApiClient rather than
         // a staff member, so it survives that person leaving and carries only the scopes
