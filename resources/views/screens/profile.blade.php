@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -146,16 +146,10 @@
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Nickname' : 'Nama panggilan'">Nickname</span></label><input name="nickname" type="text" value="{{ old('nickname', $p->nickname) }}" maxlength="60" style="{{ $fs }}" />@include('partials.hint', ['en' => 'The short name colleagues use, such as "Hakime". Used instead of the full name in every list and picker.', 'ms' => 'Nama pendek yang digunakan rakan sekerja, contohnya "Hakime". Digunakan sebagai ganti nama penuh dalam setiap senarai dan pemilih.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</span></label><input name="email" type="email" value="{{ old('email', $p->email) }}" maxlength="160" style="{{ $fs }}" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></label><input name="staff_id" type="text" value="{{ old('staff_id', $p->staff_id) }}" placeholder="UR-0000" style="{{ $fs }}font-family:var(--font-mono);" /></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span></label><input name="joined_at" type="date" value="{{ old('joined_at', $p->joined_at?->format('Y-m-d')) }}" style="{{ $fs }}margin-bottom:6px;" />@include('partials.hint', ['en' => 'Leave blank to keep the current hire date.', 'ms' => 'Biar kosong untuk kekalkan tarikh menyertai semasa.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Date of birth' : 'Tarikh lahir'">Date of birth</span></label><input name="date_of_birth" type="date" value="{{ old('date_of_birth', $p->date_of_birth?->format('Y-m-d')) }}" style="{{ $fs }}" /></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Position band' : 'Band pangkat'">Position band</span></label><select name="position_id" x-model="pid" style="{{ $fs }}"><option value="">—</option>@foreach ($bandsByDept as $deptName => $group)<optgroup label="{{ $deptName }}">@foreach ($group as $pos)<option value="{{ $pos->id }}" @selected((int) old('position_id', $p->position_id) === $pos->id)>{{ $pos->title }}@if ($pos->staffLevel) · {{ $pos->staffLevel->name }}@endif · RM {{ number_format((float) $pos->max_salary, 0) }}</option>@endforeach</optgroup>@endforeach</select></div>
-                        @if ($canSeeSalary ?? false)<div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Salary (RM)' : 'Gaji (RM)'">Salary (RM)</span></label><input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $p->salary) }}" placeholder="0.00" style="{{ $fs }}font-family:var(--font-mono);" /><div x-show="pid && max[pid] !== undefined" x-cloak style="font-size:11px;color:var(--muted);margin-top:4px;"><span x-text="$store.ui.lang==='en' ? 'Band max:' : 'Maks band:'">Band max:</span> RM <span x-text="(max[pid] ?? 0).toLocaleString('en-MY',{minimumFractionDigits:2})"></span></div></div>@endif
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span></label><select name="branch_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allBranches as $b)<option value="{{ $b->id }}" @selected((int) old('branch_id', $p->branch_id) === $b->id)>{{ $b->name }}</option>@endforeach</select></div>
                         @php $waOpts = ['office' => 'Office', 'client' => 'Client site', 'wfh' => 'Work from home', 'hybrid' => 'Hybrid']; @endphp
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Work arrangement' : 'Pengaturan kerja'">Work arrangement</span></label><select name="work_arrangement" style="{{ $fs }}">@foreach ($waOpts as $v => $l)<option value="{{ $v }}" @selected(old('work_arrangement', $p->work_arrangement ?? 'office') === $v)>{{ $l }}</option>@endforeach</select>@include('partials.hint', ['en' => 'Where this person clocks in. Client site location and hybrid office days are set on the Attendance Setup screen.', 'ms' => 'Di mana orang ini merekod kehadiran. Lokasi tapak klien dan hari pejabat hibrid ditetapkan pada skrin Persediaan Kehadiran.'])</div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Employment type' : 'Jenis pekerjaan'">Employment type</span></label><select name="employment_type_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allEmploymentTypes as $et)<option value="{{ $et->id }}" @selected((int) old('employment_type_id', $p->employment_type_id) === $et->id)>{{ $et->name }}</option>@endforeach</select></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span></label><select name="reports_to_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allManagers as $m)@continue($m->id === $p->id)<option value="{{ $m->id }}" @selected((int) old('reports_to_id', $p->reports_to_id) === $m->id)>{{ $m->name }}</option>@endforeach</select>@include('partials.hint', ['en' => 'Who this person reports to. This single link is what builds the organisation chart.', 'ms' => 'Siapa orang ini melapor kepadanya. Pautan inilah yang membina carta organisasi.'])</div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></label><select name="status" style="{{ $fs }}">@foreach ($stOpts as $v => $l)<option value="{{ $v }}" @selected(old('status', $p->status) === $v)>{{ $l }}</option>@endforeach</select></div>
+                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></label><select name="status" style="{{ $fs }}">@foreach (array_diff_key($stOpts, ['resigned' => 1]) as $v => $l)<option value="{{ $v }}" @selected(old('status', $p->status) === $v)>{{ $l }}</option>@endforeach</select></div>
                         <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;width:100%;padding:0 16px;display:flex;align-items:center;justify-content:center;margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
                     </div>
                 </form>
@@ -237,6 +231,10 @@
             $moneyShow = ($canSeeMoney ?? false) && (($payrollGate ?? false) || ($claimsGate ?? false) || ($loansGate ?? false) || ($overtimeGate ?? false));
 
             $tabs = [['overview', 'Overview', 'Gambaran']];
+            if ($employmentGate ?? false) {
+                $tabs[] = ['employment', 'Employment', 'Pekerjaan'];
+                $tabs[] = ['timeline', 'Timeline', 'Garis Masa'];
+            }
             $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
@@ -252,10 +250,10 @@
             }
             $tabs[] = ['assets', 'Assets & Training', 'Aset & Latihan'];
         @endphp
-        <div class="uj-card" x-data="{ tab: 'overview' }">
+        <div class="uj-card" x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'overview' }">
             <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
                 @foreach ($tabs as $tab)
-                    <button type="button" @click="tab = '{{ $tab[0] }}'"
+                    <button type="button" data-tab="{{ $tab[0] }}" @click="tab = '{{ $tab[0] }}'"
                         style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
                         :style="tab === '{{ $tab[0] }}' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }"
                         x-text="$store.ui.lang==='en' ? @js($tab[1]) : @js($tab[2])">{{ $tab[1] }}</button>
@@ -272,15 +270,6 @@
                         <div style="display:flex;flex-direction:column;gap:3px;min-width:0;"><span style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span></span><span style="color:var(--ink);font-weight:500;">{{ $p->reportsTo?->name ?? '—' }}</span></div>
                         <div style="display:flex;flex-direction:column;gap:3px;min-width:0;"><span style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Employment type' : 'Jenis pekerjaan'">Employment type</span></span><span style="color:var(--ink);font-weight:500;">{{ $p->employmentType?->name ?? '—' }}</span></div>
                     </div>
-                </div>
-
-                <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Career timeline' : 'Garis masa kerjaya'">Career timeline</span></div>
-                    @forelse ($p->careerTimeline->sortByDesc('sort') as $c)
-                        <div style="display:flex;gap:14px;padding-bottom:16px;"><div style="width:10px;height:10px;border-radius:50%;background:{{ Amanahku::SWATCH[$c->category] ?? 'var(--muted-soft)' }};margin-top:4px;flex-shrink:0;"></div><div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $c->title }}</div><div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $c->date_label }}</div></div></div>
-                    @empty
-                        <div style="padding:24px 4px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No career history yet.' : 'Tiada sejarah kerjaya lagi.'">No career history yet.</div>
-                    @endforelse
                 </div>
 
                 @if ($p->skills)
@@ -323,6 +312,12 @@
                     <a href="{{ route('app.screen', 'documents') }}" class="uj-btn-ghost" style="display:inline-flex;height:36px;align-items:center;padding:0 16px;font-size:13px;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Open Documents' : 'Buka Dokumen'">Open Documents</span></a>
                 </div>
             </div>
+
+            @if ($employmentGate ?? false)
+                {{-- Employment · the Worksy employment record; Timeline · one card per progression row --}}
+                <div x-show="tab === 'employment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.employment-tab')</div>
+                <div x-show="tab === 'timeline'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.timeline-tab')</div>
+            @endif
 
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">

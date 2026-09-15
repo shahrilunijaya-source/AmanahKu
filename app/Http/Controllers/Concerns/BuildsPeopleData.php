@@ -117,7 +117,7 @@ trait BuildsPeopleData
 
     private function profileData(Request $request): array
     {
-        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'careerTimeline', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
+        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
 
         // A specific employee (from a directory row), else the signed-in user's own record.
         // No arbitrary showcase fallback: an unresolved employee renders the empty state, not
@@ -159,6 +159,12 @@ trait BuildsPeopleData
         // Director keeps edit rights: hasTenantRole() collapses director into the management
         // super-set (Permissions::effectiveRole), unlike a raw in_array($role, ...) check.
         $canEdit = $this->hasTenantRole($request, ['management', 'hr']);
+
+        // Employment + Timeline tabs: the person themselves or management/HR. A manager is
+        // excluded on purpose (canViewFull lets them see other tabs, not the employment
+        // record). Editing follows canEdit; salary on these tabs is director/HR only, so a
+        // self-view never shows pay here (the Money tab covers that).
+        $employmentGate = $e && (($own && $own->id === $e->id) || $canEdit);
 
         // Every tab/section gate is canViewFull (or canSeeMoney for the pay dossier) ANDed
         // with the tenant's module flag — a tab must never render for a module the tenant
@@ -261,6 +267,9 @@ trait BuildsPeopleData
             'questBadges' => $questBadges,
             'canViewFull' => $canViewFull,
             'canEdit' => $canEdit,
+            'employmentGate' => $employmentGate,
+            'canEditEmployment' => $canEdit,
+            'progressions' => $employmentGate ? $e->progressions : collect(),
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),
             // Salary is board + HR only — gates the salary field inside the edit form so the
             // management role can edit everyone without seeing or changing pay (same rule as

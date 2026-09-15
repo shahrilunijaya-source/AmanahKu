@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ChecksReportingCycles;
 use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\Position;
 use App\Models\User;
+use App\Services\EmploymentRecordService;
+use App\Services\EmploymentTransitionException;
 use App\Services\StaffArchiver;
 use App\Support\CsvImport;
 use App\Tenancy\CurrentTenant;
@@ -24,6 +27,8 @@ use Illuminate\Validation\Rules\Unique;
 
 class EmployeeController extends Controller
 {
+    use ChecksReportingCycles;
+
     public function store(Request $request): RedirectResponse
     {
         $this->authorizePermission('staff.create');
@@ -53,7 +58,7 @@ class EmployeeController extends Controller
         // HR fills it in later. Mirrors the read gate in BuildsPeopleData::peopleData().
         $canSetSalary = $this->hasTenantRole($request, ['director', 'hr']);
 
-        Employee::create([
+        $employee = Employee::create([
             'tenant_id' => $tenantId,
             'name' => $data['name'],
             'nickname' => $data['nickname'] ?? null,
@@ -70,6 +75,9 @@ class EmployeeController extends Controller
             'initials' => $this->initials($data['name']),
             'avatar_color' => config('amanahku.avatar_color'),
         ] + $this->bandFields(isset($data['position_id']) ? (int) $data['position_id'] : null));
+
+        // First timeline row: the Timeline tab starts at "Hired" for everyone.
+        app(EmploymentRecordService::class)->hire($employee, $request->attributes->get('employee'));
 
         AuditLog::record('Added employee', $data['name']);
 
@@ -126,7 +134,7 @@ class EmployeeController extends Controller
         // — the absent field must NOT be read as "clear it", and a forged POST is ignored.
         $canSetSalary = $this->hasTenantRole($request, ['director', 'hr']);
 
-        DB::transaction(function () use ($employee, $data, $canSetSalary) {
+        $error = DB::transaction(function () use ($request, $employee, $data, $canSetSalary) {
             $employee->update([
                 'name' => $data['name'],
                 'nickname' => $data['nickname'] ?? null,
@@ -136,17 +144,36 @@ class EmployeeController extends Controller
                 // falling back to today — matching store() / import().
                 'joined_at' => $data['joined_at'] ?? $employee->joined_at ?? now()->toDateString(),
                 'date_of_birth' => $data['date_of_birth'] ?? null,
-                'salary' => $canSetSalary ? ($data['salary'] ?? null) : $employee->salary,
+                'status' => $data['status'],
+                'initials' => $this->initials($data['name']),
+            ] + $this->arrangementFields($employee, $data['work_arrangement'] ?? $employee->work_arrangement ?? 'office'));
+
+            // Employment fields (band, salary, branch, type, manager) go through the one
+            // service that writes the Timeline row, so an edit here and an edit on the
+            // Employment tab leave the same history. The profile modal no longer shows these
+            // inputs; the fields stay accepted so older callers (and the import) keep working.
+            $fields = [
                 'branch_id' => $data['branch_id'] ?? null,
                 'employment_type_id' => $data['employment_type_id'] ?? null,
                 'reports_to_id' => $data['reports_to_id'] ?? null,
-                'status' => $data['status'],
-                'initials' => $this->initials($data['name']),
-            ] + $this->bandFields(isset($data['position_id']) ? (int) $data['position_id'] : null)
-              + $this->arrangementFields($employee, $data['work_arrangement'] ?? $employee->work_arrangement ?? 'office'));
+            ] + $this->bandFields(isset($data['position_id']) ? (int) $data['position_id'] : null);
+            if ($canSetSalary) {
+                $fields['salary'] = $data['salary'] ?? null;
+            }
+            try {
+                app(EmploymentRecordService::class)->update($employee, now()->toDateString(), $fields, null, $request->attributes->get('employee'));
+            } catch (EmploymentTransitionException $ex) {
+                return $ex->getMessage();
+            }
 
             $this->syncLoginEmail($employee, $data['email'] ?? null);
+
+            return null;
         });
+
+        if ($error !== null) {
+            return back()->withInput()->withErrors(['status' => $error]);
+        }
 
         AuditLog::record('Updated employee', $employee->name);
 
@@ -505,6 +532,7 @@ class EmployeeController extends Controller
                     'initials' => $this->initials($name),
                     'avatar_color' => config('amanahku.avatar_color'),
                 ] + $this->bandFields($positionId));
+                app(EmploymentRecordService::class)->hire($employee);
                 $created++;
 
                 // Register so a later row in THIS file updates it instead of duplicating.
@@ -615,31 +643,6 @@ class EmployeeController extends Controller
             'employment_type_id' => $request->input('employment_type_id') ?: null,
             'reports_to_id' => $request->input('reports_to_id') ?: null,
         ]);
-    }
-
-    /**
-     * Would pointing $employeeId at $managerId form a reporting loop? Walks up the
-     * proposed manager's chain; a cycle exists if we reach the employee being edited.
-     * The visited guard also breaks on any pre-existing loop in stored data, so this
-     * can never spin. Tenant-scoped automatically via the Employee global scope.
-     */
-    private function wouldCycle(int $employeeId, int $managerId): bool
-    {
-        $cursor = $managerId;
-        $seen = [];
-
-        while ($cursor !== null) {
-            if ($cursor === $employeeId) {
-                return true;
-            }
-            if (isset($seen[$cursor])) {
-                break;
-            }
-            $seen[$cursor] = true;
-            $cursor = Employee::whereKey($cursor)->value('reports_to_id');
-        }
-
-        return false;
     }
 
     /**
