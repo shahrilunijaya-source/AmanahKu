@@ -40,6 +40,9 @@ label.f{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
 .sw.on{background:var(--red)}
 .sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
 .sw.on::after{left:19px}
+.sbi{display:flex;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:2px}
+.sbi.hl{color:#fff;background:rgba(255,255,255,.06);box-shadow:0 0 0 2px var(--red);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px var(--red)}50%{box-shadow:0 0 0 5px rgba(214,35,43,.35)}}
 </style>
 </head>
 <body>
@@ -157,6 +160,73 @@ label.f{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
     <div style="margin-top:24px;font-size:12.5px;color:var(--muted);">Also appears in Launch Center → Company basics as a step "Set work week", linking here.</div>
   </div>
 </div>
+
+<p class="label">Screen 4 · Live setup guide (first HR, until setup is finished)</p>
+<p class="note">Three pieces on every app screen while setup is unfinished: the sidebar item for the current step pulses, a floating dock bottom-right says what to do and takes them there, and on the target screen a bubble points at the exact button. Shown here on the Branches step inside Company Settings. Advances by itself once a branch exists.</p>
+<div class="screen">
+  <div style="display:flex;min-height:560px;position:relative;">
+    <div style="width:220px;background:var(--sidebar);padding:20px 12px;color:#b8b6ad;font-size:13px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:8px;padding:0 8px 22px;">
+        <div style="width:26px;height:26px;border-radius:6px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;">A</div>
+        <span style="font-weight:600;font-size:15px;color:#fff;">Maju Bina</span>
+      </div>
+      <div class="sbi">Dashboard</div>
+      <div class="sbi">Launch Center <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;background:rgba(255,255,255,.1);padding:1px 6px;border-radius:9999px;">3/12</span></div>
+      <div class="sbi hl">Company Settings</div>
+      <div class="sbi">People</div>
+      <div class="sbi">Leave setup</div>
+      <div class="sbi">Attendance setup</div>
+      <div class="sbi">Timesheet setup</div>
+      <div class="sbi">Payroll</div>
+    </div>
+
+    <div style="flex:1;padding:28px 28px 120px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Administration › Company Settings</div>
+      <div class="uj-card" style="padding:20px;margin-bottom:16px;opacity:.55;">
+        <h3 class="uj-card-title">Workspace profile</h3>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:6px;">Logo, colours, contact details … (done)</div>
+      </div>
+      <div class="uj-card" style="padding:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h3 class="uj-card-title">Branches</h3>
+          <button class="btn primary sm" style="height:34px;">+ Add branch</button>
+        </div>
+        <div style="position:relative;height:0;">
+          <div style="position:absolute;right:0;top:12px;width:300px;background:var(--ink);color:#fff;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:2;">
+            <div style="position:absolute;top:-7px;right:44px;width:14px;height:14px;background:var(--ink);transform:rotate(45deg);"></div>
+            <div style="font-weight:600;margin-bottom:4px;">Step 3 · Add your first branch</div>
+            <div style="color:#d8d6cf;">Click <strong style="color:#fff;">+ Add branch</strong>. Give it a name and address. The map pin can wait; it comes up in the attendance step.</div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn sm" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.3);">Got it</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:24px;padding:36px 0;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--hairline);border-radius:10px;">No branches yet.</div>
+      </div>
+      <div class="uj-card" style="padding:20px;margin-top:16px;opacity:.55;">
+        <h3 class="uj-card-title">Departments</h3>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:6px;">Next step, after a branch exists.</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;right:24px;bottom:24px;width:320px;background:#fff;border:1px solid var(--hairline);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.14);padding:16px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--red);">Setting up · step 3 of 12</span>
+        <button style="background:none;border:0;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;" title="Collapse">–</button>
+      </div>
+      <div style="height:4px;background:var(--hairline-soft);border-radius:9999px;margin-bottom:12px;overflow:hidden;"><div style="width:25%;height:100%;background:var(--red);"></div></div>
+      <div style="font-size:14.5px;font-weight:600;margin-bottom:4px;">Add branches &amp; locations</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">You're on the right screen. Click <strong style="color:var(--ink);">+ Add branch</strong> in the Branches card above.</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn primary sm" style="height:34px;flex:1;justify-content:center;">Take me there</button>
+        <button class="btn sm" style="height:34px;">Skip for now</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Done so far: modules, profile. Next: departments.</div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:-36px;">Collapsed state: the dock shrinks to a pill at the same corner reading "Setup · 3/12" and reopens on click. After Launch Center's Finish, the dock, ring and bubbles all disappear for good.</p>
 
 </div>
 <script>

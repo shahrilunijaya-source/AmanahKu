@@ -69,9 +69,35 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 - Company Settings gets a "Work week" panel: seven day toggles Mon to Sun. HR only. Late grace minutes stays where it is, on Attendance setup.
 - Launch Center gets a step "Set work week" under Company basics, manual tick, deep-links to that panel.
 
+## Change 3: live setup guide for the first HR
+
+Not documentation. A guide that sits on screen, says what to do next, takes them to the right screen and points at the exact button. It advances by itself as the data appears.
+
+### Where it comes from
+
+- Launch Center (`SetupController::compute()`) already has the ordered step list with done flags. The guide is that list, surfaced one step at a time. No second source of truth: the guide's "current step" is the first step not yet done, in Launch Center order.
+- Shows only while `CompanySetupProgress.completed_at` is null, only to `hr` and management-tier members. Never for plain staff, never for Unijaya (setup already completed there; the migration stamps `completed_at` for any tenant that already has staff, so existing companies never see it).
+
+### Pieces
+
+1. **Guide dock.** Small floating card, bottom right of every app screen, above the phone dock. Shows "Setting up · step 3 of 12", the step title, one line of where-to-click copy ("Company Settings, then Add branch"), and two buttons: **Take me there** (deep-link to the step's screen, same link Launch Center uses) and **Skip for now** (marks manual steps done, or just moves to the next for auto steps, remembered per step in localStorage). Collapse to a small pill; reopens from the pill. Hidden entirely once setup is finished.
+2. **Sidebar highlight.** The nav item for the current step's screen gets a soft pulsing ring so the eye finds it without reading.
+3. **On-screen pointer.** On the step's target screen, the existing `partials.coachmark` bubble points at the main action (Add branch, Add department, Add employee, Load standard leave types, Save modules, and so on). One new option on the partial, `$when`, a server-side boolean so the bubble shows because this is the current step, not because of localStorage. Closing it does not dismiss forever; it comes back if the step is still current on the next visit.
+4. **Step done feedback.** When the guide detects the step just completed (page load after the save), the dock shows a short "Done, next: …" line before moving on. No confetti.
+
+### Copy
+
+Each step in `stepDefs()` gains `guide` and `guide_ms`: one sentence, imperative, names the screen and the button. Bilingual like everything else. Example for branches: "Go to Company Settings and click Add branch. Give it a name and address; the map pin can wait."
+
+### Where it does not go
+
+- No overlay that blocks the page. The bubble and dock float; the app stays usable.
+- No new state table. Progress is Launch Center's, dismissals are localStorage.
+- No guide for staff-side screens. This is the first HR's setup path only.
+
 ## Out of scope
 
-- No setup wizard (Launch Center is the wizard).
+- No setup wizard (Launch Center is the wizard; the guide walks it).
 - No new roles, no per-company admin flag. Superadmin unchanged.
 - No email verification on signup (invite link is the verification).
 - No change to week start, timesheet deadlines or meeting day.
@@ -83,6 +109,7 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 - Superadmin: generate, list, revoke invites. Non-superadmin gets 403.
 - Provisioner: superadmin create still produces the same rows as before (existing tests stay green).
 - WorkWeek unit tests: Mon to Fri default, custom six-day week, TOT Saturday on and off, capacity values.
+- Guide: current step is the first undone step; dock hidden for staff, hidden after finish, hidden for tenants stamped completed by the migration; "Take me there" links match Launch Center; coachmark `$when` renders only on the current step.
 - Existing TOT and timesheet tests keep passing with Unijaya's `tot_saturday = true`. One new feature test proves a tenant with `tot_saturday = false` treats the first Saturday as a non-working day in leave counting and timesheet capacity.
 
 ## Mockups (before code)
@@ -92,3 +119,4 @@ Three screens, static HTML in `docs/superpowers/mockups/2026-09-15-self-serve-si
 1. Superadmin invites list with generate action.
 2. Signup page.
 3. Company Settings work week panel.
+4. Live setup guide: dock, sidebar highlight and on-screen pointer on the Branches step.
