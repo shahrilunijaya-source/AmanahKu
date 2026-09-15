@@ -29,6 +29,7 @@ use App\Http\Controllers\EmployeeCoverController;
 use App\Http\Controllers\EmploymentRecordController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FamilyMemberController;
 use App\Http\Controllers\FlowerController;
 use App\Http\Controllers\ForcePasswordChangeController;
 use App\Http\Controllers\FormEController;
@@ -61,6 +62,7 @@ use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollPdfController;
+use App\Http\Controllers\PersonalRecordController;
 use App\Http\Controllers\PettyCashController;
 use App\Http\Controllers\PlotTwistController;
 use App\Http\Controllers\PositionController;
@@ -327,6 +329,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::post('/app/employees/{employee}/employment', [EmploymentRecordController::class, 'update'])->name('employees.employment.update');
+        Route::post('/app/employees/{employee}/personal', [PersonalRecordController::class, 'update'])->whereNumber('employee')->name('employees.personal.update');
+        Route::post('/app/employees/{employee}/family', [FamilyMemberController::class, 'store'])->whereNumber('employee')->name('employees.family.store');
+        Route::post('/app/family/{member}', [FamilyMemberController::class, 'update'])->whereNumber('member')->name('employees.family.update');
+        Route::post('/app/family/{member}/delete', [FamilyMemberController::class, 'destroy'])->whereNumber('member')->name('employees.family.destroy');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
         // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
