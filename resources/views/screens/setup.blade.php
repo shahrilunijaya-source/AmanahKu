@@ -85,7 +85,7 @@
                     @php
                         // Settings-backed steps share one screen; pass ?section= so the inline
                         // frame shows only that step's card. Everything else embeds its own screen.
-                        $sectionMap = ['modules' => 'features', 'profile' => 'profile', 'branches' => 'branches', 'departments' => 'departments', 'staff_levels' => 'staff-levels', 'employment_types' => 'employment-types'];
+                        $sectionMap = ['modules' => 'features', 'profile' => 'profile', 'branches' => 'branches', 'departments' => 'departments', 'staff_levels' => 'staff-levels', 'employment_types' => 'employment-types', 'greetings' => 'greetings', 'eggs' => 'eggs', 'reactions' => 'reactions'];
                         $stepQ = array_merge($step['query'] ?? [], ['embed' => 1]);
                         if (isset($sectionMap[$step['key']])) {
                             $stepQ['section'] = $sectionMap[$step['key']];

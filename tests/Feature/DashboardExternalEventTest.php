@@ -68,6 +68,18 @@ class DashboardExternalEventTest extends TestCase
             ->assertSee('External event');
     }
 
+    public function test_clicking_the_notice_opens_that_event(): void
+    {
+        $event = $this->event();
+
+        $html = $this->dash()->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '#<a\s+class="uj-dw-notice"\s+href="'.preg_quote(route('events.show', $event), '#').'"#',
+            $html,
+        );
+    }
+
     public function test_the_brief_does_not_carry_the_full_description(): void
     {
         $this->event(['description' => 'A secret agenda line nobody should see from the dashboard.']);

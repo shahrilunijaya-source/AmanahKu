@@ -464,7 +464,7 @@ trait BuildsDashboardData
                         'meta' => $this->daysAway($e->event_date),
                         'tag' => 'External event',
                         'flag' => $employee && in_array($employee->id, $e->taggedIds(), true) ? 'Required' : null,
-                        'url' => route('app.screen', 'events'),
+                        'url' => route('events.show', $e),
                         '_sort' => $e->event_date,
                     ])
             );

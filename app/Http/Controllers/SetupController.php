@@ -8,8 +8,10 @@ use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\CompanySetupProgress;
 use App\Models\Department;
+use App\Models\EasterEgg;
 use App\Models\Employee;
 use App\Models\EmploymentType;
+use App\Models\GreetingLine;
 use App\Models\LeaveType;
 use App\Models\Position;
 use App\Models\PublicHoliday;
@@ -48,6 +50,7 @@ class SetupController extends Controller
             'time' => ['label' => 'Time & work', 'label_ms' => 'Masa & kerja'],
             'requests' => ['label' => 'Leave & requests', 'label_ms' => 'Cuti & permohonan'],
             'payroll' => ['label' => 'Payroll', 'label_ms' => 'Gaji'],
+            'culture' => ['label' => 'Dashboard touches', 'label_ms' => 'Sentuhan papan pemuka'],
             'finish' => ['label' => 'Review & launch', 'label_ms' => 'Semak & lancar'],
         ];
     }
@@ -101,6 +104,12 @@ class SetupController extends Controller
             $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'screen' => 'payroll', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
         }
 
+        // Dashboard touches — optional. Both banks are seeded for every company, so these
+        // tick themselves and never hold setup back; they are here so HR can find the cards.
+        $defs['greetings'] = ['label' => 'Dashboard greetings', 'label_ms' => 'Ucapan papan pemuka', 'desc' => 'The rotating greeting line at the top of everyone\'s dashboard, including the holiday-eve lines.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'culture', 'critical' => false];
+        $defs['eggs'] = ['label' => 'Dashboard easter eggs', 'label_ms' => 'Telur Paskah papan pemuka', 'desc' => 'The small one-off messages under the greeting (Friday after 5, late night, holiday eve).', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'culture', 'critical' => false];
+        $defs['reactions'] = ['label' => 'Reactions', 'label_ms' => 'Reaksi', 'desc' => 'The emoji set people react with on posts and wins. Up to ten active.', 'screen' => 'settings', 'query' => [], 'auto' => true, 'domain' => 'culture', 'critical' => false];
+
         // Review & launch — always last.
         $defs['review'] = ['label' => 'Review & complete setup', 'label_ms' => 'Semak & selesai persediaan', 'desc' => 'Confirm everything is in place, then launch.', 'screen' => 'setup', 'query' => [], 'auto' => false, 'domain' => 'finish', 'critical' => false];
 
@@ -126,6 +135,10 @@ class SetupController extends Controller
             'timesheet_categories' => TimesheetCategory::count() > 0,
             'leave_types' => LeaveType::count() > 0,
             'holidays' => PublicHoliday::count() > 0,
+            'greetings' => GreetingLine::exists(),
+            'eggs' => EasterEgg::exists(),
+            // Reaction::set() fills the default set on first read, so a company always has one.
+            'reactions' => true,
         ];
 
         if ($this->payrollEnabled()) {

@@ -38,7 +38,7 @@
     // A poster who has since lost the posting role (a demotion) still needs the drawer in
     // the DOM to edit their own past event, even though they can no longer post a new one.
     $allEventRows = $upcomingEvents->concat($recentPastEvents)->concat($olderPastEvents);
-    $canOpenDrawer = $privileged || $allEventRows->contains(fn ($row) => $row['event']->created_by_employee_id === $viewerId);
+    $canOpenDrawer = $canCreateEvent || $allEventRows->contains(fn ($row) => $row['event']->created_by_employee_id === $viewerId);
 @endphp
 
 @section('screen')
@@ -142,7 +142,7 @@
             @empty
                 <div style="padding:28px 20px;text-align:center;">
                     <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:3px;" x-text="$store.ui.lang==='en' ? 'No upcoming events' : 'Tiada acara akan datang'">No upcoming events</div>
-                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">@if ($privileged)<span x-text="$store.ui.lang==='en' ? 'Use &quot;+ New event&quot; on the right to publish your first one — an internal event staff can RSVP to, or an external training they can register for.' : 'Guna &quot;+ New event&quot; di sebelah kanan untuk terbitkan yang pertama — acara dalaman untuk staf RSVP, atau latihan luaran untuk mereka daftar.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'Nothing is scheduled right now. New events will appear here for you to RSVP.' : 'Tiada apa dijadualkan sekarang. Acara baru akan muncul di sini untuk anda RSVP.'"></span>@endif</div>
+                    <div style="font-size:12px;color:var(--muted);line-height:1.5;">@if ($canCreateEvent)<span x-text="$store.ui.lang==='en' ? 'Use &quot;+ New event&quot; on the right to publish your first one — an internal event staff can RSVP to, or an external training they can register for.' : 'Guna &quot;+ New event&quot; di sebelah kanan untuk terbitkan yang pertama — acara dalaman untuk staf RSVP, atau latihan luaran untuk mereka daftar.'"></span>@else<span x-text="$store.ui.lang==='en' ? 'Nothing is scheduled right now. New events will appear here for you to RSVP.' : 'Tiada apa dijadualkan sekarang. Acara baru akan muncul di sini untuk anda RSVP.'"></span>@endif</div>
                 </div>
             @endforelse
         </div>
@@ -175,7 +175,7 @@
     {{-- Privileged: publish an event, internal or external --}}
     <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:16px;">
         @if ($canOpenDrawer)
-            @if ($privileged)
+            @if ($canCreateEvent)
                 <div class="uj-card" style="padding:20px;">
                     <button type="button" class="uj-btn-primary" style="width:100%;height:42px;font-size:13.5px;" @click="postOpen = true; editEvent = null; external = false">
                         <span x-text="$store.ui.lang==='en' ? '+ New event' : '+ Acara baharu'">+ New event</span>

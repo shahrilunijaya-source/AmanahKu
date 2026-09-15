@@ -14,6 +14,8 @@ use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\EasterEggBank;
+use App\Support\GreetingBank;
 use App\Support\ProfileCompletion;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -175,6 +177,28 @@ class OnboardingWizardTest extends TestCase
 
         $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
             ->get('/app/setup')->assertOk();
+    }
+
+    public function test_company_setup_links_to_the_dashboard_greeting_and_easter_egg_cards(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        GreetingBank::seed($tenant->id);
+        EasterEggBank::seed($tenant->id);
+        $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id]);
+        app(CurrentTenant::class)->set($tenant);
+
+        $this->get('/app/setup')->assertOk()
+            ->assertSee('Dashboard greetings')
+            ->assertSee('section=greetings', false)
+            ->assertSee('Dashboard easter eggs')
+            ->assertSee('section=eggs', false)
+            ->assertSee('section=reactions', false);
+
+        $steps = collect(app(SetupController::class)->compute()['rows'] ?? [])->keyBy('key');
+        $this->assertTrue($steps['greetings']['done'] ?? false, 'seeded greeting bank should tick the step');
+        $this->assertTrue($steps['eggs']['done'] ?? false, 'seeded egg bank should tick the step');
+        $this->assertTrue($steps['reactions']['done'] ?? false);
+        $this->assertFalse($steps['greetings']['critical']);
     }
 
     public function test_staff_are_admitted_once_launched(): void

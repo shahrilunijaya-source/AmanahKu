@@ -80,6 +80,7 @@ class EventController extends Controller
     public function screenData(Request $request, ?Employee $employee): array
     {
         $privileged = $this->hasTenantRole($request, self::PRIVILEGED_ROLES);
+        $canCreateEvent = $this->canCreateEvent($request);
 
         $today = now()->toDateString();
         $recentCutoff = now()->subDays(self::RECENT_PAST_DAYS)->toDateString();
@@ -107,6 +108,7 @@ class EventController extends Controller
 
         return [
             'privileged' => $privileged,
+            'canCreateEvent' => $canCreateEvent,
             'canRespond' => (bool) $employee,
             'viewerId' => $employee?->id,
             'upcomingEvents' => $upcoming,
@@ -118,15 +120,15 @@ class EventController extends Controller
     }
 
     /**
-     * Publish a new company event. Privileged-only. An external event (host filled in)
-     * carries a map link, a registration link, and @mentions instead of RSVP — the wider
+     * Publish a new company event. Privileged roles, or anyone granted event.create on the Roles
+     * screen. An external event (host filled in) carries a map link, a registration link, and @mentions instead of RSVP — the wider
      * PRIVILEGED_ROLES trio can post either kind. CR-11: `starts_at`/`ends_at` carry the
      * exact time slot the calendar port and the attendee cards need; `event_date` stays
      * the day the screens group and filter by.
      */
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizePrivileged($request);
+        abort_unless($this->canCreateEvent($request), 403, 'Only managers, HR, management or members granted event creation can create events.');
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:160'],
@@ -587,6 +589,23 @@ class EventController extends Controller
 
         return $this->hasTenantRole($request, self::PRIVILEGED_ROLES)
             || ($employee && $event->created_by_employee_id === $employee->id);
+    }
+
+    /**
+     * May the actor publish an event? Managers, HR and management by role, plus anybody
+     * given the event.create override on the Roles screen (e.g. an intern posting on a
+     * senior manager's behalf). Edit stays poster-only and remove stays role-only.
+     */
+    private function canCreateEvent(Request $request): bool
+    {
+        if ($this->hasTenantRole($request, self::PRIVILEGED_ROLES)) {
+            return true;
+        }
+
+        $tenant = app(CurrentTenant::class)->get();
+
+        return $tenant !== null
+            && $request->user()?->canInTenant($tenant, 'event.create') === true;
     }
 
     private function authorizePrivileged(Request $request): void
