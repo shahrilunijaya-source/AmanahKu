@@ -334,7 +334,7 @@
             get index() { return this.step ? this.steps.indexOf(this.step) + 1 : this.steps.length; },
             get total() { return this.steps.length; },
             get doneCount() { return this.steps.filter(s => s.done).length; },
-            on(screens) { return this.step !== null && screens.includes(this.step.screen); },
+            on(screens) { return this.step !== null && screens.includes(this.step.nav); },
             skip() {
                 if (! this.step) { return; }
                 this.skipped = [...this.skipped, this.step.key];

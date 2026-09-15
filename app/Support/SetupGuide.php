@@ -28,11 +28,18 @@ class SetupGuide
      * management (User::roleIn), so they see it too — intended.
      *
      * @return array{
-     *   steps: list<array{key:string,label:string,label_ms:string,guide:string,guide_ms:string,screen:string,url:string,done:bool,auto:bool}>,
+     *   steps: list<array{key:string,label:string,label_ms:string,guide:string,guide_ms:string,screen:string,nav:string,url:string,done:bool,auto:bool}>,
      *   done: int,
      *   total: int
      * }|null
      */
+    /**
+     * One-time config screens have no sidebar row of their own (App\Support\Amanahku
+     * nav: they are reached through Company Setup), so the sidebar ring for their steps
+     * lands on the Company Setup row instead.
+     */
+    private const NAV_VIA_SETUP = ['settings', 'position', 'attendance-admin', 'leave-setup', 'timesheet-setup'];
+
     public static function forRequest(Request $request): ?array
     {
         if (app(CurrentTenant::class)->get() === null) {
@@ -59,6 +66,8 @@ class SetupGuide
             'guide' => $row['guide'],
             'guide_ms' => $row['guide_ms'],
             'screen' => $row['screen'],
+            // The sidebar row to ring: the screen itself, or Company Setup for config screens.
+            'nav' => in_array($row['screen'], self::NAV_VIA_SETUP, true) ? 'setup' : $row['screen'],
             'url' => route('app.screen', ['screen' => $row['screen']] + $row['query']),
             'done' => $row['done'],
             'auto' => $row['auto'],

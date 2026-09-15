@@ -154,6 +154,8 @@ class SetupGuideTest extends TestCase
         $this->assertTrue($byKey['branches']['done']);
         $this->assertFalse($byKey['departments']['done']);
         $this->assertSame(route('app.screen', ['screen' => 'settings']), $byKey['branches']['url']);
+        $this->assertSame('setup', $byKey['branches']['nav']); // no sidebar row for settings
+        $this->assertSame('staff-load', $byKey['staff']['nav']);
         $this->assertSame(route('app.screen', ['screen' => 'leave-setup', 'tab' => 'holidays']), $byKey['holidays']['url']);
         $this->assertSame('Go to Company Settings and click + Add on the Branches card. Give it a name and address; the map pin can wait.', $byKey['branches']['guide']);
         $this->assertSame(count($keys), $guide['total']);
@@ -333,5 +335,23 @@ class SetupGuideTest extends TestCase
 
         $this->assertStringNotContainsString('data-guide-dock', $html);
         $this->assertStringContainsString('"key":"branches"', $html);
+    }
+
+    // ── Sidebar ring ──────────────────────────────────────────────────────────
+
+    public function test_sidebar_rows_bind_the_guide_ring_to_their_screens(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+
+        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->getContent();
+
+        // Section rows bind the whole section's screen list (@js emits JSON.parse(...)),
+        // so the ring finds the Administration row while its panel is closed.
+        $this->assertMatchesRegularExpression('/uj-nav-row[^>]*:class="\$store\.guide\.on\(JSON\.parse\(/', $html);
+        // Leaf rows bind their own id as a literal. Company Settings has no sidebar row
+        // (config screens are reached through Company Setup), so its steps ring 'setup'.
+        $this->assertStringContainsString("\$store.guide.on(['staff-load'])", $html);
+        $this->assertStringContainsString("\$store.guide.on(['setup'])", $html);
     }
 }
