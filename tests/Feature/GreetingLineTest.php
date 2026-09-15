@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\GreetingLine;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\EasterEggBank;
 use App\Support\GreetingBank;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -165,6 +166,30 @@ class GreetingLineTest extends TestCase
         GreetingLine::factory()->for($this->tenant)->pending()->create(['bucket' => 'day', 'trigger' => 'monday']);
 
         $this->get('/app/settings')->assertOk()->assertSee('TGIF line')->assertSee('Dashboard greetings');
+    }
+
+    /** The bank renders as one filterable, capped list: tabs, chips, search, a pending strip, and both banks share it. */
+    public function test_settings_line_banks_render_as_filterable_lists(): void
+    {
+        $this->signIn('hr');
+        GreetingLine::factory()->for($this->tenant)->create(['bucket' => 'time', 'trigger' => 'late', 'text_en' => 'Night owl line', 'text_ms' => 'Baris burung hantu']);
+        GreetingLine::factory()->for($this->tenant)->pending()->create(['bucket' => 'day', 'trigger' => 'monday']);
+        EasterEggBank::seed($this->tenant->id);
+
+        $this->get('/app/settings?section=greetings')->assertOk()
+            ->assertSee('uj-lb-list', false)
+            ->assertSee('data-lb-row="late"', false)
+            ->assertSee('Night owl line')
+            ->assertSee('Late (after 10pm)', false)
+            ->assertSee('Search lines')
+            ->assertSee('suggestion from staff waiting')
+            ->assertDontSee('Dashboard easter eggs');
+
+        $this->get('/app/settings?section=eggs')->assertOk()
+            ->assertSee('Dashboard easter eggs')
+            ->assertSee('data-lb-row="holiday_eve"', false)
+            ->assertSee('Friday after 5')
+            ->assertDontSee('uj-seg" role', false);
     }
 
     public function test_cross_tenant_update_is_refused(): void
