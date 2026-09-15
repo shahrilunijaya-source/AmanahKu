@@ -248,7 +248,7 @@
             if ($workGate ?? false) {
                 $tabs[] = ['workinfo', 'Work', 'Kerja'];
             }
-            $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
+            $tabs[] = ['work', 'Tasks', 'Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
             }
@@ -357,7 +357,7 @@
                 <div x-show="tab === 'attachment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.attachment-tab')</div>
             @endif
 
-            {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
+            {{-- Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 <div class="uj-section-head" style="margin:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
                 @if ($isOwn)

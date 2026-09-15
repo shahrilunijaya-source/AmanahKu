@@ -91,7 +91,7 @@ class ProfileVisibilityTest extends TestCase
         $response->assertDontSee('Workload');
         $response->assertDontSee('Open tasks');
         $response->assertDontSee('Annual leave');
-        $response->assertDontSee('Work & Tasks');
+        $response->assertDontSee('data-tab="work"', false);
         $response->assertDontSee('Assigned tasks');
     }
 
@@ -107,7 +107,7 @@ class ProfileVisibilityTest extends TestCase
         $response->assertDontSee('name="salary"', false);
         // No Money tab for a manager, even on a direct report.
         $response->assertDontSee('Money</button>', false);
-        $response->assertSee('Work & Tasks');
+        $response->assertSee('data-tab="work"', false);
     }
 
     public function test_work_items_list_only_shows_in_progress_items(): void
