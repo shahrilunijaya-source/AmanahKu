@@ -12,6 +12,7 @@ use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -52,7 +53,10 @@ class LeaveReportAccuracyTest extends TestCase
         // Every period on this screen is relative to "now", so the clock is fixed.
         $this->travelTo(CarbonImmutable::parse('2026-07-30 10:00:00'));
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped: the first Saturday of the month is the TOT half day.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
+        // Direct DayCapacity / LockedDays calls (outside a request) read the tenant from the container.
+        app(CurrentTenant::class)->set($this->tenant);
         $this->annual = LeaveType::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Annual', 'entitlement' => 16,
         ]);

@@ -13,6 +13,7 @@ use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WorkItem;
+use App\Tenancy\CurrentTenant;
 use App\Timesheet\LockedDays;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,10 @@ class HalfDayLeaveTest extends TestCase
         // and inside the timesheet backfill window.
         Carbon::setTestNow('2026-07-24 12:00:00');
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped: the first Saturday of the month is the TOT half day.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
+        // Direct DayCapacity / LockedDays calls (outside a request) read the tenant from the container.
+        app(CurrentTenant::class)->set($this->tenant);
         // min_notice_days 0 so the apply endpoint accepts a same-week date for the test.
         $this->annual = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => 'Annual', 'entitlement' => 16]);
         // LockedDays files its generated rows under these fixed category names.

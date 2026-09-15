@@ -66,7 +66,7 @@ class AmanahkuWriteToolsTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenantA = Tenant::create(['slug' => 'alpha', 'name' => 'Alpha', 'initials' => 'AL']);
+        $this->tenantA = Tenant::create(['slug' => 'alpha', 'name' => 'Alpha', 'initials' => 'AL', 'tot_saturday' => true]);
         $this->tenantB = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BE']);
 
         app(CurrentTenant::class)->set($this->tenantA);
