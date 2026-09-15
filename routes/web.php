@@ -26,6 +26,7 @@ use App\Http\Controllers\EaFormController;
 use App\Http\Controllers\EasterEggController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeCoverController;
+use App\Http\Controllers\EmploymentRecordController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FlowerController;
@@ -324,6 +325,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+        Route::post('/app/employees/{employee}/employment', [EmploymentRecordController::class, 'update'])->name('employees.employment.update');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
         // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.

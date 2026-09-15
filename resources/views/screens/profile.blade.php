@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -231,6 +231,10 @@
             $moneyShow = ($canSeeMoney ?? false) && (($payrollGate ?? false) || ($claimsGate ?? false) || ($loansGate ?? false) || ($overtimeGate ?? false));
 
             $tabs = [['overview', 'Overview', 'Gambaran']];
+            if ($employmentGate ?? false) {
+                $tabs[] = ['employment', 'Employment', 'Pekerjaan'];
+                $tabs[] = ['timeline', 'Timeline', 'Garis Masa'];
+            }
             $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
@@ -246,10 +250,10 @@
             }
             $tabs[] = ['assets', 'Assets & Training', 'Aset & Latihan'];
         @endphp
-        <div class="uj-card" x-data="{ tab: 'overview' }">
+        <div class="uj-card" x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'overview' }">
             <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
                 @foreach ($tabs as $tab)
-                    <button type="button" @click="tab = '{{ $tab[0] }}'"
+                    <button type="button" data-tab="{{ $tab[0] }}" @click="tab = '{{ $tab[0] }}'"
                         style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
                         :style="tab === '{{ $tab[0] }}' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }"
                         x-text="$store.ui.lang==='en' ? @js($tab[1]) : @js($tab[2])">{{ $tab[1] }}</button>
@@ -308,6 +312,12 @@
                     <a href="{{ route('app.screen', 'documents') }}" class="uj-btn-ghost" style="display:inline-flex;height:36px;align-items:center;padding:0 16px;font-size:13px;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? 'Open Documents' : 'Buka Dokumen'">Open Documents</span></a>
                 </div>
             </div>
+
+            @if ($employmentGate ?? false)
+                {{-- Employment · the Worksy employment record; Timeline · one card per progression row --}}
+                <div x-show="tab === 'employment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.employment-tab')</div>
+                <div x-show="tab === 'timeline'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.timeline-tab')</div>
+            @endif
 
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
