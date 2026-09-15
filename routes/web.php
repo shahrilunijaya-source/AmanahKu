@@ -14,6 +14,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceReportController;
 use App\Http\Controllers\AttendanceReportExportController;
 use App\Http\Controllers\AwardController;
+use App\Http\Controllers\BatchProgressionController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
@@ -348,6 +349,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');
         Route::post('/app/employees/{employee}/cover/delete', [EmployeeCoverController::class, 'destroy'])->name('employees.cover.destroy');
         Route::post('/app/employees/{employee}/force-delete', [EmployeeController::class, 'forceDelete'])->name('employees.force-delete');
+        Route::post('/app/progression/batch/update', [BatchProgressionController::class, 'batchUpdate'])->name('progression.batch.update');
+        Route::post('/app/progression/batch/salary', [BatchProgressionController::class, 'batchSalary'])->name('progression.batch.salary');
         Route::post('/app/progression/{employee}/confirm', [ProgressionController::class, 'confirm'])->whereNumber('employee')->name('progression.confirm');
         Route::post('/app/progression/{employee}/update', [ProgressionController::class, 'update'])->whereNumber('employee')->name('progression.update');
         Route::post('/app/progression/{employee}/resign', [ProgressionController::class, 'resign'])->whereNumber('employee')->name('progression.resign');
