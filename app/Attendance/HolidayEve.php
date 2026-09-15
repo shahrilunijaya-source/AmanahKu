@@ -22,6 +22,9 @@ class HolidayEve
 
     public const GENERIC_MS = 'Selamat bercuti! Rehat secukupnya, jumpa lagi nanti.';
 
+    /** Before this hour on the eve, the dashboard keeps a normal workday tone: no send-off greeting, egg or "see you" line. */
+    public const SEND_OFF_HOUR = 15;
+
     /** Days to look ahead before giving up; a longer run is not a holiday, it is a shutdown. */
     private const MAX_RUN = 10;
 

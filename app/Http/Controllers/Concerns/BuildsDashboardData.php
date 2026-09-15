@@ -162,7 +162,7 @@ trait BuildsDashboardData
         $kind = match (true) {
             (int) $now->hour >= 22 => 'late_night',
             $now->isFriday() && (int) $now->hour >= 17 => 'friday_late',
-            app(HolidayEve::class)->forDay($now) !== null => 'holiday_eve',
+            (int) $now->hour >= HolidayEve::SEND_OFF_HOUR && app(HolidayEve::class)->forDay($now) !== null => 'holiday_eve',
             default => null,
         };
 
@@ -226,7 +226,7 @@ trait BuildsDashboardData
             $triggers[] = 'back_from_leave';
         }
 
-        if (app(HolidayEve::class)->forDay($now) !== null) {
+        if ((int) $now->hour >= HolidayEve::SEND_OFF_HOUR && app(HolidayEve::class)->forDay($now) !== null) {
             $triggers[] = 'holiday_eve';
         }
 

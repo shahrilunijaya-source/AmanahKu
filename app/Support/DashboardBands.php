@@ -180,6 +180,10 @@ final class DashboardBands
         $payload = $eve->payload($found['holiday'], $found['next_working_day']);
         $tomorrow = $found['holiday']->date->isSameDay($today->addDay());
         $back = $found['next_working_day'];
+        // Morning on the eve: a curated holiday wish is fine, but the generic send-off and "see you" wait for SEND_OFF_HOUR.
+        $sendOff = (int) $today->hour >= HolidayEve::SEND_OFF_HOUR;
+        $wishEn = $sendOff || $payload['curated'] ? $payload['greeting_en'].' ' : '';
+        $wishMs = $sendOff || $payload['curated'] ? $payload['greeting_ms'].' ' : '';
 
         return [
             'kind' => 'holiday-eve',
@@ -189,8 +193,8 @@ final class DashboardBands
                 'ms' => $payload['name'].($tomorrow ? ' esok' : ' pada '.$found['holiday']->date->format('D j M')),
             ],
             'sub' => [
-                'en' => $payload['greeting_en'].' See you '.$back->format('D j M').'.',
-                'ms' => $payload['greeting_ms'].' Jumpa '.$back->format('D j M').'.',
+                'en' => $wishEn.($sendOff ? 'See you ' : 'Back on ').$back->format('D j M').'.',
+                'ms' => $wishMs.($sendOff ? 'Jumpa ' : 'Kembali bekerja ').$back->format('D j M').'.',
             ],
             'cta' => null,
             'art' => 'stamp',
