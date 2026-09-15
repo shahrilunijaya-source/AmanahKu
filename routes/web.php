@@ -21,6 +21,7 @@ use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
+use App\Http\Controllers\CompanySignupController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
@@ -139,6 +140,16 @@ Route::post('/activate/{user}', [ActivationController::class, 'update'])->middle
 // handler renders every error as JSON — a typo'd URL there would hand a developer a raw
 // JSON body instead of a 404 page.
 Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
+
+// Invite-link company signup. Fortify's registration feature is off (config/fortify.php),
+// so these two routes own /register. The names stay `register` / `register.store`
+// because BlockRegistrationWhenDisabled keys on them. Not guest-only: a signed-in
+// member may use a link to start a second company. GET is throttled per IP so a
+// token cannot be scanned for; POST keeps Fortify's old 5/min.
+Route::get('/register', [CompanySignupController::class, 'show'])
+    ->middleware('throttle:20,1,signup')->name('register');
+Route::post('/register', [CompanySignupController::class, 'store'])
+    ->middleware('throttle:5,1,signup-post')->name('register.store');
 
 Route::middleware('auth')->group(function () {
     // Staff-facing guide for the self-service AI access key (Account & security).
