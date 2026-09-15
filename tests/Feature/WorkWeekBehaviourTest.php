@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Attendance\HolidayEve;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
@@ -134,5 +135,18 @@ class WorkWeekBehaviourTest extends TestCase
         app(CurrentTenant::class)->set(Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BT', 'tot_saturday' => true]));
         $this->assertSame('2026-08-01', Timesheet::computeWeekEndsOn(Carbon::parse('2026-07-27'))->toDateString());
         $this->assertSame('2026-08-07', Timesheet::computeWeekEndsOn(Carbon::parse('2026-08-03'))->toDateString());
+    }
+
+    public function test_holiday_eve_next_working_day_follows_the_work_week(): void
+    {
+        // Sat-working company: a Friday holiday is followed by Saturday, not Monday.
+        $this->company(['work_days' => [1, 2, 3, 4, 5, 6]]);
+        $holiday = PublicHoliday::create(['tenant_id' => $this->tenant->id, 'name' => 'Cuti', 'date' => '2026-08-07']);
+
+        $eve = app(HolidayEve::class)->forDay(Carbon::parse('2026-08-06'));
+
+        $this->assertNotNull($eve);
+        $this->assertSame($holiday->id, $eve['holiday']->id);
+        $this->assertSame('2026-08-08', $eve['next_working_day']->toDateString());
     }
 }

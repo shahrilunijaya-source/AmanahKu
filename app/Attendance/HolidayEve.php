@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Attendance;
 
 use App\Models\PublicHoliday;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -41,6 +42,7 @@ class HolidayEve
             ->get()
             ->keyBy(fn (PublicHoliday $h): string => $h->date->toDateString());
 
+        $workWeek = WorkWeek::for();
         $first = null;
         $cursor = $day->addDay();
         for ($i = 0; $i < self::MAX_RUN; $i++, $cursor = $cursor->addDay()) {
@@ -50,7 +52,7 @@ class HolidayEve
 
                 continue;
             }
-            if ($cursor->isWeekend()) {
+            if (! $workWeek->isWorkingDay($cursor)) {
                 continue;
             }
 
