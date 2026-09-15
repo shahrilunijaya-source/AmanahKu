@@ -302,7 +302,7 @@
     <p class="lg-protected">Protected by Amanahku · Multi-tenant SSO</p>
   </form>
 
-  <p class="lg-under">© {{ date('Y') }} Amanahku</p>
+  <p class="lg-under">© {{ date('Y') }} Amanahku · <a href="{{ route('privacy') }}" style="color:inherit;">Privacy</a> · <a href="{{ route('terms') }}" style="color:inherit;">Terms</a></p>
 </div>
 
 <script>
