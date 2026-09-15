@@ -100,7 +100,6 @@ class AdminController extends Controller
 
         $days = array_map('intval', $data['work_days']);
         sort($days);
-        $days = array_values($days);
 
         app(CurrentTenant::class)->get()->update(['work_days' => $days]);
 
