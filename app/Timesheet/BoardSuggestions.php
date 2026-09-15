@@ -10,6 +10,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetEntry;
 use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -42,7 +43,8 @@ final class BoardSuggestions
     public function forWeek(Employee $employee, CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
-        $end = $start->addDays(5);
+        $end = $start->addDays(6);
+        $workWeek = WorkWeek::for();
         $today = CarbonImmutable::now()->startOfDay();
 
         $cards = $this->cardsFor($employee);
@@ -82,13 +84,12 @@ final class BoardSuggestions
                     continue;
                 }
 
-                // The capture grid renders Monday to Friday, plus the first Saturday of
-                // the month (Unijaya's TOT half day) — see timesheet-capture.js's days
-                // count. A stint running across a weekend must not propose a row for a
-                // day that has no column to put it in. DayCapacity::for() cannot answer
-                // this: it returns 100.0 for a plain Saturday, since it is asking how
-                // full a day must be, not whether the day is worked.
-                if ($day->isSunday() || ($day->isSaturday() && ! DayCapacity::isFirstSaturday($day))) {
+                // The capture grid renders the tenant's work days (plus its TOT Saturday)
+                // — see timesheet-capture.js's baseDays(). A stint running across a day
+                // off must not propose a row for a day that has no column to put it in.
+                // DayCapacity::for() cannot answer this: it returns 100.0 for a day off,
+                // since it is asking how full a day must be, not whether the day is worked.
+                if (! $workWeek->isWorkingDay($day)) {
                     continue;
                 }
 

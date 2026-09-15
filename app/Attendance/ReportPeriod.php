@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Attendance;
 
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 
 /**
@@ -163,20 +164,22 @@ final class ReportPeriod
     }
 
     /**
-     * Mon–Fri inside the window, plus any date on which somebody actually has a
-     * record — a weekend shift is real work and must not vanish from the ledger.
+     * The tenant's work days inside the window (App\Support\WorkWeek, TOT Saturday
+     * included), plus any date on which somebody actually has a record — a shift on a day
+     * off is real work and must not vanish from the ledger.
      *
      * @param  list<string>  $recordDates  Y-m-d
      * @return list<string>
      */
     public function workingDays(array $recordDates): array
     {
+        $workWeek = WorkWeek::for();
         $days = [];
         $cursor = $this->from;
 
         while ($cursor->lte($this->to)) {
             $date = $cursor->toDateString();
-            if ($cursor->isWeekday() || in_array($date, $recordDates, true)) {
+            if ($workWeek->isWorkingDay($cursor) || in_array($date, $recordDates, true)) {
                 $days[] = $date;
             }
             $cursor = $cursor->addDay();

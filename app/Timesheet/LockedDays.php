@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
 use App\Models\TimesheetCategory;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -17,7 +18,7 @@ use Illuminate\Support\Collection;
  * an approved leave request, or a public holiday.
  *
  * A fully locked day is filled to that day's capacity (100%, or 50% on the first Saturday
- * of the month — Unijaya's TOT half day, see DayCapacity) and the employee cannot log work
+ * the tenant's TOT half day, see DayCapacity) and the employee cannot log work
  * against it.
  * A half-day leave locks only 50%: the "On Leave" row covers half the day and the
  * staffer still fills the remaining half with real work, so that day must reach 100%
@@ -41,7 +42,7 @@ final class LockedDays
     public function forWeek(Employee $employee, CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
-        $end = $start->addDays(5);
+        $end = $start->addDays(6);
 
         // whereDate() (not whereBetween) because the 'date' column's stored value is not
         // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
@@ -100,7 +101,7 @@ final class LockedDays
     public function forWeekMany(Collection $employees, CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
-        $end = $start->addDays(5);
+        $end = $start->addDays(6);
 
         // whereDate() (not whereBetween) because the 'date' column's stored value is not
         // guaranteed to be a bare Y-m-d string: SQLite (the test driver) preserves whatever
@@ -152,20 +153,21 @@ final class LockedDays
     }
 
     /**
-     * The days of the week a staffer can log against: Mon–Fri, plus the first Saturday of
-     * the month (the TOT half day). Ordinary Saturdays and Sunday are not locked here —
-     * nothing generates rows for a day the week does not ask them to fill.
+     * The days of the week a staffer can log against: the tenant's work days, plus its TOT
+     * Saturday where that flag is on. Days off are not locked here — nothing generates
+     * rows for a day the week does not ask them to fill.
      *
      * @return array<int, CarbonImmutable>
      */
     private function workingDays(CarbonImmutable $weekStart): array
     {
+        $workWeek = WorkWeek::for();
         $days = [];
 
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 7; $i++) {
             $day = $weekStart->addDays($i);
 
-            if ($i < 5 || DayCapacity::isFirstSaturday($day)) {
+            if ($workWeek->isWorkingDay($day)) {
                 $days[] = $day;
             }
         }
@@ -184,7 +186,7 @@ final class LockedDays
     private function leaveEntry(LeaveRequest $leave, CarbonImmutable $day): array
     {
         $capacity = DayCapacity::for($day);
-        $halves = $leave->isHalfDay() && ! DayCapacity::isFirstSaturday($day);
+        $halves = $leave->isHalfDay() && ! WorkWeek::for()->isTotDay($day);
 
         return [
             'label' => $leave->leaveType?->name ?: 'Leave',
