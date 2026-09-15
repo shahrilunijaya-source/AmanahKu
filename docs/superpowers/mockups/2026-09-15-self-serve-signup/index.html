@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Self-serve company signup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--font-sans:'Poppins',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;--red:#d6232b;--red-active:#b01b22;--red-tint:#fcebec;--canvas:#f6f6f3;--card:#fff;--sidebar:#1f1e1a;--ink:#26251e;--muted:#6f6c61;--hairline:#e6e5e0;--hairline-soft:#efeee8;--amber-tint:#fbf3e6;--amber-ink:#7a5210;--amber-line:#ecdcbf;--green-tint:#eaf6f1;--green-ink:#0f5132;--green-line:#bfe3d3}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-sans);color:var(--ink);background:#dedcd6;font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:40px 20px 80px}
+.screen{background:var(--canvas);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.12);margin-bottom:56px;overflow:hidden}
+.label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:#555;margin:0 0 10px}
+.note{font-size:13px;color:#444;margin:0 0 14px;line-height:1.55}
+.uj-card{background:var(--card);border:1px solid var(--hairline);border-radius:12px}
+.uj-card-title{font-size:15px;font-weight:600;margin:0}
+.btn{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 16px;border-radius:9px;font-size:13.5px;font-weight:600;border:1px solid var(--hairline);background:#fff;color:var(--ink);cursor:pointer;font-family:inherit}
+.btn.primary{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.sm{height:30px;padding:0 11px;font-size:12.5px;border-radius:7px}
+.btn.danger{color:var(--red)}
+.pill{padding:2px 9px;border-radius:9999px;font-size:11px;font-weight:600}
+.pill.pending{background:var(--amber-tint);color:var(--amber-ink);border:1px solid var(--amber-line)}
+.pill.used{background:var(--green-tint);color:var(--green-ink);border:1px solid var(--green-line)}
+.pill.expired{background:var(--hairline-soft);color:var(--muted);border:1px solid var(--hairline)}
+.mono{font-family:var(--font-mono);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--hairline)}
+td{padding:12px;border-bottom:1px solid var(--hairline-soft);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+input[type=text],input[type=email],input[type=password],select{width:100%;height:44px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;color:var(--ink);background:#fff;font-family:inherit;outline:none}
+label.f{display:block;font-size:13px;font-weight:500;margin-bottom:6px}
+.day{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0 10px;border:1px solid var(--hairline);border-radius:10px;background:#fff;cursor:pointer;flex:1;min-width:0;user-select:none}
+.day.on{border-color:var(--red);background:var(--red-tint)}
+.day .d{font-size:13px;font-weight:600}
+.day .s{font-size:11px;color:var(--muted)}
+.day.on .s{color:var(--red)}
+.sw{position:relative;width:38px;height:22px;border-radius:9999px;background:#cfcdc6;flex-shrink:0}
+.sw.on{background:var(--red)}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on::after{left:19px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="label">Screen 1 · Superadmin → Companies → Signup links</p>
+<p class="note">New card at the bottom of the existing superadmin Companies page. Superadmin picks the starting stage, adds a note on who it is for, clicks Generate. Copies the link and sends it however they like (WhatsApp, email). Link dies after 7 days or after one use.</p>
+<div class="screen">
+  <div style="padding:40px 24px;max-width:880px;margin:0 auto;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
+      <div style="width:30px;height:30px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">A</div>
+      <span style="font-weight:600;font-size:18px;">Amanah<span style="color:var(--red)">ku</span></span>
+      <span class="pill" style="background:var(--hairline-soft);color:var(--muted);text-transform:uppercase;letter-spacing:.6px;">Super Admin</span>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px;">… Companies list above (unchanged) …</div>
+
+    <div class="uj-card" style="padding:24px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;">
+        <div>
+          <h3 class="uj-card-title">Signup links</h3>
+          <p style="font-size:13px;color:var(--muted);margin:4px 0 0;">Send a link to the person in charge of a new company. They create the company and their own HR admin login themselves. One link, one company, valid 7 days.</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 200px auto;gap:12px;align-items:end;padding:16px;background:var(--canvas);border-radius:10px;margin-bottom:20px;">
+        <div><label class="f">For (note to self)</label><input type="text" placeholder="e.g. Encik Faizal, Maju Bina Sdn Bhd"></div>
+        <div><label class="f">Starting package</label><select><option>Stage 3 · Intelligent HR</option><option>Stage 2 · HR Ops</option><option>Stage 1 · Basic HR</option></select></div>
+        <button class="btn primary" style="height:44px;">Generate link</button>
+      </div>
+
+      <div style="background:var(--green-tint);border:1px solid var(--green-line);color:var(--green-ink);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:12px;">
+        <span style="flex:1;">Link ready for <strong>Encik Faizal, Maju Bina Sdn Bhd</strong>:<br><span class="mono" style="color:var(--ink);">https://amanahku.unijaya.com/register?invite=k8Pq2…Zx9L</span></span>
+        <button class="btn sm">Copy link</button>
+      </div>
+
+      <table>
+        <thead><tr><th>For</th><th>Package</th><th>Created</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Encik Faizal, Maju Bina Sdn Bhd</td><td>Stage 3</td><td>15 Sep 2026</td><td>22 Sep 2026</td><td><span class="pill pending">Pending</span></td><td style="text-align:right;white-space:nowrap;"><button class="btn sm">Copy</button> <button class="btn sm danger">Revoke</button></td></tr>
+          <tr><td>Puan Zarina, ZR Catering</td><td>Stage 2</td><td>10 Sep 2026</td><td>17 Sep 2026</td><td><span class="pill used">Used · ZR Catering</span></td><td style="text-align:right;"><a href="#" style="font-size:12.5px;color:var(--red);font-weight:500;text-decoration:none;">Open company</a></td></tr>
+          <tr><td>Test link</td><td>Stage 1</td><td>1 Sep 2026</td><td>8 Sep 2026</td><td><span class="pill expired">Expired</span></td><td style="text-align:right;"><button class="btn sm danger">Remove</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<p class="label">Screen 2 · /register?invite=… (what the PIC sees)</p>
+<p class="note">Same layout as today's login and register pages. Without a valid link the page is a plain 404. Right panel tells them what happens next so they are not surprised to land in Launch Center.</p>
+<div class="screen">
+  <div style="min-height:640px;display:flex;">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:48px;">
+      <div style="width:100%;max-width:380px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:36px;">
+          <div style="width:30px;height:30px;border-radius:7px;background:var(--red);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;">A</div>
+          <span style="font-weight:600;font-size:18px;">Amanah<span style="color:var(--red)">ku</span></span>
+        </div>
+        <div class="pill pending" style="display:inline-block;margin-bottom:14px;">Invited by Unijaya · link valid until 22 Sep</div>
+        <h1 style="font-weight:400;font-size:30px;letter-spacing:-.6px;margin:0 0 8px;">Set up your company</h1>
+        <p style="font-size:14px;color:var(--muted);margin:0 0 28px;">You will be the HR admin. You can add branches, staff and everything else after this.</p>
+
+        <label class="f">Company name</label>
+        <input type="text" value="Maju Bina Sdn Bhd" style="margin-bottom:18px;">
+        <label class="f">Your full name</label>
+        <input type="text" placeholder="Faizal bin Ahmad" style="margin-bottom:18px;">
+        <label class="f">Your email</label>
+        <input type="email" placeholder="faizal@majubina.com" style="margin-bottom:18px;">
+        <label class="f">Password</label>
+        <input type="password" style="margin-bottom:18px;">
+        <label class="f">Confirm password</label>
+        <input type="password" style="margin-bottom:24px;">
+        <button class="btn primary" style="width:100%;height:46px;font-size:14px;justify-content:center;">Create company</button>
+        <p style="font-size:13px;color:var(--muted);margin-top:22px;text-align:center;">Already have an account? <a href="#" style="color:var(--red);font-weight:500;text-decoration:none;">Sign in</a></p>
+      </div>
+    </div>
+    <div style="flex:1;background:var(--sidebar);color:#fff;padding:64px;display:flex;flex-direction:column;justify-content:center;">
+      <div style="max-width:420px;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:.88px;text-transform:uppercase;color:var(--red);margin-bottom:20px;">What happens next</div>
+        <h2 style="font-weight:400;font-size:30px;line-height:1.25;letter-spacing:-.6px;margin:0 0 24px;">Your company, your setup.</h2>
+        <ol style="font-size:15px;line-height:1.7;color:#b8b6ad;margin:0;padding-left:20px;">
+          <li>Create your company and admin login (this page).</li>
+          <li>Land in <strong style="color:#fff;font-weight:500;">Launch Center</strong>: pick the modules you need, set your work week, add branches and staff.</li>
+          <li>Launch. Your staff sign in and start using it.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="label">Screen 3 · Company Settings → Work week (new card, HR only)</p>
+<p class="note">Sits between "Workspace profile" and "Branches" in the existing Company Settings page. Tap days to toggle. TOT switch is disabled if Saturday is already a full work day. New companies start Mon to Fri, TOT off. Unijaya starts Mon to Fri, TOT on.</p>
+<div class="screen">
+  <div style="padding:32px 24px;max-width:760px;margin:0 auto;">
+    <div class="uj-card" style="padding:24px;">
+      <h3 class="uj-card-title" style="margin-bottom:4px;">Work week</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 18px;">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:22px;">
+        <div class="day on"><span class="d">Mon</span><span class="s">Work</span></div>
+        <div class="day on"><span class="d">Tue</span><span class="s">Work</span></div>
+        <div class="day on"><span class="d">Wed</span><span class="s">Work</span></div>
+        <div class="day on"><span class="d">Thu</span><span class="s">Work</span></div>
+        <div class="day on"><span class="d">Fri</span><span class="s">Work</span></div>
+        <div class="day"><span class="d">Sat</span><span class="s">Off</span></div>
+        <div class="day"><span class="d">Sun</span><span class="s">Off</span></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border:1px solid var(--hairline);border-radius:10px;background:var(--canvas);margin-bottom:22px;">
+        <div class="sw on" style="margin-top:2px;"></div>
+        <div style="flex:1;">
+          <div style="font-size:13.5px;font-weight:500;">First Saturday of the month is a half day (TOT)</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5;">Transfer of Training day. Counts as 0.5 day for leave and 50% timesheet capacity. Only available when Saturday is not a full work day.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn primary">Save work week</button>
+        <span style="font-size:12.5px;color:var(--muted);">5 working days + TOT Saturday</span>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;font-size:12.5px;color:var(--muted);">Also appears in Launch Center → Company basics as a step "Set work week", linking here.</div>
+  </div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.day').forEach(d=>d.addEventListener('click',()=>{d.classList.toggle('on');d.querySelector('.s').textContent=d.classList.contains('on')?'Work':'Off';}));
+document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>s.classList.toggle('on')));
+</script>
+</body>
+</html>
