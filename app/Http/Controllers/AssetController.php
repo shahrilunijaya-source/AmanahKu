@@ -10,6 +10,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AssetController extends Controller
 {
@@ -69,6 +70,27 @@ class AssetController extends Controller
         AuditLog::record('Returned asset', $asset->name);
 
         return back()->with('ok', $asset->name.' returned to the pool.');
+    }
+
+    /** Return date, reference number and remark for an assigned asset (profile Work tab). */
+    public function updateDetails(Request $request, Asset $asset): RedirectResponse
+    {
+        $this->authorizePrivileged($request);
+        abort_unless($asset->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $validator = validator($request->all(), [
+            'returned_at' => ['nullable', 'date'],
+            'reference_no' => ['nullable', 'string', 'max:80'],
+            'remark' => ['nullable', 'string', 'max:500'],
+        ]);
+        if ($validator->fails()) {
+            session()->flash('form', 'asset');
+            throw new ValidationException($validator);
+        }
+        $asset->update($validator->validated());
+        AuditLog::record('Updated asset details', $asset->name);
+
+        return back()->with('ok', $asset->name.' updated.');
     }
 
     private function authorizePrivileged(Request $request): void

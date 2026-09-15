@@ -104,6 +104,7 @@ use App\Http\Controllers\WelcomeWizardController;
 use App\Http\Controllers\WellnessController;
 use App\Http\Controllers\WorkforceController;
 use App\Http\Controllers\WorkItemController;
+use App\Http\Controllers\WorkRecordController;
 use App\Http\Controllers\WrappedController;
 use App\Support\Changelog;
 use App\Support\ExperienceOptions;
@@ -339,6 +340,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/{employee}/experience/{type}', [ExperienceRecordController::class, 'store'])->whereNumber('employee')->whereIn('type', $experienceTypes)->name('employees.experience.store');
         Route::post('/app/experience/{type}/{id}', [ExperienceRecordController::class, 'update'])->whereIn('type', $experienceTypes)->whereNumber('id')->name('employees.experience.update');
         Route::post('/app/experience/{type}/{id}/delete', [ExperienceRecordController::class, 'destroy'])->whereIn('type', $experienceTypes)->whereNumber('id')->name('employees.experience.destroy');
+        Route::post('/app/employees/{employee}/work', [WorkRecordController::class, 'update'])->name('employees.work.update');
+        Route::post('/app/assets/{asset}/details', [AssetController::class, 'updateDetails'])->name('assets.details');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
         // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
