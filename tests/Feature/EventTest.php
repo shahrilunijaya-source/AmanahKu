@@ -7,6 +7,8 @@ use App\Models\Employee;
 use App\Models\EventRsvp;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserPermission;
+use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -97,6 +99,39 @@ class EventTest extends TestCase
         // Assert
         $response->assertForbidden();
         $this->assertDatabaseMissing('company_events', ['title' => 'Sneaky Event']);
+    }
+
+    public function test_employee_granted_event_create_can_create_an_event(): void
+    {
+        // Arrange: an intern posting on a senior manager's behalf, granted on the Roles screen
+        UserPermission::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,
+            'permission' => 'event.create', 'granted' => true,
+        ]);
+
+        // Act
+        $screen = $this->actingInTenant()->get(route('app.screen', 'events'));
+        $response = $this->actingInTenant()->post('/app/events', [
+            'title' => 'Leadership Offsite',
+            'type' => 'meeting',
+            'event_date' => now()->addDays(5)->toDateString(),
+        ]);
+
+        // Assert
+        $screen->assertOk()->assertSee('+ New event');
+        $response->assertRedirect();
+        $this->assertDatabaseHas('company_events', [
+            'title' => 'Leadership Offsite',
+            'created_by_employee_id' => $this->employee->id,
+        ]);
+    }
+
+    public function test_event_create_is_an_overridable_permission_held_by_posting_roles(): void
+    {
+        $this->assertContains('event.create', Permissions::overridable());
+        $this->assertTrue(Permissions::roleHas('manager', 'event.create'));
+        $this->assertTrue(Permissions::roleHas('director', 'event.create'));
+        $this->assertFalse(Permissions::roleHas('employee', 'event.create'));
     }
 
     // ── RSVP ──────────────────────────────────────────────────────

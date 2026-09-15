@@ -28,7 +28,8 @@
                 </div>
             </div>
         @else
-            <div class="uj-dw-notice">
+            @php $tag = empty($r['url']) ? 'div' : 'a'; @endphp
+            <{{ $tag }} class="uj-dw-notice" @if (! empty($r['url'])) href="{{ $r['url'] }}" @endif>
                 <span class="when">{{ $r['meta'] ?? '' }}</span>
                 <span class="txt">
                     <span class="t">{{ $r['title'] ?? '' }}</span>
@@ -39,7 +40,7 @@
                 @elseif (! empty($r['tag']))
                     <span class="tag">{{ $r['tag'] }}</span>
                 @endif
-            </div>
+            </{{ $tag }}>
         @endif
     @empty
         <p class="uj-dw-empty" x-text="$store.ui.lang==='en'
