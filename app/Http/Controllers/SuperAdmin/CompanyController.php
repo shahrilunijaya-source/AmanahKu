@@ -6,23 +6,18 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\Branch;
 use App\Models\CompanyCategory;
-use App\Models\Department;
 use App\Models\Employee;
-use App\Models\PayrollItem;
 use App\Models\Tenant;
-use App\Models\TimesheetCategory;
 use App\Models\User;
 use App\Notifications\MemberInvited;
+use App\Services\CompanyProvisioner;
 use App\Services\FeatureManager;
-use App\Support\EasterEggBank;
-use App\Support\GreetingBank;
 use App\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View as ViewContract;
@@ -126,113 +121,38 @@ class CompanyController extends Controller
         $category = CompanyCategory::findOrFail($data['company_category_id']);
         $tempPassword = Str::password(14);
 
-        $result = DB::transaction(function () use ($data, $category, $tempPassword) {
-            $tenant = Tenant::create([
-                'slug' => $this->uniqueSlug($data['company_name']),
-                'name' => $data['company_name'],
-                'registration_number' => $data['registration_number'] ?? null,
-                'company_code' => $data['company_code'] ?? null,
-                'industry' => $data['industry'] ?? null,
-                'address' => $data['address'] ?? null,
-                'contact_number' => $data['contact_number'] ?? null,
-                'email' => $data['email'] ?? null,
-                'website' => $data['website'] ?? null,
-                'initials' => $this->initials($data['company_name']),
-                'color' => $data['color'] ?? config('amanahku.brand_color'),
-                'secondary_color' => $data['secondary_color'] ?? null,
-                'welcome_message' => $data['welcome_message'] ?? null,
-                'plan' => $data['plan'],
-                'company_category_id' => $category->id,
-                'meta' => '1 branch · 1 employee',
-                'status' => 'active',
-                // New companies enforce the onboarding gates (launch lock + staff
-                // profile completion) from day one.
-                'onboarding_enforced' => true,
-                'subscription_start' => $data['subscription_start'] ?? null,
-                'subscription_end' => $data['subscription_end'] ?? null,
-            ]);
-
-            // Seed the feature entitlement from the chosen category package. From here
-            // the resolved entitlement — not the category — is the source of truth.
-            app(FeatureManager::class)->applyCategoryPackage($tenant, $category->level);
-
-            // Every tenant needs the statutory pay-item catalogue for payroll to work —
-            // no deploy step is guaranteed to run PayrollItemSeeder for a company created
-            // after that deploy, so seed it here instead.
-            PayrollItem::seedFor($tenant);
-
-            // Same reasoning for the timesheet's effort types: the capture screen has no
-            // category picker any more (its rows arrive from board cards), so a company
-            // with no categories could not cost a single hour until someone added them by
-            // hand on Timesheet Setup.
-            TimesheetCategory::seedFor($tenant);
-
-            // Dashboard greeting bank (CR-33): needs default lines from day one so the
-            // rotating greeting has something to pick from.
-            GreetingBank::seed($tenant->id);
-
-            // CR-31: dashboard/board easter-egg bank needs default lines from day one too.
-            EasterEggBank::seed($tenant->id);
-
-            $branch = Branch::create([
-                'tenant_id' => $tenant->id,
-                'name' => $data['branch_name'],
-                'state' => $data['branch_state'] ?? null,
-            ]);
-
-            $department = Department::create([
-                'tenant_id' => $tenant->id,
-                'name' => $data['department_name'],
-            ]);
-
-            // The seed account is a full HR admin so the new company is immediately operable.
-            $admin = User::create([
+        $tenant = app(CompanyProvisioner::class)->provision(
+            company: ['name' => $data['company_name']] + Arr::only($data, [
+                'registration_number', 'company_code', 'industry', 'address', 'contact_number',
+                'email', 'website', 'color', 'secondary_color', 'welcome_message', 'plan',
+                'subscription_start', 'subscription_end',
+            ]),
+            category: $category,
+            structure: [
+                'branch_name' => $data['branch_name'],
+                'branch_state' => $data['branch_state'] ?? null,
+                'department_name' => $data['department_name'],
+            ],
+            // One-time password, rotated on first sign-in (I-008).
+            admin: [
                 'name' => $data['admin_name'],
                 'email' => $data['admin_email'],
-                'password' => Hash::make($tempPassword),
-            ]);
-            // Force rotation of the one-time password on first sign-in (I-008). Not in
-            // $fillable, so set it explicitly.
-            $admin->forceFill(['password_change_required' => true])->save();
-            $admin->tenants()->attach($tenant->id, ['role' => 'hr']);
+                'password' => $tempPassword,
+                'password_change_required' => true,
+            ],
+            auditAction: 'Provisioned company',
+        );
 
-            Employee::create([
-                'tenant_id' => $tenant->id,
-                'user_id' => $admin->id,
-                'department_id' => $department->id,
-                'branch_id' => $branch->id,
-                'name' => $data['admin_name'],
-                'email' => $data['admin_email'],
-                'position' => 'HR Admin',
-                'status' => 'active',
-                'workload' => 'green',
-                'workload_label' => 'Healthy',
-                'initials' => $this->initials($data['admin_name']),
-                'avatar_color' => config('amanahku.brand_color'),
-                'joined_at' => now()->toDateString(),
-            ]);
-
-            // No active tenant in the super-admin context, so the BelongsToTenant
-            // auto-fill is a no-op — stamp the new tenant explicitly.
-            AuditLog::create([
-                'tenant_id' => $tenant->id,
-                'user_id' => auth()->id(),
-                'actor_name' => auth()->user()?->name ?? 'Super Admin',
-                'action' => 'Provisioned company',
-                'target' => $tenant->name.' · admin '.$data['admin_email'],
-            ]);
-
-            // Email the first admin their one-time credentials.
-            $admin->notify(new MemberInvited($tenant, $tempPassword, 'hr'));
-
-            return $tenant;
-        });
+        // Email the first admin their one-time credentials, after the transaction has
+        // committed so a queued mail can never reference a rolled-back user.
+        User::where('email', $data['admin_email'])->firstOrFail()
+            ->notify(new MemberInvited($tenant, $tempPassword, 'hr'));
 
         // Never echo the one-time password into the flash — the signed activation link +
         // credential are delivered only in the invite email (AK-SEC-10).
         return redirect()
             ->route('superadmin.companies.index')
-            ->with('ok', $result->name.' created. First HR admin '.$data['admin_email']
+            ->with('ok', $tenant->name.' created. First HR admin '.$data['admin_email']
                 .' has been emailed an invite to activate their account and set a password.');
     }
 
@@ -404,7 +324,7 @@ class CompanyController extends Controller
                 'status' => 'active',
                 'workload' => 'green',
                 'workload_label' => 'Healthy',
-                'initials' => $this->initials($user->name),
+                'initials' => CompanyProvisioner::initials($user->name),
                 'avatar_color' => config('amanahku.avatar_color'),
                 'joined_at' => now()->toDateString(),
             ]);
@@ -419,28 +339,5 @@ class CompanyController extends Controller
         ]);
 
         return back()->with('ok', $user->name.' assigned to '.$tenant->name.' as '.ucfirst($data['role']).'.');
-    }
-
-    /** Slug from name, guaranteed unique against existing tenants. */
-    private function uniqueSlug(string $name): string
-    {
-        $base = Str::slug($name) ?: 'company';
-        $slug = $base;
-        $i = 2;
-
-        while (Tenant::where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$i++;
-        }
-
-        return $slug;
-    }
-
-    private function initials(string $name): string
-    {
-        $parts = preg_split('/\s+/', trim($name)) ?: [];
-        $first = mb_substr($parts[0] ?? '', 0, 1);
-        $last = count($parts) > 1 ? mb_substr((string) end($parts), 0, 1) : '';
-
-        return mb_strtoupper($first.$last) ?: 'NA';
     }
 }
