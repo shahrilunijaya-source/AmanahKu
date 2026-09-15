@@ -57,6 +57,7 @@ class EaFormPdfTest extends TestCase
             'epf_no' => 'EPF12345678', 'socso_no' => 'SOC99001122', 'tax_no' => 'SG12345678',
             'children_relief_count' => 2,
         ]);
+        Employee::whereKey($this->emp->id)->update(['salary' => 5000]);
 
         $this->otherEmpUser = User::create(['name' => 'Someone Else', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
         $this->otherEmpUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);

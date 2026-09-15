@@ -477,7 +477,7 @@
                             <div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
                             <div style="text-align:right;">
                                 @if ($s)
-                                    <div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money($s->basic_salary) }}</div>
+                                    <div style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);">{{ $money((float) ($e->salary ?? 0)) }}</div>
                                     @if ($empFt->isNotEmpty())
                                         <div style="font-size:10.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? @js($empFt->count().' fixed transaction(s) · +RM '.number_format($empFtEarnings, 2).($empFtDeductions > 0 ? ' / −RM '.number_format($empFtDeductions, 2) : '')) : @js($empFt->count().' transaksi tetap · +RM '.number_format($empFtEarnings, 2).($empFtDeductions > 0 ? ' / −RM '.number_format($empFtDeductions, 2) : ''))"></div>
                                     @endif
@@ -496,7 +496,6 @@
                                 @csrf
                                 <input type="hidden" name="employee_id" value="{{ $e->id }}" />
                                 <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-                                    <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Basic salary (RM / month)' : 'Gaji pokok (RM / bulan)'">Basic salary (RM / month)</label><input name="basic_salary" type="number" step="0.01" min="0" required value="{{ $s ? number_format($s->basic_salary, 2, '.', '') : '' }}" placeholder="0.00" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;font-family:var(--font-mono);outline:none;" />@include('partials.hint', ['tone' => 'warn', 'en' => 'Gross monthly basic. This drives every payslip and all EPF / SOCSO / EIS amounts — double-check before saving.', 'ms' => 'Gaji pokok bulanan kasar. Ini mempengaruhi setiap payslip dan semua jumlah EPF / SOCSO / EIS — semak dua kali sebelum simpan.'])</div>
                                     <div style="flex:1;min-width:160px;"><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Effective from' : 'Berkuat kuasa dari'">Effective from</label><input name="effective_from" type="date" value="{{ $s?->effective_from?->toDateString() ?? now()->toDateString() }}" style="width:100%;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:7px;font-size:13px;outline:none;" /></div>
                                 </div>
                             </form>

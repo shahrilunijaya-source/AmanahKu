@@ -55,7 +55,7 @@ class BatchProgressionUpdateTest extends TestCase
         $d = Department::create(['tenant_id' => $this->tenant->id, 'name' => 'Ops']);
         $a = $this->emp('A');
         $b = $this->emp('B', ['status' => 'active']);
-        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id, $b->id], 'effective_on' => '2026-03-01', 'fields' => ['department_id', 'payment_term'], 'department_id' => $d->id, 'payment_term' => 'weekly', 'remark' => 'Batch'])
+        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id, $b->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['department_id', 'payment_term'], 'department_id' => $d->id, 'payment_term' => 'weekly', 'remark' => 'Batch'])
             ->assertRedirect('/app/progression?batch=update');
         $this->assertSame($d->id, $a->fresh()->department_id);
         $this->assertSame('weekly', $b->fresh()->payment_term);
@@ -69,7 +69,7 @@ class BatchProgressionUpdateTest extends TestCase
         $d = Department::create(['tenant_id' => $this->tenant->id, 'name' => 'Ops']);
         $a = $this->emp('A');
         $gone = $this->emp('Gone', ['status' => 'resigned']);
-        $this->from('/app/progression?batch=update')->post('/app/progression/batch/update', ['employee_ids' => [$a->id, $gone->id], 'effective_on' => '2026-03-01', 'fields' => ['department_id'], 'department_id' => $d->id])
+        $this->from('/app/progression?batch=update')->post('/app/progression/batch/update', ['employee_ids' => [$a->id, $gone->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['department_id'], 'department_id' => $d->id])
             ->assertRedirect('/app/progression?batch=update')->assertSessionHasErrors('employee_ids');
         $this->assertNull($a->fresh()->department_id);
         $this->assertSame(0, EmployeeProgression::where('type', 'updated')->count());
@@ -80,11 +80,11 @@ class BatchProgressionUpdateTest extends TestCase
     {
         $this->login('hr');
         $a = $this->emp('A');
-        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'fields' => ['division'], 'division' => 'North', 'section' => 'Ignored'])->assertRedirect();
+        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['division'], 'division' => 'North', 'section' => 'Ignored'])->assertRedirect();
         $this->assertSame('North', $a->fresh()->division);
         $this->assertNull($a->fresh()->section);
         $ids = array_fill(0, 201, $a->id);
-        $this->post('/app/progression/batch/update', ['employee_ids' => $ids, 'effective_on' => '2026-03-01', 'fields' => ['division'], 'division' => 'X'])->assertSessionHasErrors('employee_ids');
+        $this->post('/app/progression/batch/update', ['employee_ids' => $ids, 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['division'], 'division' => 'X'])->assertSessionHasErrors('employee_ids');
     }
 
     public function test_other_tenant_staff_are_refused(): void
@@ -92,7 +92,7 @@ class BatchProgressionUpdateTest extends TestCase
         $this->login('hr');
         $other = Tenant::create(['slug' => 'zeta', 'name' => 'Zeta', 'initials' => 'ZT']);
         $foreign = Employee::withoutGlobalScopes()->create(['tenant_id' => $other->id, 'name' => 'F', 'status' => 'active', 'workload' => 'green', 'joined_at' => '2026-01-05']);
-        $this->post('/app/progression/batch/update', ['employee_ids' => [$foreign->id], 'effective_on' => '2026-03-01', 'fields' => ['division'], 'division' => 'X'])->assertSessionHasErrors('employee_ids.0');
+        $this->post('/app/progression/batch/update', ['employee_ids' => [$foreign->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['division'], 'division' => 'X'])->assertSessionHasErrors('employee_ids.0');
         $this->assertNull($foreign->fresh()->division);
     }
 
@@ -100,8 +100,8 @@ class BatchProgressionUpdateTest extends TestCase
     {
         $a = $this->emp('A');
         $this->login('manager');
-        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'fields' => ['division'], 'division' => 'X'])->assertForbidden();
+        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['division'], 'division' => 'X'])->assertForbidden();
         $this->login('employee');
-        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'fields' => ['division'], 'division' => 'X'])->assertForbidden();
+        $this->post('/app/progression/batch/update', ['employee_ids' => [$a->id], 'effective_on' => '2026-03-01', 'update_type' => 'role_transfer', 'fields' => ['division'], 'division' => 'X'])->assertForbidden();
     }
 }

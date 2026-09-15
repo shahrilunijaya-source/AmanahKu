@@ -24,6 +24,7 @@
     <div class="uj-section-head">{!! $L('2 · What changes', '2 · Apa yang berubah') !!}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;">
         <div><label style="{{ $lbl }}">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ old('effective_on', now()->toDateString()) }}" style="{{ $fs }}" /></div>
+        <div><label style="{{ $lbl }}">{!! $L('Update Type', 'Jenis Kemas Kini') !!}</label><select name="update_type" required style="{{ $fs }}">@foreach (\App\Services\EmploymentRecordService::UPDATE_TYPES as $k => [$en, $ms])<option value="{{ $k }}" @selected(old('update_type', 'role_transfer') === $k)>{{ $en }}</option>@endforeach</select></div>
         <div><label style="{{ $lbl }}">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ old('remark') }}" style="{{ $fs }}" /></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 16px;">

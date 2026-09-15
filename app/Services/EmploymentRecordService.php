@@ -74,19 +74,19 @@ final class EmploymentRecordService
      *
      * @param  array<string, mixed>  $fields
      */
-    public function update(Employee $e, string $effectiveOn, array $fields, ?string $remark, ?Employee $by): ?EmployeeProgression
+    public function update(Employee $e, string $effectiveOn, array $fields, ?string $remark, ?Employee $by, ?string $updateType = null): ?EmployeeProgression
     {
         $this->assertStatus($e, ['active', 'probation', 'on_leave'], 'Resigned staff must be rehired before their record can change.');
         $this->assertOnOrAfterHire($e, $effectiveOn);
 
-        return DB::transaction(function () use ($e, $effectiveOn, $fields, $remark, $by) {
+        return DB::transaction(function () use ($e, $effectiveOn, $fields, $remark, $by, $updateType) {
             $previous = $this->snapshot($e);
             $e->fill($this->only($fields))->save();
             $e->unsetRelations();
             if ($this->diff($previous, $this->snapshot($e)) === []) {
                 return null;
             }
-            $row = $this->record($e, 'updated', $effectiveOn, $remark, $by, $previous);
+            $row = $this->record($e, 'updated', $effectiveOn, $remark, $by, $previous, $updateType ? ['update_type' => $updateType] : []);
             AuditLog::record('Updated employment record', $e->name);
 
             return $row;
@@ -145,6 +145,9 @@ final class EmploymentRecordService
      * @param  array<string, mixed>|null  $previous
      * @param  array<string, mixed>  $extra
      */
+    /** Worksy's Update Type list on a progression update. */
+    public const UPDATE_TYPES = ['increment' => ['Increment', 'Kenaikan'], 'promotion' => ['Promotion', 'Kenaikan Pangkat'], 'role_transfer' => ['Role Transfer', 'Pertukaran Peranan'], 'salary_adjustment' => ['Salary Adjustment', 'Pelarasan Gaji']];
+
     private function record(Employee $e, string $type, string $on, ?string $remark, ?Employee $by, ?array $previous, array $extra = []): EmployeeProgression
     {
         $e->unsetRelations();
@@ -156,7 +159,7 @@ final class EmploymentRecordService
             'type' => $type,
             'effective_on' => $on,
             'snapshot' => $snapshot,
-            'changed_fields' => $previous === null ? [] : $this->diff($previous, $snapshot),
+            'changed_fields' => $previous === null ? [] : array_values(array_diff($this->diff($previous, $snapshot), ['update_type'])),
             'remark' => $remark ?: null,
             'recorded_by_employee_id' => $by?->id,
         ]);

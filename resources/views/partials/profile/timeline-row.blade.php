@@ -21,12 +21,14 @@
         unset($snap['basic_salary']);
     }
     $changed = array_flip($row->changed_fields ?? []);
+    $updateType = \App\Services\EmploymentRecordService::UPDATE_TYPES[$snap['update_type'] ?? ''] ?? null;
+    unset($snap['update_type']);
 @endphp
 <div x-data="{ open: {{ ($open ?? false) ? 'true' : 'false' }} }" style="border-left:2px solid var(--info);padding-left:16px;margin-left:6px;position:relative;">
     <span style="position:absolute;left:-7px;top:8px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--info);"></span>
     <span style="display:inline-block;background:var(--info);color:#fff;font-size:11.5px;font-weight:600;border-radius:6px;padding:4px 10px;">{{ $row->effective_on->format('D, jS F Y') }}</span>
     <div class="uj-card" style="margin-top:8px;padding:16px;">
-        <button type="button" @click="open = !open" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:0;cursor:pointer;font-size:17px;font-weight:600;color:var(--ink);">{!! $L(...($titles[$row->type] ?? [ucfirst($row->type), ucfirst($row->type)])) !!}<span x-text="open ? '▴' : '▾'" style="font-size:13px;color:var(--muted);"></span></button>
+        <button type="button" @click="open = !open" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:0;cursor:pointer;font-size:17px;font-weight:600;color:var(--ink);">{!! $L(...($titles[$row->type] ?? [ucfirst($row->type), ucfirst($row->type)])) !!}@if ($updateType) <span style="font-size:12px;font-weight:500;color:var(--muted);margin-left:8px;">· {!! $L(...$updateType) !!}</span>@endif<span x-text="open ? '▴' : '▾'" style="font-size:13px;color:var(--muted);"></span></button>
         <div x-show="open" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 32px;margin-top:12px;">
             {{-- Walk $labels, not $snap: MySQL JSON columns reorder object keys on write. --}}
             @foreach ($labels as $k => $label)

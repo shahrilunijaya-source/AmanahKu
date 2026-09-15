@@ -48,6 +48,7 @@ class FormEControllerTest extends TestCase
         SalaryStructure::forceCreate([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp->id, 'basic_salary' => 5000,
         ]);
+        Employee::whereKey($this->emp->id)->update(['salary' => 5000]);
 
         $run = PayrollRun::forceCreate([
             'tenant_id' => $this->tenant->id, 'period' => '2026-03', 'status' => 'finalized', 'finalized_at' => now(),
