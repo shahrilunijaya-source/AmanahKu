@@ -317,7 +317,7 @@ and inside the loop, first line:
 
 **Interfaces:**
 - `employees.work.update` POST `/app/employees/{employee}/work` — fields `attendance_id`, `work_phone`, `benefit_start_at`, `work_site_id`, `allowed_work_sites[]`. Flash `'work'` on failure. Redirect `?emp=..&tab=workinfo`.
-- `assets.details` POST `/app/assets/{asset}/details` — `returned_at`, `reference_no`, `remark`, hidden `_asset`. Flash `'asset'`. `back()`.
+- `assets.details` POST `/app/employees/assets/{asset}/details` (not under /app/assets: that prefix 404s when the Asset Register module is off) — `returned_at`, `reference_no`, `remark`, hidden `_asset`. Flash `'asset'`. `back()`.
 
 - [ ] **Step 1: Failing tests**
 

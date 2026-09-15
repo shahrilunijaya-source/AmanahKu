@@ -51,7 +51,7 @@ class AssetDetailsTest extends TestCase
         $this->login('hr');
         $e = $this->emp('Adibah');
         $a = Asset::create(['tenant_id' => $this->tenant->id, 'employee_id' => $e->id, 'name' => 'Laptop', 'category' => 'laptop', 'status' => 'assigned']);
-        $this->from("/app/profile?emp={$e->id}&tab=workinfo")->post("/app/assets/{$a->id}/details", ['returned_at' => '2026-06-01', 'reference_no' => 'REF-1', 'remark' => 'ok'])
+        $this->from("/app/profile?emp={$e->id}&tab=workinfo")->post("/app/employees/assets/{$a->id}/details", ['returned_at' => '2026-06-01', 'reference_no' => 'REF-1', 'remark' => 'ok'])
             ->assertRedirect("/app/profile?emp={$e->id}&tab=workinfo");
         $a->refresh();
         $this->assertSame('2026-06-01', $a->returned_at->toDateString());
@@ -63,6 +63,6 @@ class AssetDetailsTest extends TestCase
     {
         $me = $this->login('employee');
         $a = Asset::create(['tenant_id' => $this->tenant->id, 'employee_id' => $me->id, 'name' => 'Laptop', 'category' => 'laptop', 'status' => 'assigned']);
-        $this->post("/app/assets/{$a->id}/details", ['remark' => 'x'])->assertForbidden();
+        $this->post("/app/employees/assets/{$a->id}/details", ['remark' => 'x'])->assertForbidden();
     }
 }
