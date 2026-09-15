@@ -4,7 +4,6 @@
     use App\Support\ExperienceOptions;
     $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
-    $head = 'font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;';
     $canEdit = $canEditExperience ?? false;
     $form = (string) session('form');
     $d = fn ($v) => $v?->format('d/m/Y');
@@ -22,7 +21,7 @@
 @if ($canEditSalaryStructure ?? false)
     {{-- TP3 / previous employment figures: one PayrollOpeningFigure per year, posted to payroll.opening (back() returns here). --}}
     <div style="display:flex;flex-direction:column;gap:10px;">
-        <div style="{{ $head }}">{!! $L('Previous Employment Figures (TP3)', 'Angka Pekerjaan Terdahulu (TP3)') !!}</div>
+        <div class="uj-section-head">{!! $L('Previous Employment Figures (TP3)', 'Angka Pekerjaan Terdahulu (TP3)') !!}</div>
         @forelse ($openingFigures as $o)
             <div class="uj-card" x-data="{ open: false }" style="padding:12px 14px;">
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--body);">
@@ -45,7 +44,7 @@
 @foreach (ExperienceOptions::TYPES as $type => [$class, $hen, $hms, $relation])
     @php $rows = $p->{$relation}; $addOpen = $form === 'experience:'.$type && ! old('_row'); @endphp
     <div style="display:flex;flex-direction:column;gap:10px;">
-        <div style="{{ $head }}">{!! $L($hen, $hms) !!}</div>
+        <div class="uj-section-head">{!! $L($hen, $hms) !!}</div>
         @forelse ($rows as $r)
             <div class="uj-card" x-data="{ open: {{ ($form === 'experience:'.$type && old('_row') == $r->id) ? 'true' : 'false' }} }" style="padding:12px 14px;">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -76,7 +75,7 @@
 @endforeach
 
 <div>
-    <div style="{{ $head }}margin-bottom:10px;">{!! $L('Training', 'Latihan') !!}</div>
+    <div class="uj-section-head" style="margin-bottom:10px;">{!! $L('Training', 'Latihan') !!}</div>
     @forelse ($p->trainingRecords as $r)
         @php $isOverdue = $r->status !== 'completed' && $r->due_at && $r->due_at->isPast(); @endphp
         <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
@@ -90,7 +89,7 @@
 </div>
 
 <div>
-    <div style="{{ $head }}margin-bottom:10px;">{!! $L('Skills', 'Kemahiran') !!}</div>
+    <div class="uj-section-head" style="margin-bottom:10px;">{!! $L('Skills', 'Kemahiran') !!}</div>
     @forelse ($skills ?? [] as $es)
         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $es->verified ? 'var(--success)' : 'var(--muted-soft)' }};"></span>

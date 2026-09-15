@@ -21,7 +21,7 @@
         $addable = array_values(array_diff($relations, count($relations) > 1 ? $rows->pluck('relation')->all() : []));
     @endphp
     <div style="display:flex;flex-direction:column;gap:10px;">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">{!! $L($gen, $gms) !!}</div>
+        <div class="uj-section-head">{!! $L($gen, $gms) !!}</div>
 
         @forelse ($rows as $m)
             <div class="uj-card" x-data="{ open: {{ ($familyErr && old('_member') == $m->id) ? 'true' : 'false' }} }" style="padding:12px 14px;">

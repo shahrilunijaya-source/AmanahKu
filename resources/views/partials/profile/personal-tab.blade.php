@@ -28,7 +28,6 @@
         ]],
     ];
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
-    $head = 'font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;';
     $grid = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;';
     $old = fn (string $k) => old($k, $p->{$k});
     $oldDate = fn (string $k) => old($k, $p->{$k}?->toDateString());
@@ -49,7 +48,7 @@
 
 @foreach ($sections as [$en, $ms, $rows])
     <div>
-        <div style="{{ $head }}margin-bottom:12px;">{!! $L($en, $ms) !!}</div>
+        <div class="uj-section-head" style="margin-bottom:12px;">{!! $L($en, $ms) !!}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 32px;">
             @foreach ($rows as [$ren, $rms, $val])
                 <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px;">{!! $L($ren, $rms) !!}</div><div style="font-size:13px;color:var(--ink);">{{ $val }}</div></div>
@@ -81,7 +80,7 @@
                 <div><label style="{{ $lbl }}">{!! $L('Blood Type', 'Jenis Darah') !!}</label>{!! $sel('blood_type', PersonalOptions::BLOOD_TYPES, $old('blood_type')) !!}</div>
             </div>
 
-            <div style="{{ $head }}">{!! $L('Contact & Address', 'Hubungan & Alamat') !!}</div>
+            <div class="uj-section-head">{!! $L('Contact & Address', 'Hubungan & Alamat') !!}</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Phone', 'Telefon') !!}</label><input name="phone" value="{{ $old('phone') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Personal Email', 'E-mel Peribadi') !!}</label><input type="email" name="personal_email" value="{{ $old('personal_email') }}" maxlength="190" style="{{ $fs }}" /></div>
@@ -93,7 +92,7 @@
                 <div><label style="{{ $lbl }}">{!! $L('Country', 'Negara') !!}</label><input name="country" value="{{ $old('country') ?? 'Malaysia' }}" maxlength="80" style="{{ $fs }}" /></div>
             </div>
 
-            <div style="{{ $head }}">{!! $L('Emergency Contact', 'Hubungan Kecemasan') !!}</div>
+            <div class="uj-section-head">{!! $L('Emergency Contact', 'Hubungan Kecemasan') !!}</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Name', 'Nama') !!}</label><input name="emergency_contact_name" value="{{ $old('emergency_contact_name') }}" maxlength="160" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Phone', 'Telefon') !!}</label><input name="emergency_contact_phone" value="{{ $old('emergency_contact_phone') }}" maxlength="40" style="{{ $fs }}" /></div>
@@ -101,7 +100,7 @@
             </div>
 
             @if ($canEditIdentity ?? false)
-                <div style="{{ $head }}">{!! $L('Identification', 'Pengenalan') !!}</div>
+                <div class="uj-section-head">{!! $L('Identification', 'Pengenalan') !!}</div>
                 <div style="{{ $grid }}">
                     <div><label style="{{ $lbl }}">{!! $L('NRIC', 'No. K/P') !!}</label><input name="nric" value="{{ $old('nric') }}" maxlength="20" style="{{ $fs }}" /></div>
                     <div><label style="{{ $lbl }}">{!! $L('Passport No', 'No. Pasport') !!}</label><input name="passport_no" value="{{ $old('passport_no') }}" maxlength="40" style="{{ $fs }}" /></div>

@@ -28,7 +28,6 @@
         ]],
     ];
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
-    $head = 'font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;';
     $grid = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;';
     $old = fn (string $k, $default = null) => old($k, $s?->{$k} ?? $default);
     $sel = function (string $name, array $options, $current, bool $keyed) use ($fs) {
@@ -58,7 +57,7 @@
 
 @foreach ($sections as [$en, $ms, $rows])
     <div>
-        <div style="{{ $head }}margin-bottom:12px;">{!! $L($en, $ms) !!}</div>
+        <div class="uj-section-head" style="margin-bottom:12px;">{!! $L($en, $ms) !!}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 32px;">
             @foreach ($rows as [$ren, $rms, $val])
                 <div><div style="font-size:11px;color:var(--muted);margin-bottom:2px;">{!! $L($ren, $rms) !!}</div><div style="font-size:13px;color:var(--ink);">{{ $val }}</div></div>
@@ -87,7 +86,7 @@
                 <div><label style="{{ $lbl }}">{!! $L('Basic salary (RM / month)', 'Gaji pokok (RM / bulan)') !!}</label><input name="basic_salary" type="number" step="0.01" min="0" required value="{{ old('basic_salary', $s ? number_format($s->basic_salary, 2, '.', '') : '') }}" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Effective from', 'Berkuat kuasa dari') !!}</label><input name="effective_from" type="date" value="{{ old('effective_from', $s?->effective_from?->toDateString() ?? now()->toDateString()) }}" style="{{ $fs }}" /></div>
             </div>
-            <div style="{{ $head }}">{!! $L('Bank', 'Bank') !!}</div>
+            <div class="uj-section-head">{!! $L('Bank', 'Bank') !!}</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Bank', 'Bank') !!}</label>{!! $sel('bank_name', StatutoryOptions::BANKS, $old('bank_name'), false) !!}</div>
                 <div><label style="{{ $lbl }}">{!! $L('Account No', 'No. Akaun') !!}</label><input name="bank_account_no" value="{{ $old('bank_account_no') }}" maxlength="40" style="{{ $fs }}" /></div>
@@ -96,7 +95,7 @@
                     <input name="bank_holder_name" x-show="custom" :disabled="!custom" value="{{ $old('bank_holder_name') }}" maxlength="160" placeholder="{{ $p->name }}" style="{{ $fs }}" />
                 </div>
             </div>
-            <div style="{{ $head }}">{!! $L('Income Tax', 'Cukai Pendapatan') !!}</div>
+            <div class="uj-section-head">{!! $L('Income Tax', 'Cukai Pendapatan') !!}</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Tax No', 'No. Cukai') !!}</label><input name="tax_no" value="{{ $old('tax_no') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Resident', 'Pemastautin') !!}</label>{!! $sel('tax_resident', ['1' => 'Yes', '0' => 'No'], old('tax_resident', $s ? ($s->tax_resident ? '1' : '0') : '1'), true) !!}</div>
@@ -109,14 +108,14 @@
             </div>
             <div style="font-size:12px;color:var(--muted);">{!! $L('Dependent children by LHDN category (count at 100% and at 50% shared relief). Reference only; PCB uses the relief units above.', 'Anak tanggungan mengikut kategori LHDN (bilangan pada 100% dan 50%). Rujukan sahaja; PCB menggunakan unit pelepasan di atas.') !!}</div>
             <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:8px 12px;align-items:center;font-size:12.5px;">
-                <div></div><div style="{{ $head }}">100%</div><div style="{{ $head }}">50%</div>
+                <div></div><div style="font-size:11px;font-weight:600;color:var(--muted);">100%</div><div style="font-size:11px;font-weight:600;color:var(--muted);">50%</div>
                 @foreach (StatutoryOptions::CHILD_RELIEF_CATEGORIES as $key => [$cen, $cms])
                     <div>{!! $L($cen, $cms) !!}</div>
                     <input type="number" min="0" max="20" name="child_relief[{{ $key }}][100]" value="{{ old("child_relief.$key.100", $relief[$key]['100'] ?? 0) }}" style="{{ $fs }}" />
                     <input type="number" min="0" max="20" name="child_relief[{{ $key }}][50]" value="{{ old("child_relief.$key.50", $relief[$key]['50'] ?? 0) }}" style="{{ $fs }}" />
                 @endforeach
             </div>
-            <div style="{{ $head }}">EPF · SOCSO / EIS</div>
+            <div class="uj-section-head">EPF · SOCSO / EIS</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('EPF No', 'No. KWSP') !!}</label><input name="epf_no" value="{{ $old('epf_no') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('EPF Scheme', 'Skim KWSP') !!}</label>{!! $sel('epf_scheme', StatutoryOptions::EPF_SCHEMES, $old('epf_scheme'), true) !!}</div>
@@ -124,7 +123,7 @@
                 <div><label style="{{ $lbl }}">{!! $L('SOCSO Category', 'Kategori PERKESO') !!}</label>{!! $sel('socso_category', StatutoryOptions::SOCSO_CATEGORIES, $old('socso_category'), true) !!}</div>
                 <div><label style="{{ $lbl }}">{!! $L('Nationality (statutory)', 'Kewarganegaraan (statutori)') !!}</label>{!! $sel('nationality', ['citizen' => 'Citizen', 'pr' => 'Permanent resident', 'foreign' => 'Foreign'], $old('nationality', 'citizen'), true) !!}</div>
             </div>
-            <div style="{{ $head }}">Zakat · CP38 · SKBBK</div>
+            <div class="uj-section-head">Zakat · CP38 · SKBBK</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Zakat (RM / month)', 'Zakat (RM / bulan)') !!}</label><input name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $old('zakat_monthly', 0) }}" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('CP38 (RM / month)', 'CP38 (RM / bulan)') !!}</label><input name="cp38_monthly" type="number" step="0.01" min="0" value="{{ $old('cp38_monthly', 0) }}" style="{{ $fs }}" /></div>

@@ -5914,3 +5914,6 @@ form.uj-or-fields { padding: 20px; }
     .uj-lb-edit { transition: opacity 180ms ease; }
     @starting-style { .uj-lb-edit { transform: none; } }
 }
+
+/* Profile tab section header: tinted bar separating each block from its rows (Worksy pattern). */
+.uj-section-head{background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:var(--ink);}
