@@ -10,7 +10,8 @@
               if (! this.resignedOn) return;
               const d = new Date(this.resignedOn + 'T00:00:00');
               d.setMonth(d.getMonth() + this.months); d.setDate(d.getDate() + this.days);
-              this.lastDay = d.toISOString().slice(0, 10);
+              const pad = n => String(n).padStart(2, '0');
+              this.lastDay = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
           },
       }" x-init="if (! lastDay) suggest()">
     @csrf

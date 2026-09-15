@@ -1,7 +1,7 @@
 {{-- Employment tab on the profile: read-only Worksy employment record + edit modal for HR/management.
      Expects $p (Employee), $employmentGate, $canEditEmployment, $canSeeSalary, $fs and the org option lists. --}}
 @php
-    $L = fn ($en, $ms) => '<span x-text="$store.ui.lang===\'en\' ? '.json_encode($en).' : '.json_encode($ms).'">'.e($en).'</span>';
+    $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $d = fn ($v) => $v ? $v->format('d/m/Y') : '—';
     $period = fn ($m, $dd) => ($m || $dd) ? trim(($m ? "{$m}M " : '').($dd ? "{$dd}D" : '')) : '—';
     $end = $p->last_working_day ?? now();

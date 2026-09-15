@@ -1,7 +1,7 @@
 {{-- Worksy employment field set. Every input name is in Employee::EMPLOYMENT_FIELDS.
      Expects $e (Employee), $canSeeSalary, $fs and allDepartments/allBranches/allPositions/allEmploymentTypes/allManagers. --}}
 @php
-    $L = fn ($en, $ms) => '<span x-text="$store.ui.lang===\'en\' ? '.json_encode($en).' : '.json_encode($ms).'">'.e($en).'</span>';
+    $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
     $bandsByDept = ($allPositions ?? collect())->groupBy(fn ($pos) => $pos->department?->name ?? '—');
     $v = fn (string $k) => old($k, $e->{$k});

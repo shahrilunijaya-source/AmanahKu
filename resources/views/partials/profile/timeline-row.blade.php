@@ -1,6 +1,6 @@
 {{-- One timeline card for an EmployeeProgression $row. Expects $row, $canSeeSalary, $open (bool). --}}
 @php
-    $L = fn ($en, $ms) => '<span x-text="$store.ui.lang===\'en\' ? '.json_encode($en).' : '.json_encode($ms).'">'.e($en).'</span>';
+    $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $titles = ['hired' => ['Hired', 'Diambil Bekerja'], 'confirmed' => ['Confirmed', 'Disahkan'], 'updated' => ['Updated', 'Dikemas kini'], 'resigned' => ['Resigned', 'Berhenti'], 'rehired' => ['Rehired', 'Diambil Semula']];
     $labels = ['status' => 'Status', 'department' => 'Department', 'division' => 'Division', 'section' => 'Section', 'position' => 'Position', 'job_grade' => 'Job Grade', 'category' => 'Category', 'line' => 'Line', 'branch' => 'Branch', 'reports_to' => 'Reporting To', 'employment_type' => 'Employment Type', 'probation_months' => 'Probation (months)', 'probation_days' => 'Probation (days)', 'basic_salary' => 'Basic Salary', 'pay_mode' => 'Pay Mode', 'payment_term' => 'Payment Term', 'payment_method' => 'Payment Method', 'reason' => 'Reason', 'last_working_day' => 'Last Working Day'];
     $fmt = function (string $k, $v) {
@@ -28,10 +28,12 @@
     <div class="uj-card" style="margin-top:8px;padding:16px;">
         <button type="button" @click="open = !open" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:0;cursor:pointer;font-size:17px;font-weight:600;color:var(--ink);">{!! $L(...($titles[$row->type] ?? [ucfirst($row->type), ucfirst($row->type)])) !!}<span x-text="open ? '▴' : '▾'" style="font-size:13px;color:var(--muted);"></span></button>
         <div x-show="open" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px 32px;margin-top:12px;">
-            @foreach ($snap as $k => $val)
-                @continue(! isset($labels[$k]))
+            {{-- Walk $labels, not $snap: MySQL JSON columns reorder object keys on write. --}}
+            @foreach ($labels as $k => $label)
+                @continue(! array_key_exists($k, $snap))
+                @php $val = $snap[$k]; @endphp
                 <div style="{{ isset($changed[$k]) ? 'background:var(--amber-tint,#fff7e6);border-radius:6px;padding:6px 8px;' : '' }}">
-                    <div style="font-size:11px;color:var(--muted);">{{ $labels[$k] }}</div>
+                    <div style="font-size:11px;color:var(--muted);">{{ $label }}</div>
                     <div style="font-size:13px;color:var(--ink);">{{ $fmt($k, $val) }}</div>
                 </div>
             @endforeach

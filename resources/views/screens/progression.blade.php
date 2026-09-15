@@ -14,7 +14,7 @@
 ])
 
 @php
-    $L = fn ($en, $ms) => '<span x-text="$store.ui.lang===\'en\' ? '.json_encode($en).' : '.json_encode($ms).'">'.e($en).'</span>';
+    $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     $stL = ['active' => ['Active', 'Aktif'], 'probation' => ['Probation', 'Percubaan'], 'on_leave' => ['On Leave', 'Cuti'], 'resigned' => ['Resigned', 'Berhenti']];
     $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'];

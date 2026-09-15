@@ -1,7 +1,7 @@
 {{-- Read-only grid of the Worksy employment record. Expects $p (Employee), $canSeeSalary. Shared by the
      profile Employment tab and the Progression "Current" column. --}}
 @php
-    $L = fn ($en, $ms) => '<span x-text="$store.ui.lang===\'en\' ? '.json_encode($en).' : '.json_encode($ms).'">'.e($en).'</span>';
+    $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
     $d = fn ($v) => $v ? $v->format('d/m/Y') : '—';
     $period = fn ($m, $dd) => ($m || $dd) ? trim(($m ? "{$m}M " : '').($dd ? "{$dd}D" : '')) : '—';
     $payModeL = ['monthly' => 'Monthly Rate', 'daily' => 'Daily Rate', 'hourly' => 'Hourly Rate'];
