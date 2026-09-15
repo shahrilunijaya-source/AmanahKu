@@ -6,7 +6,10 @@ use App\Http\Controllers\SetupController;
 use App\Models\Branch;
 use App\Models\CompanyCategory;
 use App\Models\CompanySetupProgress;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\LeaveType;
+use App\Models\Position;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
@@ -230,5 +233,105 @@ class SetupGuideTest extends TestCase
         $this->assertStringContainsString("show: localStorage.getItem('amanahku-coach-plain') !== '1'", $html);
         $this->assertStringContainsString("localStorage.setItem('amanahku-coach-plain', '1')", $html);
         $this->assertStringNotContainsString('get show()', $html);
+    }
+
+    // ── Dock rendering ────────────────────────────────────────────────────────
+
+    public function test_dock_renders_for_hr_on_a_fresh_tenant_with_the_ordered_step_json(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+
+        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-guide-dock', $html);
+        $this->assertStringContainsString("Alpine.store('guide'", $html);
+        $this->assertMatchesRegularExpression('/id="uj-guide-steps"[^>]*>\s*\[\{"key":"modules"/', $html);
+        $this->assertStringContainsString('"key":"review"', $html);
+        $this->assertStringContainsString('amanahku-guide-skip', $html);
+        $this->assertStringContainsString('amanahku-guide-collapsed', $html);
+        $this->assertStringContainsString('amanahku-guide-last', $html);
+        // The deep link is the one Launch Center uses.
+        $this->assertStringContainsString(json_encode(route('app.screen', ['screen' => 'leave-setup', 'tab' => 'holidays'])), $html);
+    }
+
+    /** Satisfy every launch-critical detector so the launch lock lets staff in (mirrors OnboardingWizardTest::launch). */
+    private function launch(Tenant $tenant): void
+    {
+        $dept = Department::create(['tenant_id' => $tenant->id, 'name' => 'IT']);
+        $branch = Branch::create(['tenant_id' => $tenant->id, 'name' => 'HQ']);
+        $branch->forceFill(['latitude' => 3.1, 'longitude' => 101.6])->save();
+        Position::create(['tenant_id' => $tenant->id, 'department_id' => $dept->id, 'title' => 'Developer', 'max_salary' => 5000]);
+        LeaveType::create(['tenant_id' => $tenant->id, 'name' => 'Annual', 'entitlement' => 14]);
+    }
+
+    public function test_dock_is_not_rendered_for_plain_staff(): void
+    {
+        [$tenant] = $this->company(1);
+        $this->launch($tenant);
+        $staff = $this->staff($tenant);
+        // Past the profile gate too, so a real app screen renders (not the welcome wizard).
+        Employee::where('user_id', $staff->id)->firstOrFail()->update(['nric' => '900101015555', 'date_of_birth' => '1990-01-01', 'phone' => '0123456789', 'address' => '1 Jalan Test', 'emergency_contact_name' => 'Kin', 'emergency_contact_phone' => '0198887777']);
+
+        $html = $this->actingAs($staff)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/dash')->assertOk()->getContent();
+
+        // Setup is still unfinished (HR would see the dock); staff get neither the dock
+        // nor the step data, only the empty store.
+        $this->assertStringNotContainsString('data-guide-dock', $html);
+        $this->assertStringNotContainsString('id="uj-guide-steps"', $html);
+        $this->assertStringContainsString("Alpine.store('guide'", $html);
+    }
+
+    public function test_dock_disappears_after_finish(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        CompanySetupProgress::forCurrentTenant()->update(['completed_at' => now()]);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->assertDontSee('data-guide-dock', false);
+    }
+
+    public function test_dock_is_hidden_for_a_tenant_the_migration_stamped(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+        $this->staff($tenant);
+        $this->runStampMigration();
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->assertDontSee('data-guide-dock', false);
+    }
+
+    public function test_superadmin_browsing_a_new_company_sees_the_dock(): void
+    {
+        [$tenant] = $this->company(1);
+        $super = $this->superAdmin();
+
+        $this->actingAs($super)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->assertSee('data-guide-dock', false);
+    }
+
+    public function test_dock_step_list_only_carries_payroll_when_the_module_is_on(): void
+    {
+        [$tenant, $hr] = $this->company(2);
+        $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->assertDontSee('"key":"payroll_setup"', false);
+
+        app(FeatureManager::class)->setTenant($tenant, 'module.payroll', true);
+
+        $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/setup')->assertOk()->assertSee('"key":"payroll_setup"', false);
+    }
+
+    public function test_embedded_screens_get_the_store_but_not_the_dock(): void
+    {
+        [$tenant, $hr] = $this->company(1);
+
+        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/settings?embed=1&section=branches')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('data-guide-dock', $html);
+        $this->assertStringContainsString('"key":"branches"', $html);
     }
 }

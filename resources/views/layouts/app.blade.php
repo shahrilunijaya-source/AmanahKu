@@ -28,6 +28,12 @@
 <body {{ \App\Support\DashboardPrefs::forUser(auth()->user()?->dashboard_prefs)['plain'] ? 'data-plain' : '' }}>
 @php
     $embed = $embed ?? false;
+    // The live setup guide (docs/superpowers/specs/2026-09-15-self-serve-company-signup-design.md,
+    // Change 3). Null for staff, for finished tenants and outside a tenant, so most
+    // requests never pay for the Launch Center detectors. Computed in embed mode too:
+    // the Launch Center iframes screens with ?embed=1 and the coachmark pointers inside
+    // them still read $store.guide.
+    $setupGuide = \App\Support\SetupGuide::forRequest(request());
     // Notices that hang off the header rather than scrolling with the page.
     $hasPins = ! $embed && (session('reset_password') || ($qaTsOverdue ?? false));
 
@@ -261,6 +267,9 @@
             @include('partials.messages-panel')
         @endif
         @include('partials.welcome')
+        @if ($setupGuide)
+            @include('partials.setup-guide')
+        @endif
         {{-- Not on the Changelog screen itself: whoever is reading it has already come
              looking for exactly what the popup would tell them. --}}
         @if (($screen ?? null) !== 'changelog')
@@ -286,6 +295,12 @@
     </script>
 @endif
 
+{{-- Live setup guide step list (SetupGuide::forRequest). Read by the Alpine `guide`
+     store below; absent entirely when the guide is hidden. --}}
+@if ($setupGuide)
+<script type="application/json" id="uj-guide-steps">@json($setupGuide['steps'])</script>
+@endif
+
 <script>
     // Global guidance language ('en' | 'ms'). Shared by every guide banner + field hint
     // so a user flips once and all on-screen help switches instantly. Runs before Alpine
@@ -304,6 +319,26 @@
                 this.lang = l;
                 localStorage.setItem('amanahku-lang', l);
                 document.cookie = 'amanahku-lang=' + l + ';path=/;max-age=31536000;samesite=lax';
+            },
+        });
+
+        // Live setup guide. Always registered so `$store.guide.current` is safe to read
+        // from any coachmark or sidebar row; steps is empty whenever the guide is hidden.
+        // Current step is chosen here, not on the server: "Skip for now" is remembered
+        // per browser (amanahku-guide-skip) and must never mark anything done.
+        Alpine.store('guide', {
+            steps: (() => { try { return JSON.parse(document.getElementById('uj-guide-steps')?.textContent || '[]'); } catch (e) { return []; } })(),
+            skipped: (() => { try { return JSON.parse(localStorage.getItem('amanahku-guide-skip') || '[]'); } catch (e) { return []; } })(),
+            get step() { return this.steps.find(s => ! s.done && ! this.skipped.includes(s.key)) ?? null; },
+            get current() { return this.step?.key ?? null; },
+            get index() { return this.step ? this.steps.indexOf(this.step) + 1 : this.steps.length; },
+            get total() { return this.steps.length; },
+            get doneCount() { return this.steps.filter(s => s.done).length; },
+            on(screens) { return this.step !== null && screens.includes(this.step.screen); },
+            skip() {
+                if (! this.step) { return; }
+                this.skipped = [...this.skipped, this.step.key];
+                try { localStorage.setItem('amanahku-guide-skip', JSON.stringify(this.skipped)); } catch (e) {}
             },
         });
 
