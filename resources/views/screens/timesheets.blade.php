@@ -130,6 +130,8 @@
     <div class="uj-card uj-ts-card" style="width:100%;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
+            workDays: @js($tsWorkDays),
+            totSaturday: @js($tsTotSaturday),
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),
@@ -676,8 +678,8 @@
                     </button>
                 </template>
             </div>
-            {{-- Base is 6 on a first-Saturday week (the TOT half day is shown by default),
-                 5 otherwise; the toggle reaches Sunday and back. --}}
+            {{-- Base runs Monday through the last working day of the company's week (6 on a
+                 TOT week or for a Saturday-working company); the toggle reaches Sunday and back. --}}
             <button type="button" @click="days = (days === 7 ? baseDays() : 7)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
                 <span x-text="days !== 7 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
             </button>

@@ -50,6 +50,36 @@ export function isFirstSaturday(iso) {
     return dt.getUTCDay() === 6 && dt.getUTCDate() <= 7;
 }
 
+/** ISO weekday of $iso: 1 = Monday … 7 = Sunday. */
+export function isoWeekday(iso) {
+    const day = new Date(iso + 'T00:00:00Z').getUTCDay();
+
+    return day === 0 ? 7 : day;
+}
+
+/** True when $iso is the tenant's TOT half day: first Saturday of the month, only for a
+ *  tenant with tot_saturday on whose week does not already list Saturday. */
+export function isTotDayFor(iso, workDays, totSaturday) {
+    return Boolean(totSaturday) && isFirstSaturday(iso) && !workDays.includes(6);
+}
+
+/** True when $iso is a working day for a tenant: listed in its work week, or its TOT day.
+ *  Mirrors App\Support\WorkWeek::isWorkingDay() on the server. */
+export function isWorkDayFor(iso, workDays, totSaturday) {
+    return workDays.includes(isoWeekday(iso)) || isTotDayFor(iso, workDays, totSaturday);
+}
+
+/** Columns shown with the weekend hidden: Monday through the week's last working day
+ *  (5 for Mon–Fri, 6 for a Saturday-working company or a TOT week). */
+export function baseDaysFor(weekStart, workDays, totSaturday) {
+    let last = 5;
+    for (let i = 0; i < 7; i++) {
+        if (isWorkDayFor(addDaysIso(weekStart, i), workDays, totSaturday)) last = i + 1;
+    }
+
+    return last;
+}
+
 export function registerTimesheetCapture(Alpine) {
     // Shared with the outer tab-bar scope (a sibling Alpine root) so it can hide itself
     // while the pre-submit review is open — Alpine scope chaining only flows parent to
@@ -88,10 +118,13 @@ export function registerTimesheetCapture(Alpine) {
 
     Alpine.data('timesheetCapture', (cfg) => ({
         weekStart: cfg.weekStart,
-        // 5 on an ordinary week, 6 when the week holds the first Saturday of the month —
-        // Unijaya's TOT half day, which staff must be able to fill without hunting for the
+        // The tenant's work week (ISO 1..7) and its TOT-Saturday flag, from tenants.work_days.
+        workDays: cfg.workDays || [1, 2, 3, 4, 5],
+        totSaturday: Boolean(cfg.totSaturday),
+        // Monday through the week's last working day (6 on a TOT week or for a Saturday-
+        // working company), so staff can fill every work day without hunting for the
         // "Show weekend" toggle. cfg.days still wins when the caller passes one (tests).
-        days: cfg.days || (isFirstSaturday(addDaysIso(cfg.weekStart, 5)) ? 6 : 5),
+        days: cfg.days || baseDaysFor(cfg.weekStart, cfg.workDays || [1, 2, 3, 4, 5], Boolean(cfg.totSaturday)),
         // Kept in sync with the "Show weekend" toggle, which flips between this and 7.
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
@@ -222,10 +255,16 @@ export function registerTimesheetCapture(Alpine) {
         },
 
         // ---- the week ------------------------------------------------------
-        // The week's own day count with the weekend hidden: 6 when it holds the TOT
-        // Saturday, 5 otherwise. The "Show weekend" toggle returns here.
+        // The week's own day count with the weekend hidden: Monday through the last working
+        // day of the tenant's week. The "Show weekend" toggle returns here.
         baseDays() {
-            return isFirstSaturday(addDaysIso(this.weekStart, 5)) ? 6 : 5;
+            return baseDaysFor(this.weekStart, this.workDays, this.totSaturday);
+        },
+        isTotDay(iso) {
+            return isTotDayFor(iso, this.workDays, this.totSaturday);
+        },
+        isWorkDay(iso) {
+            return isWorkDayFor(iso, this.workDays, this.totSaturday);
         },
         dayDates() {
             const out = [];
@@ -267,11 +306,11 @@ export function registerTimesheetCapture(Alpine) {
             }
             return parseFloat(day.percentage) || 0;
         },
-        // How much this day asks to be filled: 50% on the first Saturday of the month (the
-        // TOT half day), 100% on every other day. Mirrors App\Timesheet\DayCapacity, which
-        // is what the submit gate actually enforces.
+        // How much this day asks to be filled: 50% on the tenant's TOT half day, 100% on
+        // every other day (a day off shown via "Show weekend" is optional, so it keeps 100
+        // as its ceiling). Mirrors App\Timesheet\DayCapacity, which the submit gate enforces.
         capacityFor(iso) {
-            return isFirstSaturday(iso) ? 50 : 100;
+            return this.isTotDay(iso) ? 50 : 100;
         },
         isFullyLocked(iso) {
             // A public holiday is never fully locked: unlike whole-day leave, the staffer
@@ -926,11 +965,10 @@ export function registerTimesheetCapture(Alpine) {
 
             return '';
         },
-        // The week's cutoff date: Friday, unless this week's Saturday is the first Saturday
-        // of the month (Unijaya's TOT day), which pushes the cutoff to that Saturday.
+        // The week's cutoff date: the last working day of the tenant's week (the TOT
+        // Saturday when the week holds one). Mirrors Timesheet::computeWeekEndsOn().
         weekEndsOn() {
-            const saturday = addDaysIso(this.weekStart, 5);
-            return isFirstSaturday(saturday) ? saturday : addDaysIso(this.weekStart, 4);
+            return addDaysIso(this.weekStart, this.baseDays() - 1);
         },
         // A day can be fully filled without the week being over — a staffer could otherwise
         // finish Mon-Wed by Wednesday and submit early, skipping days that haven't happened.
