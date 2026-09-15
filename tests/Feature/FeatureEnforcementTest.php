@@ -185,6 +185,7 @@ class FeatureEnforcementTest extends TestCase
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        Employee::whereKey($emp->id)->update(['salary' => 5000]);
 
         // PCB is the real LHDN computation on every run — no feature flag gates it.
         // January (n=11), no year-to-date → the spec's own worked example: 110/mo.
@@ -198,6 +199,7 @@ class FeatureEnforcementTest extends TestCase
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        Employee::whereKey($emp->id)->update(['salary' => 5000]);
         app(FeatureManager::class)->setTenant($this->tenant, 'payroll.four_eyes', true);
 
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
@@ -217,6 +219,7 @@ class FeatureEnforcementTest extends TestCase
     {
         $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        Employee::whereKey($emp->id)->update(['salary' => 5000]);
 
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
         $run = PayrollRun::where('period', '2026-06')->firstOrFail();

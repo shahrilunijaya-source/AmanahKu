@@ -105,9 +105,11 @@ class ProgressionScreenTest extends TestCase
     {
         $this->login('hr');
         $e = $this->emp('Adibah', ['status' => 'active']);
-        $this->post("/app/progression/{$e->id}/update", ['effective_on' => '2026-03-01', 'section' => 'PMO', 'remark' => 'Moved'])->assertRedirect();
+        $this->post("/app/progression/{$e->id}/update", ['effective_on' => '2026-03-01', 'update_type' => 'promotion', 'section' => 'PMO', 'remark' => 'Moved'])->assertRedirect();
         $this->assertSame('PMO', $e->fresh()->section);
         $this->assertSame('Moved', $e->progressions()->first()->remark);
+        $this->assertSame('promotion', $e->progressions()->first()->snapshot['update_type']);
+        $this->get("/app/profile?emp={$e->id}")->assertOk()->assertSee('Promotion');
     }
 
     public function test_resign_and_rehire_via_screen(): void

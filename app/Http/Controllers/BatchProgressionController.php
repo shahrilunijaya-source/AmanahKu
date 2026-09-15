@@ -33,6 +33,7 @@ class BatchProgressionController extends EmploymentRecordController
         $data = $request->validate($this->batchRules($tenantId) + [
             'fields' => ['required', 'array', 'min:1'],
             'fields.*' => [Rule::in(self::BATCH_FIELDS)],
+            'update_type' => ['required', Rule::in(array_keys(EmploymentRecordService::UPDATE_TYPES))],
         ] + array_intersect_key($this->rules($tenantId), array_flip(self::BATCH_FIELDS)));
 
         // Only the ticked fields travel; an empty value on a ticked field clears it.
@@ -45,7 +46,7 @@ class BatchProgressionController extends EmploymentRecordController
             if (($fields['reports_to_id'] ?? null) !== null && (int) $fields['reports_to_id'] === $e->id) {
                 throw new EmploymentTransitionException($e->name.' cannot report to themselves.');
             }
-            $service->update($e, $data['effective_on'], $fields, $data['remark'] ?? null, $request->attributes->get('employee'));
+            $service->update($e, $data['effective_on'], $fields, $data['remark'] ?? null, $request->attributes->get('employee'), $data['update_type']);
         }, 'Batch progression update');
     }
 
@@ -71,7 +72,7 @@ class BatchProgressionController extends EmploymentRecordController
                 }
                 AuditLog::record('Batch salary band override', $e->name.' · RM '.number_format($new, 2).' > RM '.number_format($max, 2));
             }
-            $service->update($e, $data['effective_on'], ['salary' => $new], $data['remark'] ?? null, $request->attributes->get('employee'));
+            $service->update($e, $data['effective_on'], ['salary' => $new], $data['remark'] ?? null, $request->attributes->get('employee'), 'salary_adjustment');
         }, 'Batch salary adjustment');
     }
 

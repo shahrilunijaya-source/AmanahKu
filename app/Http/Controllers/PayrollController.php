@@ -69,7 +69,6 @@ class PayrollController extends Controller
 
         $validator = validator($request->all(), [
             'employee_id' => ['required', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
-            'basic_salary' => ['required', 'numeric', 'min:0', 'max:10000000'],
             'effective_from' => ['nullable', 'date'],
             'bank_name' => ['nullable', 'string', 'max:60'],
             'bank_account_no' => ['nullable', 'string', 'max:40'],
@@ -109,7 +108,6 @@ class PayrollController extends Controller
         SalaryStructure::updateOrCreate(
             ['tenant_id' => $tid, 'employee_id' => $data['employee_id']],
             [
-                'basic_salary' => $data['basic_salary'],
                 // 'allowances' is deliberately no longer written here — Fixed Transactions
                 // (storeFixedTransaction et al., below) are the single source for recurring
                 // earnings now. The column itself is left alone (see the migration
@@ -144,7 +142,7 @@ class PayrollController extends Controller
         );
 
         $name = Employee::find($data['employee_id'])?->name;
-        AuditLog::record('Updated salary structure', $name.' · basic RM '.number_format((float) $data['basic_salary'], 2));
+        AuditLog::record('Updated salary structure', $name);
 
         return back()->with('ok', 'Salary structure saved for '.$name.'.');
     }
@@ -787,7 +785,9 @@ class PayrollController extends Controller
                 $individualDeductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
                 $inputs = [
-                    'basic' => $structure->basic_salary,
+                    // Basic salary is the employee record's (Employment tab / Progression), as in
+                    // Worksy. salary_structures.basic_salary is history only since 2026-09-29.
+                    'basic' => (float) ($employee->salary ?? 0),
                     'allowances_total' => round($fixedEarnings->sum('amount'), 2),
                     'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
                     'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [

@@ -83,7 +83,6 @@
             <div style="font-size:13px;font-weight:600;color:var(--ink);">{!! $L('Bank & statutory details', 'Butiran bank & statutori') !!} · {{ $p->name }}</div>
             @if ($errors->any() && session('form') === 'bank')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;">{{ $errors->first() }}</div>@endif
             <div style="{{ $grid }}">
-                <div><label style="{{ $lbl }}">{!! $L('Basic salary (RM / month)', 'Gaji pokok (RM / bulan)') !!}</label><input name="basic_salary" type="number" step="0.01" min="0" required value="{{ old('basic_salary', $s ? number_format($s->basic_salary, 2, '.', '') : '') }}" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Effective from', 'Berkuat kuasa dari') !!}</label><input name="effective_from" type="date" value="{{ old('effective_from', $s?->effective_from?->toDateString() ?? now()->toDateString()) }}" style="{{ $fs }}" /></div>
             </div>
             <div class="uj-section-head">{!! $L('Bank', 'Bank') !!}</div>

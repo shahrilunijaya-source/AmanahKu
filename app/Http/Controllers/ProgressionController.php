@@ -14,6 +14,7 @@ use App\Services\EmploymentTransitionException;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Progression screen (HR / management only, manager excluded): confirm, update,
@@ -67,10 +68,10 @@ class ProgressionController extends EmploymentRecordController
     public function update(Request $request, Employee $employee, EmploymentRecordService $service): RedirectResponse
     {
         $this->guard($request, $employee);
-        $data = $request->validate($this->rules($employee->tenant_id, $employee) + ['effective_on' => ['required', 'date'], 'remark' => ['nullable', 'string', 'max:2000']]);
+        $data = $request->validate($this->rules($employee->tenant_id, $employee) + ['effective_on' => ['required', 'date'], 'update_type' => ['required', Rule::in(array_keys(EmploymentRecordService::UPDATE_TYPES))], 'remark' => ['nullable', 'string', 'max:2000']]);
 
         return $this->run('effective_on', 'update', $employee, fn () => $service->update(
-            $employee, $data['effective_on'], self::fields($data, $this->hasTenantRole($request, ['director', 'hr'])), $data['remark'] ?? null, $request->attributes->get('employee')
+            $employee, $data['effective_on'], self::fields($data, $this->hasTenantRole($request, ['director', 'hr'])), $data['remark'] ?? null, $request->attributes->get('employee'), $data['update_type']
         ));
     }
 

@@ -44,6 +44,7 @@ class FixedTransactionTest extends TestCase
 
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
 
         PayrollItem::seedFor($this->tenant);
         $this->fixedAllowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'fixed-allowance')->firstOrFail();
@@ -233,6 +234,9 @@ class FixedTransactionTest extends TestCase
     {
         SalaryStructure::where('employee_id', $this->emp1->id)->update([
             'basic_salary' => 4000,
+        ]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 4000]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update([
             'allowances' => [['name' => 'Transport', 'amount' => 250], ['name' => 'Meal', 'amount' => 150]],
         ]);
 
