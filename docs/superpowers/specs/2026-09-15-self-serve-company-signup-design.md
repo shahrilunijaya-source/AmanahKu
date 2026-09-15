@@ -50,9 +50,8 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 ### Storage
 
 - `tenants.work_days`: JSON array of ISO weekday numbers (1 = Monday, 7 = Sunday). Default `[1,2,3,4,5]`.
-- `tenants.tot_saturday`: boolean, default false. When true, the first Saturday of each month is a half working day (50% capacity), Unijaya's Transfer of Training day.
-- Migration sets `tot_saturday = true` for the Unijaya tenant, so its behaviour is unchanged.
-- Validation: at least one working day. `tot_saturday` only allowed when Saturday is not already a full work day.
+- `tenants.tot_saturday`: boolean, default false, **no UI**. TOT (first Saturday of the month as a half day) is a Unijaya-only rule. The migration sets it true for the Unijaya tenant and nothing else ever sets it. Kept as a column rather than a slug check so the rule is data, not a special case in code.
+- Validation: at least one working day.
 
 ### Helper
 
@@ -67,7 +66,7 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 
 ### UI
 
-- Company Settings gets a "Work week" panel: seven day toggles Mon to Sun, a "First Saturday is a TOT half day" switch. HR only. Late grace minutes stays where it is, on Attendance setup.
+- Company Settings gets a "Work week" panel: seven day toggles Mon to Sun. HR only. Late grace minutes stays where it is, on Attendance setup.
 - Launch Center gets a step "Set work week" under Company basics, manual tick, deep-links to that panel.
 
 ## Out of scope
