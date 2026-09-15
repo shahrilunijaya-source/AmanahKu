@@ -136,6 +136,9 @@ class Employee extends Model
     {
         return [
             'joined_at' => 'date',
+            'confirmed_at' => 'date',
+            'resigned_at' => 'date',
+            'last_working_day' => 'date',
             'date_of_birth' => 'date',
             // Personal identity captured by the first-login wizard; encrypted at rest
             // like salary_structures.nric (migration 2026_06_24_000022).
@@ -351,6 +354,21 @@ class Employee extends Model
     public function careerTimeline(): HasMany
     {
         return $this->hasMany(CareerTimelineEntry::class)->orderBy('sort');
+    }
+
+    /** Employment columns that the Timeline snapshots and the Progression forms edit. */
+    public const EMPLOYMENT_FIELDS = [
+        'department_id', 'branch_id', 'position_id', 'reports_to_id', 'employment_type_id',
+        'division', 'section', 'job_grade', 'category', 'line',
+        'probation_months', 'probation_days', 'resign_notice_months', 'resign_notice_days',
+        'short_notice_months', 'short_notice_days',
+        'salary', 'pay_mode', 'payment_term', 'payment_method', 'employment_remark',
+    ];
+
+    /** Employment history, newest first (append-only, see EmployeeProgression). */
+    public function progressions(): HasMany
+    {
+        return $this->hasMany(EmployeeProgression::class)->orderByDesc('effective_on')->orderByDesc('id');
     }
 
     public function onboardingProfile(): HasOne
