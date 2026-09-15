@@ -140,6 +140,8 @@ class Employee extends Model
             'resigned_at' => 'date',
             'last_working_day' => 'date',
             'date_of_birth' => 'date',
+            'passport_expiry' => 'date',
+            'permit_expiry' => 'date',
             // Personal identity captured by the first-login wizard; encrypted at rest
             // like salary_structures.nric (migration 2026_06_24_000022).
             'nric' => 'encrypted',
@@ -359,6 +361,22 @@ class Employee extends Model
         'short_notice_months', 'short_notice_days',
         'salary', 'pay_mode', 'payment_term', 'payment_method', 'employment_remark',
     ];
+
+    /** Personal tab fields the person may edit on their own record. */
+    public const PERSONAL_FIELDS = [
+        'first_name', 'last_name', 'full_name_ic', 'nickname', 'religion', 'date_of_birth', 'gender', 'marital_status', 'race', 'nationality', 'blood_type',
+        'phone', 'personal_email', 'address', 'address_2', 'city', 'state', 'postcode', 'country',
+        'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
+    ];
+
+    /** HR/management only: identity documents. */
+    public const IDENTITY_FIELDS = ['nric', 'passport_no', 'passport_expiry', 'permit_no', 'permit_expiry'];
+
+    /** Family tab rows (parents, spouse, children, dependents). */
+    public function familyMembers(): HasMany
+    {
+        return $this->hasMany(EmployeeFamilyMember::class)->orderBy('relation')->orderBy('date_of_birth');
+    }
 
     /** Employment history, newest first (append-only, see EmployeeProgression). */
     public function progressions(): HasMany
