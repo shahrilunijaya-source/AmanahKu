@@ -131,6 +131,10 @@ Route::post('/activate/{user}', [ActivationController::class, 'update'])->middle
 // JSON body instead of a 404 page.
 Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
 
+// Linked from Google's OAuth consent screen, whose reviewers open them logged out.
+Route::view('/privacy', 'legal.privacy')->name('privacy');
+Route::view('/terms', 'legal.terms')->name('terms');
+
 Route::middleware('auth')->group(function () {
     // Staff-facing guide for the self-service AI access key (Account & security).
     // Authenticated, unlike /docs/api above: this page walks one signed-in person
