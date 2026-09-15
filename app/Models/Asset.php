@@ -14,7 +14,7 @@ class Asset extends Model
 
     protected function casts(): array
     {
-        return ['assigned_at' => 'date'];
+        return ['assigned_at' => 'date', 'returned_at' => 'date'];
     }
 
     public function employee(): BelongsTo

@@ -141,6 +141,7 @@ class Employee extends Model
             'last_working_day' => 'date',
             'date_of_birth' => 'date',
             'passport_expiry' => 'date',
+            'benefit_start_at' => 'date',
             'permit_expiry' => 'date',
             // Personal identity captured by the first-login wizard; encrypted at rest
             // like salary_structures.nric (migration 2026_06_24_000022).
@@ -220,6 +221,12 @@ class Employee extends Model
     }
 
     /** Client site for resident engineers (work_arrangement = client). */
+    /** Client sites this person may clock in at (geofence allow-list). Empty = any configured site. */
+    public function allowedWorkSites(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkSite::class, 'employee_work_site')->withPivot('tenant_id')->withTimestamps();
+    }
+
     public function workSite(): BelongsTo
     {
         return $this->belongsTo(WorkSite::class);
@@ -361,6 +368,9 @@ class Employee extends Model
         'short_notice_months', 'short_notice_days',
         'salary', 'pay_mode', 'payment_term', 'payment_method', 'employment_remark',
     ];
+
+    /** Work tab columns written by WorkRecordController. */
+    public const WORK_FIELDS = ['attendance_id', 'work_phone', 'benefit_start_at', 'work_site_id'];
 
     /** Personal tab fields the person may edit on their own record. */
     public const PERSONAL_FIELDS = [
