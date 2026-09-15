@@ -82,8 +82,7 @@ class ProfileExperienceTabTest extends TestCase
         $this->login('hr');
         $e = $this->emp('Adibah');
         $html = $this->get("/app/profile?emp={$e->id}")->assertOk()->getContent();
-        $assets = substr($html, strpos($html, "x-show=\"tab === 'assets'\""));
-        $this->assertStringNotContainsString('No training records', $assets);
+        $this->assertStringNotContainsString("x-show=\"tab === 'assets'\"", $html);
         $start = strpos($html, "x-show=\"tab === 'experience'\"");
         $experience = substr($html, $start, strpos($html, "x-show=\"tab === 'work'\"") - $start);
         $this->assertStringContainsString('No training records', $experience);

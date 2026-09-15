@@ -25,6 +25,7 @@ use App\Models\StaffLevel;
 use App\Models\TrainingRecord;
 use App\Models\UserPermission;
 use App\Models\WorkItem;
+use App\Models\WorkSite;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Support\DashboardPrefs;
@@ -118,7 +119,7 @@ trait BuildsPeopleData
 
     private function profileData(Request $request): array
     {
-        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'familyMembers', 'salaryStructure', 'workHistories', 'educations.document', 'certificates.document', 'awards.document', 'languages', 'documents', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords'];
+        $with = ['positionBand', 'department', 'branch', 'reportsTo', 'employmentType', 'progressions.recordedBy', 'familyMembers', 'salaryStructure', 'workHistories', 'educations.document', 'certificates.document', 'awards.document', 'languages', 'documents', 'kpiItems', 'leaveBalances.leaveType', 'workItems', 'assets', 'trainingRecords', 'workSite', 'allowedWorkSites'];
 
         // A specific employee (from a directory row), else the signed-in user's own record.
         // No arbitrary showcase fallback: an unresolved employee renders the empty state, not
@@ -178,6 +179,9 @@ trait BuildsPeopleData
         // Experience: same audience as Employment (self or management/HR). TP3 figures are money, director/HR only.
         $experienceGate = $employmentGate;
         $canEditExperience = $canEditPersonal;
+        $workGate = $experienceGate;          // HR/management, or own record
+        $canEditWork = $canEdit;              // HR/management only
+        $attachmentGate = $experienceGate;
 
         // Every tab/section gate is canViewFull (or canSeeMoney for the pay dossier) ANDed
         // with the tenant's module flag — a tab must never render for a module the tenant
@@ -291,6 +295,10 @@ trait BuildsPeopleData
             'canEditSalaryStructure' => $canEditSalaryStructure,
             'experienceGate' => $experienceGate,
             'canEditExperience' => $canEditExperience,
+            'workGate' => $workGate,
+            'canEditWork' => $canEditWork,
+            'attachmentGate' => $attachmentGate,
+            'workSites' => $workGate && $canEditWork ? WorkSite::orderBy('name')->get(['id', 'name']) : collect(),
             'openingFigures' => ($experienceGate && $canEditSalaryStructure) ? PayrollOpeningFigure::where('employee_id', $e->id)->orderByDesc('year')->get() : collect(),
             'documents' => $experienceGate ? $e->documents : collect(),
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),

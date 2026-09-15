@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family', 'bank'], true) && ! str_starts_with((string) session('form'), 'experience:')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }}, editBank: {{ ($errors->any() && session('form') === 'bank') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family', 'bank', 'work', 'asset'], true) && ! str_starts_with((string) session('form'), 'experience:')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }}, editBank: {{ ($errors->any() && session('form') === 'bank') ? 'true' : 'false' }}, editWork: {{ ($errors->any() && session('form') === 'work') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -245,9 +245,15 @@
             if ($experienceGate ?? false) {
                 $tabs[] = ['experience', 'Experience', 'Pengalaman'];
             }
+            if ($workGate ?? false) {
+                $tabs[] = ['workinfo', 'Work', 'Kerja'];
+            }
             $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
+            }
+            if ($attachmentGate ?? false) {
+                $tabs[] = ['attachment', 'Attachment', 'Lampiran'];
             }
             if ($kpiGate ?? false) {
                 $tabs[] = ['kpi', 'KPI History', 'Sejarah KPI'];
@@ -258,7 +264,6 @@
             if ($moneyShow) {
                 $tabs[] = ['money', 'Money', 'Wang'];
             }
-            $tabs[] = ['assets', 'Assets', 'Aset'];
         @endphp
         <div class="uj-card" x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'overview' }">
             <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
@@ -342,6 +347,14 @@
             @if ($experienceGate ?? false)
                 {{-- Experience · TP3, previous employment, education, certificates, awards, languages, training, skills --}}
                 <div x-show="tab === 'experience'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.experience-tab')</div>
+            @endif
+            @if ($workGate ?? false)
+                {{-- Work · work details, work location, assets --}}
+                <div x-show="tab === 'workinfo'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.work-tab')</div>
+            @endif
+            @if ($attachmentGate ?? false)
+                {{-- Attachment · employee documents, upload + delete via the Documents endpoints --}}
+                <div x-show="tab === 'attachment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.attachment-tab')</div>
             @endif
 
             {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
@@ -721,20 +734,6 @@
             </div>
             @endif
 
-            {{-- Assets · training moved to the Experience tab --}}
-            <div x-show="tab === 'assets'" x-cloak style="padding:6px 0;">
-                <div class="uj-section-head" style="margin:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Assets' : 'Aset'">Assets</span></div>
-                @forelse ($p->assets as $a)
-                    <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <span style="font-size:18px;flex-shrink:0;">{{ $aIcon[$a->category] ?? '📦' }}</span>
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $a->name }}</div><div style="font-size:11.5px;color:var(--muted);text-transform:capitalize;">{{ $a->category }}@if ($a->serial) · <span style="font-family:var(--font-mono);text-transform:none;">{{ $a->serial }}</span>@endif</div></div>
-                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $aSc[$a->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $aSc[$a->status] ?? 'var(--muted)' }};"></span>{{ ucfirst($a->status) }}</span>
-                    </div>
-                @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No assets assigned to this person.' : 'Tiada aset ditugaskan kepada orang ini.'">No assets assigned to this person.</div>
-                @endforelse
-
-            </div>
         </div>
     </div>
 @endif
