@@ -27,6 +27,7 @@ use App\Services\Payroll\PcbCalculator;
 use App\Services\Payroll\PcbInputs;
 use App\Services\Payroll\PcbYearToDate;
 use App\Support\Permissions;
+use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PayrollController extends Controller
 {
@@ -65,12 +67,22 @@ class PayrollController extends Controller
         $this->authorizeAdmin($request);
         $tid = app(CurrentTenant::class)->id();
 
-        $data = $request->validate([
+        $validator = validator($request->all(), [
             'employee_id' => ['required', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
             'basic_salary' => ['required', 'numeric', 'min:0', 'max:10000000'],
             'effective_from' => ['nullable', 'date'],
             'bank_name' => ['nullable', 'string', 'max:60'],
             'bank_account_no' => ['nullable', 'string', 'max:40'],
+            // Worksy Bank & Statutory tab fields (profile). Reference only; no calculation reads them.
+            'bank_holder_name' => ['nullable', 'string', 'max:160'],
+            'tax_resident' => ['nullable', 'boolean'],
+            'tax_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::TAX_CATEGORIES))],
+            'employee_tax_status' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYEE_TAX_STATUS))],
+            'child_relief' => ['nullable', 'array'],
+            'child_relief.*' => ['array'],
+            'child_relief.*.*' => ['nullable', 'integer', 'min:0', 'max:20'],
+            'epf_scheme' => ['nullable', Rule::in(array_keys(StatutoryOptions::EPF_SCHEMES))],
+            'socso_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::SOCSO_CATEGORIES))],
             'epf_no' => ['nullable', 'string', 'max:40'],
             'socso_no' => ['nullable', 'string', 'max:40'],
             'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
@@ -87,6 +99,12 @@ class PayrollController extends Controller
             'cp38_monthly' => ['nullable', 'numeric', 'min:0'],
             'skbbk_opt_in' => ['boolean'],
         ]);
+        if ($validator->fails()) {
+            // Flashed so the profile's Bank & Statutory modal reopens with the errors (payroll screen ignores it).
+            session()->flash('form', 'bank');
+            throw new ValidationException($validator);
+        }
+        $data = $validator->validated();
 
         SalaryStructure::updateOrCreate(
             ['tenant_id' => $tid, 'employee_id' => $data['employee_id']],
@@ -115,6 +133,13 @@ class PayrollController extends Controller
                 'zakat_monthly' => $data['zakat_monthly'] ?? 0,
                 'cp38_monthly' => $data['cp38_monthly'] ?? 0,
                 'skbbk_opt_in' => $request->boolean('skbbk_opt_in'),
+                'bank_holder_name' => $data['bank_holder_name'] ?? null,
+                'tax_resident' => $request->has('tax_resident') ? $request->boolean('tax_resident') : true,
+                'tax_category' => $data['tax_category'] ?? null,
+                'employee_tax_status' => $data['employee_tax_status'] ?? null,
+                'child_relief_breakdown' => self::childRelief($data['child_relief'] ?? null),
+                'epf_scheme' => $data['epf_scheme'] ?? null,
+                'socso_category' => $data['socso_category'] ?? null,
             ],
         );
 
@@ -132,6 +157,25 @@ class PayrollController extends Controller
      * switching to this app mid-year) gets a wrong PCB and a wrong EA form for the
      * rest of that year.
      */
+    /**
+     * Normalise the child-relief grid to every LHDN category × {100, 50} as ints, or null when nothing was sent.
+     *
+     * @param  array<string, array<string, mixed>>|null  $grid
+     * @return array<string, array{100: int, 50: int}>|null
+     */
+    private static function childRelief(?array $grid): ?array
+    {
+        if ($grid === null) {
+            return null;
+        }
+        $out = [];
+        foreach (array_keys(StatutoryOptions::CHILD_RELIEF_CATEGORIES) as $cat) {
+            $out[$cat] = ['100' => (int) ($grid[$cat]['100'] ?? 0), '50' => (int) ($grid[$cat]['50'] ?? 0)];
+        }
+
+        return $out;
+    }
+
     public function storeOpening(Request $request): RedirectResponse
     {
         $this->authorizeAdmin($request);

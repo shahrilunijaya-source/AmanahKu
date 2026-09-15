@@ -483,6 +483,7 @@
                                     @endif
                                 @else<span class="uj-pill" style="background:var(--red-tint);color:var(--amber);" x-text="$store.ui.lang==='en' ? 'Not set' : 'Belum ditetapkan'">Not set</span>@endif
                             </div>
+                            <a href="{{ route('app.screen', 'profile') }}?emp={{ $e->id }}&tab=bank" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? 'Edit on profile' : 'Sunting di profil'">Edit on profile</a>
                             <button @click="salaryFor === {{ $e->id }} ? salaryFor = null : salaryFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? @js($s ? 'Edit' : 'Set') : @js($s ? 'Sunting' : 'Tetapkan')">{{ $s ? 'Edit' : 'Set' }}</button>
                         </div>
                         <div x-show="salaryFor === {{ $e->id }}" x-cloak style="padding:4px 22px 18px 64px;">
@@ -796,6 +797,7 @@
                                 @if ($o)<div style="font-size:12.5px;color:var(--ink);">{{ $money($o->gross) }} <span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'gross' : 'kasar'">gross</span></div>
                                 @else<span class="uj-pill" style="background:var(--canvas);color:var(--muted);" x-text="$store.ui.lang==='en' ? 'None (0)' : 'Tiada (0)'">None (0)</span>@endif
                             </div>
+                            <a href="{{ route('app.screen', 'profile') }}?emp={{ $e->id }}&tab=experience" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? 'Edit on profile' : 'Sunting di profil'">Edit on profile</a>
                             <button @click="openFor === {{ $e->id }} ? openFor = null : openFor = {{ $e->id }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
                         </div>
                         <div x-show="openFor === {{ $e->id }}" x-cloak style="padding:4px 22px 18px 64px;">
