@@ -3,14 +3,17 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\SetupController;
+use App\Models\Branch;
 use App\Models\CompanyCategory;
 use App\Models\CompanySetupProgress;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\SetupGuide;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -117,5 +120,86 @@ class SetupGuideTest extends TestCase
             $this->assertNotSame('', trim($def['guide'] ?? ''), "step {$key} has no guide copy");
             $this->assertNotSame('', trim($def['guide_ms'] ?? ''), "step {$key} has no guide_ms copy");
         }
+    }
+
+    // ── SetupGuide::forRequest ────────────────────────────────────────────────
+
+    /** A request as ResolveTenant would leave it for a member with the given role. */
+    private function requestAs(string $role): Request
+    {
+        $request = Request::create('/app/dash');
+        $request->attributes->set('tenantRole', $role);
+
+        return $request;
+    }
+
+    public function test_guide_lists_every_step_in_launch_center_order_with_done_flags(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        Branch::create(['tenant_id' => $tenant->id, 'name' => 'HQ']);
+
+        $guide = SetupGuide::forRequest($this->requestAs('hr'));
+
+        $this->assertNotNull($guide);
+        $keys = array_column($guide['steps'], 'key');
+        $this->assertSame(array_keys(app(SetupController::class)->stepDefs()), $keys);
+        $this->assertSame('modules', $keys[0]);
+        $this->assertSame('review', end($keys));
+
+        $byKey = array_column($guide['steps'], null, 'key');
+        $this->assertTrue($byKey['branches']['done']);
+        $this->assertFalse($byKey['departments']['done']);
+        $this->assertSame(route('app.screen', ['screen' => 'settings']), $byKey['branches']['url']);
+        $this->assertSame(route('app.screen', ['screen' => 'leave-setup', 'tab' => 'holidays']), $byKey['holidays']['url']);
+        $this->assertSame('Go to Company Settings and click + Add on the Branches card. Give it a name and address; the map pin can wait.', $byKey['branches']['guide']);
+        $this->assertSame(count($keys), $guide['total']);
+        $this->assertSame(count(array_filter($guide['steps'], fn ($s) => $s['done'])), $guide['done']);
+    }
+
+    public function test_guide_is_null_for_plain_staff_and_managers(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+
+        $this->assertNull(SetupGuide::forRequest($this->requestAs('employee')));
+        $this->assertNull(SetupGuide::forRequest($this->requestAs('manager')));
+    }
+
+    public function test_guide_shows_for_hr_management_and_directors(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+
+        $this->assertNotNull(SetupGuide::forRequest($this->requestAs('hr')));
+        $this->assertNotNull(SetupGuide::forRequest($this->requestAs('management')));
+        $this->assertNotNull(SetupGuide::forRequest($this->requestAs('director')));
+    }
+
+    public function test_guide_is_null_once_setup_is_finished(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        CompanySetupProgress::forCurrentTenant()->update(['completed_at' => now()]);
+
+        $this->assertNull(SetupGuide::forRequest($this->requestAs('hr')));
+    }
+
+    public function test_guide_is_null_without_a_tenant(): void
+    {
+        $this->assertNull(SetupGuide::forRequest($this->requestAs('hr')));
+    }
+
+    public function test_guide_only_lists_the_payroll_step_when_the_module_is_on(): void
+    {
+        // module.payroll ships in Features::OFF, so no category package turns it on; the
+        // tenant (or super-admin) has to flip it explicitly.
+        [$tenant] = $this->company(2);
+        app(CurrentTenant::class)->set($tenant);
+        $this->assertNotContains('payroll_setup', array_column(SetupGuide::forRequest($this->requestAs('hr'))['steps'], 'key'));
+
+        app(FeatureManager::class)->setTenant($tenant, 'module.payroll', true);
+
+        $this->assertContains('payroll_setup', array_column(SetupGuide::forRequest($this->requestAs('hr'))['steps'], 'key'));
     }
 }
