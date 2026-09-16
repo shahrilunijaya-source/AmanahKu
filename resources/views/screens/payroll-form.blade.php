@@ -22,7 +22,7 @@
     @include('partials.payroll.tabs', ['tabs' => $tabs])
 
     <div x-show="tab === 'form-e'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'LHDN Form E', 'body' => 'Filled in Task 8.', 'bodyMs' => 'Diisi dalam Task 8.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.form.form-e')
     </div>
     <div x-show="tab === 'borang-a'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'EPF Borang A', 'body' => 'Monthly KWSP contribution form generated from the finalized run.', 'bodyMs' => 'Borang caruman KWSP bulanan dijana daripada run yang dimuktamadkan.', 'pill' => 'Spec F6'])

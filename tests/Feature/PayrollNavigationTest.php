@@ -268,4 +268,21 @@ class PayrollNavigationTest extends TestCase
         $this->acting($this->hr)->post(route('payroll.runs.delete', $run))
             ->assertRedirect(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout']));
     }
+
+    public function test_form_screen_links_form_e_and_profile_links_my_payroll(): void
+    {
+        $slip = $this->finalizedPayslipFor($this->emp, '2026-02');
+
+        $this->acting($this->hr)->get('/app/payroll-form')->assertOk()
+            ->assertSee(route('payroll.form-e.show', ['year' => now()->year]), false)
+            ->assertSee(route('payroll.form-e.pdf', ['year' => now()->year]), false);
+
+        $this->acting($this->empUser)->get('/app/profile')->assertOk()
+            ->assertSee(e(route('app.screen', ['screen' => 'payroll-my', 'payslip' => $slip->id])), false);
+    }
+
+    public function test_the_old_payroll_view_is_gone(): void
+    {
+        $this->assertFileDoesNotExist(resource_path('views/screens/payroll.blade.php'));
+    }
 }
