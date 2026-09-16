@@ -215,4 +215,16 @@ class PayrollNavigationTest extends TestCase
             ->assertSee('action="'.route('app.screen', 'payroll-transaction').'"', false)
             ->assertSee("x-data=\"{ tab: 'individual' }\"", false);
     }
+
+    public function test_process_screen_has_the_create_form_and_run_links(): void
+    {
+        $slip = $this->finalizedPayslipFor($this->emp, '2026-01');
+        $runId = $slip->payroll_run_id;
+
+        $html = $this->acting($this->hr)->get('/app/payroll-process')->assertOk()->getContent();
+        $this->assertStringContainsString(route('payroll.runs.create'), $html);
+        $this->assertStringContainsString('Month End', $html);
+        $this->assertStringContainsString(e(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $runId])), $html);
+        $this->assertStringContainsString(e(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $runId])), $html);
+    }
 }
