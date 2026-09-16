@@ -196,4 +196,23 @@ class PayrollNavigationTest extends TestCase
         $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
         $this->acting($this->empUser)->get(route('payroll.ea-form.show', ['employee' => $other->id, 'year' => 2026]))->assertForbidden();
     }
+
+    public function test_transaction_screen_carries_the_fixed_individual_takeon_and_items_forms(): void
+    {
+        $html = $this->acting($this->hr)->get('/app/payroll-transaction')->assertOk()->getContent();
+
+        $this->assertStringContainsString(route('payroll.fixed-transactions.store'), $html);
+        $this->assertStringContainsString(route('payroll.individual-transactions.store'), $html);
+        $this->assertStringContainsString(route('payroll.opening'), $html);
+        $this->assertStringContainsString('Payroll Figures Take On', $html);
+        $this->assertStringContainsString(route('app.screen', 'directory'), $html);
+        $this->assertStringNotContainsString(route('payroll.salary'), $html);
+    }
+
+    public function test_individual_transaction_period_filter_targets_the_transaction_screen(): void
+    {
+        $this->acting($this->hr)->get('/app/payroll-transaction?tab=individual&itx_period=2026-02')->assertOk()
+            ->assertSee('action="'.route('app.screen', 'payroll-transaction').'"', false)
+            ->assertSee("x-data=\"{ tab: 'individual' }\"", false);
+    }
 }

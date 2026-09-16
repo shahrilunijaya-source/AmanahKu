@@ -10,18 +10,22 @@
         'tp1' => ['Personal Tax Relief (TP1)', 'Pelepasan Cukai (TP1)'],
         'items' => ['Payroll Items', 'Item Gaji'],
     ];
-    $tab = array_key_exists((string) request('tab'), $tabs) ? (string) request('tab') : 'fixed';
+    $tab = array_key_exists((string) request('tab'), $tabs) ? (string) request('tab') : (request()->filled('itx_period') ? 'individual' : 'fixed');
 @endphp
 
 @section('screen')
 <div x-data="{ tab: @js($tab) }" x-init="$watch('tab', t => { const u = new URL(location.href); u.searchParams.set('tab', t); history.replaceState(null, '', u); })">
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 14px;">
+        <span x-text="$store.ui.lang==='en' ? 'Bank account, EPF, SOCSO and tax numbers are on each staff member\'s profile, Bank & Statutory tab.' : 'Akaun bank, nombor EPF, SOCSO dan cukai ada pada profil setiap staf, tab Bank & Berkanun.'">Bank account, EPF, SOCSO and tax numbers are on each staff member's profile, Bank &amp; Statutory tab.</span>
+        <a href="{{ route('app.screen', 'directory') }}" style="color:var(--red);" x-text="$store.ui.lang==='en' ? 'Open the directory' : 'Buka direktori'">Open the directory</a>
+    </p>
     @include('partials.payroll.tabs', ['tabs' => $tabs])
 
     <div x-show="tab === 'fixed'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Fixed Transaction', 'body' => 'Filled in Task 4.', 'bodyMs' => 'Diisi dalam Task 4.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.transaction.fixed')
     </div>
     <div x-show="tab === 'individual'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Individual Transaction', 'body' => 'Filled in Task 4.', 'bodyMs' => 'Diisi dalam Task 4.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.transaction.individual')
     </div>
     <div x-show="tab === 'cp38'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'CP38', 'body' => 'Extra monthly tax instalment ordered by LHDN for a staff member.', 'bodyMs' => 'Ansuran cukai tambahan bulanan yang diarahkan LHDN untuk seorang staf.', 'pill' => 'Spec F9'])
@@ -30,13 +34,13 @@
         @include('partials.payroll.stub', ['title' => 'Tax Rebate', 'body' => 'Zakat and levy offsets against PCB.', 'bodyMs' => 'Tolakan zakat dan levi terhadap PCB.', 'pill' => 'Follow-up'])
     </div>
     <div x-show="tab === 'takeon'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Payroll Figures Take On', 'body' => 'Filled in Task 4.', 'bodyMs' => 'Diisi dalam Task 4.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.transaction.takeon')
     </div>
     <div x-show="tab === 'tp1'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'Personal Tax Relief (TP1)', 'body' => 'Declare your personal tax reliefs so PCB is computed on the right base.', 'bodyMs' => 'Isytihar pelepasan cukai peribadi supaya PCB dikira atas asas yang betul.', 'pill' => 'Spec F8'])
     </div>
     <div x-show="tab === 'items'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Payroll Items', 'body' => 'Filled in Task 4.', 'bodyMs' => 'Diisi dalam Task 4.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.transaction.items')
     </div>
 </div>
 @endsection
