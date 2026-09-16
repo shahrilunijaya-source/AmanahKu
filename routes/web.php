@@ -202,6 +202,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/category', [SuperCompanyController::class, 'updateCategory'])->name('companies.category');
         Route::post('/companies/{tenant:slug}/status', [SuperCompanyController::class, 'setStatus'])->name('companies.status');
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
+        // Empty companies only (test or mistaken signups); see CompanyController::destroy.
+        Route::post('/companies/{tenant:slug}/delete', [SuperCompanyController::class, 'destroy'])->name('companies.destroy');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
         // Signup links: one-use, seven-day invites that let the person in charge of a

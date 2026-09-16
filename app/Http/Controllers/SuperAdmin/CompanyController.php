@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View as ViewContract;
@@ -168,6 +169,7 @@ class CompanyController extends Controller
         return view('superadmin.companies.show', [
             'company' => $tenant->load('companyCategory'),
             'members' => $members,
+            'deletable' => self::isDeletable($tenant),
             'categories' => CompanyCategory::orderBy('level')->get(),
         ]);
     }
@@ -266,6 +268,54 @@ class CompanyController extends Controller
         ]);
 
         return back()->with('ok', $tenant->name.' is now '.$status.'.');
+    }
+
+    /**
+     * Permanently delete a company that is still empty: at most one staff record
+     * (archived included), which is what a fresh signup leaves. Anything bigger is a
+     * live company and stays, so this can only clean up test or mistaken signups.
+     *
+     * The database cascades every tenant-owned row, the company's own audit log
+     * included, so the record of the delete goes to the application log instead.
+     * Logins that belonged to no other company go too; super admins never do.
+     */
+    public function destroy(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $typed = (string) $request->input('confirm_name');
+
+        if (! self::isDeletable($tenant)) {
+            return back()->withErrors(['confirm_name' => 'Only a company with no staff yet can be deleted.']);
+        }
+        if ($typed !== $tenant->name) {
+            return back()->withErrors(['confirm_name' => 'Type the company name exactly to confirm.']);
+        }
+
+        $name = $tenant->name;
+        $removed = DB::transaction(function () use ($tenant): int {
+            $loneUserIds = $tenant->users()
+                ->where('is_super_admin', false)
+                ->whereDoesntHave('tenants', fn ($q) => $q->where('tenants.id', '!=', $tenant->id))
+                ->pluck('users.id');
+
+            $tenant->delete();
+
+            return User::whereIn('id', $loneUserIds)->delete();
+        });
+
+        Log::warning('Company deleted by super admin', [
+            'company' => $name,
+            'slug' => $tenant->slug,
+            'tenant_id' => $tenant->id,
+            'by' => $request->user()->email,
+            'logins_removed' => $removed,
+        ]);
+
+        return redirect()->route('superadmin.companies.index')->with('ok', $name.' was deleted.');
+    }
+
+    private static function isDeletable(Tenant $tenant): bool
+    {
+        return Employee::withoutGlobalScopes()->where('tenant_id', $tenant->id)->count() <= 1;
     }
 
     /**

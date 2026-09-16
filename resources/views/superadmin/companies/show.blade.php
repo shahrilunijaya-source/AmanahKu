@@ -76,6 +76,20 @@
                         <button type="submit" style="padding:10px 16px;border:1px solid #bfe3d3;border-radius:9px;font-size:13.5px;font-weight:600;background:#eaf6f1;color:#0f5132;cursor:pointer;">Reactivate company</button>
                     @endif
                 </form>
+                <div style="border-top:1px solid var(--hairline,#e6e6ec);margin-top:16px;padding-top:14px;">
+                    <div style="font-weight:600;font-size:13.5px;color:#a81820;margin-bottom:4px;">Delete company</div>
+                    @if ($deletable)
+                        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px;">Permanently removes this company, all its data and any login that belongs to no other company. This cannot be undone. Type <strong style="color:var(--ink);">{{ $company->name }}</strong> to confirm.</p>
+                        <form method="POST" action="{{ route('superadmin.companies.destroy', $company) }}" style="display:flex;gap:10px;flex-wrap:wrap;" x-data="{ typed: '' }">
+                            @csrf
+                            <input name="confirm_name" x-model="typed" autocomplete="off" placeholder="{{ $company->name }}" style="flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--hairline,#e6e6ec);border-radius:9px;font-size:13.5px;">
+                            <button type="submit" :disabled="typed !== @js($company->name)" :style="typed === @js($company->name) ? { opacity: 1, cursor: 'pointer' } : { opacity: .45, cursor: 'not-allowed' }" style="padding:10px 16px;border:none;border-radius:9px;font-size:13.5px;font-weight:600;background:#a81820;color:#fff;cursor:pointer;">Delete forever</button>
+                        </form>
+                        @error('confirm_name')<p style="font-size:12.5px;color:#a81820;margin:8px 0 0;">{{ $message }}</p>@enderror
+                    @else
+                        <p style="font-size:12.5px;color:var(--muted);margin:0;">Only a company with no staff yet can be deleted. This one has staff records, so suspend it instead.</p>
+                    @endif
+                </div>
             </div>
         </div>
 
