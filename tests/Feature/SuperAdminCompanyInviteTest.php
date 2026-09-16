@@ -139,4 +139,27 @@ class SuperAdminCompanyInviteTest extends TestCase
     {
         $this->post('/admin/invites', ['company_category_id' => 1])->assertRedirect('/login');
     }
+
+    /**
+     * The copy buttons used to put @js() output (single-quoted) inside a single-quoted
+     * onclick attribute, which ended the attribute early and made the button dead.
+     * The URL now travels in a data attribute and a shared helper copies it.
+     */
+    public function test_copy_buttons_carry_the_link_in_a_data_attribute(): void
+    {
+        $pending = CompanyInvite::factory()->create(['note' => 'Pending person']);
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->get('/admin/companies')
+            ->assertOk()
+            ->assertSee('data-copy="'.e($pending->url()).'"', false)
+            ->assertSee('function ujCopy', false)
+            ->assertDontSee("onclick='navigator.clipboard", false);
+
+        $this->actingAs($admin)
+            ->withSession(['inviteUrl' => 'http://example.test/register?invite=abc'])
+            ->get('/admin/companies')
+            ->assertSee('data-copy="http://example.test/register?invite=abc"', false);
+    }
 }

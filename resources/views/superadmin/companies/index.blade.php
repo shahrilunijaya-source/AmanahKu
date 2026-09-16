@@ -125,10 +125,31 @@
                 <button type="submit" class="uj-btn" style="height:44px;padding:0 18px;border:none;border-radius:10px;font-size:14px;font-weight:600;background:var(--red);color:#fff;cursor:pointer;">Generate link</button>
             </form>
 
+            <script>
+                // Copies the button's data-copy value. The Clipboard API only exists on
+                // HTTPS or localhost, so a plain-HTTP host (a LAN IP) falls back to a
+                // hidden textarea and execCommand.
+                function ujCopy(btn) {
+                    const text = btn.dataset.copy;
+                    const done = () => { const was = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = was; }, 1500); };
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(text).then(done, () => window.prompt('Copy this link:', text));
+                        return;
+                    }
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.cssText = 'position:fixed;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    const ok = document.execCommand('copy');
+                    ta.remove();
+                    ok ? done() : window.prompt('Copy this link:', text);
+                }
+            </script>
             @if (session('inviteUrl'))
                 <div style="background:#eaf6f1;border:1px solid #bfe3d3;color:#0f5132;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:12px;">
                     <span style="flex:1;min-width:0;">Link ready @if (session('inviteNote'))for <strong>{{ session('inviteNote') }}</strong>@endif:<br><span style="font-family:var(--font-mono,monospace);color:var(--ink);word-break:break-all;">{{ session('inviteUrl') }}</span></span>
-                    <button type="button" onclick='navigator.clipboard.writeText(@js(session('inviteUrl')));this.textContent="Copied"'  style="flex-shrink:0;font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:7px 12px;border-radius:8px;">Copy link</button>
+                    <button type="button" data-copy="{{ session('inviteUrl') }}" onclick="ujCopy(this)"  style="flex-shrink:0;font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:7px 12px;border-radius:8px;">Copy link</button>
                 </div>
             @endif
 
@@ -162,7 +183,7 @@
                             </td>
                             <td style="padding:12px;text-align:right;white-space:nowrap;">
                                 @if ($status === 'pending')
-                                    <button type="button" onclick='navigator.clipboard.writeText(@js($invite->url()));this.textContent="Copied"'  style="font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Copy</button>
+                                    <button type="button" data-copy="{{ $invite->url() }}" onclick="ujCopy(this)"  style="font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Copy</button>
                                     <form method="POST" action="{{ route('superadmin.invites.destroy', $invite) }}" style="display:inline;" onsubmit="return confirm('Revoke this link? Anyone holding it will get a 404.')">
                                         @csrf
                                         <button type="submit" style="font-size:12.5px;font-weight:600;color:var(--red);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Revoke</button>
