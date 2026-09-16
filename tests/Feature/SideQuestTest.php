@@ -108,6 +108,16 @@ class SideQuestTest extends TestCase
     }
 
     #[Test]
+    public function test_photo_picker_shows_the_chosen_file_name(): void
+    {
+        $this->actingInTenantAs($this->hidayah)->post('/app/side-quests', ['title' => 'Recommend one book'])->assertSessionHasNoErrors();
+
+        $this->actingInTenantAs($this->yati)->get('/app/side-quests')->assertOk()
+            ->assertSee('x-text="photo || \'Add a photo\'"', false)
+            ->assertSee('@change="photo = $event.target.files[0]?.name ?? \'\'"', false);
+    }
+
+    #[Test]
     public function test_live_cap_counts_only_live_quests(): void
     {
         // Two retired and one suggested row sitting around must not count against the cap.
