@@ -117,4 +117,35 @@ class PayrollNavigationTest extends TestCase
         $this->assertStringNotContainsString('>Payroll<', $html);
         $this->assertStringNotContainsString(route('app.screen', ['screen' => 'payroll-my']), $html);
     }
+
+    /** @return array<string, list<string>> screen => tab ids that are stubs */
+    private static function stubTabs(): array
+    {
+        return [
+            'payroll-my' => ['tp1'],
+            'payroll-transaction' => ['cp38', 'rebate', 'tp1'],
+            'payroll-process' => ['bonus', 'control'],
+            'payroll-review' => ['batch-remove'],
+            'payroll-payment' => ['audit'],
+            'payroll-form' => ['borang-a', 'borang-8a', 'cp39', 'cp21', 'cp22', 'cp22a', 'sip2', 'pcb2', 'zakat', 'hrdf'],
+        ];
+    }
+
+    public function test_every_stub_tab_renders_the_not_yet_available_card(): void
+    {
+        foreach (self::stubTabs() as $screen => $tabs) {
+            $html = $this->acting($this->hr)->get("/app/{$screen}")->assertOk()->getContent();
+            foreach ($tabs as $tab) {
+                $this->assertStringContainsString("x-show=\"tab === '{$tab}'\"", $html, "{$screen} lacks tab {$tab}");
+            }
+            $this->assertStringContainsString('Not yet available', $html);
+            $this->assertMatchesRegularExpression('/Spec F\d+|Follow-up/', $html);
+        }
+    }
+
+    public function test_tab_query_selects_the_opening_tab(): void
+    {
+        $this->acting($this->hr)->get('/app/payroll-form?tab=hrdf')->assertOk()->assertSee("x-data=\"{ tab: 'hrdf' }\"", false);
+        $this->acting($this->hr)->get('/app/payroll-form?tab=nope')->assertOk()->assertSee("x-data=\"{ tab: 'form-e' }\"", false);
+    }
 }
