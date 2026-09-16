@@ -1070,7 +1070,8 @@ class PayrollController extends Controller
         $this->recalcTotals($payslip->payrollRun);
         AuditLog::record('Updated payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
 
-        return back()->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
+        return redirect()->route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $payslip->payroll_run_id, 'payslip' => $payslip->id])
+            ->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
     }
 
     public function approveRun(Request $request, PayrollRun $run): RedirectResponse

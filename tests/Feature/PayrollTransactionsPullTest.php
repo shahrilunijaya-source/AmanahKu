@@ -379,7 +379,7 @@ class PayrollTransactionsPullTest extends TestCase
             'unpaid_leave_request_ids' => null,
         ])->save();
 
-        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll', 'payslip' => $slip->id]))->assertOk()
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $run->id, 'payslip' => $slip->id]))->assertOk()
             ->assertSee('Legacy travel claim')
             ->assertSee('Legacy advance');
     }

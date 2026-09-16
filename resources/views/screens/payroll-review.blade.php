@@ -15,16 +15,16 @@
     @include('partials.payroll.tabs', ['tabs' => $tabs])
 
     <div x-show="tab === 'individual'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Individual Payroll', 'body' => 'Filled in Task 6.', 'bodyMs' => 'Diisi dalam Task 6.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.review.individual')
     </div>
     <div x-show="tab === 'batch-remove'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'Batch Remove Payslip', 'body' => 'Drop several staff from a draft run at once.', 'bodyMs' => 'Keluarkan beberapa staf daripada run draf sekali gus.', 'pill' => 'Follow-up'])
     </div>
     <div x-show="tab === 'ea-form'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'EA Form', 'body' => 'Filled in Task 6.', 'bodyMs' => 'Diisi dalam Task 6.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.review.ea-form')
     </div>
     <div x-show="tab === 'bulk-ea'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Bulk EA Form', 'body' => 'Filled in Task 6.', 'bodyMs' => 'Diisi dalam Task 6.', 'pill' => 'Follow-up'])
+        @include('partials.payroll.review.bulk-ea')
     </div>
 </div>
 @endsection
