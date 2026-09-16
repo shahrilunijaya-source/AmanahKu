@@ -14,12 +14,12 @@
         </div>
         <div style="max-height:560px;overflow:auto;">
             @foreach ($salaryEmployees as $e)
-                <button type="button" x-show="hit(rows[{{ $loop->index }}])" @click="pick = {{ $e->id }}" :style="pick === {{ $e->id }} ? 'background:var(--canvas);' : ''" style="display:flex;width:100%;text-align:left;align-items:center;gap:10px;padding:10px 14px;border:0;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;">
+                <div x-show="hit(rows[{{ $loop->index }}])"><button type="button" @click="pick = {{ $e->id }}" :style="{ background: pick === {{ $e->id }} ? 'var(--canvas)' : 'none' }" style="display:flex;width:100%;text-align:left;align-items:center;gap:10px;padding:10px 14px;border:0;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;">
                     <div style="width:28px;height:28px;border-radius:50%;background:{{ $e->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div>
                     <div style="min-width:0;"><div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $e->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}</div></div>
                     @php $ftCount = $fixedTransactions->get($e->id, collect())->count(); @endphp
                     @if ($ftCount > 0)<span style="margin-left:auto;font-size:10.5px;color:var(--muted);">{{ $ftCount }}</span>@endif
-                </button>
+                </button></div>
             @endforeach
         </div>
     </div>

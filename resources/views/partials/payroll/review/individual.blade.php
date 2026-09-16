@@ -33,10 +33,10 @@
         </div>
         <div style="max-height:560px;overflow:auto;">
             @foreach ($payslipRows as $p)
-                <button type="button" x-show="hit(rows[{{ $loop->index }}])" @click="pick = {{ $p->id }}" :style="pick === {{ $p->id }} ? 'background:var(--canvas);' : ''" style="display:flex;width:100%;text-align:left;align-items:center;gap:10px;padding:10px 14px;border:0;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;">
+                <div x-show="hit(rows[{{ $loop->index }}])"><button type="button" @click="pick = {{ $p->id }}" :style="{ background: pick === {{ $p->id }} ? 'var(--canvas)' : 'none' }" style="display:flex;width:100%;text-align:left;align-items:center;gap:10px;padding:10px 14px;border:0;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;">
                     <div style="min-width:0;flex:1;"><div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $p->employee?->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $p->employee?->position }}</div></div>
                     <span style="font-size:12px;font-family:var(--font-mono);color:var(--ink);">{{ $money($p->net_pay) }}</span>
-                </button>
+                </button></div>
             @endforeach
         </div>
     </div>

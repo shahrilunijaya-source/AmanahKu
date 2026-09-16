@@ -48,6 +48,7 @@
         <div class="uj-card uj-stat" style="flex:1;min-width:170px;"><div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Net payout' : 'Bayaran bersih'">Net payout</div><div class="uj-stat-value" style="color:var(--success);">{{ $money($latest['net'] ?? 0) }}</div></div>
         <div class="uj-card uj-stat" style="flex:1;min-width:170px;"><div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Employer cost' : 'Kos majikan'">Employer cost</div><div class="uj-stat-value">{{ $money($latest['employer_cost'] ?? 0) }}</div></div>
         <div class="uj-card uj-stat" style="flex:1;min-width:170px;"><div class="uj-stat-label" x-text="$store.ui.lang==='en' ? 'Headcount' : 'Bilangan staf'">Headcount</div><div class="uj-stat-value">{{ $latest['headcount'] ?? 0 }}</div></div>
+    </div>
 
     @include('partials.payroll.tabs', ['tabs' => $tabs])
 
