@@ -740,6 +740,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->name('payroll.runs.finalize');
             Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
+            Route::post('/app/payroll/payslips/{payslip}/acknowledge', [PayrollController::class, 'acknowledgePayslip'])->name('payroll.payslips.acknowledge');
             Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
             Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });

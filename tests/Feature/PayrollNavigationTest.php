@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollRun;
+use App\Models\Payslip;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
@@ -147,5 +149,51 @@ class PayrollNavigationTest extends TestCase
     {
         $this->acting($this->hr)->get('/app/payroll-form?tab=hrdf')->assertOk()->assertSee("x-data=\"{ tab: 'hrdf' }\"", false);
         $this->acting($this->hr)->get('/app/payroll-form?tab=nope')->assertOk()->assertSee("x-data=\"{ tab: 'form-e' }\"", false);
+    }
+
+    private function finalizedPayslipFor(Employee $employee, string $period = '2026-03'): Payslip
+    {
+        $run = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => $period, 'status' => 'finalized', 'finalized_at' => now()]);
+        $slip = new Payslip(['employee_id' => $employee->id]);
+        $slip->tenant_id = $this->tenant->id;
+        $slip->payroll_run_id = $run->id;
+        $slip->forceFill(['basic' => 4000, 'gross' => 4000, 'net_pay' => 3500])->save();
+
+        return $slip;
+    }
+
+    public function test_my_payroll_shows_own_slip_and_acknowledges_it_once(): void
+    {
+        $slip = $this->finalizedPayslipFor($this->emp);
+
+        $this->acting($this->empUser)->get('/app/payroll-my?payslip='.$slip->id)->assertOk()
+            ->assertSee(route('payroll.payslips.acknowledge', $slip), false)
+            ->assertSee('EA Form');
+
+        $this->acting($this->empUser)->post(route('payroll.payslips.acknowledge', $slip))
+            ->assertRedirect(route('app.screen', ['screen' => 'payroll-my', 'payslip' => $slip->id]));
+        $this->assertNotNull($slip->fresh()->acknowledged_at);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Acknowledged payslip']);
+
+        $this->acting($this->empUser)->post(route('payroll.payslips.acknowledge', $slip))->assertStatus(422);
+        $this->acting($this->empUser)->get('/app/payroll-my?payslip='.$slip->id)->assertOk()->assertSee('Acknowledged on');
+    }
+
+    public function test_cannot_acknowledge_another_persons_payslip(): void
+    {
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead2', 'status' => 'active', 'workload' => 'green']);
+        $slip = $this->finalizedPayslipFor($other);
+
+        $this->acting($this->empUser)->post(route('payroll.payslips.acknowledge', $slip))->assertForbidden();
+        $this->assertNull($slip->fresh()->acknowledged_at);
+    }
+
+    public function test_employee_can_view_own_ea_form_but_not_anothers(): void
+    {
+        $this->finalizedPayslipFor($this->emp);
+        $this->acting($this->empUser)->get(route('payroll.ea-form.show', ['employee' => $this->emp->id, 'year' => 2026]))->assertOk();
+
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
+        $this->acting($this->empUser)->get(route('payroll.ea-form.show', ['employee' => $other->id, 'year' => 2026]))->assertForbidden();
     }
 }

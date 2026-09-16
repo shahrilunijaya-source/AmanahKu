@@ -677,6 +677,26 @@ class PayrollController extends Controller
     }
 
     /**
+     * A staff member confirms they have seen their own issued payslip. Once only, own
+     * slip only, finalized runs only. HR does not acknowledge on anyone's behalf.
+     */
+    public function acknowledgePayslip(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $tid = app(CurrentTenant::class)->id();
+        abort_unless($payslip->tenant_id === $tid, 403);
+        $user = $request->user();
+        $employee = $user ? Employee::where('tenant_id', $tid)->where('user_id', $user->id)->first() : null;
+        abort_unless($employee && $payslip->employee_id === $employee->id, 403);
+        abort_unless($payslip->payrollRun?->status === 'finalized', 422);
+        abort_if($payslip->acknowledged_at !== null, 422);
+
+        $payslip->forceFill(['acknowledged_at' => now()])->save();
+        AuditLog::record('Acknowledged payslip', $payslip->payrollRun->label);
+
+        return redirect()->route('app.screen', ['screen' => 'payroll-my', 'payslip' => $payslip->id])->with('ok', 'Payslip acknowledged.');
+    }
+
+    /**
      * Approved unpaid leave for $employee overlapping $period, not yet paid and not
      * already reserved by another payslip. "Unpaid" is whichever LeaveType has is_unpaid
      * set (leave_types.is_unpaid) — never matched by name, which breaks the moment a

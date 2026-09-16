@@ -157,9 +157,10 @@ class EaFormPdfTest extends TestCase
         $response->assertSee('Worker');
     }
 
-    public function test_employee_cannot_view_the_hr_preview_screen(): void
+    public function test_employee_views_own_preview_but_not_someone_elses(): void
     {
-        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->emp, 'year' => 2026]))->assertForbidden();
+        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->emp, 'year' => 2026]))->assertOk();
+        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->otherEmp, 'year' => 2026]))->assertForbidden();
     }
 
     public function test_employee_cannot_download_the_bulk_pdf(): void
