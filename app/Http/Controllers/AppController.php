@@ -127,7 +127,7 @@ class AppController extends Controller
     }
 
     /** Render an app screen inside the shared shell with tenant-scoped data. */
-    public function screen(Request $request, string $screen = 'dash'): ViewContract
+    public function screen(Request $request, string $screen = 'dash'): ViewContract|RedirectResponse
     {
         $tenant = app(CurrentTenant::class)->get();
         // Directors act as management for every screen gate, nav item and persona view —
@@ -184,11 +184,21 @@ class AppController extends Controller
         if ($screen === 'onboarding-content') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
+        // Payroll working screens are HR and management only; My Payroll is for everyone.
+        if (in_array($screen, ['payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form'], true)) {
+            $this->authorizeTenantRole($request, ['management', 'hr']);
+        }
         // Feature gate: a screen whose gating module is disabled for this tenant reads
         // as absent (404), so a switched-off module looks like it was never installed.
         // Core screens have no gating module and always pass.
         if (! app(FeatureManager::class)->screenAllowed($tenant, $screen)) {
             abort(404);
+        }
+
+        // Parent "Payroll" is a landing: HR and management start at Process, everyone
+        // else at their own payslips.
+        if ($screen === 'payroll') {
+            return redirect()->route('app.screen', $this->hasTenantRole($request, ['management', 'hr']) ? 'payroll-process' : 'payroll-my');
         }
 
         $data = $this->screenData($request, $screen, $persona, $employee);
@@ -550,7 +560,7 @@ class AppController extends Controller
             'workload' => $this->workloadData(),
             'attendance' => $this->attendanceData($employee),
             'leave' => $this->leaveData($request, $employee),
-            'payroll' => $this->payrollData($request, $employee),
+            'payroll-my', 'payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form' => $this->payrollData($request, $employee),
             'kpi' => ['items' => $employee?->kpiItems()->get() ?? collect()],
             'achievements' => $this->achievementsData($request->attributes->get('tenantRole', 'employee')),
             'reviews' => $this->reviewsData($employee, $request->attributes->get('tenantRole', 'employee')),

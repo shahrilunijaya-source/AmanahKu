@@ -601,7 +601,7 @@ Rename the file to `2026_09_29_100400_add_acknowledged_at_to_payslips.php`. Body
     public function up(): void
     {
         Schema::table('payslips', function (Blueprint $table) {
-            $table->timestamp('acknowledged_at')->nullable()->after('finalized_at');
+            $table->timestamp('acknowledged_at')->nullable();
         });
     }
 
@@ -1073,7 +1073,7 @@ Run: `php artisan test --compact tests/Feature/PayrollNavigationTest.php --filte
 @endif
 ```
 
-In the pasted payslip row, change the name link `route('app.screen', ['screen' => 'payroll', 'payslip' => $p->id])` to `route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payslip', 'run' => $activeRun->id])`? No: keep it simple, make the name plain text (no link); the PDF lives on Payment. The Edit toggle keeps `editing`.
+In the pasted payslip row, make the name plain text (no link); the PDF lives on Payment. The Edit toggle keeps `editing`.
 
 - [ ] **Step 4: EA Form and Bulk EA partials**
 
