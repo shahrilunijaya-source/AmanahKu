@@ -61,7 +61,7 @@
             @endphp
             <div class="uj-card uj-sq-quest @if ($myPost) is-done @endif" data-quest="{{ $quest->id }}"
                  @unless ($plain) :style="'transform:translateY(' + (y[{{ $loop->index }}] ?? 0) + 'px) scale(' + (up ? 1 : 1 - {{ $loop->index }} * .03) + ');z-index:{{ 10 - $loop->index }}'" @endunless
-                 @unless ($myPost) x-data="{ open: false }" @endunless>
+                 @unless ($myPost) x-data="{ open: false, photo: '' }" @endunless>
                 @unless ($plain)
                     <span class="uj-sq-art" aria-hidden="true">🎯</span>
                 @endunless
@@ -90,7 +90,7 @@
                                 <textarea name="note" rows="2" maxlength="280" placeholder="What did you do?"></textarea>
                             </label>
                             <div class="row">
-                                <label class="uj-sq-file" data-tip="Optional, any image">{{ $plain ? '' : '📎 ' }}Add a photo <input type="file" name="photo" accept="image/*" hidden></label>
+                                <label class="uj-sq-file" data-tip="Optional, any image">{{ $plain ? '' : '📎 ' }}<span x-text="photo || 'Add a photo'">Add a photo</span> <input type="file" name="photo" accept="image/*" hidden @change="photo = $event.target.files[0]?.name ?? ''"></label>
                                 <button type="submit" class="uj-btn-primary" data-tip-start data-tip="Goes to the feed and your profile">Post it</button>
                             </div>
                         </form>
