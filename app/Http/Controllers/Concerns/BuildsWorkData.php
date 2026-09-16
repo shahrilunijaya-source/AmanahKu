@@ -571,6 +571,9 @@ trait BuildsWorkData
             'myEaYears' => $myEaYears,
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
+            'payoutYear' => $payoutYear = (int) ($request->integer('year') ?: now()->year),
+            'payoutRuns' => PayrollRun::withCount('payslips')
+                ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
             'openingYear' => (int) now()->year,

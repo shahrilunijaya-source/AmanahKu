@@ -1084,7 +1084,7 @@ class PayrollController extends Controller
         $run->forceFill(['status' => 'approved', 'approved_by_id' => Auth::id()])->save();
         AuditLog::record('Approved payroll run', $run->label);
 
-        return back()->with('ok', $run->label.' payroll approved. Finalize to issue payslips.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll approved. Finalize to issue payslips.');
     }
 
     public function finalizeRun(Request $request, PayrollRun $run): RedirectResponse
@@ -1137,14 +1137,14 @@ class PayrollController extends Controller
                     $payslip->employee->user_id,
                     'Payslip ready',
                     'Your '.$run->label.' payslip is available · net RM '.number_format($payslip->net_pay, 2),
-                    route('app.screen', 'payroll'),
+                    route('app.screen', 'payroll-my'),
                 );
             }
 
             AuditLog::record('Finalized payroll run', $run->label.' · '.$payslips->count().' payslips issued');
         });
 
-        return back()->with('ok', $run->label.' payroll finalized — payslips issued and employees notified.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll finalized, payslips issued and employees notified.');
     }
 
     /**
@@ -1210,7 +1210,7 @@ class PayrollController extends Controller
             $label.' ('.$period.')'.($wasFinalized ? ' · claims/overtime/unpaid-leave reversed to unpaid' : ''),
         );
 
-        return redirect()->route('app.screen', 'payroll')->with('ok', $label.' payroll run deleted.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout'])->with('ok', $label.' payroll run deleted.');
     }
 
     // ── Helpers ───────────────────────────────────────────────────

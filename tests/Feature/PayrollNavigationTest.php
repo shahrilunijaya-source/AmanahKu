@@ -153,7 +153,7 @@ class PayrollNavigationTest extends TestCase
 
     private function finalizedPayslipFor(Employee $employee, string $period = '2026-03'): Payslip
     {
-        $run = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => $period, 'status' => 'finalized', 'finalized_at' => now()]);
+        $run = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => $period, 'label' => 'Run '.$period, 'status' => 'finalized', 'finalized_at' => now()]);
         $slip = new Payslip(['employee_id' => $employee->id]);
         $slip->tenant_id = $this->tenant->id;
         $slip->payroll_run_id = $run->id;
@@ -237,5 +237,35 @@ class PayrollNavigationTest extends TestCase
         $this->assertStringContainsString('Worker', $html);
         $this->assertStringContainsString(route('payroll.export.ea-forms', ['year' => 2026]), $html);
         $this->assertStringContainsString(route('payroll.ea-form.show', ['employee' => $this->emp->id, 'year' => 2026]), $html);
+    }
+
+    public function test_payment_screen_lists_the_years_runs_with_actions_and_files(): void
+    {
+        $slip = $this->finalizedPayslipFor($this->emp, '2026-02');
+        $run = $slip->payrollRun;
+
+        $html = $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2026')->assertOk()->getContent();
+        $this->assertStringContainsString($run->label, $html);
+        $this->assertStringContainsString(route('payroll.export.bank', $run), $html);
+        $this->assertStringContainsString(route('payroll.export.statutory', $run), $html);
+        $this->assertStringContainsString(route('payroll.export.payslips-pdf', $run), $html);
+        $this->assertStringContainsString(route('payroll.payslips.pdf', $slip), $html);
+        $this->assertStringContainsString(route('payroll.form-e.cp8d', ['year' => 2026]), $html);
+        $this->assertStringContainsString('Spec F6', $html);
+
+        $this->assertStringNotContainsString('No payroll runs in this year.', $html);
+        $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2019')->assertOk()->assertSee('No payroll runs in this year.');
+    }
+
+    public function test_run_actions_land_on_payout_management(): void
+    {
+        $slip = $this->finalizedPayslipFor($this->emp, '2026-02');
+        $run = $slip->payrollRun;
+        $run->forceFill(['status' => 'draft', 'finalized_at' => null])->save();
+
+        $this->acting($this->hr)->post(route('payroll.runs.approve', $run))
+            ->assertRedirect(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id]));
+        $this->acting($this->hr)->post(route('payroll.runs.delete', $run))
+            ->assertRedirect(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout']));
     }
 }
