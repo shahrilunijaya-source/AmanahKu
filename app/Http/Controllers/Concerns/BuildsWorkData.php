@@ -523,6 +523,7 @@ trait BuildsWorkData
                 ->filter(fn ($p) => $p->payrollRun?->status === 'finalized')
                 ->sortByDesc(fn ($p) => $p->payrollRun->period)->values()
             : collect();
+        $myEaYears = $myPayslips->map(fn ($p) => (int) substr((string) $p->payrollRun?->period, 0, 4))->filter()->unique()->sortDesc()->values()->all();
 
         // A specific payslip detail: own (finalized) for everyone, any for privileged.
         $selectedPayslip = null;
@@ -540,6 +541,7 @@ trait BuildsWorkData
                 'privileged' => false,
                 'isManagementTier' => false,
                 'myPayslips' => $myPayslips,
+                'myEaYears' => $myEaYears,
                 'selectedPayslip' => $selectedPayslip,
                 'runs' => collect(),
                 'activeRun' => null,
@@ -566,8 +568,12 @@ trait BuildsWorkData
             // gate — see PayrollController::destroyRun() and Permissions::MANAGEMENT_TIER.
             'isManagementTier' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
             'myPayslips' => $myPayslips,
+            'myEaYears' => $myEaYears,
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
+            'payoutYear' => $payoutYear = (int) ($request->integer('year') ?: now()->year),
+            'payoutRuns' => PayrollRun::withCount('payslips')
+                ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
             'openingYear' => (int) now()->year,

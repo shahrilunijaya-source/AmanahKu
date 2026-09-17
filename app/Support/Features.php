@@ -32,7 +32,7 @@ class Features
         'module.overtime' => ['Overtime', ['overtime'], 1],
         'module.events' => ['Company Events', ['events'], 1],
         'module.bookings' => ['Room & Vehicle Booking', ['rooms', 'vehicles'], 2],
-        'module.payroll' => ['Payroll & Compensation', ['payroll'], 2],
+        'module.payroll' => ['Payroll & Compensation', ['payroll', 'payroll-my', 'payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form'], 2],
         'module.loans' => ['Loans & Advances', ['loans'], 2],
         'module.pettycash' => ['Petty Cash', ['pettycash'], 2],
         'module.benefits' => ['Benefits', ['benefits'], 2],

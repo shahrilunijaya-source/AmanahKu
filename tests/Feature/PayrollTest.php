@@ -48,7 +48,9 @@ class PayrollTest extends TestCase
         $this->emp2 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green']);
 
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp2->id, 'basic_salary' => 3000]);
+        Employee::whereKey($this->emp2->id)->update(['salary' => 3000]);
     }
 
     private function actingHr(): self
@@ -155,7 +157,8 @@ class PayrollTest extends TestCase
         // MY statutory wage brackets), net 4415.35.
         $this->assertEqualsWithDelta(4415.35, (float) $payslip->net_pay, 0.001);
 
-        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])
+            ->assertRedirect(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $run->id, 'payslip' => $payslip->id]));
 
         $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb, 0.001);
         $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb_override, 0.001);
@@ -276,16 +279,19 @@ class PayrollTest extends TestCase
         $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Newbie', 'status' => 'active', 'workload' => 'green']);
 
         $this->actingHr()->post('/app/payroll/salary', [
-            'employee_id' => $emp3->id, 'basic_salary' => 4200,
+            'employee_id' => $emp3->id, 'bank_name' => 'Maybank',
         ])->assertRedirect();
 
-        $structure = SalaryStructure::where('employee_id', $emp3->id)->firstOrFail();
-        $this->assertEqualsWithDelta(4200.0, (float) $structure->basic_salary, 0.001);
+        $this->assertDatabaseHas('salary_structures', ['employee_id' => $emp3->id, 'bank_name' => 'Maybank']);
     }
 
-    public function test_salary_structure_requires_basic_salary(): void
+    public function test_payroll_run_reads_basic_from_the_employee_record(): void
     {
-        $this->actingHr()->post('/app/payroll/salary', ['employee_id' => $this->emp1->id])->assertSessionHasErrors('basic_salary');
+        // One salary field, as HR is used to from Worksy: the figure on the employee record.
+        Employee::whereKey($this->emp1->id)->update(['salary' => 6100]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['basic_salary' => 5000]);
+        $run = $this->createRun('2026-01');
+        $this->assertSame(6100.0, (float) $run->payslips()->where('employee_id', $this->emp1->id)->value('basic'));
     }
 
     public function test_privileged_user_saves_the_statutory_profile(): void
@@ -513,8 +519,8 @@ class PayrollTest extends TestCase
         SalaryStructure::where('employee_id', $this->emp1->id)->update(['children_relief_count' => 2]);
         $this->emp2->update(['marital_status' => 'married']);
         SalaryStructure::where('employee_id', $this->emp2->id)
-            ->update(['spouse_working' => true, 'children_relief_count' => 2,
-                'basic_salary' => SalaryStructure::where('employee_id', $this->emp1->id)->value('basic_salary')]);
+            ->update(['spouse_working' => true, 'children_relief_count' => 2]);
+        $this->emp2->update(['salary' => $this->emp1->fresh()->salary]);
 
         $run = $this->createRun('2026-01');
         $divorced = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
@@ -539,6 +545,7 @@ class PayrollTest extends TestCase
 
         // A pay rise mid-year — YTD gross/EPF from the finalized January run feeds Feb's PCB.
         SalaryStructure::where('employee_id', $this->emp1->id)->update(['basic_salary' => 8000]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 8000]);
         $run2 = $this->createRun('2026-02');
         $this->actingHr()->post("/app/payroll/runs/{$run2->id}/finalize")->assertRedirect();
         $feb = $run2->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
@@ -562,6 +569,7 @@ class PayrollTest extends TestCase
     {
         $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+        Employee::whereKey($emp3->id)->update(['salary' => 5000]);
 
         $withoutOpening = $this->createRun('2026-06');
         $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
@@ -583,6 +591,7 @@ class PayrollTest extends TestCase
     {
         $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+        Employee::whereKey($emp3->id)->update(['salary' => 5000]);
 
         $withoutOpening = $this->createRun('2026-06');
         $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
@@ -604,6 +613,7 @@ class PayrollTest extends TestCase
     {
         $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 9000]);
+        Employee::whereKey($emp3->id)->update(['salary' => 9000]);
 
         $withoutOpening = $this->createRun('2026-06');
         $slipWithout = $withoutOpening->payslips()->where('employee_id', $emp3->id)->firstOrFail();
@@ -650,16 +660,20 @@ class PayrollTest extends TestCase
     /**
      * Same haystack shape as leave-setup's grid (display name + legal name + position,
      * lower-cased) — present once per Alpine-filtered employee list on the screen:
-     * Salary structures, Previous employment (TP3), the Individual transactions
-     * employee picker, and this run's payslip rows.
+     * the Transaction screen's fixed-transaction picker, Individual transactions
+     * picker and Payroll Figures Take On list, and Payroll Review's payslip picker.
      */
     public function test_payroll_employee_lists_are_searchable_by_nickname(): void
     {
         $this->emp1->update(['nickname' => 'wory']);
         $this->createRun('2026-06');
 
-        $html = $this->actingHr()->get('/app/payroll')->assertOk()->getContent();
+        $transaction = $this->actingHr()->get('/app/payroll-transaction')->assertOk()->getContent();
+        $review = $this->actingHr()->get('/app/payroll-review')->assertOk()->getContent();
 
-        $this->assertSame(4, substr_count($html, 'wory worker'));
+        // Transaction: fixed-transaction staff picker, individual transactions picker, take on list.
+        $this->assertSame(3, substr_count($transaction, 'wory worker'));
+        // Payroll Review: the run's payslip picker.
+        $this->assertSame(1, substr_count($review, 'wory worker'));
     }
 }

@@ -78,7 +78,7 @@ class CalendarNotesTest extends TestCase
         $owner = $this->signIn();
         CalendarNote::create(['tenant_id' => $this->tenant->id, 'employee_id' => $owner->id, 'date' => '2026-09-12', 'title' => 'Private thing']);
 
-        $this->get('/app/dash')->assertOk()->assertSee('Private thing');
+        $this->get('/app/dash')->assertOk()->assertSee('Private thing')->assertSee('Add to this day. Only you can see it.');
 
         $this->signIn('Ahmad');
         $this->get('/app/dash')->assertOk()->assertDontSee('Private thing');
@@ -131,6 +131,28 @@ class CalendarNotesTest extends TestCase
         $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $done->id])->assertNotFound();
         $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $theirs->id])->assertNotFound();
         $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $mine->id])->assertOk();
+    }
+
+    public function test_cards_you_review_or_are_tagged_on_are_offered_and_accepted(): void
+    {
+        $employee = $this->signIn();
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Ahmad', 'status' => 'active', 'workload' => 'green']);
+        $tagged = $this->card($other, 'Tagged helper card');
+        $tagged->participants()->attach($employee->id, ['role' => 'fyi']);
+        $reviewing = $this->card($other, 'Card I review');
+        $reviewing->update(['reviewer_id' => $employee->id]);
+        $taggedDone = $this->card($other, 'Tagged but done', 'done');
+        $taggedDone->participants()->attach($employee->id, ['role' => 'helper']);
+
+        $page = $this->get('/app/dash')->assertOk();
+        $page->assertSee('Tagged helper card');
+        $page->assertSee('Tagged – FYI');
+        $page->assertSee('Card I review');
+        $page->assertDontSee('Tagged but done');
+
+        $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $tagged->id])->assertOk();
+        $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $reviewing->id])->assertOk();
+        $this->postJson('/app/dashboard/calendar-notes', ['date' => '2026-09-15', 'work_item_id' => $taggedDone->id])->assertNotFound();
     }
 
     public function test_a_pin_whose_card_was_archived_falls_off_the_calendar(): void

@@ -34,7 +34,7 @@ class CalendarNoteController extends Controller
         ]);
 
         if (isset($data['work_item_id'])) {
-            // Only your own open cards can be pinned, and only once per day.
+            // Only open cards you're on can be pinned, and only once per day.
             $card = $this->pinnable($employee)->whereKey($data['work_item_id'])->firstOrFail();
 
             $exists = CalendarNote::where('employee_id', $employee->id)
@@ -96,15 +96,18 @@ class CalendarNoteController extends Controller
     }
 
     /**
-     * The viewer's open cards: assigned to them, not done, not archived. This is
-     * the list the day panel offers to pin from.
+     * The viewer's open cards: assigned to them, or they review it or are tagged on
+     * it; not done, not archived, not cancelled. This is the list the day panel
+     * offers to pin from.
      *
      * @return Builder<WorkItem>
      */
     public static function pinnable(Employee $employee)
     {
         return WorkItem::query()
-            ->where('employee_id', $employee->id)
+            ->where(fn ($q) => $q->where('employee_id', $employee->id)
+                ->orWhere('reviewer_id', $employee->id)
+                ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
             ->where('status', '!=', 'done')
             ->whereNull('archived_at')
             ->whereNull('cancelled_at')

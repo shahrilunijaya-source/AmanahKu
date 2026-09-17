@@ -47,6 +47,7 @@ class PayrollExportTest extends TestCase
             'bank_name' => 'Maybank', 'bank_account_no' => '514999001122',
             'epf_no' => 'EPF12345678', 'socso_no' => 'SOC99001122',
         ]);
+        Employee::whereKey($this->emp->id)->update(['salary' => 5000]);
     }
 
     private function finalizedRun(string $status = 'finalized'): PayrollRun

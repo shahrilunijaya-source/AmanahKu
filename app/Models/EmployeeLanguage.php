@@ -1,13 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CareerTimelineEntry extends Model
+/** Experience tab · Language proficiency row. */
+class EmployeeLanguage extends Model
 {
-    protected $table = 'career_timeline';
+    use BelongsToTenant;
 
     protected $guarded = [];
 

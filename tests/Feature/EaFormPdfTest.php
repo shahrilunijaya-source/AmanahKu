@@ -57,6 +57,7 @@ class EaFormPdfTest extends TestCase
             'epf_no' => 'EPF12345678', 'socso_no' => 'SOC99001122', 'tax_no' => 'SG12345678',
             'children_relief_count' => 2,
         ]);
+        Employee::whereKey($this->emp->id)->update(['salary' => 5000]);
 
         $this->otherEmpUser = User::create(['name' => 'Someone Else', 'email' => 'other@example.com', 'password' => Hash::make('password')]);
         $this->otherEmpUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
@@ -156,9 +157,10 @@ class EaFormPdfTest extends TestCase
         $response->assertSee('Worker');
     }
 
-    public function test_employee_cannot_view_the_hr_preview_screen(): void
+    public function test_employee_views_own_preview_but_not_someone_elses(): void
     {
-        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->emp, 'year' => 2026]))->assertForbidden();
+        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->emp, 'year' => 2026]))->assertOk();
+        $this->actingEmployee()->get(route('payroll.ea-form.show', ['employee' => $this->otherEmp, 'year' => 2026]))->assertForbidden();
     }
 
     public function test_employee_cannot_download_the_bulk_pdf(): void

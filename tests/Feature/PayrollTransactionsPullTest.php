@@ -45,6 +45,7 @@ class PayrollTransactionsPullTest extends TestCase
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
         // basic 5200 / 26 / 8 = 25.00/hr exactly, so overtime figures land on round numbers.
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5200]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5200]);
     }
 
     private function actingHr(): self
@@ -378,7 +379,7 @@ class PayrollTransactionsPullTest extends TestCase
             'unpaid_leave_request_ids' => null,
         ])->save();
 
-        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll', 'payslip' => $slip->id]))->assertOk()
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $run->id, 'payslip' => $slip->id]))->assertOk()
             ->assertSee('Legacy travel claim')
             ->assertSee('Legacy advance');
     }

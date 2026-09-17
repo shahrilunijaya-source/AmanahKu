@@ -86,6 +86,7 @@ class Amanahku
             // server-gated regardless of what the nav shows.
             $s('My Team', 'Pasukan Saya', ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75']),
             $s('My Team', 'Pasukan Saya', ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi', 'icon' => 'M9 3h6v3H9zM3 18h4v3H3zM17 18h4v3h-4zM12 6v4M5 18v-3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'progression', 'label' => 'Progression', 'label_ms' => 'Kemajuan Kerjaya', 'icon' => 'M12 20V10M18 20V4M6 20v-4', 'roles' => ['management', 'hr']]),
             $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
             // Verify/approve queues + the company ledger now live as role-aware tabs on the
             // Claims screen itself (My Work), so there is no separate My Team entry. The
@@ -144,7 +145,14 @@ class Amanahku
             $s('Office Requests', 'Permintaan Pejabat', ['id' => 'office-requests', 'label' => 'Office Requests', 'label_ms' => 'Permintaan Pejabat', 'icon' => 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z']),
 
             // ── Pay & Benefits ────────────────────────────────────────────────
-            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8']),
+            $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'landing' => true, 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8', 'children' => [
+                ['id' => 'payroll-my', 'label' => 'My Payroll', 'label_ms' => 'Gaji Saya'],
+                ['id' => 'payroll-transaction', 'label' => 'Transaction', 'label_ms' => 'Transaksi', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-process', 'label' => 'Process', 'label_ms' => 'Proses', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-review', 'label' => 'Payroll Review', 'label_ms' => 'Semakan Gaji', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-payment', 'label' => 'Payment', 'label_ms' => 'Pembayaran', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-form', 'label' => 'Form', 'label_ms' => 'Borang', 'roles' => ['management', 'hr']],
+            ]]),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'loans', 'label' => 'Loans & Advances', 'label_ms' => 'Pinjaman & Pendahuluan', 'icon' => 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'pettycash', 'label' => 'Petty Cash', 'label_ms' => 'Wang Runcit', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 12h.01M6 9v6M18 9v6']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'benefits', 'label' => 'Benefits', 'label_ms' => 'Faedah', 'icon' => 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9.5 11l1.7 1.7L14.5 9']),
@@ -357,7 +365,13 @@ class Amanahku
             'overtime' => ['title' => 'Overtime Requests', 'title_ms' => 'Permohonan Overtime', 'sub' => 'Log overtime hours and track approvals.', 'sub_ms' => 'Rekod jam overtime dan jejak kelulusan.', 'crumb' => ['Overtime']],
             'resignation' => ['title' => 'Resignation & Exit', 'title_ms' => 'Perletakan Jawatan & Exit', 'sub' => 'Submit a resignation, track notice and exit interviews.', 'sub_ms' => 'Hantar perletakan jawatan, jejak notis dan temu duga exit.', 'crumb' => ['Resignation']],
             'compliance' => ['title' => 'Compliance & Licenses', 'title_ms' => 'Pematuhan & Lesen', 'sub' => 'Licenses, certifications and permits with expiry alerts.', 'sub_ms' => 'Lesen, pensijilan dan permit dengan amaran tamat tempoh.', 'crumb' => ['Compliance']],
-            'payroll' => ['title' => 'Payroll & Compensation', 'title_ms' => 'Payroll & Pampasan', 'sub' => 'Salary structures, statutory deductions and monthly payslips.', 'sub_ms' => 'Struktur gaji, potongan berkanun dan slip gaji bulanan.', 'crumb' => ['Payroll']],
+            'payroll' => ['title' => 'Payroll', 'title_ms' => 'Gaji', 'sub' => 'Monthly payroll, payslips and statutory forms.', 'sub_ms' => 'Gaji bulanan, slip gaji dan borang berkanun.', 'crumb' => ['Payroll']],
+            'payroll-my' => ['title' => 'My Payroll', 'title_ms' => 'Gaji Saya', 'sub' => 'Your payslips, EA form and tax relief.', 'sub_ms' => 'Slip gaji, borang EA dan pelepasan cukai anda.', 'crumb' => ['Payroll', 'My Payroll']],
+            'payroll-transaction' => ['title' => 'Transaction', 'title_ms' => 'Transaksi', 'sub' => 'Recurring and one-off pay lines, opening figures and the payroll item catalogue.', 'sub_ms' => 'Baris gaji tetap dan sekali, angka pembukaan dan katalog item gaji.', 'crumb' => ['Payroll', 'Transaction']],
+            'payroll-process' => ['title' => 'Process', 'title_ms' => 'Proses', 'sub' => 'Create and track the monthly payroll run.', 'sub_ms' => 'Buat dan jejak run gaji bulanan.', 'crumb' => ['Payroll', 'Process']],
+            'payroll-review' => ['title' => 'Payroll Review', 'title_ms' => 'Semakan Gaji', 'sub' => 'Check each payslip before payout, and EA forms per staff.', 'sub_ms' => 'Semak setiap slip gaji sebelum bayaran, dan borang EA setiap staf.', 'crumb' => ['Payroll', 'Payroll Review']],
+            'payroll-payment' => ['title' => 'Payment', 'title_ms' => 'Pembayaran', 'sub' => 'Approve, finalize, and produce bank and statutory files.', 'sub_ms' => 'Lulus, muktamadkan, dan hasilkan fail bank dan berkanun.', 'crumb' => ['Payroll', 'Payment']],
+            'payroll-form' => ['title' => 'Form', 'title_ms' => 'Borang', 'sub' => 'Statutory forms for LHDN, KWSP, PERKESO and HRDF.', 'sub_ms' => 'Borang berkanun untuk LHDN, KWSP, PERKESO dan HRDF.', 'crumb' => ['Payroll', 'Form']],
             'kpi' => ['title' => 'KPI & Performance', 'title_ms' => 'KPI & Prestasi', 'sub' => '2026 H1 cycle · mid-year review window open until 15 July.', 'sub_ms' => 'Kitaran H1 2026 · tetingkap semakan pertengahan tahun dibuka sehingga 15 Julai.', 'crumb' => ['Performance', 'KPI']],
             'achievements' => ['title' => 'Achievements & Recognition', 'title_ms' => 'Pencapaian & Pengiktirafan', 'sub' => 'Kudos, awards and milestones across the team.', 'sub_ms' => 'Pujian, anugerah dan pencapaian merentas pasukan.', 'crumb' => ['Performance', 'Achievements']],
             'reviews' => ['title' => 'Performance Reviews', 'title_ms' => 'Semakan Prestasi', 'sub' => 'Review cycles, scorecards and self-assessments.', 'sub_ms' => 'Kitaran semakan, kad skor dan penilaian kendiri.', 'crumb' => ['Performance', 'Reviews']],
@@ -388,6 +402,7 @@ class Amanahku
             'assets' => ['title' => 'Asset Register', 'title_ms' => 'Daftar Aset', 'sub' => 'Company assets and who they are assigned to.', 'sub_ms' => 'Aset syarikat dan kepada siapa ia diberikan.', 'crumb' => ['Assets']],
             'shared-resources' => ['title' => 'Shared Resources', 'title_ms' => 'Sumber Bersama', 'sub' => 'Company accounts and tools everyone shares — links and logins in one place.', 'sub_ms' => 'Akaun dan alat syarikat yang dikongsi semua — pautan dan log masuk dalam satu tempat.', 'crumb' => ['Shared Resources']],
             'training' => ['title' => 'Training & Certifications', 'title_ms' => 'Latihan & Pensijilan', 'sub' => 'Assigned courses, mandatory training and completion status.', 'sub_ms' => 'Kursus ditugaskan, latihan wajib dan status penyiapan.', 'crumb' => ['Training']],
+            'progression' => ['title' => 'Progression', 'title_ms' => 'Kemajuan Kerjaya', 'sub' => 'Confirm, update, resign or rehire a staff member. Every change lands on their timeline.', 'sub_ms' => 'Sahkan, kemas kini, berhenti atau ambil semula pekerja. Setiap perubahan direkod pada garis masa mereka.', 'crumb' => ['People', 'Progression']],
             'orgchart' => ['title' => 'Organisation Chart', 'title_ms' => 'Carta Organisasi', 'sub' => 'Reporting lines across the company.', 'sub_ms' => 'Garis pelaporan merentas syarikat.', 'crumb' => ['People', 'Organisation Chart']],
             'profile-test' => ['title' => 'My Profile Test', 'title_ms' => 'Ujian Profil Saya', 'sub' => 'A short working-style check — no right or wrong answers. Your result shows on your profile.', 'sub_ms' => 'Semakan gaya kerja ringkas — tiada jawapan betul atau salah. Keputusan anda dipaparkan pada profil anda.', 'crumb' => ['People', 'My Profile Test']],
             'profile-test-results' => ['title' => 'Profile Test Results', 'title_ms' => 'Keputusan Ujian Profil', 'sub' => 'Everyone\'s answers, read-only. Managers see their own staff.', 'sub_ms' => 'Jawapan semua orang, baca sahaja. Pengurus melihat staf sendiri.', 'crumb' => ['Insights', 'Profile Test Results']],

@@ -56,7 +56,7 @@
         $stColor = ['active' => 'var(--success)', 'probation' => 'var(--amber)', 'on_leave' => 'var(--muted)', 'resigned' => 'var(--error)'][$p->status] ?? 'var(--success)';
         $fs = 'height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);outline:none;width:100%;';
     @endphp
-    <div x-data="{ edit: {{ $errors->any() ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
+    <div x-data="{ edit: {{ ($errors->any() && ! $errors->has('effective_on') && ! in_array(session('form'), ['personal', 'family', 'bank', 'work', 'asset'], true) && ! str_starts_with((string) session('form'), 'experience:')) ? 'true' : 'false' }}, editEmployment: {{ $errors->has('effective_on') ? 'true' : 'false' }}, editPersonal: {{ ($errors->any() && session('form') === 'personal') ? 'true' : 'false' }}, editBank: {{ ($errors->any() && session('form') === 'bank') ? 'true' : 'false' }}, editWork: {{ ($errors->any() && session('form') === 'work') ? 'true' : 'false' }} }" style="display:flex;flex-direction:column;gap:16px;">
 
         {{-- Cover controls. The cover picture itself is the full-width hero yielded in
              the layout (see @section('hero') above); this band only carries the pills. --}}
@@ -146,16 +146,10 @@
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Nickname' : 'Nama panggilan'">Nickname</span></label><input name="nickname" type="text" value="{{ old('nickname', $p->nickname) }}" maxlength="60" style="{{ $fs }}" />@include('partials.hint', ['en' => 'The short name colleagues use, such as "Hakime". Used instead of the full name in every list and picker.', 'ms' => 'Nama pendek yang digunakan rakan sekerja, contohnya "Hakime". Digunakan sebagai ganti nama penuh dalam setiap senarai dan pemilih.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</span></label><input name="email" type="email" value="{{ old('email', $p->email) }}" maxlength="160" style="{{ $fs }}" /></div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Staff ID' : 'ID Staf'">Staff ID</span></label><input name="staff_id" type="text" value="{{ old('staff_id', $p->staff_id) }}" placeholder="UR-0000" style="{{ $fs }}font-family:var(--font-mono);" /></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Joined' : 'Menyertai'">Joined</span></label><input name="joined_at" type="date" value="{{ old('joined_at', $p->joined_at?->format('Y-m-d')) }}" style="{{ $fs }}margin-bottom:6px;" />@include('partials.hint', ['en' => 'Leave blank to keep the current hire date.', 'ms' => 'Biar kosong untuk kekalkan tarikh menyertai semasa.'])</div>
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Date of birth' : 'Tarikh lahir'">Date of birth</span></label><input name="date_of_birth" type="date" value="{{ old('date_of_birth', $p->date_of_birth?->format('Y-m-d')) }}" style="{{ $fs }}" /></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Position band' : 'Band pangkat'">Position band</span></label><select name="position_id" x-model="pid" style="{{ $fs }}"><option value="">—</option>@foreach ($bandsByDept as $deptName => $group)<optgroup label="{{ $deptName }}">@foreach ($group as $pos)<option value="{{ $pos->id }}" @selected((int) old('position_id', $p->position_id) === $pos->id)>{{ $pos->title }}@if ($pos->staffLevel) · {{ $pos->staffLevel->name }}@endif · RM {{ number_format((float) $pos->max_salary, 0) }}</option>@endforeach</optgroup>@endforeach</select></div>
-                        @if ($canSeeSalary ?? false)<div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Salary (RM)' : 'Gaji (RM)'">Salary (RM)</span></label><input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $p->salary) }}" placeholder="0.00" style="{{ $fs }}font-family:var(--font-mono);" /><div x-show="pid && max[pid] !== undefined" x-cloak style="font-size:11px;color:var(--muted);margin-top:4px;"><span x-text="$store.ui.lang==='en' ? 'Band max:' : 'Maks band:'">Band max:</span> RM <span x-text="(max[pid] ?? 0).toLocaleString('en-MY',{minimumFractionDigits:2})"></span></div></div>@endif
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span></label><select name="branch_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allBranches as $b)<option value="{{ $b->id }}" @selected((int) old('branch_id', $p->branch_id) === $b->id)>{{ $b->name }}</option>@endforeach</select></div>
                         @php $waOpts = ['office' => 'Office', 'client' => 'Client site', 'wfh' => 'Work from home', 'hybrid' => 'Hybrid']; @endphp
                         <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Work arrangement' : 'Pengaturan kerja'">Work arrangement</span></label><select name="work_arrangement" style="{{ $fs }}">@foreach ($waOpts as $v => $l)<option value="{{ $v }}" @selected(old('work_arrangement', $p->work_arrangement ?? 'office') === $v)>{{ $l }}</option>@endforeach</select>@include('partials.hint', ['en' => 'Where this person clocks in. Client site location and hybrid office days are set on the Attendance Setup screen.', 'ms' => 'Di mana orang ini merekod kehadiran. Lokasi tapak klien dan hari pejabat hibrid ditetapkan pada skrin Persediaan Kehadiran.'])</div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Employment type' : 'Jenis pekerjaan'">Employment type</span></label><select name="employment_type_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allEmploymentTypes as $et)<option value="{{ $et->id }}" @selected((int) old('employment_type_id', $p->employment_type_id) === $et->id)>{{ $et->name }}</option>@endforeach</select></div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Reports to' : 'Melapor kepada'">Reports to</span></label><select name="reports_to_id" style="{{ $fs }}"><option value="">—</option>@foreach ($allManagers as $m)@continue($m->id === $p->id)<option value="{{ $m->id }}" @selected((int) old('reports_to_id', $p->reports_to_id) === $m->id)>{{ $m->name }}</option>@endforeach</select>@include('partials.hint', ['en' => 'Who this person reports to. This single link is what builds the organisation chart.', 'ms' => 'Siapa orang ini melapor kepadanya. Pautan inilah yang membina carta organisasi.'])</div>
-                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></label><select name="status" style="{{ $fs }}">@foreach ($stOpts as $v => $l)<option value="{{ $v }}" @selected(old('status', $p->status) === $v)>{{ $l }}</option>@endforeach</select></div>
+                        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span></label><select name="status" style="{{ $fs }}">@foreach (array_diff_key($stOpts, ['resigned' => 1]) as $v => $l)<option value="{{ $v }}" @selected(old('status', $p->status) === $v)>{{ $l }}</option>@endforeach</select></div>
                         <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;width:100%;padding:0 16px;display:flex;align-items:center;justify-content:center;margin-top:2px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
                     </div>
                 </form>
@@ -237,9 +231,29 @@
             $moneyShow = ($canSeeMoney ?? false) && (($payrollGate ?? false) || ($claimsGate ?? false) || ($loansGate ?? false) || ($overtimeGate ?? false));
 
             $tabs = [['overview', 'Overview', 'Gambaran']];
-            $tabs[] = ['work', 'Work & Tasks', 'Kerja & Tugas'];
+            if ($employmentGate ?? false) {
+                $tabs[] = ['employment', 'Employment', 'Pekerjaan'];
+                $tabs[] = ['timeline', 'Timeline', 'Garis Masa'];
+            }
+            if ($personalGate ?? false) {
+                $tabs[] = ['personal', 'Personal', 'Peribadi'];
+                $tabs[] = ['family', 'Family', 'Keluarga'];
+            }
+            if ($bankGate ?? false) {
+                $tabs[] = ['bank', 'Bank & Statutory', 'Bank & Statutori'];
+            }
+            if ($experienceGate ?? false) {
+                $tabs[] = ['experience', 'Experience', 'Pengalaman'];
+            }
+            if ($workGate ?? false) {
+                $tabs[] = ['workinfo', 'Work', 'Kerja'];
+            }
+            $tabs[] = ['work', 'Tasks', 'Tugas'];
             if ($leaveGate ?? false) {
                 $tabs[] = ['leave', 'Leave & Attendance', 'Cuti & Kehadiran'];
+            }
+            if ($attachmentGate ?? false) {
+                $tabs[] = ['attachment', 'Attachment', 'Lampiran'];
             }
             if ($kpiGate ?? false) {
                 $tabs[] = ['kpi', 'KPI History', 'Sejarah KPI'];
@@ -250,12 +264,11 @@
             if ($moneyShow) {
                 $tabs[] = ['money', 'Money', 'Wang'];
             }
-            $tabs[] = ['assets', 'Assets & Training', 'Aset & Latihan'];
         @endphp
-        <div class="uj-card" x-data="{ tab: 'overview' }">
-            <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);overflow-x:auto;">
+        <div class="uj-card" x-data="{ tab: new URLSearchParams(location.search).get('tab') || 'overview' }">
+            <div style="display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--hairline);flex-wrap:wrap;">
                 @foreach ($tabs as $tab)
-                    <button type="button" @click="tab = '{{ $tab[0] }}'"
+                    <button type="button" data-tab="{{ $tab[0] }}" @click="tab = '{{ $tab[0] }}'"
                         style="font-size:13px;padding:7px 14px;border-radius:7px;white-space:nowrap;cursor:pointer;border:0;transition:background .12s;"
                         :style="tab === '{{ $tab[0] }}' ? { color:'#fff', background:'var(--red)', fontWeight:'600' } : { color:'var(--body)', background:'transparent', fontWeight:'400' }"
                         x-text="$store.ui.lang==='en' ? @js($tab[1]) : @js($tab[2])">{{ $tab[1] }}</button>
@@ -265,7 +278,7 @@
             {{-- Overview · career timeline, employment details, skills tags, personality, interests, documents link-out --}}
             <div x-show="tab === 'overview'" class="uj-tab-stack" style="padding:20px;">
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Employment' : 'Pekerjaan'">Employment</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Employment' : 'Pekerjaan'">Employment</span></div>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px 24px;font-size:13px;">
                         <div style="display:flex;flex-direction:column;gap:3px;min-width:0;"><span style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Department' : 'Jabatan'">Department</span></span><span style="color:var(--ink);font-weight:500;">{{ $p->department?->name ?? '—' }}</span></div>
                         <div style="display:flex;flex-direction:column;gap:3px;min-width:0;"><span style="font-size:11px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Branch' : 'Cawangan'">Branch</span></span><span style="color:var(--ink);font-weight:500;">{{ $p->branch?->name ?? '—' }}</span></div>
@@ -274,25 +287,16 @@
                     </div>
                 </div>
 
-                <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Career timeline' : 'Garis masa kerjaya'">Career timeline</span></div>
-                    @forelse ($p->careerTimeline->sortByDesc('sort') as $c)
-                        <div style="display:flex;gap:14px;padding-bottom:16px;"><div style="width:10px;height:10px;border-radius:50%;background:{{ Amanahku::SWATCH[$c->category] ?? 'var(--muted-soft)' }};margin-top:4px;flex-shrink:0;"></div><div><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $c->title }}</div><div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">{{ $c->date_label }}</div></div></div>
-                    @empty
-                        <div style="padding:24px 4px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No career history yet.' : 'Tiada sejarah kerjaya lagi.'">No career history yet.</div>
-                    @endforelse
-                </div>
-
                 @if ($p->skills)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Skills' : 'Kemahiran'">Skills</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Skills' : 'Kemahiran'">Skills</span></div>
                     <div style="display:flex;flex-wrap:wrap;gap:7px;">@foreach ($p->skills as $s)<span style="font-size:12px;color:var(--ink);background:var(--canvas);border:1px solid var(--hairline);padding:5px 11px;border-radius:9999px;">{{ $s }}</span>@endforeach</div>
                 </div>
                 @endif
 
                 @if ($pers)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Personality profile' : 'Profil personaliti'">Personality profile</span></div>
+                    <div class="uj-section-head" style="margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Personality profile' : 'Profil personaliti'">Personality profile</span></div>
                     <div style="margin-bottom:14px;">
                         <div style="font-size:16px;font-weight:600;color:var(--ink);">{{ $pers['type'] ?? '' }}</div>
                         <div style="font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Spirit animal:' : 'Haiwan semangat:'">Spirit animal:</span> <span style="color:var(--red);font-weight:500;">{{ $pers['animal'] ?? '' }}</span></div>
@@ -314,7 +318,7 @@
 
                 @if ($p->interests)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Career interests' : 'Minat kerjaya'">Career interests</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Career interests' : 'Minat kerjaya'">Career interests</span></div>
                     <div style="display:flex;flex-wrap:wrap;gap:7px;">@foreach ($p->interests as $i)<span style="font-size:12px;color:var(--red);background:var(--red-tint);padding:5px 11px;border-radius:9999px;font-weight:500;">{{ $i }}</span>@endforeach</div>
                 </div>
                 @endif
@@ -324,9 +328,38 @@
                 </div>
             </div>
 
-            {{-- Work & Tasks · work items + assigned-tasks box with the Assign modal --}}
+            @if ($employmentGate ?? false)
+                {{-- Employment · the Worksy employment record; Timeline · one card per progression row --}}
+                <div x-show="tab === 'employment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.employment-tab')</div>
+                <div x-show="tab === 'timeline'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.timeline-tab')</div>
+            @endif
+
+            @if ($personalGate ?? false)
+                {{-- Personal · Worksy personal information; Family · parents, spouse, children, dependents --}}
+                <div x-show="tab === 'personal'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.personal-tab')</div>
+                <div x-show="tab === 'family'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.family-tab')</div>
+            @endif
+
+            @if ($bankGate ?? false)
+                {{-- Bank & Statutory · the salary structure (SalaryStructure) as Worksy shows it --}}
+                <div x-show="tab === 'bank'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.bank-tab')</div>
+            @endif
+            @if ($experienceGate ?? false)
+                {{-- Experience · TP3, previous employment, education, certificates, awards, languages, training, skills --}}
+                <div x-show="tab === 'experience'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.experience-tab')</div>
+            @endif
+            @if ($workGate ?? false)
+                {{-- Work · work details, work location, assets --}}
+                <div x-show="tab === 'workinfo'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.work-tab')</div>
+            @endif
+            @if ($attachmentGate ?? false)
+                {{-- Attachment · employee documents, upload + delete via the Documents endpoints --}}
+                <div x-show="tab === 'attachment'" x-cloak class="uj-tab-stack" style="padding:20px;">@include('partials.profile.attachment-tab')</div>
+            @endif
+
+            {{-- Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
-                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
+                <div class="uj-section-head" style="margin:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
                 @if ($isOwn)
                 <div style="padding:0 20px 12px;">
                     <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Google Calendar' : 'Kalendar Google'">Google Calendar</span>
@@ -388,8 +421,8 @@
 
                 @if (($canAssign ?? false) && ! $isOwn && ! $p->isArchived())
                 <div style="padding:18px 20px 4px;" x-data="{ assign: {{ $errors->getBag('assign')->any() ? 'true' : 'false' }} }">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;border-top:1px solid var(--hairline-soft);padding-top:16px;">
-                        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding-top:8px;">
+                        <div class="uj-section-head" style="flex:1;">
                             <span x-text="$store.ui.lang==='en' ? 'Assigned tasks' : 'Tugas diberi'">Assigned tasks</span>
                         </div>
                         <button type="button" @click="assign = true" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
@@ -471,7 +504,7 @@
             @if ($leaveGate ?? false)
             <div x-show="tab === 'leave'" x-cloak class="uj-tab-stack" style="padding:20px;">
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave balances' : 'Baki cuti'">Leave balances</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave balances' : 'Baki cuti'">Leave balances</span></div>
                     <div style="display:flex;flex-wrap:wrap;gap:10px;">
                         @forelse ($p->leaveBalances as $b)
                             <div style="min-width:130px;flex:1;border:1px solid var(--hairline-soft);border-radius:8px;padding:10px 12px;">
@@ -488,7 +521,7 @@
                 </div>
 
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave request history' : 'Sejarah permohonan cuti'">Leave request history</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Leave request history' : 'Sejarah permohonan cuti'">Leave request history</span></div>
                     @forelse ($leaveHistory ?? [] as $lr)
                         @php [$lcol, $len, $lms] = $leaveSt[$lr->status] ?? ['var(--muted)', ucfirst($lr->status), ucfirst($lr->status)]; @endphp
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
@@ -505,7 +538,7 @@
                 </div>
 
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Attendance · this month' : 'Kehadiran · bulan ini'">Attendance · this month</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Attendance · this month' : 'Kehadiran · bulan ini'">Attendance · this month</span></div>
                     @forelse ($attendance ?? [] as $a)
                         @php
                             $aLate = $a->status === 'late';
@@ -548,7 +581,7 @@
             <div x-show="tab === 'performance'" x-cloak class="uj-tab-stack" style="padding:20px;">
                 @if ($goalsGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Goals' : 'Matlamat'">Goals</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Goals' : 'Matlamat'">Goals</span></div>
                     @forelse ($goals ?? [] as $g)
                         <div style="padding:11px 0;border-top:1px solid var(--hairline-soft);">
                             <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:6px;">
@@ -565,7 +598,7 @@
 
                 @if ($reviewsGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Performance reviews' : 'Penilaian prestasi'">Performance reviews</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Performance reviews' : 'Penilaian prestasi'">Performance reviews</span></div>
                     @forelse ($reviews ?? [] as $r)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $r->acknowledged_at ? 'var(--success)' : 'var(--amber)' }};"></span>
@@ -583,7 +616,7 @@
 
                 @if ($probationGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Probation' : 'Percubaan'">Probation</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Probation' : 'Percubaan'">Probation</span></div>
                     @forelse ($probation ?? [] as $pr)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $probSt[$pr->status] ?? 'var(--muted)' }};"></span>
@@ -601,7 +634,7 @@
 
                 @if ($skillsGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Skill matrix' : 'Matriks kemahiran'">Skill matrix</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Skill matrix' : 'Matriks kemahiran'">Skill matrix</span></div>
                     @forelse ($skills ?? [] as $es)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $es->verified ? 'var(--success)' : 'var(--muted-soft)' }};"></span>
@@ -623,12 +656,16 @@
             <div x-show="tab === 'money'" x-cloak class="uj-tab-stack" style="padding:20px;">
                 @if ($payrollGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Payslips' : 'Slip gaji'">Payslips</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Payslips' : 'Slip gaji'">Payslips</span></div>
                     @forelse ($payslips ?? [] as $ps)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--success);"></span>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);">{{ $money($ps->net_pay) }}</div>
+                                @if (request()->attributes->get('employee')?->id === $ps->employee_id && $ps->payrollRun?->status === 'finalized')
+                                    <a href="{{ route('app.screen', ['screen' => 'payroll-my', 'payslip' => $ps->id]) }}" style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);text-decoration:none;">{{ $money($ps->net_pay) }}</a>
+                                @else
+                                    <div style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);">{{ $money($ps->net_pay) }}</div>
+                                @endif
                                 <div style="font-size:11.5px;color:var(--muted);">{{ $ps->created_at?->format('d M Y') }}</div>
                             </div>
                             <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'"></span> {{ $money($ps->gross) }}</span>
@@ -641,7 +678,7 @@
 
                 @if ($claimsGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Claims' : 'Tuntutan'">Claims</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Claims' : 'Tuntutan'">Claims</span></div>
                     @forelse ($claims ?? [] as $cl)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $claimSt[$cl->status] ?? 'var(--muted)' }};"></span>
@@ -662,7 +699,7 @@
 
                 @if ($loansGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Loans & advances' : 'Pinjaman & pendahuluan'">Loans & advances</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Loans & advances' : 'Pinjaman & pendahuluan'">Loans & advances</span></div>
                     @forelse ($loans ?? [] as $ln)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $loanSt[$ln->status] ?? 'var(--muted)' }};"></span>
@@ -683,7 +720,7 @@
 
                 @if ($overtimeGate ?? false)
                 <div>
-                    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Overtime' : 'Kerja lebih masa'">Overtime</span></div>
+                    <div class="uj-section-head" style="margin-bottom:12px;"><span x-text="$store.ui.lang==='en' ? 'Overtime' : 'Kerja lebih masa'">Overtime</span></div>
                     @forelse ($overtime ?? [] as $ot)
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:{{ $otSt[$ot->status] ?? 'var(--muted)' }};"></span>
@@ -701,31 +738,6 @@
             </div>
             @endif
 
-            {{-- Assets & Training · merged --}}
-            <div x-show="tab === 'assets'" x-cloak style="padding:6px 0;">
-                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Assets' : 'Aset'">Assets</span></div>
-                @forelse ($p->assets as $a)
-                    <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <span style="font-size:18px;flex-shrink:0;">{{ $aIcon[$a->category] ?? '📦' }}</span>
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $a->name }}</div><div style="font-size:11.5px;color:var(--muted);text-transform:capitalize;">{{ $a->category }}@if ($a->serial) · <span style="font-family:var(--font-mono);text-transform:none;">{{ $a->serial }}</span>@endif</div></div>
-                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $aSc[$a->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $aSc[$a->status] ?? 'var(--muted)' }};"></span>{{ ucfirst($a->status) }}</span>
-                    </div>
-                @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No assets assigned to this person.' : 'Tiada aset ditugaskan kepada orang ini.'">No assets assigned to this person.</div>
-                @endforelse
-
-                <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;padding:16px 20px 6px;border-top:1px solid var(--hairline-soft);margin-top:8px;"><span x-text="$store.ui.lang==='en' ? 'Training' : 'Latihan'">Training</span></div>
-                @forelse ($p->trainingRecords as $r)
-                    @php $isOverdue = $r->status !== 'completed' && $r->due_at && $r->due_at->isPast(); @endphp
-                    <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">
-                        <div style="flex:1;min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;">{{ $r->course }}</div><div style="font-size:11.5px;color:var(--muted);">{{ $r->provider }}@if ($r->mandatory) · <span style="color:var(--red);font-weight:600;">Mandatory</span>@endif</div></div>
-                        <span style="font-size:12px;font-family:var(--font-mono);color:{{ $isOverdue ? 'var(--error)' : 'var(--muted)' }};white-space:nowrap;">{{ $r->due_at?->format('j M Y') ?? '—' }}{{ $isOverdue ? ' ⚠' : '' }}</span>
-                        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ $tSc[$r->status] ?? 'var(--muted)' }};white-space:nowrap;"><span style="width:8px;height:8px;border-radius:50%;background:{{ $tSc[$r->status] ?? 'var(--muted)' }};"></span>{{ $tSl[$r->status] ?? ucfirst($r->status) }}</span>
-                    </div>
-                @empty
-                    <div style="padding:32px 20px;text-align:center;font-size:13px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'No training records.' : 'Tiada rekod latihan.'">No training records.</div>
-                @endforelse
-            </div>
         </div>
     </div>
 @endif

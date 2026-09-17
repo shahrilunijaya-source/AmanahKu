@@ -33,12 +33,16 @@ class EaFormController extends Controller
 
     public function __construct(private readonly EaFormPdfData $pdfData) {}
 
-    /** HR-only preview screen: the incomplete-box checklist for one employee/year before issuing. */
+    /** Preview screen for one employee/year. HR/management: any employee. An employee: their own only. */
     public function show(Request $request, Employee $employee, int $year): View
     {
-        $this->authorizeTenantRole($request, self::ADMIN_ROLES);
         $tenant = app(CurrentTenant::class)->get();
         abort_unless($employee->tenant_id === $tenant?->id, 403);
+
+        if (! $this->hasTenantRole($request, self::ADMIN_ROLES)) {
+            $requester = $this->requestingEmployee($request);
+            abort_unless($requester && $requester->id === $employee->id, 403);
+        }
 
         $data = $this->pdfData->build($tenant, $employee, $year);
 

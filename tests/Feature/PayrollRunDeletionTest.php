@@ -47,6 +47,7 @@ class PayrollRunDeletionTest extends TestCase
 
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5200]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5200]);
     }
 
     private function actingHr(): self

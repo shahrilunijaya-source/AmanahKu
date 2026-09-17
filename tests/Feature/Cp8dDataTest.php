@@ -43,6 +43,7 @@ class Cp8dDataTest extends TestCase
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id,
             'basic_salary' => 5000, 'tax_no' => 'SG12345678', 'children_relief_count' => 1,
         ]);
+        Employee::whereKey($this->employee->id)->update(['salary' => 5000]);
         PayrollItem::seedFor($this->tenant);
 
         $this->service = app(Cp8dData::class);

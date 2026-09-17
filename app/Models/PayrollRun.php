@@ -24,6 +24,7 @@ class PayrollRun extends Model
         'run_by_id',
         'approved_by_id',
         'notes',
+        'payment_date',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class PayrollRun extends Model
         return [
             'totals' => 'array',
             'finalized_at' => 'datetime',
+            'payment_date' => 'date',
         ];
     }
 
