@@ -144,14 +144,14 @@ trait BuildsSettingsData
             $settings[] = [
                 'key' => $key,
                 'label' => $meta['label'],
-                'label_ms' => $meta['label_ms'] ?? $meta['label'],
+                'label_ms' => $meta['label_ms'],
                 'type' => $meta['type'],
                 'options' => $meta['options'] ?? null,
                 'options_ms' => $meta['options_ms'] ?? $meta['options'] ?? null,
                 'min' => $meta['min'] ?? null,
                 'max' => $meta['max'] ?? null,
                 'help' => $meta['help'],
-                'help_ms' => $meta['help_ms'] ?? $meta['help'],
+                'help_ms' => $meta['help_ms'],
                 'value' => $features->value($tenant, $key),
                 'locked' => $features->platformLocked($key),
             ];
