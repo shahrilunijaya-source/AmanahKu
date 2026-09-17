@@ -93,9 +93,9 @@ class Features
             'help' => 'Most one employee can be reimbursed for medical claims per calendar year.',
         ],
         'platform.registration' => [
-            'label' => 'Public self-registration',
+            'label' => 'Signup links',
             'type' => 'bool', 'scope' => 'platform', 'default' => true,
-            'help' => 'Allow anyone to create an account at /register.',
+            'help' => 'Lets people with a signup link create their own company. Off closes the signup page, even for links not used yet.',
         ],
     ];
 

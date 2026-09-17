@@ -8,6 +8,7 @@ use App\Models\CompanyCategory;
 use App\Models\CompanyInvite;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Features;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -161,5 +162,19 @@ class SuperAdminCompanyInviteTest extends TestCase
             ->withSession(['inviteUrl' => 'http://example.test/register?invite=abc'])
             ->get('/admin/companies')
             ->assertSee('data-copy="http://example.test/register?invite=abc"', false);
+    }
+
+    /** The switch that closes signup names what it does now: signup links, not open registration. */
+    public function test_the_signup_switch_is_labelled_for_signup_links(): void
+    {
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.companies.features', $tenant))
+            ->assertOk()
+            ->assertSee('Signup links')
+            ->assertDontSee('Public self-registration');
+
+        $this->assertStringContainsString('Off closes the signup page', Features::SETTINGS['platform.registration']['help']);
     }
 }
