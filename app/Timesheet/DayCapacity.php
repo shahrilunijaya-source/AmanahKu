@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Timesheet;
 
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
- * How much of a timesheet day is fillable, as a percentage.
+ * How full a timesheet day must be to count as complete, as a percentage.
  *
- * Unijaya's working week is Mon–Fri plus the first Saturday of every month, which is the
- * TOT day and runs as a half day. That Saturday therefore asks for 50%, not 100%: the
- * submit gate, the capture screen's day dots and the generated holiday / leave rows all
- * measure against this, so "full" means 50% there and 100% everywhere else.
+ * On a tenant with `tot_saturday` (Unijaya) the first Saturday of every month is the TOT
+ * day and runs as a half day, so it asks for 50%, not 100%: the submit gate, the capture
+ * screen's day dots and the generated holiday / leave rows all measure against this.
+ * Whether the flag is on, and whether Saturday is a full work day instead, is
+ * App\Support\WorkWeek's call.
  *
- * Ordinary Saturdays are left at 100% — the capture screen's "Show weekend" toggle has
- * always let a staffer log a full Saturday, and nothing here changes that.
+ * Days off are left at 100% — the capture screen's "Show weekend" toggle has always let
+ * a staffer log a full Saturday, and nothing here changes that. Whether a day is asked
+ * for at all is WorkWeek::capacity(), not this.
  */
 final class DayCapacity
 {
@@ -34,6 +37,6 @@ final class DayCapacity
     /** The percentage $date must reach to count as full. */
     public static function for(CarbonInterface|string $date): float
     {
-        return self::isFirstSaturday($date) ? self::FIRST_SATURDAY_PERCENT : 100.0;
+        return WorkWeek::for()->isTotDay(CarbonImmutable::parse($date)) ? self::FIRST_SATURDAY_PERCENT : 100.0;
     }
 }

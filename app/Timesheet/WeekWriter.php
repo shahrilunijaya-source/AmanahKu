@@ -169,7 +169,7 @@ final class WeekWriter
                 $daysToSubmit[$iso] = null;
             }
         } elseif ($submitNow) {
-            $weekEnd = $weekStartCarbon->copy()->addDays(5);
+            $weekEnd = $weekStartCarbon->copy()->addDays(6);
             $upTo = $today->lt($weekEnd) ? $today : $weekEnd;
 
             $candidates = array_filter(
@@ -187,7 +187,14 @@ final class WeekWriter
                 }
             );
 
-            abort_if($candidates === [], 422, 'Nothing left to submit this week.');
+            // A week the tenant never asked anyone to fill (no work days, or every one of
+            // them a holiday / whole-day leave) is not an error: submit_now simply has no
+            // days to mark. Only a week that HAD fillable days and has none left is refused.
+            $fillable = array_filter(
+                $this->dayRules->weekWorkingDays($weekStartCarbon),
+                fn (string $iso) => ($locked[$iso]['percentage'] ?? 0) < DayCapacity::for($iso),
+            );
+            abort_if($candidates === [] && $fillable !== [], 422, 'Nothing left to submit this week.');
 
             $messages = [];
             foreach ($candidates as $iso) {

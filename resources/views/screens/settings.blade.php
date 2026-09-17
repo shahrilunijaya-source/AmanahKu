@@ -60,7 +60,7 @@
                 </div>
             </div>
 
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Employer&#39;s TIN (LHDN)' : 'TIN Majikan (LHDN)'">Employer's TIN (LHDN)</label>
+            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Employer’s TIN (LHDN)' : 'TIN Majikan (LHDN)'">Employer’s TIN (LHDN)</label>
             <input name="employer_tin" value="{{ old('employer_tin', $company->employer_tin) }}" placeholder="C1234567890" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
             @include('partials.hint', ['en' => 'Required on Form EA and Form E. Enter without the "E" prefix — it is added automatically on printed forms.', 'ms' => 'Diperlukan pada Borang EA dan Borang E. Masukkan tanpa awalan "E" — ia ditambah secara automatik pada borang yang dicetak.'])
 
@@ -86,6 +86,45 @@
 
     <div style="{{ $only ? '' : 'flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;' }}">
 
+        @if (!empty($canManageFeatures) && (! $only || $only === 'work_week'))
+        {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days. Read by
+             App\Support\WorkWeek. Forward-only; the TOT flag is Unijaya-only and has no UI. --}}
+        <div class="uj-card" style="padding:20px;"
+             x-data="{
+                days: @js(\App\Support\WorkWeek::for()->workingDays()),
+                names: { en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], ms: ['Isn','Sel','Rab','Kha','Jum','Sab','Ahd'] },
+                has(n) { return this.days.includes(n); },
+                toggle(n) { this.has(n) ? this.days = this.days.filter(d => d !== n) : this.days.push(n); },
+             }">
+            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Work week' : 'Minggu bekerja'">Work week</h3>
+            <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.' : 'Hari mana dikira sebagai hari bekerja. Baki cuti, kapasiti timesheet dan laporan kehadiran semuanya mengikut ini.'">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p>
+
+            <form method="post" action="{{ route('admin.workweek.update') }}">
+                @csrf
+                @if ($errors->has('work_days') || $errors->has('work_days.*'))<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:12px;" x-text="$store.ui.lang==='en' ? 'Pick at least one working day.' : 'Pilih sekurang-kurangnya satu hari bekerja.'">Pick at least one working day.</div>@endif
+
+                <div style="display:flex;gap:6px;margin-bottom:14px;">
+                    <template x-for="n in [1,2,3,4,5,6,7]" :key="n">
+                        <button type="button" @click="toggle(n)" :aria-pressed="has(n)"
+                                :style="has(n) ? 'border-color:var(--red);background:var(--red-tint);' : ''"
+                                style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 8px;border:1px solid var(--hairline);border-radius:10px;background:#fff;cursor:pointer;flex:1;min-width:0;user-select:none;">
+                            <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="names[$store.ui.lang==='en' ? 'en' : 'ms'][n-1]"></span>
+                            <span style="font-size:11px;" :style="has(n) ? 'color:var(--red);' : 'color:var(--muted);'" x-text="has(n) ? ($store.ui.lang==='en' ? 'Work' : 'Kerja') : ($store.ui.lang==='en' ? 'Off' : 'Cuti')"></span>
+                        </button>
+                    </template>
+                </div>
+                <template x-for="d in days" :key="'wd'+d"><input type="hidden" name="work_days[]" :value="d"></template>
+
+                @include('partials.hint', ['en' => 'Applies from today. Past records are not recalculated.', 'ms' => 'Berkuat kuasa dari hari ini. Rekod lepas tidak dikira semula.'])
+
+                <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;" :disabled="days.length === 0"><span x-text="$store.ui.lang==='en' ? 'Save work week' : 'Simpan minggu bekerja'">Save work week</span></button>
+                    <span style="font-size:12.5px;color:var(--muted);" x-text="days.length + ' ' + ($store.ui.lang==='en' ? (days.length === 1 ? 'working day' : 'working days') : 'hari bekerja')">5 working days</span>
+                </div>
+            </form>
+        </div>
+        @endif
+
         @if (! $only || $only === 'branches')
         {{-- Branches: name + state CRUD. Geofence/hours live on the Attendance Setup screen. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
@@ -97,6 +136,13 @@
                     </button>
                 @endif
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-branches',
+                'when' => "\$store.guide.current === 'branches'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add your first branch', 'body' => 'Click + Add, give the branch a name and address, then click Add branch. The map pin can wait; it comes up in the attendance step.'],
+                'ms' => ['title' => 'Tambah cawangan pertama anda', 'body' => 'Klik + Tambah, beri nama dan alamat cawangan, kemudian klik Tambah cawangan. Pin peta boleh ditunggu; ia muncul dalam langkah kehadiran.'],
+            ])
 
             @if ($canManageFeatures)
                 @php $bfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
@@ -197,6 +243,13 @@
                     </button>
                 @endif
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-departments',
+                'when' => "\$store.guide.current === 'departments'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add a department', 'body' => 'Click + Add, type the department name and click Add. One is enough to start; staff are grouped under these.'],
+                'ms' => ['title' => 'Tambah jabatan', 'body' => 'Klik + Tambah, taip nama jabatan dan klik Tambah. Satu sudah cukup untuk mula; staf dikumpulkan di bawah ini.'],
+            ])
 
             @if ($canManageFeatures)
                 <form x-show="adding" x-cloak method="post" action="{{ route('admin.departments.store') }}" style="display:flex;gap:8px;margin-bottom:14px;">
@@ -258,7 +311,7 @@
                     <input name="rank" type="number" min="0" max="65535" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                     <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
-                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'Smaller number = more senior. This order controls who can view whose profile.':'Nombor lebih kecil = lebih kanan. Susunan ini mengawal siapa boleh lihat profil siapa.'">Smaller number = more senior. This order controls who can view whose profile.</p>
+                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
             @endif
             @forelse ($staffLevels as $lv)
                 <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
@@ -280,6 +333,7 @@
                             <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
                             <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>
+                        <p x-show="editId === {{ $lv->id }}" x-cloak style="font-size:11.5px;color:var(--muted);margin:6px 0 0;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
                     @endif
                 </div>
             @empty
@@ -447,7 +501,7 @@
                                 @disabled($row['locked'])>
                             <span style="flex:1;min-width:0;">
                                 <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                    <span style="font-size:13.5px;color:var(--ink);">{{ $row['label'] }}</span>
+                                    <span style="font-size:13.5px;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
                                     @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
                                 </span>
                                 @if ($showNav)
@@ -467,17 +521,17 @@
                 <div style="display:flex;align-items:flex-start;gap:14px;">
                     <div style="flex:1;">
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:13.5px;font-weight:500;color:var(--ink);">{{ $row['label'] }}</span>
+                            <span style="font-size:13.5px;font-weight:500;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
                             @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
                         </div>
-                        @if (!empty($row['help']))<div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ $row['help'] }}</div>@endif
+                        @if (!empty($row['help']))<div style="font-size:12px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? @js($row['help']) : @js($row['help_ms'])">{{ $row['help'] }}</div>@endif
                     </div>
                     <div style="width:200px;flex-shrink:0;">
                         @if ($row['type'] === 'enum')
                             <select name="features[{{ $row['key'] }}]" @disabled($row['locked'])
                                 style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;background:{{ $row['locked'] ? 'var(--hairline-soft)' : '#fff' }};color:var(--ink);">
                                 @foreach ($row['options'] as $val => $optLabel)
-                                    <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val)>{{ $optLabel }}</option>
+                                    <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val) x-text="$store.ui.lang==='en' ? @js($optLabel) : @js($row['options_ms'][$val] ?? $optLabel)">{{ $optLabel }}</option>
                                 @endforeach
                             </select>
                         @elseif ($row['type'] === 'number')
@@ -498,6 +552,12 @@
         </div>
 
         <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;margin-top:22px;"><span x-text="$store.ui.lang==='en' ? 'Save features' : 'Simpan ciri'">Save features</span></button>
+        @include('partials.coachmark', [
+            'key' => 'guide-modules',
+            'when' => "\$store.guide.current === 'modules'",
+            'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company uses, then click Save features. Untick the ones you don\'t need.'],
+            'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Buang tanda pada modul yang tidak perlu.'],
+        ])
     </form>
 </div>
 @endif

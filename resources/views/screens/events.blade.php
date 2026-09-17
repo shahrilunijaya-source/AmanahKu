@@ -7,6 +7,7 @@
         'holiday' => 'Holiday',
         'social' => 'Social',
         'meeting' => 'Meeting',
+        'event' => 'Event',
     ];
     $typeLabelMs = [
         'townhall' => 'Town hall',
@@ -14,6 +15,7 @@
         'holiday' => 'Cuti',
         'social' => 'Sosial',
         'meeting' => 'Mesyuarat',
+        'event' => 'Acara',
     ];
     $typeColor = [
         'townhall' => 'var(--info)',
@@ -21,6 +23,7 @@
         'holiday' => 'var(--success)',
         'social' => 'var(--accent, var(--info))',
         'meeting' => 'var(--muted)',
+        'event' => 'var(--muted)',
     ];
     $rsvpLabel = ['going' => 'Going', 'maybe' => 'Maybe', 'declined' => 'Can’t go'];
     $rsvpLabelMs = ['going' => 'Hadir', 'maybe' => 'Mungkin', 'declined' => 'Tak dapat'];
@@ -249,12 +252,11 @@
                                         <input class="tot-field" name="host" value="{{ old('host') }}" maxlength="120" :required="external">
                                     </div>
 
-                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Time' : 'Masa'">Time</label><input class="tot-field" name="start_time" value="{{ old('start_time') }}" maxlength="40" placeholder="10:00 AM – 12:00 PM"></div>
-                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label><input class="tot-field" name="location" value="{{ old('location') }}" maxlength="160"></div>
+                                    {{-- QA F2 (CR-11): the server joins these onto Date to build starts_at/ends_at, the slot the attendee cards, the calendar port and the post-event unlock run on. --}}
+                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Start time' : 'Masa mula'">Start time</label><input class="tot-field" type="time" name="start_clock" value="{{ old('start_clock') }}"></div>
+                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'End time' : 'Masa tamat'">End time</label><input class="tot-field" type="time" name="end_clock" value="{{ old('end_clock') }}"></div>
 
-                                    {{-- QA F2 (CR-11): the exact slot the attendee cards, the calendar port and the post-event unlock (ends_at) run on. --}}
-                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Starts (date & time)' : 'Bermula (tarikh & masa)'">Starts (date & time)</label><input class="tot-field" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}"></div>
-                                    <div><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Ends (date & time)' : 'Tamat (tarikh & masa)'">Ends (date & time)</label><input class="tot-field" type="datetime-local" name="ends_at" value="{{ old('ends_at') }}"></div>
+                                    <div style="grid-column:span 2;"><label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Location' : 'Lokasi'">Location</label><input class="tot-field" name="location" value="{{ old('location') }}" maxlength="160"></div>
 
                                     <div x-show="external" x-cloak style="grid-column:span 2;">
                                         <label class="tot-lbl" x-text="$store.ui.lang==='en' ? 'Map link' : 'Pautan peta'">Map link</label>

@@ -100,7 +100,7 @@ class FeatureManager
     }
 
     /**
-     * Seed a tenant's module entitlements from a company-category stage level (1/2/3).
+     * Seed a tenant's module entitlements from a company-category stage level (1/2).
      * Cumulative: a module is enabled when its registry stage ≤ $level, disabled
      * otherwise. Writes an explicit tenant_feature row per module so the resolved
      * entitlement — not the category — is the source of truth thereafter (task §2).
@@ -108,7 +108,7 @@ class FeatureManager
      * untouched. Locked keys still resolve to the platform value regardless.
      *
      * Features::OFF modules stay off no matter how high the stage level is — without
-     * this, provisioning a stage-3 company would write an explicit `true` override and
+     * this, provisioning a Stage 2 company would write an explicit `true` override and
      * un-hide a module that is descoped or not signed off for release.
      */
     public function applyCategoryPackage(Tenant $tenant, int $level): void

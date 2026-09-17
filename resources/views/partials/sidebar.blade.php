@@ -159,10 +159,14 @@
                     // A closed section still has to say something inside it needs you.
                     $secDot = $items->sum(fn ($i) => (int) ($i['attention'] ?? 0) + collect($i['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0)));
                     $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
+                    // Every screen id inside this section, children included, so the
+                    // live setup guide's ring can land on the section while its panel is shut.
+                    $secScreens = $items->flatMap(fn ($i) => array_merge([$i['id']], array_column($i['children'] ?? [], 'id')))->values()->all();
                 @endphp
                 @if ($solo)
                     @php $only = $items->first(); @endphp
                     <a href="{{ route('app.screen', ['screen' => $only['id']]) }}" class="uj-nav-row"
+                       :class="$store.guide.on(@js($secScreens)) ? 'uj-sb-guide' : ''"
                        @if ($secOn) data-on @endif
                        :title="sbCollapsed ? ($store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])) : null">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
@@ -173,6 +177,7 @@
                     <div x-data="sbSec" @mouseenter="show($event)" @mouseleave="hide()"
                          @keydown.escape="close()" @click.outside="close()" style="position:relative;">
                         <button type="button" class="uj-nav-row" @click="toggle($event)"
+                                :class="$store.guide.on(@js($secScreens)) ? 'uj-sb-guide' : ''"
                                 :aria-expanded="fly ? 'true' : 'false'" @if ($secOn) data-on @endif>
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                             <span class="uj-nav-lbl uj-sb-hide" x-text="$store.ui.lang==='en' ? @js($section) : @js($sectionMs)">{{ $section }}</span>
@@ -232,6 +237,7 @@
                                             </div>
                                         @else
                                             <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-fly-lnk"
+                                               :class="$store.guide.on(['{{ $item['id'] }}']) ? 'uj-sb-guide' : ''"
                                                @if ($item['active']) data-on @endif>
                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                                 <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>
@@ -271,10 +277,14 @@
                     // A closed section still has to say something inside it needs you.
                     $secDot = $items->sum(fn ($i) => (int) ($i['attention'] ?? 0) + collect($i['children'] ?? [])->sum(fn ($c) => (int) ($c['attention'] ?? 0)));
                     $solo = $items->count() === 1 && ! $items->first()['hasChildren'];
+                    // Every screen id inside this section, children included, so the
+                    // live setup guide's ring can land on the section while its panel is shut.
+                    $secScreens = $items->flatMap(fn ($i) => array_merge([$i['id']], array_column($i['children'] ?? [], 'id')))->values()->all();
                 @endphp
                 @if ($solo)
                     @php $only = $items->first(); @endphp
                     <a href="{{ route('app.screen', ['screen' => $only['id']]) }}" class="uj-nav-row"
+                       :class="$store.guide.on(@js($secScreens)) ? 'uj-sb-guide' : ''"
                        @mouseenter="leave()" @if ($secOn) data-on @endif>
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $secIcon }}"></path></svg>
                         <span class="uj-nav-lbl" x-text="$store.ui.lang==='en' ? @js($only['label']) : @js($only['label_ms'] ?? $only['label'])">{{ $only['label'] }}</span>
@@ -283,6 +293,7 @@
                 @else
                     <div>
                         <button type="button" class="uj-nav-row"
+                                :class="$store.guide.on(@js($secScreens)) ? 'uj-sb-guide' : ''"
                                 @mouseenter="enter(@js($section))"
                                 @click="toggle(@js($section))"
                                 @keydown.escape="close()"
@@ -347,6 +358,7 @@
                                     </div>
                                 @else
                                     <a href="{{ route('app.screen', ['screen' => $item['id']]) }}" class="uj-tree-lnk"
+                                       :class="$store.guide.on(['{{ $item['id'] }}']) ? 'uj-sb-guide' : ''"
                                        @mouseenter="leaveKid()" @if ($itemOn) data-on @endif>
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
                                         <span x-text="$store.ui.lang==='en' ? @js($item['label']) : @js($item['label_ms'] ?? $item['label'])">{{ $item['label'] }}</span>

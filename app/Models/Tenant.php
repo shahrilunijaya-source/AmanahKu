@@ -21,6 +21,8 @@ class Tenant extends Model
             'subscription_end' => 'date',
             'onboarding_enforced' => 'boolean',
             'late_grace_minutes' => 'integer',
+            'work_days' => 'array',
+            'tot_saturday' => 'boolean',
         ];
     }
 
@@ -57,7 +59,7 @@ class Tenant extends Model
         return $this->belongsTo(CompanyCategory::class);
     }
 
-    /** Category stage level (1/2/3), or null when no category is assigned. */
+    /** Category stage level (1/2), or null when no category is assigned. */
     public function categoryLevel(): ?int
     {
         return $this->companyCategory?->level;

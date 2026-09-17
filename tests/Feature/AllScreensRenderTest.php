@@ -167,8 +167,10 @@ class AllScreensRenderTest extends TestCase
         $embed = $this->get('/app/settings?embed=1&section=branches')->assertOk();
         $embed->assertHeader('X-Frame-Options', 'SAMEORIGIN');
         $embed->assertDontSee('<aside', false);
-        $embed->assertSee('Branches');
-        $embed->assertDontSee('Departments');
+        $embed->assertSee("'Branches' : 'Cawangan'", false);
+        // The card's own heading, not the word: the live setup guide's step JSON (kept in
+        // embed mode for the coachmark pointers) legitimately mentions departments.
+        $embed->assertDontSee("'Departments' : 'Jabatan'", false);
     }
 
     /**

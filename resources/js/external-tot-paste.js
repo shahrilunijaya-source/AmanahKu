@@ -112,11 +112,25 @@ export function parseExternalTotInvite(text) {
     return result;
 }
 
-// parseExternalTotInvite()'s own field names (time_label, venue) predate the merge onto
-// the Events screen's form, whose inputs are named after company_events' own columns
-// (start_time, location). Remapped here, at the DOM-filling edge, so the parser itself —
-// and the unit tests pinned to its return shape — stay untouched.
-const FORM_FIELD_NAMES = { time_label: 'start_time', venue: 'location' };
+/**
+ * "10:00 AM – 12:00 PM" / "9am-4pm" / "14:00 - 16:30" → ['10:00', '12:00'] for the form's
+ * time pickers. A missing end is ''; nothing readable gives ['', ''].
+ */
+export function parseTimeRange(raw) {
+    const times = [...(raw || '').matchAll(/(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?/gi)]
+        .filter((m) => m[2] || m[3])
+        .slice(0, 2)
+        .map(([, h, min = '00', ampm]) => {
+            let hour = Number(h) % (ampm ? 12 : 24);
+            if (ampm?.toLowerCase() === 'pm') hour += 12;
+            return `${String(hour).padStart(2, '0')}:${min}`;
+        });
+    return [times[0] ?? '', times[1] ?? ''];
+}
+
+// parseExternalTotInvite()'s field names predate the merge onto the Events screen's form.
+// Remapped here, at the DOM-filling edge, so the parser and its unit tests stay untouched.
+const FORM_FIELD_NAMES = { venue: 'location' };
 
 export function registerExternalTotPaste(Alpine) {
     Alpine.data('extPasteFill', () => ({
@@ -125,7 +139,8 @@ export function registerExternalTotPaste(Alpine) {
         fill() {
             if (!this.pasteText.trim()) return;
 
-            const parsed = parseExternalTotInvite(this.pasteText);
+            const { time_label, ...parsed } = parseExternalTotInvite(this.pasteText);
+            [parsed.start_clock, parsed.end_clock] = parseTimeRange(time_label);
             const form = this.$refs.extForm;
             for (const [parsedName, value] of Object.entries(parsed)) {
                 if (!value) continue;

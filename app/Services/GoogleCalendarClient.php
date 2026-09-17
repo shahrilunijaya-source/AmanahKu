@@ -116,6 +116,12 @@ class GoogleCalendarClient
         ]);
 
         if (! $response->successful() || blank($response->json('access_token'))) {
+            if ($response->json('error') === 'invalid_grant') {
+                $connection->forceFill(['revoked_at' => now()])->save();
+
+                throw new RuntimeException('Google Calendar access was revoked. Reconnect to resume syncing.');
+            }
+
             throw new RuntimeException('Google Calendar token refresh failed.');
         }
 

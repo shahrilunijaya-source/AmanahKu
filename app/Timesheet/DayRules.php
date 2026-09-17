@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Timesheet;
 
 use App\Models\PublicHoliday;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
@@ -13,28 +14,20 @@ use Carbon\CarbonInterface;
  * working day) and the 3-working-day backdate edit window, plus the line-signature
  * comparison WeekWriter uses to tell whether a frozen day's grid actually changed.
  *
- * "Working day" here is Mon-Fri plus the first Saturday of the month (the TOT half
- * day, see DayCapacity::isFirstSaturday), minus the active tenant's public holidays
+ * "Working day" here is the tenant's work week (App\Support\WorkWeek: its listed days
+ * plus the TOT half day where that flag is on), minus the active tenant's public holidays
  * — the same definition LockedDays::workingDays() uses structurally, narrowed by the
  * holiday calendar because a deadline or an edit window has to land on a day someone
  * could actually be expected to act on.
  */
 final class DayRules
 {
-    /** True when $day is a working day: Mon-Fri or the TOT Saturday, and not a public holiday. */
+    /** True when $day is one of the tenant's working days (or its TOT Saturday) and not a public holiday. */
     public function isWorkingDay(CarbonInterface $day): bool
     {
         $day = CarbonImmutable::parse($day);
 
-        if ($day->isSunday()) {
-            return false;
-        }
-
-        if ($day->isSaturday() && ! DayCapacity::isFirstSaturday($day)) {
-            return false;
-        }
-
-        return ! $this->isHoliday($day);
+        return WorkWeek::for()->isWorkingDay($day) && ! $this->isHoliday($day);
     }
 
     /** The next working day after $day, at config('manday.day_submit_deadline'). */
@@ -71,8 +64,8 @@ final class DayRules
     }
 
     /**
-     * Structural working days of the week starting $weekStart: Mon-Fri plus the TOT
-     * Saturday, holidays included (a holiday is excluded later by the "fully locked"
+     * Structural working days of the week starting $weekStart: the tenant's work days plus
+     * its TOT Saturday, holidays included (a holiday is excluded later by the "fully locked"
      * check, not here — this is the same day set LockedDays::workingDays() walks).
      *
      * @return list<string> ISO dates
@@ -80,11 +73,12 @@ final class DayRules
     public function weekWorkingDays(CarbonInterface|string $weekStart): array
     {
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
+        $workWeek = WorkWeek::for();
 
         $days = [];
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 7; $i++) {
             $day = $start->addDays($i);
-            if ($i < 5 || DayCapacity::isFirstSaturday($day)) {
+            if ($workWeek->isWorkingDay($day)) {
                 $days[] = $day->toDateString();
             }
         }

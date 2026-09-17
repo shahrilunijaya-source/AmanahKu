@@ -212,3 +212,15 @@ and the hourly `work:archive-done` keep that true. `BoardRules::assertChildrenDo
 is the one Done gate for browser and MCP. On the timesheet, `BoardSuggestions::childNotes()`
 prefills a parent row's note with the viewer's subtasks ticked that day; a saved note is never
 overwritten.
+
+---
+
+## 2026-09-17: Stage 3 dropped
+
+**D-022 · Company category Stage 3 removed, Stage 2 is the top package now.**
+Stage 3 (Intelligent HR) only ever added `module.ai`, and that module ships off by default
+(`Features::OFF`), with no AI package to sell. So Stage 3 never switched on anything a Stage 2
+company didn't already get. Migration `2026_09_30_110000_drop_stage_three_company_category.php`
+repoints every Stage 3 tenant and signup link to Stage 2, then deletes the row: existing
+companies' `tenant_features` rows are untouched, so feature ticks stay exactly as they were. New
+signup links and new companies default to Stage 2 now.

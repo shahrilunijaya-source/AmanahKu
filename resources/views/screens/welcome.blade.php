@@ -10,10 +10,10 @@
     // Resume at the first outstanding step.
     $start = 'personal';
     if ($essentialDone) {
-        if ($payrollEnabled && ! $bankDone)      $start = 'bank';
-        elseif (! $certDone)                      $start = 'cert';
-        elseif (! $personalityDone)               $start = 'personality';
-        else                                      $start = 'done';
+        if ($payrollEnabled && ! $bankDone)                    $start = 'bank';
+        elseif (! $certDone)                                    $start = 'cert';
+        elseif ($profileTestEnabled && ! $personalityDone)      $start = 'personality';
+        else                                                     $start = 'done';
     }
 
     $inp = 'width:100%;padding:9px 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;color:var(--ink);background:#fff;';
@@ -23,7 +23,7 @@
     $steps = [['key' => 'personal', 'n' => 1, 'en' => 'Your details', 'ms' => 'Butiran anda', 'done' => $essentialDone]];
     if ($payrollEnabled) $steps[] = ['key' => 'bank', 'n' => count($steps) + 1, 'en' => 'Bank & statutory', 'ms' => 'Bank & berkanun', 'done' => $bankDone];
     $steps[] = ['key' => 'cert', 'n' => count($steps) + 1, 'en' => 'Certificates', 'ms' => 'Sijil', 'done' => $certDone];
-    $steps[] = ['key' => 'personality', 'n' => count($steps) + 1, 'en' => 'Personality', 'ms' => 'Personaliti', 'done' => $personalityDone];
+    if ($profileTestEnabled) $steps[] = ['key' => 'personality', 'n' => count($steps) + 1, 'en' => 'Personality', 'ms' => 'Personaliti', 'done' => $personalityDone];
 @endphp
 
 @section('screen')
@@ -149,13 +149,14 @@
                     </div>
                     @include('partials.hint', ['en' => 'PDF, image or Word document, up to 8 MB.', 'ms' => 'PDF, imej atau dokumen Word, sehingga 8 MB.'])
                     <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
-                        <button type="button" @click="step='personality'" class="uj-btn-ghost" style="padding:9px 16px;" x-text="$store.ui.lang==='en' ? 'Skip for now' : 'Langkau dahulu'">Skip for now</button>
+                        <button type="button" @click="step='{{ $profileTestEnabled ? 'personality' : 'done' }}'" class="uj-btn-ghost" style="padding:9px 16px;" x-text="$store.ui.lang==='en' ? 'Skip for now' : 'Langkau dahulu'">Skip for now</button>
                         <button type="submit" class="uj-btn-primary" style="padding:9px 18px;" x-text="$store.ui.lang==='en' ? 'Upload' : 'Muat naik'">Upload</button>
                     </div>
                 </form>
             </section>
 
-            {{-- 4 · Personality --}}
+            {{-- 4 · Personality (module can be switched off; step is dropped entirely then) --}}
+            @if ($profileTestEnabled)
             <section x-show="step==='personality'" x-cloak class="uj-card" style="padding:20px 22px;">
                 <h2 style="font-size:15px;font-weight:600;color:var(--ink);margin:0 0 3px;" x-text="$store.ui.lang==='en' ? 'Personality test' : 'Ujian personaliti'">Personality test</h2>
                 <p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;" x-text="$store.ui.lang==='en' ? 'A short instrument that helps your team understand how you work best.' : 'Ujian ringkas yang membantu pasukan memahami cara kerja terbaik anda.'">A short instrument that helps your team understand how you work best.</p>
@@ -171,6 +172,7 @@
                     <button type="button" @click="step='done'" class="uj-btn-ghost" style="padding:9px 16px;" x-text="$store.ui.lang==='en' ? 'Continue' : 'Teruskan'">Continue</button>
                 </div>
             </section>
+            @endif
 
             {{-- 5 · Done --}}
             <section x-show="step==='done'" x-cloak class="uj-card" style="padding:26px 22px;text-align:center;">

@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TimesheetCategory;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use App\Timesheet\DayCapacity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -38,7 +39,10 @@ class TotSaturdayTimesheetTest extends TestCase
         // week's cutoff (that Saturday) has been reached.
         Carbon::setTestNow('2026-08-03 09:00:00');
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped: the first Saturday of the month is the TOT half day.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
+        // Direct DayCapacity / LockedDays calls (outside a request) read the tenant from the container.
+        app(CurrentTenant::class)->set($this->tenant);
         $this->work = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false]);
 
         $user = User::create(['name' => 'Staffer', 'email' => 'staffer@example.com', 'password' => Hash::make('password')]);

@@ -348,11 +348,23 @@ class WorkItem extends Model implements HasAuditedFields
      * People included on this card beyond its owner. The same shared card appears
      * on every participant's board; they may view / move / comment but not edit.
      *
-     * @return BelongsToMany<Employee, $this>
+     * @return BelongsToMany<Employee, $this, WorkItemParticipant>
      */
     public function participants(): BelongsToMany
     {
-        return $this->belongsToMany(Employee::class, 'work_item_participant')->withPivot('role');
+        return $this->belongsToMany(Employee::class, 'work_item_participant')
+            ->using(WorkItemParticipant::class)
+            ->withPivot('role');
+    }
+
+    /**
+     * Tagged people's own calendar entries for this card (the owner's lives on this row).
+     *
+     * @return HasMany<WorkItemCalendarCopy, $this>
+     */
+    public function calendarCopies(): HasMany
+    {
+        return $this->hasMany(WorkItemCalendarCopy::class);
     }
 
     /**

@@ -681,7 +681,7 @@ parameters:
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
-			count: 5
+			count: 4
 			path: app/Http/Controllers/SuperAdmin/CompanyController.php
 
 		-

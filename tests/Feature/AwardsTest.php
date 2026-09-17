@@ -20,6 +20,7 @@ use App\Models\TotComment;
 use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use App\Timesheet\DayRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,12 @@ class AwardsTest extends TestCase
 
     private function tenant(string $slug = 'acme'): Tenant
     {
-        return Tenant::firstOrCreate(['slug' => $slug], ['name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped (TOT Saturday on), and bound so workingDaysIn() counts the same
+        // days the awards pass does once the scheduler binds the tenant itself.
+        $tenant = Tenant::firstOrCreate(['slug' => $slug], ['name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
+        app(CurrentTenant::class)->set($tenant);
+
+        return $tenant;
     }
 
     private function person(Tenant $tenant, string $name, array $attrs = []): Employee

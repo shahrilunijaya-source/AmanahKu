@@ -70,6 +70,13 @@
         </div>
         <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
     </form>
+    @include('partials.coachmark', [
+        'key' => 'guide-attendance-policy',
+        'when' => "\$store.guide.current === 'attendance_policy'",
+        'anchor' => 'button[type=submit]',
+        'en' => ['title' => 'Set the policy, then pin a branch', 'body' => 'Save the late grace here. The step ticks once a branch has a map pin: on Company Settings, click Edit on the branch, click Map, drop the pin and Save.'],
+        'ms' => ['title' => 'Tetapkan dasar, kemudian pin cawangan', 'body' => 'Simpan tempoh lewat di sini. Langkah ini selesai apabila cawangan ada pin peta: di Tetapan Syarikat, klik Sunting pada cawangan, klik Peta, letak pin dan Simpan.'],
+    ])
     <p style="font-size:12px;color:var(--muted);margin:10px 0 0;" x-text="$store.ui.lang==='en' ? 'Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.' : 'Terpakai pada setiap susunan — pejabat, klien, kerja-dari-rumah dan hibrid. Staf yang clock in selepas tempoh ini mesti beri sebab sebelum rekod diterima.'">Applies to every arrangement — office, client, work-from-home and hybrid alike. Staff who clock in after this window must give a reason before the punch is accepted.</p>
     @if ($role === 'hr')
     {{-- CR-17 item 9 (QA F1): HR marks a system incident window; every clock-in inside it

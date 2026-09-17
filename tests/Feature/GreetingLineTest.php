@@ -183,7 +183,8 @@ class GreetingLineTest extends TestCase
             ->assertSee('Late (after 10pm)', false)
             ->assertSee('Search lines')
             ->assertSee('suggestion from staff waiting')
-            ->assertDontSee('Dashboard easter eggs');
+            // The eggs card's own rows, not its title: the live setup guide's step JSON names every step.
+            ->assertDontSee('data-lb-row="holiday_eve"', false);
 
         $this->get('/app/settings?section=eggs')->assertOk()
             ->assertSee('Dashboard easter eggs')

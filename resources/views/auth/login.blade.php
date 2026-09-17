@@ -289,7 +289,6 @@
     @endif
 
     @unless ($brandTenant)
-        <p class="lg-foot">New to Amanahku? <a href="{{ route('register') }}">Create an account</a></p>
         @if (app()->isLocal())
             {{-- Demo credential hint — local development only. --}}
             <div class="lg-demo">Demo password — <b>password</b></div>

@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  *
  * @property Carbon|null $expires_at
  * @property Carbon|null $last_pulled_at
+ * @property Carbon|null $revoked_at
  * @property string|null $calendar_id
  * @property string|null $sync_token
  */
@@ -31,6 +32,7 @@ class GoogleCalendarConnection extends Model
             'refresh_token' => 'encrypted',
             'expires_at' => 'datetime',
             'last_pulled_at' => 'datetime',
+            'revoked_at' => 'datetime',
         ];
     }
 

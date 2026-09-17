@@ -35,4 +35,19 @@ class CompanySetupProgress extends Model
 
         return static::firstOrCreate(['tenant_id' => $tenantId], ['steps' => []]);
     }
+
+    /**
+     * Tick a manual Launch Center step for the active tenant, once. Called by the
+     * save that the step asks for, so the setup guide moves on without HR having
+     * to come back and tick it by hand. Never un-ticks.
+     */
+    public static function tick(string $step): void
+    {
+        $progress = static::forCurrentTenant();
+        $steps = $progress->steps ?? [];
+
+        if (! in_array($step, $steps, true)) {
+            $progress->update(['steps' => [...$steps, $step]]);
+        }
+    }
 }

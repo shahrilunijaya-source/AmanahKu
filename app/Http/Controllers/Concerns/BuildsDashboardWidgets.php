@@ -35,6 +35,7 @@ use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
 use App\Support\ManagementExceptions;
 use App\Support\Permissions;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\TimesheetCompliance;
 use Carbon\CarbonImmutable;
@@ -140,9 +141,9 @@ trait BuildsDashboardWidgets
                 $moments[] = $eve;
             }
 
-            // Weekend or a public-holiday row for this tenant — the only two ways a day
-            // is not a working day (CR-13's celebratedOn()).
-            $isWorkingDay = fn (CarbonImmutable $day): bool => ! $day->isWeekend()
+            // A day off in the tenant's work week, or a public-holiday row — the only two ways
+            // a day is not a working day (CR-13's celebratedOn()).
+            $isWorkingDay = fn (CarbonImmutable $day): bool => WorkWeek::for()->isWorkingDay($day)
                 && ! PublicHoliday::whereDate('date', $day->toDateString())->exists();
 
             $celebratedDates = DashboardBands::celebratedOn($today, $isWorkingDay);

@@ -12,7 +12,6 @@ use App\Models\Employee;
 use App\Models\EmployeeSkill;
 use App\Models\EmploymentType;
 use App\Models\Goal;
-use App\Models\GoogleCalendarConnection;
 use App\Models\HandbookSection;
 use App\Models\LeaveRequest;
 use App\Models\LoanRequest;
@@ -192,6 +191,7 @@ trait BuildsPeopleData
         $reviewsGate = $canViewFull && $features->screenAllowed($tenant, 'reviews');
         $probationGate = $canViewFull && $features->screenAllowed($tenant, 'probation');
         $skillsGate = $canViewFull && $features->screenAllowed($tenant, 'skills');
+        $profileTestGate = $canViewFull && $features->screenAllowed($tenant, 'profile-test');
         $payrollGate = $canSeeMoney && $features->screenAllowed($tenant, 'payroll');
         $claimsGate = $canSeeMoney && $features->screenAllowed($tenant, 'claims');
         $loansGate = $canSeeMoney && $features->screenAllowed($tenant, 'loans');
@@ -313,13 +313,6 @@ trait BuildsPeopleData
             'keepItPlain' => ($own && $e && $own->id === $e->id)
                 ? DashboardPrefs::forUser($own->user?->dashboard_prefs)['plain']
                 : false,
-            'googleCalendarConnected' => ($own && $e && $own->id === $e->id)
-                ? GoogleCalendarConnection::where('user_id', $own->user_id)->exists()
-                : false,
-            // CR-01 rule 9: cards whose calendar push gave up after five tries.
-            'calendarSyncIssues' => ($own && $e && $own->id === $e->id)
-                ? WorkItem::where('employee_id', $own->id)->whereNotNull('calendar_sync_error')->orderByDesc('updated_at')->get(['id', 'title', 'calendar_sync_error'])
-                : collect(),
             'canSeeAttendance' => $leaveGate,
             'attendance' => $attendance,
             'leaveGate' => $leaveGate,
@@ -333,6 +326,7 @@ trait BuildsPeopleData
             'probation' => $probation,
             'skillsGate' => $skillsGate,
             'skills' => $skills,
+            'profileTestGate' => $profileTestGate,
             'wall' => $wallData['wall'],
             'canGiveFlower' => $wallData['canGiveFlower'],
             'flowersLeft' => $wallData['flowersLeft'],

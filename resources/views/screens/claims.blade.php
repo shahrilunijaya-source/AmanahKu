@@ -37,6 +37,10 @@
 
     $isApprover = $isApprover ?? false;
     $privileged = $privileged ?? false;
+    // Whether the "pays next run" payroll suffix means anything for this tenant: it
+    // can be switched off, and this screen must not promise a payroll run that never
+    // happens (defaults to on, matching today's behaviour, if the caller omits it).
+    $payrollAllowed = $payrollAllowed ?? true;
 
     // A plain manager only recommends — scopeToApprove() closes for them — so the tab is
     // named for what they can actually do.
@@ -59,8 +63,8 @@
     $decRejected = $claimsRejectedByMe ?? collect();
 
     $sc = ['cancelled' => 'muted', 'submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
-    $statusEn = ['cancelled' => 'Cancelled', 'submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved · pays next run', 'paid' => 'Paid', 'rejected' => 'Declined'];
-    $statusMs = ['cancelled' => 'Dibatalkan', 'submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan · gaji berikutnya', 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
+    $statusEn = ['cancelled' => 'Cancelled', 'submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved' . ($payrollAllowed ? ' · pays next run' : ''), 'paid' => 'Paid', 'rejected' => 'Declined'];
+    $statusMs = ['cancelled' => 'Dibatalkan', 'submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan' . ($payrollAllowed ? ' · gaji berikutnya' : ''), 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
 
     $money = fn ($v) => 'RM ' . number_format((float) $v, 2);
 
@@ -98,7 +102,7 @@
     'key' => 'claims',
     'en'  => [
         'title' => 'Claims',
-        'body'  => 'Claim back what you spent for work in three steps: the type, the amount, then the receipt. Mileage is worked out from the distance; medical is checked against your yearly cap. Each claim goes to your manager to verify, then to management to approve, and approved claims are paid in the next payroll run.',
+        'body'  => 'Claim back what you spent for work in three steps: the type, the amount, then the receipt. Mileage is worked out from the distance; medical is checked against your yearly cap. Each claim goes to your manager to verify, then to management to approve' . ($payrollAllowed ? ', and approved claims are paid in the next payroll run.' : '.'),
         'who'   => 'Staff claim · Managers verify · Management approves',
         'steps' => [
             'Claim back — pick the type. Medical shows what is left of your cap.',
@@ -109,7 +113,7 @@
     ],
     'ms'  => [
         'title' => 'Tuntutan',
-        'body'  => 'Tuntut balik wang yang anda belanja untuk kerja dalam tiga langkah: jenis, jumlah, kemudian resit. Mileage dikira daripada jarak; perubatan disemak dengan had tahunan. Setiap tuntutan dihantar kepada pengurus untuk disahkan, kemudian pengurusan untuk diluluskan, dan tuntutan yang diluluskan dibayar dalam gaji berikutnya.',
+        'body'  => 'Tuntut balik wang yang anda belanja untuk kerja dalam tiga langkah: jenis, jumlah, kemudian resit. Mileage dikira daripada jarak; perubatan disemak dengan had tahunan. Setiap tuntutan dihantar kepada pengurus untuk disahkan, kemudian pengurusan untuk diluluskan' . ($payrollAllowed ? ', dan tuntutan yang diluluskan dibayar dalam gaji berikutnya.' : '.'),
         'who'   => 'Staf tuntut · Pengurus sahkan · Pengurusan luluskan',
         'steps' => [
             'Tuntut balik — pilih jenis. Perubatan menunjukkan baki had anda.',
@@ -418,7 +422,7 @@
                         <div style="width:150px;font-size:11.5px;line-height:1.35;display:flex;flex-direction:column;">
                             <template x-if="r.status === 'submitted'"><span><span style="font-weight:500;" :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--ink)'" x-text="$store.ui.lang==='en' ? 'With manager' : 'Dengan pengurus'"></span><span :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--muted)'" x-text="($store.ui.lang==='en' ? ' · to verify · ' : ' · sahkan · ') + daysAgo(r.changed) + ($store.ui.lang==='en' ? 'd' : 'h') + (isStuck(r) ? ' ⚠' : '')"></span></span></template>
                             <template x-if="r.status === 'verified'"><span><span style="font-weight:500;" :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--ink)'" x-text="$store.ui.lang==='en' ? 'With management' : 'Dengan pengurusan'"></span><span :style="isStuck(r) ? 'color:var(--red-active,#b01b22)' : 'color:var(--muted)'" x-text="($store.ui.lang==='en' ? ' · to approve · ' : ' · lulus · ') + daysAgo(r.changed) + ($store.ui.lang==='en' ? 'd' : 'h') + (isStuck(r) ? ' ⚠' : '')"></span></span></template>
-                            <template x-if="r.status === 'approved'"><span><span style="font-weight:500;color:var(--success-ink,#14614a);" x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'"></span><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? ' · pays next run' : ' · gaji berikutnya'"></span></span></template>
+                            <template x-if="r.status === 'approved'"><span><span style="font-weight:500;color:var(--success-ink,#14614a);" x-text="$store.ui.lang==='en' ? 'Approved' : 'Diluluskan'"></span>@if($payrollAllowed)<span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? ' · pays next run' : ' · gaji berikutnya'"></span>@endif</span></template>
                             <template x-if="r.status === 'paid'"><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Paid' : 'Dibayar'"></span></template>
 <template x-if="r.status === 'cancelled'"><span style="color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Cancelled' : 'Dibatalkan'"></span></template>
                                                         <template x-if="r.status === 'rejected'"><span style="color:var(--error,#cf2d56);font-weight:500;" x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'"></span></template>

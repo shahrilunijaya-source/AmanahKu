@@ -20,6 +20,7 @@ use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\MandayRateService;
 use App\Support\Permissions;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\ApprovalQueue;
 use App\Timesheet\BoardSuggestions;
@@ -174,6 +175,8 @@ class TimesheetController extends Controller
             ),
             'tsProjects' => $this->projectOptions(),
             'weekStart' => $weekStart->toDateString(),
+            'tsWorkDays' => WorkWeek::for()->workingDays(),
+            'tsTotSaturday' => WorkWeek::for()->totSaturday(),
             'weekLabel' => $weekTimesheet?->week_label ?? '',
             'weekStatus' => $weekTimesheet?->status,
             'weekTimesheet' => $weekTimesheet,

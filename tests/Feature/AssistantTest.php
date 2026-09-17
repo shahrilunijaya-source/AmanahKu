@@ -74,4 +74,44 @@ class AssistantTest extends TestCase
         $this->assertStringContainsString('Faizal', $reply);
         $this->assertStringContainsString('3 open task(s)', $reply);
     }
+
+    public function test_canned_reply_omits_company_figures_when_absent(): void
+    {
+        $reply = (new CannedAiProvider)->reply('anything', [
+            'tenant' => 'Acme', 'you' => ['name' => 'Demo', 'openTasks' => 3],
+        ]);
+
+        $this->assertStringContainsString('3 open task(s)', $reply);
+        $this->assertStringContainsString('Acme', $reply);
+        $this->assertStringContainsString('managers and HR', $reply);
+        $this->assertStringNotContainsString('employees in', $reply);
+    }
+
+    public function test_plain_employee_reply_has_no_company_figures(): void
+    {
+        $reply = $this->actingInTenant()->postJson('/app/assistant', ['message' => 'Who is overloaded this week?'])
+            ->assertOk()
+            ->json('reply');
+
+        $this->assertStringNotContainsString('employees in Acme', $reply);
+        $this->assertStringNotContainsString('headcount', $reply);
+        $this->assertStringContainsString('managers and HR', $reply);
+    }
+
+    public function test_manager_reply_still_includes_company_figures(): void
+    {
+        $manager = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
+        $manager->tenants()->attach($this->tenant->id, ['role' => 'hr']);
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'user_id' => $manager->id,
+            'name' => 'Boss', 'status' => 'active', 'workload' => 'green',
+        ]);
+
+        $reply = $this->actingAs($manager)->withSession(['current_tenant' => $this->tenant->id])
+            ->postJson('/app/assistant', ['message' => 'Who is overloaded this week?'])
+            ->assertOk()
+            ->json('reply');
+
+        $this->assertStringContainsString('employees in Acme', $reply);
+    }
 }

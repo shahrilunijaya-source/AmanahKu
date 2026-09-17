@@ -8,6 +8,9 @@
      Params: $c (Claim). --}}
 @php
     $verifierName = $c->relationLoaded('verifiedBy') ? $c->verifiedBy?->name : null;
+    // Shared from claims.blade.php's scope (this partial is @included, not @each'd);
+    // defaults on so a caller that omits it keeps today's behaviour.
+    $payrollAllowed = $payrollAllowed ?? true;
 
     $steps = [['state' => 'done', 'en' => 'Submitted', 'ms' => 'Dihantar', 'who' => null, 'at' => $c->created_at]];
     if (in_array($c->status, ['rejected', 'cancelled'], true)) {
@@ -23,12 +26,18 @@
         $steps[] = in_array($c->status, ['approved', 'paid'], true)
             ? ['state' => 'done', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'at' => null]
             : ['state' => 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'at' => null];
-        $steps[] = $c->status === 'paid'
-            ? ['state' => 'done', 'en' => 'Paid', 'ms' => 'Dibayar', 'who' => null, 'at' => $c->paid_at]
-            : ['state' => 'pending', 'en' => 'Pays next payroll run', 'ms' => 'Dibayar dalam gaji berikutnya', 'who' => null, 'at' => null];
+        // Skip the "gets paid" step entirely when payroll is off, unless this claim was
+        // already paid (a fact from before payroll was switched off, so it still shows).
+        // Otherwise it would sit as a permanently "pending" step promising a run that
+        // will never happen.
+        if ($payrollAllowed || $c->status === 'paid') {
+            $steps[] = $c->status === 'paid'
+                ? ['state' => 'done', 'en' => 'Paid', 'ms' => 'Dibayar', 'who' => null, 'at' => $c->paid_at]
+                : ['state' => 'pending', 'en' => 'Pays next payroll run', 'ms' => 'Dibayar dalam gaji berikutnya', 'who' => null, 'at' => null];
+        }
     }
-    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — pays in the next payroll run.', 'paid' => 'Paid.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$c->status] ?? '';
-    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — dibayar dalam gaji berikutnya.', 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$c->status] ?? '';
+    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved.' . ($payrollAllowed ? ' Pays in the next payroll run.' : ''), 'paid' => 'Paid.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$c->status] ?? '';
+    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan.' . ($payrollAllowed ? ' Dibayar dalam gaji berikutnya.' : ''), 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$c->status] ?? '';
     $dotCol = ['done' => 'var(--success)', 'pending' => 'var(--muted-soft)', 'rejected' => 'var(--error)'];
 @endphp
 <div style="padding:2px 0;">

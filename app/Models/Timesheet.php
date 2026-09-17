@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\WorkWeek;
 use App\Timesheet\DayCapacity;
 use App\Timesheet\DayRules;
 use App\Timesheet\LockedDays;
@@ -130,16 +131,24 @@ class Timesheet extends Model
     }
 
     /**
-     * A week's cutoff: Friday, unless that week's Saturday is the first Saturday of the
-     * month (Unijaya's TOT day, a work half-day), which pushes the cutoff there. Single
-     * source of truth for TimesheetController's submit gate (both the capture screen's
-     * submit_now and the Review tab's plain-form submit) — mirrors weekEndsOn() in
-     * resources/js/timesheet-capture.js for the capture screen's own button state.
+     * A week's cutoff: the last day the tenant's work week asks to be filled (Friday for a
+     * Mon-Fri company, the TOT Saturday on Unijaya's first-Saturday weeks, Sunday for a
+     * seven-day company). Falls back to Friday when the week has no work day at all.
+     * Single source of truth for TimesheetController's submit gate (both the capture
+     * screen's submit_now and the Review tab's plain-form submit) — mirrors weekEndsOn()
+     * in resources/js/timesheet-capture.js for the capture screen's own button state.
      */
     public static function computeWeekEndsOn(CarbonInterface $weekStart): Carbon
     {
-        $saturday = Carbon::parse($weekStart)->addDays(5);
+        $workWeek = WorkWeek::for();
 
-        return DayCapacity::isFirstSaturday($saturday) ? $saturday : Carbon::parse($weekStart)->addDays(4);
+        for ($i = 6; $i >= 0; $i--) {
+            $day = Carbon::parse($weekStart)->addDays($i);
+            if ($workWeek->isWorkingDay($day)) {
+                return $day;
+            }
+        }
+
+        return Carbon::parse($weekStart)->addDays(4);
     }
 }

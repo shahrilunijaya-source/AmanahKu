@@ -294,7 +294,7 @@
                 </div>
                 @endif
 
-                @if ($pers)
+                @if ($pers && ($profileTestGate ?? false))
                 <div>
                     <div class="uj-section-head" style="margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Personality profile' : 'Profil personaliti'">Personality profile</span></div>
                     <div style="margin-bottom:14px;">
@@ -309,7 +309,7 @@
                     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);font-size:12px;color:var(--body);line-height:1.5;">{{ $pers['blurb'] ?? '' }}</div>
                 </div>
                 @endif
-                @if ($isOwn)
+                @if ($isOwn && ($profileTestGate ?? false))
                 <div>
                     {{-- CR-15: the test lost its sidebar row, so the profile page links to it. --}}
                     <a href="{{ route('app.screen', 'profile-test') }}" class="uj-btn-ghost" style="display:inline-flex;height:36px;align-items:center;padding:0 16px;font-size:13px;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? @js($pers ? 'Retake the Profile Test' : 'Take the Profile Test') : @js($pers ? 'Ambil semula Ujian Profil' : 'Ambil Ujian Profil')">{{ $pers ? 'Retake the Profile Test' : 'Take the Profile Test' }}</span></a>
@@ -360,51 +360,6 @@
             {{-- Tasks · work items + assigned-tasks box with the Assign modal --}}
             <div x-show="tab === 'work'" x-cloak style="padding:6px 0;">
                 <div class="uj-section-head" style="margin:14px 20px 6px;"><span x-text="$store.ui.lang==='en' ? 'Work items' : 'Item kerja'">Work items</span></div>
-                @if ($isOwn)
-                <div style="padding:0 20px 12px;">
-                    <span style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Google Calendar' : 'Kalendar Google'">Google Calendar</span>
-                    @if ($errors->has('google_calendar'))
-                        <div style="width:100%;font-size:12px;color:var(--red);margin-top:8px;">{{ $errors->first('google_calendar') }}</div>
-                    @endif
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
-                    @if ($googleCalendarConnected ?? false)
-                        <form method="post" action="{{ route('google-calendar.disconnect') }}">
-                            @csrf
-                            <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;">
-                                <span x-text="$store.ui.lang==='en' ? 'Disconnect' : 'Putuskan'">Disconnect</span>
-                            </button>
-                        </form>
-                    @else
-                        <a href="{{ route('google-calendar.redirect') }}" style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px 0 8px;font-size:12px;font-weight:500;color:#3c4043;text-decoration:none;background:#fff;border:1px solid #dadce0;border-radius:6px;">
-                            <svg width="16" height="16" viewBox="0 0 18 18" style="flex-shrink:0;">
-                                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
-                                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
-                                <path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/>
-                                <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
-                            </svg>
-                            <span x-text="$store.ui.lang==='en' ? 'Connect' : 'Sambung'">Connect</span>
-                        </a>
-                    @endif
-                </div>
-                @if ($googleCalendarConnected ?? false)
-                    <div style="font-size:11.5px;color:var(--muted);margin-top:8px;" x-text="$store.ui.lang==='en' ? 'Your cards with a due date appear in a separate \'Amanahku\' calendar, never your main one. Move a Task there and it snaps back; move an Event and the card follows.' : 'Kad anda yang bertarikh akhir muncul dalam kalendar \'Amanahku\' berasingan, bukan kalendar utama. Alih Tugasan di sana dan ia kembali; alih Acara dan kad mengikut.'">Your cards with a due date appear in a separate 'Amanahku' calendar, never your main one.</div>
-                @endif
-                @if (($calendarSyncIssues ?? collect())->isNotEmpty())
-                    <div data-testid="calendar-sync-issues" style="margin-top:10px;border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 10px;">
-                        <div style="font-size:11px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:0.6px;" x-text="$store.ui.lang==='en' ? 'Sync issues' : 'Isu penyegerakan'">Sync issues</div>
-                        @foreach ($calendarSyncIssues as $issue)
-                            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;">
-                                <a href="{{ route('work.show', $issue) }}" style="flex:1;min-width:0;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ $issue->calendar_sync_error }}">{{ $issue->title }}</a>
-                                <form method="post" action="{{ route('google-calendar.retry', $issue) }}">
-                                    @csrf
-                                    <button type="submit" class="uj-btn-ghost" style="height:24px;padding:0 8px;font-size:11px;" data-tip="Push this card to the calendar once more">Retry</button>
-                                </form>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-                </div>
-                @endif
                 @forelse ($wItems as $w)
                     @php [$tl, $tc] = $wTag[$w->type] ?? ['Task', 'var(--info)']; [$sl, $scol] = $wStatus[$w->status] ?? ['—', 'var(--muted)']; @endphp
                     <div class="uj-row" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--hairline-soft);">

@@ -21,6 +21,8 @@ use App\Models\TimesheetCategory;
 use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
+use App\Services\GoogleCalendarClient;
+use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -130,6 +132,10 @@ trait BuildsWorkData
         return [
             'columns' => $this->boardColumns($employee, request('type', 'core')),
             'boardType' => request('type', 'core'),
+            // The Google Calendar control (status, Sync now, issues). Null hides it.
+            'calendarSync' => app(GoogleCalendarClient::class)->configured() && $request->user()
+                ? CalendarSyncStatus::for($request->user(), $employee?->tenant_id)
+                : null,
             'archivedCount' => $employee ? WorkItem::query()
                 ->where(fn ($q) => $q->where('employee_id', $employee->id)
                     ->orWhereHas('participants', fn ($p) => $p->whereKey($employee->id)))
@@ -425,6 +431,10 @@ trait BuildsWorkData
             'isApprover' => $isApprover,
             'privileged' => $privileged,
             'givesFinalApproval' => $givesFinalApproval,
+            // Whether an approved claim's "pays next run" payroll suffix means anything for
+            // this tenant: payroll can be switched off, and the claims screen must not
+            // promise a payroll run that will never happen.
+            'payrollAllowed' => app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'payroll'),
         ];
 
         if ($isApprover) {

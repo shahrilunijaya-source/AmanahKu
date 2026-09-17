@@ -37,15 +37,29 @@
     edge, instead of below the control with the tail on top. For a bubble about a narrow
     column — the sidebar — where hanging underneath would cover the very rows it names.
 
-    Required: $key, $en. $ms, $after, $anchor and $side optional; $ms falls back to English.
+    Optional $when: a JS expression evaluated in the bubble's Alpine scope, e.g.
+    "$store.guide.current === 'branches'". With it the bubble shows because the
+    expression is true — not because localStorage says so — and closing it hides it
+    for this page view only. Used by the live setup guide: the pointer must come back
+    on the next visit while the step is still current.
+
+    Required: $key, $en. $ms, $after, $anchor, $side and $when optional; $ms falls back to English.
 --}}
 @php
     $ms = $ms ?? $en;
     $after = $after ?? null;
     $anchor = $anchor ?? null;
+    $when = $when ?? null;
 @endphp
+{{-- $when is unescaped on purpose: it is developer-authored JS from the include
+     site, never user input, and {{ }} would turn its quotes into &#039;. --}}
 <div x-data="{
+        @if ($when)
+        closed: false,
+        get show() { return ! this.closed && ({!! $when !!}); },
+        @else
         show: localStorage.getItem('amanahku-coach-{{ $key }}') !== '1'@if ($after) && localStorage.getItem('amanahku-coach-{{ $after }}') === '1'@endif,
+        @endif
         copy: {{ \Illuminate\Support\Js::from(['en' => $en, 'ms' => $ms]) }},
         get c() { return this.copy[$store.ui.lang] ?? this.copy.en; },
         @if ($anchor)
@@ -109,8 +123,12 @@
         },
         @endif
         dismiss() {
+            @if ($when)
+            this.closed = true;
+            @else
             this.show = false;
             localStorage.setItem('amanahku-coach-{{ $key }}', '1');
+            @endif
             // Wakes any coachmark queued behind this one ($after). Without it the next
             // bubble waits for a page load the staff member has no reason to perform.
             window.dispatchEvent(new CustomEvent('coach-dismissed'));
@@ -119,7 +137,7 @@
      @if ($anchor)
      x-init="$nextTick(() => { placeTail(); trackTail(); })"
      @endif
-     @if ($after) @coach-dismissed.window="show = localStorage.getItem('amanahku-coach-{{ $key }}') !== '1' && localStorage.getItem('amanahku-coach-{{ $after }}') === '1'" @endif
+     @if ($after && ! $when) @coach-dismissed.window="show = localStorage.getItem('amanahku-coach-{{ $key }}') !== '1' && localStorage.getItem('amanahku-coach-{{ $after }}') === '1'" @endif
      x-show="show"
      x-cloak
      x-transition:enter="uj-coach-in"

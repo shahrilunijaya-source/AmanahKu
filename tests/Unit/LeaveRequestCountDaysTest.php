@@ -3,17 +3,32 @@
 namespace Tests\Unit;
 
 use App\Models\LeaveRequest;
+use App\Models\Tenant;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
- * Leave is charged for working days only: Mon–Fri plus the TOT Saturday (first Saturday
- * of the month, a half day). Sundays and ordinary Saturdays are never working days.
+ * Leave is charged for working days only. Unijaya-shaped tenant: Mon–Fri plus the TOT
+ * Saturday (first Saturday of the month, a half day). Sundays and ordinary Saturdays are
+ * never working days. The tot_saturday = false case lives in WorkWeekBehaviourTest.
  */
 class LeaveRequestCountDaysTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(CurrentTenant::class)->set(Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]));
+    }
+
+    protected function tearDown(): void
+    {
+        app(CurrentTenant::class)->set(null);
+        parent::tearDown();
+    }
 
     public function test_tot_saturday_to_monday_skips_the_sunday(): void
     {

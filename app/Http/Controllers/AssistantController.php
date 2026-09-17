@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Services\Ai\AiProvider;
 use App\Services\FeatureManager;
+use App\Support\Permissions;
 use App\Support\WorkforceInsights;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +29,8 @@ class AssistantController extends Controller
             'message' => ['required', 'string', 'max:1000'],
         ]);
 
-        $context = $this->workforceContext($request->attributes->get('employee'));
+        $role = Permissions::effectiveRole($request->attributes->get('tenantRole', 'employee'));
+        $context = $this->workforceContext($request->attributes->get('employee'), $role);
 
         return response()->json([
             'reply' => $ai->reply($data['message'], $context),
@@ -38,26 +40,36 @@ class AssistantController extends Controller
 
     /**
      * Tenant-scoped facts the assistant may use. Every query runs under the active
-     * tenant's global scope, so nothing here can cross workspaces.
+     * tenant's global scope, so nothing here can cross workspaces. Company-wide
+     * figures (headcount, overloaded staff, probation, pending approvals) are only
+     * included for viewers Permissions::canSeeAll() allows to see the whole tenant;
+     * everyone else gets just the tenant name and their own open tasks.
      *
      * @return array<string,mixed>
      */
-    private function workforceContext(?Employee $employee): array
+    private function workforceContext(?Employee $employee, string $role): array
     {
         $tenant = app(CurrentTenant::class)->get();
 
-        return [
+        $context = [
             'tenant' => $tenant->name,
-            'headcount' => Employee::active()->count(),
-            // Live overloaded set (open work-item count), name-sorted — same source as the recs.
-            'overloaded' => app(WorkforceInsights::class)->overloaded()->pluck('name')->sort()->values()->all(),
-            'onProbation' => Employee::active()->where('status', 'probation')->count(),
-            'pendingLeave' => LeaveRequest::where('status', 'submitted')->whereHas('employee', fn ($q) => $q->active())->count(),
-            'pendingClaims' => Claim::where('status', 'submitted')->whereHas('employee', fn ($q) => $q->active())->count(),
             'you' => $employee ? [
                 'name' => $employee->name,
                 'openTasks' => $employee->workItems()->whereIn('status', ['todo', 'prog', 'review'])->count(),
             ] : null,
         ];
+
+        if (Permissions::canSeeAll($employee, $role)) {
+            $context += [
+                'headcount' => Employee::active()->count(),
+                // Live overloaded set (open work-item count), name-sorted — same source as the recs.
+                'overloaded' => app(WorkforceInsights::class)->overloaded()->pluck('name')->sort()->values()->all(),
+                'onProbation' => Employee::active()->where('status', 'probation')->count(),
+                'pendingLeave' => LeaveRequest::where('status', 'submitted')->whereHas('employee', fn ($q) => $q->active())->count(),
+                'pendingClaims' => Claim::where('status', 'submitted')->whereHas('employee', fn ($q) => $q->active())->count(),
+            ];
+        }
+
+        return $context;
     }
 }
