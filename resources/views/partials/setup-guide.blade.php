@@ -16,7 +16,8 @@
      data-guide-dock
      x-data="{
         collapsed: localStorage.getItem('amanahku-guide-collapsed') === '1',
-        flash: null,
+        flash: false,
+        flashStep: null,
         get g() { return $store.guide; },
         get s() { return this.g.step; },
         get en() { return $store.ui.lang === 'en'; },
@@ -33,8 +34,10 @@
             try { last = localStorage.getItem('amanahku-guide-last'); } catch (e) {}
             const done = last ? this.g.steps.find(s => s.key === last && s.done) : null;
             if (done) {
-                this.flash = done;
-                setTimeout(() => { this.flash = null; }, 4000);
+                // The label lives apart from the on/off flag, so it stays filled while the box fades out.
+                this.flashStep = done;
+                this.flash = true;
+                setTimeout(() => { this.flash = false; }, 4000);
             }
             this.$watch('g.current', (k) => { try { k ? localStorage.setItem('amanahku-guide-last', k) : localStorage.removeItem('amanahku-guide-last'); } catch (e) {} });
             try { this.g.current ? localStorage.setItem('amanahku-guide-last', this.g.current) : localStorage.removeItem('amanahku-guide-last'); } catch (e) {}
@@ -62,7 +65,7 @@
 
         {{-- Done, next: … --}}
         <div class="uj-guide-flash" x-show="flash" x-transition.opacity>
-            <span x-text="(en ? 'Done: ' : 'Selesai: ') + t(flash, 'label') + (s ? (en ? '. Next: ' : '. Seterusnya: ') + t(s, 'label') : '')"></span>
+            <span x-text="(en ? 'Done: ' : 'Selesai: ') + t(flashStep, 'label') + (s ? (en ? '. Next: ' : '. Seterusnya: ') + t(s, 'label') : '')"></span>
         </div>
 
         <template x-if="s">
