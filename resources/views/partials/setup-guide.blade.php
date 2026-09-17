@@ -51,9 +51,9 @@
     </button>
 
     {{-- Open card --}}
-    <div class="uj-guide-card" x-show="! collapsed" role="complementary"
+    <div class="uj-guide-dock-card" x-show="! collapsed" role="complementary"
          :aria-label="en ? 'Setup guide' : 'Panduan persediaan'">
-        <div class="uj-guide-head">
+        <div class="uj-guide-dock-head">
             <span class="uj-guide-eyebrow"
                   x-text="s ? ((en ? 'Setting up · step ' : 'Persediaan · langkah ') + g.index + (en ? ' of ' : ' daripada ') + g.total) : (en ? 'Setting up' : 'Persediaan')">Setting up</span>
             <button type="button" class="uj-guide-x" @click="toggle()" :title="en ? 'Collapse' : 'Kecilkan'" :aria-label="en ? 'Collapse setup guide' : 'Kecilkan panduan persediaan'">&ndash;</button>
@@ -67,13 +67,13 @@
 
         <template x-if="s">
             <div>
-                <div class="uj-guide-title" x-text="t(s, 'label')"></div>
-                <p class="uj-guide-body" x-text="t(s, 'guide')"></p>
+                <div class="uj-guide-dock-title" x-text="t(s, 'label')"></div>
+                <p class="uj-guide-dock-body" x-text="t(s, 'guide')"></p>
                 <div class="uj-guide-actions">
                     <a :href="s.url" class="uj-btn-primary uj-guide-go" data-guide-go x-text="en ? 'Take me there' : 'Bawa saya ke sana'">Take me there</a>
                     <button type="button" class="uj-btn-ghost uj-guide-skip" data-guide-skip @click="g.skip()" x-text="en ? 'Skip for now' : 'Langkau dulu'">Skip for now</button>
                 </div>
-                <div class="uj-guide-foot" x-show="doneNames || nextStep">
+                <div class="uj-guide-dock-foot" x-show="doneNames || nextStep">
                     <span x-show="doneNames" x-text="(en ? 'Done so far: ' : 'Selesai setakat ini: ') + doneNames + '.'"></span>
                     <span x-show="nextStep" x-text="' ' + (en ? 'Next: ' : 'Seterusnya: ') + t(nextStep, 'label') + '.'"></span>
                 </div>
@@ -84,8 +84,8 @@
              where skipped steps are still listed as outstanding. --}}
         <template x-if="! s">
             <div>
-                <div class="uj-guide-title" x-text="en ? 'Nothing left to point at' : 'Tiada lagi yang perlu ditunjuk'"></div>
-                <p class="uj-guide-body" x-text="en ? 'The steps you skipped are still open in Company Setup. Finish them there, then click Complete setup.' : 'Langkah yang anda langkau masih terbuka di Persediaan Syarikat. Selesaikan di sana, kemudian klik Selesai persediaan.'"></p>
+                <div class="uj-guide-dock-title" x-text="en ? 'Nothing left to point at' : 'Tiada lagi yang perlu ditunjuk'"></div>
+                <p class="uj-guide-dock-body" x-text="en ? 'The steps you skipped are still open in Company Setup. Finish them there, then click Complete setup.' : 'Langkah yang anda langkau masih terbuka di Persediaan Syarikat. Selesaikan di sana, kemudian klik Selesai persediaan.'"></p>
                 <div class="uj-guide-actions">
                     <a href="{{ route('app.screen', ['screen' => 'setup']) }}" class="uj-btn-primary uj-guide-go" data-guide-go x-text="en ? 'Open Company Setup' : 'Buka Persediaan Syarikat'">Open Company Setup</a>
                 </div>

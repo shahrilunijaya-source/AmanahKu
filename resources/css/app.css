@@ -3812,26 +3812,26 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
     width: 320px;
     max-width: calc(100vw - 32px);
 }
-.uj-guide-card {
+.uj-guide-dock-card {
     background: var(--card, #fff);
     border: 1px solid var(--hairline);
     border-radius: 14px;
     box-shadow: 0 12px 36px rgba(0, 0, 0, .14);
     padding: 16px 18px;
 }
-.uj-guide-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.uj-guide-dock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .uj-guide-eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--red); }
 .uj-guide-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
 .uj-guide-x:hover { color: var(--ink); }
 .uj-guide-bar { height: 4px; background: var(--hairline-soft); border-radius: 9999px; margin-bottom: 12px; overflow: hidden; }
 .uj-guide-fill { height: 100%; background: var(--red); transition: width .3s ease; }
 .uj-guide-flash { font-size: 12.5px; font-weight: 600; color: var(--ink); background: var(--red-tint); border-radius: 8px; padding: 7px 10px; margin-bottom: 10px; }
-.uj-guide-title { font-size: 14.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-.uj-guide-body { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 14px; }
+.uj-guide-dock-title { font-size: 14.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.uj-guide-dock-body { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 14px; }
 .uj-guide-actions { display: flex; gap: 8px; }
 .uj-guide-go { height: 34px; flex: 1; display: inline-flex; align-items: center; justify-content: center; font-size: 12.5px; text-decoration: none; }
 .uj-guide-skip { height: 34px; padding: 0 12px; font-size: 12.5px; }
-.uj-guide-foot { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+.uj-guide-dock-foot { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
 /* Collapsed: a pill in the same corner reading "Setup · 3/12". */
 .uj-guide-pill {
     display: inline-flex; align-items: center; gap: 7px;
@@ -3859,7 +3859,7 @@ a.uj-tr-ent[href]:focus-visible { outline: 2px solid var(--red); outline-offset:
 }
 @media (max-width: 900px) {
     .uj-guide { right: 12px; bottom: calc(12px + var(--uj-dock-h)); }
-    .uj-guide-card { padding: 14px 16px; }
+    .uj-guide-dock-card { padding: 14px 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
