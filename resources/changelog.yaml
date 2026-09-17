@@ -42,6 +42,13 @@
       link_text: "Open Progression"
       link_text_ms: "Buka Kemajuan Kerjaya"
     - tag: added
+      major: true
+      text: "Google Calendar now includes cards you are tagged on as Helper or FYI, not just cards you own. Connect, check the status and Sync now from the task board. Cards that could not be sent are listed there with Retry."
+      text_ms: "Kalendar Google kini turut memasukkan kad yang anda ditanda sebagai Pembantu atau FYI, bukan hanya kad milik anda. Sambung, semak status dan Segerak sekarang dari papan tugasan. Kad yang tidak dapat dihantar disenaraikan di situ dengan Cuba lagi."
+      link: "/app/board"
+      link_text: "Open Task Board"
+      link_text_ms: "Buka Papan Tugasan"
+    - tag: added
       text: "Managers get a To approve queue on the timesheet screen."
       text_ms: "Pengurus mendapat senarai Untuk diluluskan pada skrin timesheet."
       link: "/app/timesheets"
@@ -71,6 +78,9 @@
     - tag: improved
       text: "Salary lives in one place, the staff record, and payroll reads it from there."
       text_ms: "Gaji disimpan di satu tempat, rekod staf, dan gaji bulanan membacanya dari situ."
+    - tag: improved
+      text: "When Google stops letting AmanahKu update your calendar, the task board says so and asks you to reconnect. Moving or deleting a tagged card in your own Google Calendar puts it back."
+      text_ms: "Apabila Google berhenti membenarkan AmanahKu mengemas kini kalendar anda, papan tugasan memberitahu dan meminta anda menyambung semula. Mengalih atau memadam kad yang ditanda dalam Kalendar Google anda sendiri akan mengembalikannya."
     - tag: improved
       text: "Each payroll page has its own icon in the sidebar."
       text_ms: "Setiap halaman gaji ada ikon sendiri di bar sisi."
