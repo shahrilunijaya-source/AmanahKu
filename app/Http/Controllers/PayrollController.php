@@ -158,7 +158,7 @@ class PayrollController extends Controller
     /**
      * Normalise the child-relief grid to every LHDN category × {100, 50} as ints, or null when nothing was sent.
      *
-     * @param  array<string, array<string, mixed>>|null  $grid
+     * @param  array<string, array<int, mixed>>|null  $grid
      * @return array<string, array{100: int, 50: int}>|null
      */
     private static function childRelief(?array $grid): ?array
@@ -168,7 +168,7 @@ class PayrollController extends Controller
         }
         $out = [];
         foreach (array_keys(StatutoryOptions::CHILD_RELIEF_CATEGORIES) as $cat) {
-            $out[$cat] = ['100' => (int) ($grid[$cat]['100'] ?? 0), '50' => (int) ($grid[$cat]['50'] ?? 0)];
+            $out[$cat] = ['100' => (int) ($grid[$cat][100] ?? 0), '50' => (int) ($grid[$cat][50] ?? 0)];
         }
 
         return $out;

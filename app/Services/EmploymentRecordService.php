@@ -138,7 +138,7 @@ final class EmploymentRecordService
      */
     public function diff(array $before, array $after): array
     {
-        return array_values(array_keys(array_filter($after, fn ($v, $k) => ($before[$k] ?? null) != $v, ARRAY_FILTER_USE_BOTH)));
+        return array_keys(array_filter($after, fn ($v, $k) => ($before[$k] ?? null) != $v, ARRAY_FILTER_USE_BOTH));
     }
 
     /**

@@ -65,7 +65,7 @@ class BatchProgressionController extends EmploymentRecordController
 
         return $this->run($request, 'salary', $data['employee_ids'], function (Employee $e) use ($service, $data, $override, $request): void {
             $new = self::adjust((float) ($e->salary ?? 0), $data['mode'], (float) $data['value']);
-            $max = (float) ($e->positionBand?->max_salary ?? 0);
+            $max = (float) ($e->positionBand->max_salary ?? 0);
             if ($max > 0 && $new > $max) {
                 if (! $override) {
                     throw new EmploymentTransitionException($e->name.': RM '.number_format($new, 2).' is above the '.$e->positionBand->title.' band maximum of RM '.number_format($max, 2).'. Tick "override band" to allow it.');
