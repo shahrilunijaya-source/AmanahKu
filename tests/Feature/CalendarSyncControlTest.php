@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\CalendarSyncController;
+use App\Jobs\CalendarFullSyncJob;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
@@ -10,11 +11,14 @@ use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
 use App\Ports\CalendarPort;
+use App\Support\Calendar\CalendarReconciler;
+use App\Support\Calendar\CalendarSyncProgress;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
@@ -198,6 +202,74 @@ class CalendarSyncControlTest extends TestCase
         $this->connect();
 
         $this->as()->postJson(route('calendar-sync.retry', $card))->assertForbidden();
+    }
+
+    public function test_retry_refuses_a_card_from_another_company(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $otherOwnerUser = User::create(['name' => 'Stranger', 'email' => 'stranger@example.com', 'password' => Hash::make('password')]);
+        $otherOwnerUser->tenants()->attach($otherTenant->id, ['role' => 'employee']);
+        $otherOwner = Employee::create(['tenant_id' => $otherTenant->id, 'user_id' => $otherOwnerUser->id, 'name' => 'Stranger', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set($otherTenant);
+        $foreignCard = $otherOwner->workItems()->create([
+            'tenant_id' => $otherTenant->id, 'title' => 'Foreign card', 'type' => 'task',
+            'priority' => 'medium', 'status' => 'todo', 'progress' => 0, 'due_at' => '2026-10-05',
+        ]);
+        app(CurrentTenant::class)->set(null);
+        $this->connect();
+
+        $this->as()->postJson(route('calendar-sync.retry', $foreignCard))->assertForbidden();
+
+        $this->assertSame([], $this->port->pushedTo());
+    }
+
+    /** In production the queue is async: a running sync must not be re-dispatched or rate-limited. */
+    public function test_sync_now_while_already_running_reports_progress_without_hitting_the_limiter(): void
+    {
+        Queue::fake();
+        $this->connect();
+        CalendarSyncProgress::start($this->user->id, 5);
+
+        $this->as()->postJson(route('calendar-sync.sync'))->assertStatus(202);
+
+        $progress = CalendarSyncProgress::get($this->user->id);
+        $this->assertSame('running', $progress['state']);
+        $this->assertSame(5, $progress['total']);
+        Queue::assertNothingPushed();
+
+        // The limiter was never hit, so a second call right after is still not 429.
+        $this->as()->postJson(route('calendar-sync.sync'))->assertStatus(202);
+    }
+
+    public function test_a_pull_failure_still_leaves_progress_finished(): void
+    {
+        $this->cardFor($this->me);
+        $this->connect();
+        $this->port->pullThrows = true;
+
+        try {
+            (new CalendarFullSyncJob($this->user->id))->handle(
+                app(CurrentTenant::class), $this->port, app(CalendarReconciler::class),
+            );
+            $this->fail('expected the pull failure to propagate');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('pull failed', $e->getMessage());
+        }
+
+        $progress = CalendarSyncProgress::get($this->user->id);
+        $this->assertSame('done', $progress['state']);
+    }
+
+    public function test_retry_records_the_error_again_when_the_push_fails(): void
+    {
+        $card = $this->cardFor($this->me);
+        WorkItem::withoutGlobalScopes()->where('id', $card->id)->update(['calendar_sync_error' => 'boom']);
+        $this->connect();
+        $this->port->fail = true;
+
+        $this->as()->postJson(route('calendar-sync.retry', $card))->assertOk();
+
+        $this->assertNotNull($card->fresh()->calendar_sync_error);
     }
 
     public function test_routes_404_when_google_is_not_configured(): void

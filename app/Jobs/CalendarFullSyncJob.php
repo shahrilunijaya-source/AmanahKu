@@ -51,24 +51,29 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
         $targets = $this->targets();
         CalendarSyncProgress::start($this->userId, count($targets));
 
-        foreach ($targets as [$tenantId, $workItemId, $recipientId]) {
-            $job = new SyncWorkItemCalendarEventJob(tenantId: $tenantId, action: 'upsert', workItemId: $workItemId, recipientEmployeeId: $recipientId);
-            try {
-                $job->handle($context, $port);
-                CalendarSyncProgress::tick($this->userId, true);
-            } catch (Throwable $e) {
-                $job->failed($e);
-                CalendarSyncProgress::tick($this->userId, false);
-                if ($connection->fresh()?->revoked_at) {
-                    CalendarSyncProgress::finish($this->userId, 'expired');
+        try {
+            foreach ($targets as [$tenantId, $workItemId, $recipientId]) {
+                $job = new SyncWorkItemCalendarEventJob(tenantId: $tenantId, action: 'upsert', workItemId: $workItemId, recipientEmployeeId: $recipientId);
+                try {
+                    $job->handle($context, $port);
+                    CalendarSyncProgress::tick($this->userId, true);
+                } catch (Throwable $e) {
+                    $job->failed($e);
+                    CalendarSyncProgress::tick($this->userId, false);
+                    if ($connection->fresh()?->revoked_at) {
+                        CalendarSyncProgress::finish($this->userId, 'expired');
 
-                    return;
+                        return;
+                    }
                 }
             }
-        }
 
-        $pulled = (new PullCalendarChangesJob($connection->id))->handle($context, $port, $reconciler);
-        CalendarSyncProgress::finish($this->userId, 'done', $pulled);
+            $pulled = (new PullCalendarChangesJob($connection->id))->handle($context, $port, $reconciler);
+            CalendarSyncProgress::finish($this->userId, 'done', $pulled);
+        } catch (Throwable $e) {
+            CalendarSyncProgress::finish($this->userId, 'done', 0);
+            throw $e;
+        }
     }
 
     /** @return list<array{0: int, 1: int, 2: ?int}> tenant id, card id, recipient (null = owner) */

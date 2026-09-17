@@ -9,12 +9,15 @@ use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\GoogleCalendarConnection;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
+use App\Ports\CalendarPort;
 use App\Services\GoogleCalendarClient;
 use App\Support\Calendar\CalendarSyncProgress;
 use App\Support\Calendar\CalendarSyncStatus;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Throwable;
 
 /**
  * The task board's Google Calendar control. JSON only; the board swaps its own panel.
@@ -42,6 +45,14 @@ class CalendarSyncController extends Controller
     public function sync(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        // The queue is async in production: a sync already running for this person is
+        // not a new request to rate-limit or re-dispatch, just report where it's at.
+        $progress = CalendarSyncProgress::get($user->id);
+        if ($progress && $progress['state'] === 'running') {
+            return response()->json(CalendarSyncStatus::for($user), 202);
+        }
+
         if (! GoogleCalendarConnection::where('user_id', $user->id)->whereNull('revoked_at')->exists()) {
             return response()->json(['message' => 'Connect Google Calendar first.'], 409);
         }
@@ -71,10 +82,20 @@ class CalendarSyncController extends Controller
 
         if ($isOwner) {
             WorkItem::withoutGlobalScopes()->where('id', $workItem->id)->update(['calendar_sync_error' => null]);
-            SyncWorkItemCalendarEventJob::dispatch(tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id);
         } else {
             $copy->update(['sync_error' => null]);
-            SyncWorkItemCalendarEventJob::dispatch(tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id, recipientEmployeeId: $employee->id);
+        }
+
+        // Inline, same as CalendarFullSyncJob: "Retry" is a person waiting on this one
+        // card, not a fire-and-forget queue push.
+        $job = new SyncWorkItemCalendarEventJob(
+            tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id,
+            recipientEmployeeId: $isOwner ? null : $employee->id,
+        );
+        try {
+            $job->handle(app(CurrentTenant::class), app(CalendarPort::class));
+        } catch (Throwable $e) {
+            $job->failed($e);
         }
 
         return response()->json(CalendarSyncStatus::for($request->user()));

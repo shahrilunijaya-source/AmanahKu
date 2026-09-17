@@ -22,6 +22,8 @@ final class RecordingCalendarPort implements CalendarPort
 
     public bool $fail = false;
 
+    public bool $pullThrows = false;
+
     public function upsertEvent(Employee $for, CalendarEvent $event): PortResult
     {
         $this->upserts[] = ['employee' => $for->id, 'event' => $event];
@@ -39,6 +41,9 @@ final class RecordingCalendarPort implements CalendarPort
 
     public function pullChanges(Employee $for, CarbonImmutable $since): PortResult
     {
+        if ($this->pullThrows) {
+            throw new \RuntimeException('pull failed');
+        }
         $changes = $this->pending;
         $this->pending = [];
 
