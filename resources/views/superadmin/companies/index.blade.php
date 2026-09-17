@@ -174,11 +174,11 @@
                             <td style="padding:12px;color:var(--muted);">{{ $invite->expires_at->format('j M Y') }}</td>
                             <td style="padding:12px;">
                                 @if ($status === 'pending')
-                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#7a4f10;background:#fdf3e3;border:1px solid #f0d9a8;padding:2px 8px;border-radius:9999px;">Pending</span>
+                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#7a4f10;background:#fdf3e3;border:1px solid #f0d9a8;display:inline-block;padding:2px 8px;border-radius:9999px;">Pending</span>
                                 @elseif ($status === 'used')
-                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#0f5132;background:#eaf6f1;border:1px solid #bfe3d3;padding:2px 8px;border-radius:9999px;">Used · {{ $invite->usedByTenant?->name ?? 'deleted company' }}</span>
+                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#0f5132;background:#eaf6f1;border:1px solid #bfe3d3;display:inline-block;padding:2px 8px;border-radius:9999px;">Used · {{ $invite->usedByTenant?->name ?? 'deleted company' }}</span>
                                 @else
-                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--hairline-soft);border:1px solid var(--hairline);padding:2px 8px;border-radius:9999px;">Expired</span>
+                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--hairline-soft);border:1px solid var(--hairline);display:inline-block;padding:2px 8px;border-radius:9999px;">Expired</span>
                                 @endif
                             </td>
                             <td style="padding:12px;text-align:right;white-space:nowrap;">
