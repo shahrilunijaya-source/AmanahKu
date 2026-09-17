@@ -738,6 +738,7 @@ class PayrollController extends Controller
 
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'payment_date' => ['nullable', 'date'],
         ]);
 
         if (PayrollRun::where('tenant_id', $tid)->where('period', $data['period'])->exists()) {
@@ -764,6 +765,7 @@ class PayrollController extends Controller
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
                 'run_by_id' => Auth::id(),
+                'payment_date' => $data['payment_date'] ?? null,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';

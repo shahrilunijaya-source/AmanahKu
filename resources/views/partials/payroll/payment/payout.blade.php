@@ -16,6 +16,7 @@
                 <div style="min-width:120px;"><div style="font-size:13.5px;color:var(--ink);font-weight:600;">{{ $r->label }}</div><div style="font-size:11px;color:var(--muted);">{{ $r->payslips_count }} <span x-text="$store.ui.lang==='en' ? 'staff' : 'staf'">staff</span></div></div>
                 <span class="uj-pill" style="background:#fff;border:1px solid var(--hairline);color:{{ $statusColor[$r->status] ?? 'var(--muted)' }};text-transform:capitalize;font-size:10.5px;" x-text="$store.ui.lang==='en' ? @js($r->status) : @js($statusMs[$r->status] ?? $r->status)">{{ $r->status }}</span>
                 <span style="font-family:var(--font-mono);font-size:13px;color:var(--ink);"><span x-text="$store.ui.lang==='en' ? 'Net' : 'Bersih'">Net</span> {{ $money($t['net'] ?? 0) }}</span>
+                <span style="font-size:12px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Paid on' : 'Dibayar pada'">Paid on</span> <span style="color:var(--ink);">{{ $r->payment_date?->format('j M Y') ?? '—' }}</span></span>
                 <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                     @if ($r->status === 'draft')
                         <form method="post" action="{{ route('payroll.runs.approve', $r) }}">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button></form>

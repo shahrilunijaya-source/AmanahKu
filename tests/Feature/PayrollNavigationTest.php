@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
@@ -255,6 +256,23 @@ class PayrollNavigationTest extends TestCase
 
         $this->assertStringNotContainsString('No payroll runs in this year.', $html);
         $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2019')->assertOk()->assertSee('No payroll runs in this year.');
+    }
+
+    public function test_payment_date_is_saved_at_create_and_shown_on_payout(): void
+    {
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp->id, 'basic_salary' => 4000]);
+
+        $this->acting($this->hr)->get('/app/payroll-process')->assertSee('name="payment_date"', false);
+
+        $this->acting($this->hr)->post(route('payroll.runs.create'), ['period' => '2026-03', 'payment_date' => '2026-03-25'])->assertRedirect();
+        $run = PayrollRun::where('period', '2026-03')->firstOrFail();
+        $this->assertSame('2026-03-25', $run->payment_date->toDateString());
+
+        $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2026')->assertOk()->assertSee('25 Mar 2026');
+
+        $this->acting($this->hr)->post(route('payroll.runs.create'), ['period' => '2026-04', 'payment_date' => 'not-a-date'])->assertSessionHasErrors('payment_date');
+        $this->acting($this->hr)->post(route('payroll.runs.create'), ['period' => '2026-05'])->assertSessionHasNoErrors();
+        $this->assertNull(PayrollRun::where('period', '2026-05')->firstOrFail()->payment_date);
     }
 
     public function test_run_actions_land_on_payout_management(): void
