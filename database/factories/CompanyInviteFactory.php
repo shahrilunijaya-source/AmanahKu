@@ -17,7 +17,7 @@ class CompanyInviteFactory extends Factory
     protected $model = CompanyInvite::class;
 
     /**
-     * Pending, Stage 3 (the spec default), seven days out, created by a fresh user.
+     * Pending, Stage 2 (the spec default), seven days out, created by a fresh user.
      *
      * @return array<string, mixed>
      */
@@ -26,7 +26,7 @@ class CompanyInviteFactory extends Factory
         return [
             'token' => Str::random(40),
             'note' => fake()->company(),
-            'company_category_id' => CompanyCategory::where('level', 3)->value('id'),
+            'company_category_id' => CompanyCategory::where('level', 2)->value('id'),
             'expires_at' => now()->addDays(7),
             'used_at' => null,
             'used_by_tenant_id' => null,

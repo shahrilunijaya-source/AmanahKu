@@ -91,6 +91,21 @@ class SuperAdminCompanyInviteTest extends TestCase
             ->assertSee($pending->token);
     }
 
+    /** Once the company behind a used link is deleted, the link is an orphan: still shown, but named as one. */
+    public function test_index_shows_company_deleted_and_a_remove_button_for_an_orphaned_used_invite(): void
+    {
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $invite = CompanyInvite::factory()->usedBy($tenant)->create(['note' => 'Orphan person']);
+        $tenant->delete();
+
+        $this->actingAs($this->superAdmin())
+            ->get('/admin/companies')
+            ->assertOk()
+            ->assertSee('Orphan person')
+            ->assertSee('Used · Company deleted')
+            ->assertSee('action="'.route('superadmin.invites.destroy', $invite).'"', false);
+    }
+
     public function test_super_admin_revokes_a_pending_invite(): void
     {
         $invite = CompanyInvite::factory()->create();
@@ -123,13 +138,27 @@ class SuperAdminCompanyInviteTest extends TestCase
         $this->assertDatabaseHas('company_invites', ['id' => $invite->id]);
     }
 
+    /** Once the company is gone, the link it was used for is just clutter: it can be removed. */
+    public function test_an_orphaned_used_invite_can_be_removed(): void
+    {
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $invite = CompanyInvite::factory()->usedBy($tenant)->create();
+        $tenant->delete();
+
+        $this->actingAs($this->superAdmin())
+            ->post("/admin/invites/{$invite->id}/delete")
+            ->assertRedirect(route('superadmin.companies.index'));
+
+        $this->assertDatabaseMissing('company_invites', ['id' => $invite->id]);
+    }
+
     public function test_ordinary_user_gets_403_on_every_invite_route(): void
     {
         $user = $this->ordinaryUser();
         $invite = CompanyInvite::factory()->create();
 
         $this->actingAs($user)->post('/admin/invites', [
-            'company_category_id' => CompanyCategory::where('level', 3)->value('id'),
+            'company_category_id' => CompanyCategory::where('level', 2)->value('id'),
         ])->assertForbidden();
         $this->actingAs($user)->post("/admin/invites/{$invite->id}/delete")->assertForbidden();
 

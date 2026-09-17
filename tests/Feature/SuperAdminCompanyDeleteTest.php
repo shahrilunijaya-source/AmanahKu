@@ -82,7 +82,7 @@ class SuperAdminCompanyDeleteTest extends TestCase
         $this->assertNotNull(User::find($shared->id), 'a login with another company stays');
         $this->assertSame([$other->id], $shared->fresh()->tenants()->pluck('tenants.id')->all());
         $this->assertNotNull(User::find($admin->id), 'a super admin is never removed');
-        $this->assertNull($invite->fresh()->used_by_tenant_id, 'the used link survives as history');
+        $this->assertNull($invite->fresh(), 'the signup link goes with the company');
 
         Log::shouldHaveReceived('warning')->withArgs(fn ($msg, $ctx) => str_contains($msg, 'Company deleted')
             && $ctx['company'] === 'Test Co Sdn Bhd' && $ctx['by'] === 'super@example.com' && $ctx['logins_removed'] === 1)->once();

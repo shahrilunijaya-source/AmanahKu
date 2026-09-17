@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A company category (Stage 1 / 2 / 3) — a platform-level lookup that defines the
+ * A company category (Stage 1 / 2): a platform-level lookup that defines the
  * default feature package a super-admin assigns to a company. Not tenant-scoped
  * (global rows). The package itself is derived from the Features registry `stage`
  * tag (see App\Support\Features::modulesUpToStage), keeping a single source of

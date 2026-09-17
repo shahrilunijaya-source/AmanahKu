@@ -59,7 +59,7 @@ class Tenant extends Model
         return $this->belongsTo(CompanyCategory::class);
     }
 
-    /** Category stage level (1/2/3), or null when no category is assigned. */
+    /** Category stage level (1/2), or null when no category is assigned. */
     public function categoryLevel(): ?int
     {
         return $this->companyCategory?->level;

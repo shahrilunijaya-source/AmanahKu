@@ -38,10 +38,14 @@ class CompanyInviteController extends Controller
             ->with('inviteNote', $invite->note);
     }
 
-    /** Revoke a link that has not been used. Used rows stay: they point at the company. */
+    /**
+     * Remove a signup link: unused (revoke it), or used but its company is gone
+     * (tidy up the orphan). A used link whose company still exists stays protected:
+     * it is that company's own history.
+     */
     public function destroy(CompanyInvite $invite): RedirectResponse
     {
-        abort_if($invite->used_at !== null, 403, 'A used link cannot be revoked.');
+        abort_if($invite->used_at !== null && $invite->used_by_tenant_id !== null, 403, 'A used link cannot be revoked.');
 
         $invite->delete();
 

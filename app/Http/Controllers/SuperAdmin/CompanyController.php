@@ -48,7 +48,7 @@ class CompanyController extends Controller
             'failedJobs' => $this->failedJobSummary(),
             'stuckJobs' => $this->stuckJobCount(),
             'invites' => CompanyInvite::with(['category', 'usedByTenant'])->latest()->get(),
-            // Stage 3 first: it is the spec default for self-serve companies.
+            // Stage 2 first: it is the spec default for self-serve companies.
             'categories' => CompanyCategory::orderByDesc('level')->get(),
         ]);
     }
@@ -278,6 +278,10 @@ class CompanyController extends Controller
      * The database cascades every tenant-owned row, the company's own audit log
      * included, so the record of the delete goes to the application log instead.
      * Logins that belonged to no other company go too; super admins never do.
+     *
+     * The signup link this company used goes with it: that foreign key only nulls
+     * itself on delete, it does not cascade, so it is removed explicitly here rather
+     * than staying listed as a used link with no company to show for it.
      */
     public function destroy(Request $request, Tenant $tenant): RedirectResponse
     {
@@ -296,6 +300,8 @@ class CompanyController extends Controller
                 ->where('is_super_admin', false)
                 ->whereDoesntHave('tenants', fn ($q) => $q->where('tenants.id', '!=', $tenant->id))
                 ->pluck('users.id');
+
+            CompanyInvite::where('used_by_tenant_id', $tenant->id)->delete();
 
             $tenant->delete();
 

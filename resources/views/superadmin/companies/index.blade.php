@@ -176,7 +176,7 @@
                                 @if ($status === 'pending')
                                     <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#7a4f10;background:#fdf3e3;border:1px solid #f0d9a8;display:inline-block;padding:2px 8px;border-radius:9999px;">Pending</span>
                                 @elseif ($status === 'used')
-                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#0f5132;background:#eaf6f1;border:1px solid #bfe3d3;display:inline-block;padding:2px 8px;border-radius:9999px;">Used · {{ $invite->usedByTenant?->name ?? 'deleted company' }}</span>
+                                    <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:#0f5132;background:#eaf6f1;border:1px solid #bfe3d3;display:inline-block;padding:2px 8px;border-radius:9999px;">Used · {{ $invite->usedByTenant?->name ?? 'Company deleted' }}</span>
                                 @else
                                     <span style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--hairline-soft);border:1px solid var(--hairline);display:inline-block;padding:2px 8px;border-radius:9999px;">Expired</span>
                                 @endif
@@ -190,7 +190,7 @@
                                     </form>
                                 @elseif ($status === 'used' && $invite->usedByTenant)
                                     <a href="{{ route('superadmin.companies.show', $invite->usedByTenant) }}" style="font-size:12.5px;color:var(--red);font-weight:500;text-decoration:none;">Open company</a>
-                                @elseif ($status === 'expired')
+                                @elseif ($status === 'expired' || $status === 'used')
                                     <form method="POST" action="{{ route('superadmin.invites.destroy', $invite) }}" style="display:inline;">
                                         @csrf
                                         <button type="submit" style="font-size:12.5px;font-weight:600;color:var(--red);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Remove</button>
