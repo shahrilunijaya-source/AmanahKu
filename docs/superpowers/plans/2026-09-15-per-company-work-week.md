@@ -475,7 +475,7 @@ class WorkWeekBehaviourTest extends TestCase
         app(CurrentTenant::class)->set($this->tenant);
         $this->work = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Others', 'requires_project' => false]);
 
-        $user = User::create(['name' => 'Staffer', 'email' => 'staffer@example.com', 'password' => Hash::make('password')]);
+        $user = User::create(['name' => 'Staffer', 'email' => 'staffer@example.com', 'password' => Hash::make('<redacted>')]);
         $user->tenants()->attach($this->tenant->id, ['role' => 'employee']);
         $this->staff = Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
@@ -1611,7 +1611,7 @@ class WorkWeekSettingsTest extends TestCase
     private function actingAsRole(string $role): self
     {
         $this->seq++;
-        $user = User::create(['name' => ucfirst($role), 'email' => "{$role}{$this->seq}@example.com", 'password' => Hash::make('password')]);
+        $user = User::create(['name' => ucfirst($role), 'email' => "{$role}{$this->seq}@example.com", 'password' => Hash::make('<redacted>')]);
         $user->tenants()->attach($this->tenant->id, ['role' => $role]);
         Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $user->id,
