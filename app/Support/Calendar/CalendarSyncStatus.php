@@ -16,11 +16,16 @@ use Illuminate\Support\Facades\RateLimiter;
 /** Everything the board's Google Calendar control shows, for one person, across their companies. */
 final class CalendarSyncStatus
 {
-    /** @return array<string, mixed> */
-    public static function for(User $user): array
+    /**
+     * @param  int|null  $tenantId  limit cards and copies to this company (the one Retry accepts)
+     * @return array<string, mixed>
+     */
+    public static function for(User $user, ?int $tenantId = null): array
     {
         $connection = GoogleCalendarConnection::where('user_id', $user->id)->first();
-        $employeeIds = Employee::withoutGlobalScope('tenant')->where('user_id', $user->id)->pluck('id');
+        $employeeIds = Employee::withoutGlobalScope('tenant')->where('user_id', $user->id)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->pluck('id');
 
         $state = match (true) {
             $connection === null => 'off',
@@ -49,7 +54,7 @@ final class CalendarSyncStatus
             'last_synced_at' => $connection?->last_pulled_at?->toIso8601String(),
             'last_synced_human' => $connection?->last_pulled_at?->diffForHumans(),
             'mirrored' => $mirrored,
-            'issues' => $ownerIssues->concat($copyIssues)->values()->all(),
+            'issues' => $ownerIssues->concat($copyIssues)->unique('id')->values()->all(),
             'progress' => CalendarSyncProgress::get($user->id),
             'retry_after' => RateLimiter::tooManyAttempts($key, 1) ? RateLimiter::availableIn($key) : 0,
         ];

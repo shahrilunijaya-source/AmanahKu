@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\CalendarSyncController;
 use App\Jobs\CalendarFullSyncJob;
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
@@ -302,5 +303,61 @@ class CalendarSyncControlTest extends TestCase
         $this->as()->get(route('app.screen', 'profile'))
             ->assertOk()
             ->assertDontSee(route('google-calendar.redirect'), escape: false);
+    }
+
+    public function test_a_full_sync_killed_on_the_queue_leaves_progress_finished(): void
+    {
+        CalendarSyncProgress::start($this->user->id, 3);
+
+        (new CalendarFullSyncJob($this->user->id))->failed(new \RuntimeException('timed out'));
+
+        $this->assertSame('done', CalendarSyncProgress::get($this->user->id)['state']);
+    }
+
+    public function test_status_leaves_out_issues_from_my_other_company(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $this->user->tenants()->attach($otherTenant->id, ['role' => 'employee']);
+        $meThere = Employee::create(['tenant_id' => $otherTenant->id, 'user_id' => $this->user->id, 'name' => 'Me', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set($otherTenant);
+        $elsewhere = $meThere->workItems()->create([
+            'tenant_id' => $otherTenant->id, 'title' => 'Elsewhere', 'type' => 'task',
+            'priority' => 'medium', 'status' => 'todo', 'progress' => 0, 'due_at' => '2026-10-05',
+        ]);
+        app(CurrentTenant::class)->set(null);
+        WorkItem::withoutGlobalScopes()->where('id', $elsewhere->id)->update(['calendar_sync_error' => 'far away']);
+        $mine = $this->cardFor($this->me);
+        WorkItem::withoutGlobalScopes()->where('id', $mine->id)->update(['calendar_sync_error' => 'boom']);
+        $this->connect();
+
+        $issues = $this->as()->getJson(route('calendar-sync.status'))->json('issues');
+
+        $this->assertSame([$mine->id], array_column($issues, 'id'));
+    }
+
+    public function test_status_lists_a_card_once_even_with_an_owner_and_a_copy_error(): void
+    {
+        $mine = $this->cardFor($this->me);
+        WorkItem::withoutGlobalScopes()->where('id', $mine->id)->update(['calendar_sync_error' => 'boom']);
+        WorkItemCalendarCopy::create(['tenant_id' => $this->tenant->id, 'work_item_id' => $mine->id, 'employee_id' => $this->me->id, 'sync_error' => 'stale']);
+        $this->connect();
+
+        $issues = $this->as()->getJson(route('calendar-sync.status'))->json('issues');
+
+        $this->assertSame([$mine->id], array_column($issues, 'id'));
+        $this->assertSame('boom', $issues[0]['message']);
+    }
+
+    public function test_full_sync_skips_company_event_cards_i_own(): void
+    {
+        $plain = $this->cardFor($this->me);
+        $eventCard = $this->cardFor($this->me, ['type' => 'event']);
+        $companyEvent = CompanyEvent::create(['tenant_id' => $this->tenant->id, 'title' => 'Family Day', 'type' => 'social', 'event_date' => '2026-10-05']);
+        WorkItem::withoutGlobalScopes()->where('id', $eventCard->id)->update(['company_event_id' => $companyEvent->id]);
+        $this->connect();
+
+        (new CalendarFullSyncJob($this->user->id))->handle(app(CurrentTenant::class), $this->port, app(CalendarReconciler::class));
+
+        $this->assertSame([$plain->id], array_map(fn ($u) => $u['event']->subject->id, $this->port->upserts));
     }
 }

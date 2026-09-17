@@ -20,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /** Tagged Helper/FYI people get their own copy of a card in their Google Calendar. */
@@ -160,7 +161,7 @@ class CalendarTaggedCopiesTest extends TestCase
     public function test_giving_up_on_a_copy_records_the_error_on_the_copy(): void
     {
         $card = $this->card();
-        WorkItemCalendarCopy::create(['tenant_id' => $this->tenant->id, 'work_item_id' => $card->id, 'employee_id' => $this->helper->id]);
+        $this->assertDatabaseCount('work_item_calendar_copies', 0);
 
         (new SyncWorkItemCalendarEventJob(tenantId: $this->tenant->id, action: 'upsert', workItemId: $card->id, recipientEmployeeId: $this->helper->id))
             ->failed(new \RuntimeException('Google said no'));
@@ -317,5 +318,41 @@ class CalendarTaggedCopiesTest extends TestCase
         $this->pullFor($this->helper, new CalendarEvent('Budget', CarbonImmutable::parse('2026-10-05'), CarbonImmutable::parse('2026-10-06'), externalId: $copy->google_event_id, version: 'edited'));
 
         $this->assertDatabaseCount('work_items', 1);
+    }
+
+    public function test_a_push_reuses_an_event_id_already_saved_on_the_copy(): void
+    {
+        $card = $this->card();
+        DB::table('work_item_participant')->insert(['work_item_id' => $card->id, 'employee_id' => $this->helper->id, 'role' => 'helper']);
+        WorkItemCalendarCopy::create(['tenant_id' => $this->tenant->id, 'work_item_id' => $card->id, 'employee_id' => $this->helper->id, 'google_event_id' => 'saved-evt']);
+        $this->port->upserts = [];
+
+        $this->runJob('upsert', $card, $this->helper);
+
+        $this->assertSame('saved-evt', $this->port->upserts[0]['event']->externalId);
+        $this->assertDatabaseCount('work_item_calendar_copies', 1);
+    }
+
+    public function test_a_delete_queued_before_a_retag_leaves_the_copy_alone(): void
+    {
+        $card = $this->card();
+        WorkItemCalendarCopy::create(['tenant_id' => $this->tenant->id, 'work_item_id' => $card->id, 'employee_id' => $this->helper->id, 'google_event_id' => 'E']);
+        DB::table('work_item_participant')->insert(['work_item_id' => $card->id, 'employee_id' => $this->helper->id, 'role' => 'helper']);
+
+        $this->runJob('delete', $card, $this->helper, 'E');
+
+        $this->assertSame([], $this->port->deletes);
+        $this->assertSame('E', WorkItemCalendarCopy::value('google_event_id'));
+    }
+
+    public function test_tagging_an_unconnected_person_queues_no_job(): void
+    {
+        Queue::fake();
+        $offline = $this->person('Offline', 'offline@example.com', connected: false);
+        $card = $this->card();
+
+        $card->participants()->attach($offline->id, ['role' => 'helper']);
+
+        Queue::assertNotPushed(SyncWorkItemCalendarEventJob::class, fn ($job) => $job->recipientEmployeeId === $offline->id);
     }
 }

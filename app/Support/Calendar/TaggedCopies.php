@@ -6,6 +6,7 @@ namespace App\Support\Calendar;
 
 use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\Employee;
+use App\Models\GoogleCalendarConnection;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
 use Illuminate\Support\Collection;
@@ -87,6 +88,12 @@ final class TaggedCopies
 
     private static function dispatchUpsert(WorkItem $item, int $employeeId): void
     {
+        // No live Google connection: no job to queue (the job checks again when it runs).
+        $userId = Employee::withoutGlobalScope('tenant')->whereKey($employeeId)->value('user_id');
+        if (! $userId || ! GoogleCalendarConnection::where('user_id', $userId)->whereNull('revoked_at')->exists()) {
+            return;
+        }
+
         SyncWorkItemCalendarEventJob::dispatch(
             tenantId: $item->tenant_id,
             action: 'upsert',

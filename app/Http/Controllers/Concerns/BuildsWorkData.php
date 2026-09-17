@@ -134,7 +134,7 @@ trait BuildsWorkData
             'boardType' => request('type', 'core'),
             // The Google Calendar control (status, Sync now, issues). Null hides it.
             'calendarSync' => app(GoogleCalendarClient::class)->configured() && $request->user()
-                ? CalendarSyncStatus::for($request->user())
+                ? CalendarSyncStatus::for($request->user(), $employee?->tenant_id)
                 : null,
             'archivedCount' => $employee ? WorkItem::query()
                 ->where(fn ($q) => $q->where('employee_id', $employee->id)

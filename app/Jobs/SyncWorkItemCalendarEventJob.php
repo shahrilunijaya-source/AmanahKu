@@ -19,6 +19,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Throwable;
 
@@ -86,9 +87,11 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
         $message = mb_substr($e?->getMessage() ?? 'Calendar sync failed', 0, 500);
 
         if ($this->recipientEmployeeId !== null) {
-            WorkItemCalendarCopy::where('work_item_id', $this->workItemId)
-                ->where('employee_id', $this->recipientEmployeeId)
-                ->update(['sync_error' => $message]);
+            // A first push that never succeeded has no row yet: create it to hold the error.
+            WorkItemCalendarCopy::updateOrCreate(
+                ['work_item_id' => $this->workItemId, 'employee_id' => $this->recipientEmployeeId],
+                ['tenant_id' => $this->tenantId, 'sync_error' => $message],
+            );
 
             return;
         }
@@ -96,7 +99,18 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
         WorkItem::withoutGlobalScopes()->where('id', $this->workItemId)->update(['calendar_sync_error' => $message]);
     }
 
+    /**
+     * One push per card+person at a time, reading the card and copy inside the lock, so a
+     * second push (queue, full sync, retry) sees the event id the first saved instead of
+     * creating a duplicate Google event. A lock timeout throws: the queue retries it.
+     */
     private function runUpsert(CalendarPort $port): void
+    {
+        Cache::lock("calendar-push:{$this->workItemId}:".($this->recipientEmployeeId ?? 'owner'), 30)
+            ->block(10, fn () => $this->upsertLocked($port));
+    }
+
+    private function upsertLocked(CalendarPort $port): void
     {
         $item = WorkItem::withoutGlobalScopes()->find($this->workItemId);
         if (! $item || ! CalendarMirror::syncable($item)) {
@@ -161,6 +175,10 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
             return;
         }
 
+        if ($this->recipientEmployeeId !== null && $this->retaggedSince()) {
+            return;
+        }
+
         $employee = Employee::withoutGlobalScope('tenant')->where('user_id', $this->userId)->where('tenant_id', $this->tenantId)->first();
         if ($employee && $this->connected($employee)) {
             $result = $port->deleteEvent($employee, $this->googleEventId);
@@ -187,6 +205,15 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
                 ->where('google_event_id', $this->googleEventId)
                 ->update(['google_event_id' => null, 'calendar_version' => null]);
         }
+    }
+
+    /** The person was tagged again after the untag that queued this delete: keep their copy. */
+    private function retaggedSince(): bool
+    {
+        $item = WorkItem::withoutGlobalScopes()->find($this->workItemId);
+
+        return $item !== null && CalendarMirror::syncable($item)
+            && TaggedCopies::recipients($item)->contains('id', $this->recipientEmployeeId);
     }
 
     /** No live connection, nothing to mirror: silently done, not a failure to retry. */

@@ -39,7 +39,7 @@ class CalendarSyncController extends Controller
 
     public function status(Request $request): JsonResponse
     {
-        return response()->json(CalendarSyncStatus::for($request->user()));
+        return response()->json(CalendarSyncStatus::for($request->user(), $this->tenantId($request)));
     }
 
     public function sync(Request $request): JsonResponse
@@ -50,7 +50,7 @@ class CalendarSyncController extends Controller
         // not a new request to rate-limit or re-dispatch, just report where it's at.
         $progress = CalendarSyncProgress::get($user->id);
         if ($progress && $progress['state'] === 'running') {
-            return response()->json(CalendarSyncStatus::for($user), 202);
+            return response()->json(CalendarSyncStatus::for($user, $this->tenantId($request)), 202);
         }
 
         if (! GoogleCalendarConnection::where('user_id', $user->id)->whereNull('revoked_at')->exists()) {
@@ -63,7 +63,7 @@ class CalendarSyncController extends Controller
         CalendarSyncProgress::start($user->id, 0);
         CalendarFullSyncJob::dispatch($user->id);
 
-        return response()->json(CalendarSyncStatus::for($user), 202);
+        return response()->json(CalendarSyncStatus::for($user, $this->tenantId($request)), 202);
     }
 
     public function retry(Request $request, WorkItem $workItem): JsonResponse
@@ -98,7 +98,12 @@ class CalendarSyncController extends Controller
             $job->failed($e);
         }
 
-        return response()->json(CalendarSyncStatus::for($request->user()));
+        return response()->json(CalendarSyncStatus::for($request->user(), $this->tenantId($request)));
+    }
+
+    private function tenantId(Request $request): ?int
+    {
+        return $request->attributes->get('employee')?->tenant_id;
     }
 
     private function limited(int $userId): ?JsonResponse

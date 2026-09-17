@@ -11,6 +11,7 @@ use App\Models\WorkItemCalendarCopy;
 use App\Models\WorkItemProgressStint;
 use App\Support\Calendar\CalendarMirror;
 use App\Support\Calendar\TaggedCopies;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Detects the WorkItem changes that matter for calendar sync (CR-01) and
@@ -93,6 +94,9 @@ class WorkItemObserver
     /** Copies vanish with the card via the FK cascade, so take them out of Google first. */
     public function deleting(WorkItem $item): void
     {
+        // The tags go with the card anyway (cascade). Dropping them first stops the delete
+        // job, which runs inline on the sync queue, from reading them as a re-tag.
+        DB::table('work_item_participant')->where('work_item_id', $item->id)->delete();
         WorkItemCalendarCopy::where('work_item_id', $item->id)->get()
             ->each(fn (WorkItemCalendarCopy $copy) => TaggedCopies::remove($copy));
     }

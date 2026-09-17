@@ -32,6 +32,9 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 600;
 
+    /** The queue's retry_after must be longer than this, or a second worker picks the job up mid-run. */
+    public int $timeout = 900;
+
     public function __construct(public readonly int $userId) {}
 
     public function uniqueId(): string
@@ -76,6 +79,12 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
         }
     }
 
+    /** Killed or timed out on the queue: don't leave the board's spinner stuck on "running". */
+    public function failed(?Throwable $e): void
+    {
+        CalendarSyncProgress::finish($this->userId, 'done');
+    }
+
     /** @return list<array{0: int, 1: int, 2: ?int}> tenant id, card id, recipient (null = owner) */
     private function targets(): array
     {
@@ -84,7 +93,8 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
             ->whereNull('archived_at')->whereNull('cancelled_at')->where('status', '!=', 'done');
 
         foreach (Employee::withoutGlobalScope('tenant')->where('user_id', $this->userId)->get() as $employee) {
-            $owned = WorkItem::withoutGlobalScopes()->where('employee_id', $employee->id)->tap($open)->pluck('id');
+            $owned = WorkItem::withoutGlobalScopes()->where('employee_id', $employee->id)->tap($open)
+                ->whereNull('company_event_id')->pluck('id');
             foreach ($owned as $id) {
                 $out[] = [$employee->tenant_id, $id, null];
             }
