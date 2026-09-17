@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\SetupController;
 use App\Models\AuditLog;
+use App\Models\CompanySetupProgress;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
@@ -121,5 +122,55 @@ class WorkWeekSettingsTest extends TestCase
 
         // Manual step: HR ticks it by hand.
         $this->actingAsRole('hr')->post(route('setup.step'), ['step' => 'work_week'])->assertRedirect();
+    }
+
+    /** @return list<string> the manual Launch Center steps ticked for this company */
+    private function tickedSteps(): array
+    {
+        return CompanySetupProgress::withoutGlobalScopes()->where('tenant_id', $this->tenant->id)->value('steps') ?? [];
+    }
+
+    /**
+     * The setup guide tells HR to click Save work week / Save features. Those are
+     * manual Launch Center steps, so saving must tick them or the guide never moves on.
+     */
+    public function test_saving_the_work_week_ticks_its_launch_center_step_once(): void
+    {
+        $this->actingAsRole('hr');
+
+        $this->post(route('admin.workweek.update'), ['work_days' => [1, 2, 3, 4, 5]])->assertSessionHasNoErrors();
+        $this->post(route('admin.workweek.update'), ['work_days' => [1, 2, 3, 4, 5, 6]])->assertSessionHasNoErrors();
+
+        $this->assertSame(['work_week'], $this->tickedSteps());
+    }
+
+    public function test_a_refused_work_week_save_ticks_nothing(): void
+    {
+        $this->actingAsRole('hr')
+            ->post(route('admin.workweek.update'), ['work_days' => []])
+            ->assertSessionHasErrors('work_days');
+
+        $this->assertSame([], $this->tickedSteps());
+    }
+
+    public function test_saving_the_features_card_ticks_the_modules_step_and_keeps_other_ticks(): void
+    {
+        $this->actingAsRole('hr');
+        $this->post(route('admin.workweek.update'), ['work_days' => [1, 2, 3, 4, 5]]);
+
+        $this->post(route('admin.features.update'), ['features_present' => '1', 'features' => ['module.leave' => '1']])
+            ->assertSessionHasNoErrors();
+        $this->post(route('admin.features.update'), ['features_present' => '1', 'features' => ['module.leave' => '1']]);
+
+        $this->assertSame(['work_week', 'modules'], $this->tickedSteps());
+    }
+
+    public function test_a_settings_save_outside_the_features_card_does_not_tick_modules(): void
+    {
+        $this->actingAsRole('hr')
+            ->post(route('admin.features.update'), ['features' => []])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame([], $this->tickedSteps());
     }
 }

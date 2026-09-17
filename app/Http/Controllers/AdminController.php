@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Branch;
+use App\Models\CompanySetupProgress;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmploymentType;
@@ -104,6 +105,7 @@ class AdminController extends Controller
         app(CurrentTenant::class)->get()->update(['work_days' => $days]);
 
         AuditLog::record('Updated work week', implode(', ', array_map(fn (int $d) => self::DAY_NAMES[$d], $days)));
+        CompanySetupProgress::tick('work_week');
 
         return back()->with('ok', count($days).' working day'.(count($days) === 1 ? '' : 's').' saved.');
     }
@@ -158,6 +160,10 @@ class AdminController extends Controller
         }
 
         AuditLog::record('Updated feature settings', $applied.' feature(s)');
+        // Only the Features card (it sends features_present) is the "Enable modules" step.
+        if ($request->has('features_present')) {
+            CompanySetupProgress::tick('modules');
+        }
 
         $msg = $applied.' feature setting'.($applied === 1 ? '' : 's').' saved.';
         if ($rejected !== []) {
