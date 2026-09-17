@@ -234,7 +234,7 @@ class PayrollController extends Controller
         $name = $tx->employee?->name;
         AuditLog::record('Added fixed transaction', $name.' · '.$tx->payrollItem?->name.' · RM '.number_format($tx->amount, 2));
 
-        return back()->with('ok', 'Fixed transaction added for '.$name.'.');
+        return $this->toFixedTab($tx->employee_id)->with('ok', 'Fixed transaction added for '.$name.'.');
     }
 
     public function updateFixedTransaction(Request $request, FixedTransaction $fixedTransaction): RedirectResponse
@@ -247,7 +247,13 @@ class PayrollController extends Controller
 
         AuditLog::record('Updated fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name);
 
-        return back()->with('ok', 'Fixed transaction updated for '.$fixedTransaction->employee?->name.'.');
+        return $this->toFixedTab($fixedTransaction->employee_id)->with('ok', 'Fixed transaction updated for '.$fixedTransaction->employee?->name.'.');
+    }
+
+    /** Back to the Fixed Transaction tab with the same staff member still picked. */
+    private function toFixedTab(int $employeeId): RedirectResponse
+    {
+        return redirect()->route('app.screen', ['screen' => 'payroll-transaction', 'tab' => 'fixed', 'emp' => $employeeId]);
     }
 
     /**
@@ -267,7 +273,7 @@ class PayrollController extends Controller
         $fixedTransaction->update(['end_period' => $data['end_period']]);
         AuditLog::record('Ended fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name.' · last period '.$data['end_period']);
 
-        return back()->with('ok', 'Fixed transaction ended after '.$data['end_period'].'.');
+        return $this->toFixedTab($fixedTransaction->employee_id)->with('ok', 'Fixed transaction ended after '.$data['end_period'].'.');
     }
 
     /**
