@@ -13,6 +13,7 @@ use App\Models\WorkItemCalendarCopy;
 use App\Ports\CalendarPort;
 use App\Ports\Data\CalendarEvent;
 use App\Ports\PortResult;
+use App\Support\Calendar\CalendarReconciler;
 use App\Support\Calendar\TaggedCopies;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
@@ -261,6 +262,62 @@ class CalendarTaggedCopiesTest extends TestCase
         $card->participants()->attach($this->helper->id, ['role' => 'helper']);
 
         $this->assertSame([], $this->port->upserts);
+    }
+
+    private function taggedCopy(): array
+    {
+        $card = $this->card(['type' => 'event']);
+        $card->participants()->attach($this->helper->id, ['role' => 'helper']);
+        $copy = WorkItemCalendarCopy::first();
+        $this->port->upserts = [];
+
+        return [$card, $copy];
+    }
+
+    private function pullFor(Employee $who, CalendarEvent ...$changes): void
+    {
+        app(CalendarReconciler::class)->reconcile($who, $changes);
+    }
+
+    public function test_a_tagged_person_moving_their_entry_snaps_it_back_and_leaves_the_card(): void
+    {
+        [$card, $copy] = $this->taggedCopy();
+
+        $this->pullFor($this->helper, new CalendarEvent('Budget', CarbonImmutable::parse('2026-10-20'), CarbonImmutable::parse('2026-10-21'), externalId: $copy->google_event_id, allDay: true, version: 'moved'));
+
+        $this->assertSame('2026-10-05', $card->fresh()->due_at->toDateString());
+        $this->assertSame([$this->helper->id], $this->port->pushedTo());
+        $this->assertSame($copy->google_event_id, $this->port->upserts[0]['event']->externalId);
+        $this->assertDatabaseCount('work_items', 1);
+    }
+
+    public function test_a_tagged_person_deleting_their_entry_gets_it_back(): void
+    {
+        [$card, $copy] = $this->taggedCopy();
+
+        $this->pullFor($this->helper, new CalendarEvent('Budget', CarbonImmutable::parse('2026-10-05'), CarbonImmutable::parse('2026-10-06'), externalId: $copy->google_event_id, cancelled: true, version: 'gone'));
+
+        $this->assertNull($card->fresh()->cancelled_at, 'the card is not cancelled by a tagged person');
+        $this->assertSame([$this->helper->id], $this->port->pushedTo());
+        $this->assertNull($this->port->upserts[0]['event']->externalId, 're-created as a new event');
+    }
+
+    public function test_the_echo_of_our_own_push_to_a_copy_is_ignored(): void
+    {
+        [, $copy] = $this->taggedCopy();
+
+        $this->pullFor($this->helper, new CalendarEvent('Budget', CarbonImmutable::parse('2026-10-05'), CarbonImmutable::parse('2026-10-06'), externalId: $copy->google_event_id, version: $copy->calendar_version));
+
+        $this->assertSame([], $this->port->upserts);
+    }
+
+    public function test_a_copy_event_is_never_imported_as_a_new_card(): void
+    {
+        [, $copy] = $this->taggedCopy();
+
+        $this->pullFor($this->helper, new CalendarEvent('Budget', CarbonImmutable::parse('2026-10-05'), CarbonImmutable::parse('2026-10-06'), externalId: $copy->google_event_id, version: 'edited'));
+
+        $this->assertDatabaseCount('work_items', 1);
     }
 }
 
