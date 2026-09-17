@@ -222,7 +222,7 @@
                                                         @foreach ($item['children'] as $child)
                                                             <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
                                                                class="uj-fly-lnk" @if ($child['active']) data-on @endif>
-                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $child['icon'] ?? $item['icon'] }}"></path></svg>
                                                                 <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
                                 @include('partials.nav-dot', ['n' => (int) ($child['attention'] ?? 0)])
                                                             </a>
@@ -337,7 +337,7 @@
                                             @foreach ($item['children'] as $child)
                                                 <a href="{{ route('app.screen', array_merge(['screen' => $child['id']], $child['query'] ?? [])) }}"
                                                    class="uj-tree-lnk uj-tree-deep" @if ($child['active'] ?? false) data-on @endif>
-                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $item['icon'] }}"></path></svg>
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ $child['icon'] ?? $item['icon'] }}"></path></svg>
                                                     <span x-text="$store.ui.lang==='en' ? @js($child['label']) : @js($child['label_ms'] ?? $child['label'])">{{ $child['label'] }}</span>
                                 @include('partials.nav-dot', ['n' => (int) ($child['attention'] ?? 0)])
                                                 </a>

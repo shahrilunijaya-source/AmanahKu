@@ -11,6 +11,7 @@ use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\Amanahku;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -105,6 +106,19 @@ class PayrollNavigationTest extends TestCase
         $this->assertStringContainsString(route('app.screen', ['screen' => 'payroll-my']), $staff);
         foreach (self::HR_SCREENS as $screen) {
             $this->assertStringNotContainsString(route('app.screen', ['screen' => $screen]).'"', $staff);
+        }
+    }
+
+    public function test_each_payroll_child_has_its_own_sidebar_icon(): void
+    {
+        $html = $this->acting($this->hr)->get('/app/dash')->assertOk()->getContent();
+        $payroll = collect(Amanahku::nav())->firstWhere('id', 'payroll');
+        $icons = collect($payroll['children'])->pluck('icon');
+
+        $this->assertCount(6, $icons->filter()->unique());
+        $this->assertNotContains($payroll['icon'], $icons);
+        foreach ($icons as $d) {
+            $this->assertStringContainsString('<path d="'.$d.'">', $html);
         }
     }
 

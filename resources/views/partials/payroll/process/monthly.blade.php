@@ -16,7 +16,22 @@
             <input name="payment_date" type="date" value="{{ old('payment_date') }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;margin-bottom:6px;" />
             @error('payment_date')<div style="font-size:12px;color:var(--error);margin-bottom:8px;">{{ $message }}</div>@enderror
             @include('partials.hint', ['en' => 'The day salaries reach staff bank accounts.', 'ms' => 'Hari gaji masuk ke akaun bank staf.'])
-            <p style="font-size:11.5px;color:var(--muted);margin:6px 0 14px;" x-text="$store.ui.lang==='en' ? 'Generates a draft payslip for every active employee with a salary structure. Approved claims are pulled in as reimbursements.' : 'Menjana draft payslip untuk setiap pekerja aktif yang ada struktur gaji. Tuntutan yang diluluskan ditarik masuk sebagai bayaran balik.'">Generates a draft payslip for every active employee with a salary structure. Approved claims are pulled in as reimbursements.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:14px 0 4px;">
+                @foreach ([
+                    'fixed' => ['Pull monthly allowance/deduction', 'Tarik elaun/potongan bulanan'],
+                    'claims' => ['Pull claim data', 'Tarik data tuntutan'],
+                    'overtime' => ['Pull overtime', 'Tarik kerja lebih masa'],
+                    'unpaid' => ['Pull unpaid leave', 'Tarik cuti tanpa gaji'],
+                ] as $src => [$en, $ms])
+                    <label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink);cursor:pointer;">
+                        <input type="hidden" name="pull_{{ $src }}" value="0">
+                        <input type="checkbox" name="pull_{{ $src }}" value="1" @checked(old('pull_'.$src, '1') === '1') style="margin-top:2px;accent-color:var(--red);">
+                        <span x-text="$store.ui.lang==='en' ? @js($en) : @js($ms)">{{ $en }}</span>
+                    </label>
+                @endforeach
+            </div>
+            @include('partials.hint', ['en' => 'Untick a source to leave it out of this run. Anything left out stays waiting for the next run.', 'ms' => 'Nyahtanda sumber untuk mengecualikannya daripada run ini. Apa yang dikecualikan kekal menunggu run seterusnya.'])
+            <p style="font-size:11.5px;color:var(--muted);margin:6px 0 14px;" x-text="$store.ui.lang==='en' ? 'Generates a draft payslip for every active employee with a salary structure.' : 'Menjana draft payslip untuk setiap pekerja aktif yang ada struktur gaji.'">Generates a draft payslip for every active employee with a salary structure. Approved claims are pulled in as reimbursements.</p>
             <button type="submit" class="uj-btn-primary" style="height:40px;width:100%;font-size:13.5px;" x-text="$store.ui.lang==='en' ? 'Generate draft run' : 'Jana draft run'">Generate draft run</button>
         </form>
     </div>

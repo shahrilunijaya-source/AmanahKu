@@ -739,7 +739,13 @@ class PayrollController extends Controller
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
             'payment_date' => ['nullable', 'date'],
+            'pull_fixed' => ['nullable', 'boolean'],
+            'pull_claims' => ['nullable', 'boolean'],
+            'pull_overtime' => ['nullable', 'boolean'],
+            'pull_unpaid' => ['nullable', 'boolean'],
         ]);
+        // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
+        $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
 
         if (PayrollRun::where('tenant_id', $tid)->where('period', $data['period'])->exists()) {
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
@@ -760,12 +766,13 @@ class PayrollController extends Controller
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
 
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog) {
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
                 'run_by_id' => Auth::id(),
                 'payment_date' => $data['payment_date'] ?? null,
+                'pull_options' => $pulls,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';
@@ -781,15 +788,15 @@ class PayrollController extends Controller
 
             foreach ($employees as $employee) {
                 $structure = $employee->salaryStructure;
-                $claims = $employee->claims()
+                $claims = ! $pulls['claims'] ? collect() : $employee->claims()
                     ->where('status', 'approved')->whereNull('paid_at')
                     ->whereNotIn('id', $usedClaimIds)
                     ->lockForUpdate()->get();
 
-                $overtimeRequests = $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds);
+                $overtimeRequests = $pulls['overtime'] ? $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds) : collect();
                 $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
                 $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
-                $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds);
+                $unpaidLeaveRequests = $pulls['unpaid'] ? $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds) : collect();
                 $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
                 $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
@@ -800,7 +807,7 @@ class PayrollController extends Controller
                 // Fixed Transactions replace salary_structures.allowances as the source of
                 // recurring earnings/deductions (see migration 2026_08_25_200200) — split
                 // by the transaction's own Payroll Item type.
-                $ftLines = $this->fixedTransactionLines($employee, $data['period']);
+                $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $data['period']) : collect();
                 $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
                 $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
@@ -873,7 +880,8 @@ class PayrollController extends Controller
             }
 
             $this->recalcTotals($run);
-            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips');
+            $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
+            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips'.($skipped ? ' · not pulled: '.implode(', ', $skipped) : ''));
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
@@ -953,12 +961,12 @@ class PayrollController extends Controller
             $request, $data, $payslip, $structure, $epfPart, $periodEnd,
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
         ) {
-            $overtimeRequests = $this->pullableOvertimeFor(
+            $overtimeRequests = ! $payslip->payrollRun->pulls('overtime') ? collect() : $this->pullableOvertimeFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
             );
             $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
             $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
-            $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor(
+            $unpaidLeaveRequests = ! $payslip->payrollRun->pulls('unpaid') ? collect() : $this->pullableUnpaidLeaveFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedUnpaidLeaveIds($payslip->id)
             );
             $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
