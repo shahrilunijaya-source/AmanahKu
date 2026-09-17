@@ -179,6 +179,89 @@ class CalendarTaggedCopiesTest extends TestCase
 
         $this->assertSame([], $this->port->upserts);
     }
+
+    public function test_tagging_a_helper_sends_them_the_card_and_untagging_removes_it(): void
+    {
+        $card = $this->card();
+        $this->port->upserts = [];
+
+        $card->participants()->attach($this->helper->id, ['role' => 'helper']);
+        $this->assertSame([$this->helper->id], $this->port->pushedTo());
+        $eventId = WorkItemCalendarCopy::where('employee_id', $this->helper->id)->value('google_event_id');
+
+        $card->participants()->detach($this->helper->id);
+        $this->assertSame([['employee' => $this->helper->id, 'id' => $eventId]], $this->port->deletes);
+        $this->assertDatabaseCount('work_item_calendar_copies', 0);
+    }
+
+    public function test_sync_through_the_relation_fires_for_every_added_and_removed_person(): void
+    {
+        $fyi = $this->person('Fyi', 'fyi@example.com');
+        $card = $this->card();
+        $card->participants()->sync([$this->helper->id => ['role' => 'helper']]);
+        $this->port->upserts = [];
+
+        $card->participants()->sync([$fyi->id => ['role' => 'fyi']]);
+
+        $this->assertSame([$fyi->id], $this->port->pushedTo());
+        $this->assertSame([$this->helper->id], array_column($this->port->deletes, 'employee'));
+    }
+
+    public function test_a_title_change_updates_the_owner_and_every_tagged_copy(): void
+    {
+        $card = $this->card();
+        $card->participants()->attach($this->helper->id, ['role' => 'fyi']);
+        $this->port->upserts = [];
+
+        $card->update(['title' => 'Budget v2']);
+
+        $this->assertEqualsCanonicalizing([$this->owner->id, $this->helper->id], $this->port->pushedTo());
+        foreach ($this->port->upserts as $u) {
+            $this->assertSame('Budget v2', $u['event']->title);
+        }
+    }
+
+    public function test_finishing_a_card_removes_every_copy(): void
+    {
+        $card = $this->card();
+        $card->participants()->attach($this->helper->id, ['role' => 'helper']);
+
+        $card->update(['status' => 'done']);
+
+        $this->assertContains($this->helper->id, array_column($this->port->deletes, 'employee'));
+        $this->assertDatabaseCount('work_item_calendar_copies', 0);
+    }
+
+    public function test_deleting_a_card_removes_tagged_copies_from_google(): void
+    {
+        $card = $this->card();
+        $card->participants()->attach($this->helper->id, ['role' => 'helper']);
+        $eventId = WorkItemCalendarCopy::value('google_event_id');
+
+        $card->delete();
+
+        $this->assertContains(['employee' => $this->helper->id, 'id' => $eventId], $this->port->deletes);
+    }
+
+    public function test_an_unconnected_helper_gets_nothing_and_no_error(): void
+    {
+        $offline = $this->person('Offline', 'offline@example.com', connected: false);
+        $card = $this->card();
+        $this->port->upserts = [];
+
+        $card->participants()->attach($offline->id, ['role' => 'helper']);
+
+        $this->assertSame([], $this->port->upserts);
+    }
+
+    public function test_tagging_someone_on_an_undated_card_sends_nothing(): void
+    {
+        $card = $this->card(['due_at' => null]);
+
+        $card->participants()->attach($this->helper->id, ['role' => 'helper']);
+
+        $this->assertSame([], $this->port->upserts);
+    }
 }
 
 /** Records every call; each push gets a fresh id and version. */
