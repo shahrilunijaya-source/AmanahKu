@@ -17,6 +17,88 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "2.1"
+  date: "2026-09-17"
+  entries:
+    - tag: improved
+      major: true
+      text: "Payroll is now laid out the way Worksy does it: My Payroll, Transaction, Process, Payroll Review, Payment and Form, each with its own tabs. Pages still being built say so and name what is coming."
+      text_ms: "Gaji kini disusun seperti Worksy: Gaji Saya, Transaksi, Proses, Semakan Gaji, Pembayaran dan Borang, setiap satu dengan tab sendiri. Halaman yang masih dibina menyatakannya dan menamakan apa yang akan datang."
+      link: "/app/payroll"
+      link_text: "Open Payroll"
+      link_text_ms: "Buka Gaji"
+    - tag: added
+      major: true
+      text: "A staff profile now holds the full record: Employment, Timeline, Personal, Family, Bank & Statutory, Experience, Work and Attachment tabs."
+      text_ms: "Profil staf kini memegang rekod penuh: tab Pekerjaan, Garis Masa, Peribadi, Keluarga, Bank & Berkanun, Pengalaman, Kerja dan Lampiran."
+      link: "/app/directory"
+      link_text: "Open Employees"
+      link_text_ms: "Buka Pekerja"
+    - tag: added
+      major: true
+      text: "Progression: confirm, update, resign or rehire a staff member, and update many people or adjust their salaries in one go. A batch either saves for everyone or for no one."
+      text_ms: "Kemajuan Kerjaya: sahkan, kemas kini, letak jawatan atau ambil semula staf, dan kemas kini ramai orang atau laraskan gaji mereka sekali gus. Satu kumpulan sama ada disimpan untuk semua atau tiada langsung."
+      link: "/app/progression"
+      link_text: "Open Progression"
+      link_text_ms: "Buka Kemajuan Kerjaya"
+    - tag: added
+      text: "Managers get a To approve queue on the timesheet screen."
+      text_ms: "Pengurus mendapat senarai Untuk diluluskan pada skrin timesheet."
+      link: "/app/timesheets"
+      link_text: "Open Timesheet"
+      link_text_ms: "Buka Timesheet"
+    - tag: added
+      text: "My Payroll: tick Acknowledge on your payslip once you have read it, and open your own EA form."
+      text_ms: "Gaji Saya: tanda Akui pada slip gaji anda setelah membacanya, dan buka borang EA anda sendiri."
+    - tag: added
+      text: "A payroll run can carry its payment date, the day salaries reach the bank. It shows on the Payment page."
+      text_ms: "Run gaji boleh membawa tarikh bayaran, hari gaji masuk ke bank. Ia dipaparkan pada halaman Pembayaran."
+    - tag: added
+      text: "When creating a payroll run, choose what it pulls in: monthly allowances and deductions, claims, overtime and unpaid leave. Anything left out waits for the next run."
+      text_ms: "Semasa membuat run gaji, pilih apa yang ditarik masuk: elaun dan potongan bulanan, tuntutan, kerja lebih masa dan cuti tanpa gaji. Apa yang dikecualikan menunggu run seterusnya."
+    - tag: added
+      text: "HR can list the work sites each person may clock in from, and clock-in location checks follow that list."
+      text_ms: "HR boleh menyenaraikan tapak kerja yang dibenarkan untuk setiap orang merekod masuk, dan semakan lokasi rekod masuk mengikut senarai itu."
+    - tag: added
+      text: "Open an archived card straight from the Archived panel."
+      text_ms: "Buka kad yang diarkibkan terus dari panel Arkib."
+    - tag: added
+      text: "Creating events is now a permission you can grant on the Roles screen."
+      text_ms: "Mencipta acara kini kebenaran yang boleh diberi pada skrin Peranan."
+    - tag: added
+      text: "Privacy policy and terms pages, linked from the login page."
+      text_ms: "Halaman dasar privasi dan terma, dipautkan dari halaman log masuk."
+    - tag: improved
+      text: "Salary lives in one place, the staff record, and payroll reads it from there."
+      text_ms: "Gaji disimpan di satu tempat, rekod staf, dan gaji bulanan membacanya dari situ."
+    - tag: improved
+      text: "Each payroll page has its own icon in the sidebar."
+      text_ms: "Setiap halaman gaji ada ikon sendiri di bar sisi."
+    - tag: improved
+      text: "Pinning a card to your dashboard calendar has a search box, and the note form is clearer."
+      text_ms: "Menyemat kad pada kalendar papan pemuka anda ada kotak carian, dan borang nota lebih jelas."
+    - tag: improved
+      text: "Profile tabs wrap onto a second line instead of scrolling sideways. Work & Tasks is now Tasks, and Assets sits inside the Work tab."
+      text_ms: "Tab profil beralih ke baris kedua dan tidak lagi menatal ke tepi. Kerja & Tugasan kini Tugasan, dan Aset berada dalam tab Kerja."
+    - tag: improved
+      text: "The greetings and easter egg lists in Settings can be filtered, and the setup guide links straight to those dashboard cards."
+      text_ms: "Senarai ucapan dan easter egg dalam Tetapan boleh ditapis, dan panduan persediaan memaut terus ke kad papan pemuka tersebut."
+    - tag: fixed
+      text: "Saving a fixed transaction keeps the same person selected."
+      text_ms: "Menyimpan transaksi tetap kekal pada orang yang sama."
+    - tag: fixed
+      text: "Notice board rows open their event again."
+      text_ms: "Baris papan notis membuka acaranya semula."
+    - tag: fixed
+      text: "The holiday-eve send-off waits until 3 PM."
+      text_ms: "Ucapan menjelang cuti menunggu sehingga 3 petang."
+    - tag: fixed
+      text: "The side quest upload button shows the name of the photo you picked."
+      text_ms: "Butang muat naik side quest menunjukkan nama foto yang anda pilih."
+    - tag: fixed
+      text: "Screens opened from inside the app run their page scripts properly."
+      text_ms: "Skrin yang dibuka dari dalam aplikasi menjalankan skrip halamannya dengan betul."
+
 - version: "2.0"
   date: "2026-09-10"
   entries:

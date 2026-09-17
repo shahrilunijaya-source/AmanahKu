@@ -9,7 +9,6 @@ use App\Models\Asset;
 use App\Models\AttendanceRecord;
 use App\Models\AuditLog;
 use App\Models\Branch;
-use App\Models\CareerTimelineEntry;
 use App\Models\Claim;
 use App\Models\CompanyCategory;
 use App\Models\Department;
@@ -244,14 +243,6 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
         ]);
-        foreach ([
-            ['Promoted to Senior HR Executive', 'Jan 2025', 'green', 3],
-            ['Completed HR Analytics certification', 'Nov 2024', 'info', 2],
-            ['Joined Unijaya Resources', 'Mar 2022', 'muted', 1],
-        ] as $c) {
-            CareerTimelineEntry::create(['employee_id' => $emp['Nurul Iman binti Hassan']->id, 'title' => $c[0], 'date_label' => $c[1], 'category' => $c[2], 'sort' => $c[3]]);
-        }
-
         // Work items (board + employee dashboard) for Aisyah.
         $aisyah = $emp['Aisyah Rahman']->id;
         foreach ([

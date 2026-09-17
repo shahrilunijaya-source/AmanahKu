@@ -41,6 +41,7 @@ class PayrollItemTest extends TestCase
 
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
     }
 
     private function actingHr(): self
@@ -140,6 +141,7 @@ class PayrollItemTest extends TestCase
         $hr2->tenants()->attach($seeded->id, ['role' => 'hr']);
         $emp = Employee::create(['tenant_id' => $seeded->id, 'name' => 'Worker2', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $seeded->id, 'employee_id' => $emp->id, 'basic_salary' => 5200]);
+        Employee::whereKey($emp->id)->update(['salary' => 5200]);
 
         $this->actingAs($hr2)->withSession(['current_tenant' => $seeded->id]);
         (new PayrollItemSeeder)->run();
@@ -155,6 +157,7 @@ class PayrollItemTest extends TestCase
         // above, and an unscoped update here would silently touch zero rows.
         app(CurrentTenant::class)->set($this->tenant);
         SalaryStructure::where('employee_id', $this->emp1->id)->update(['basic_salary' => 5200]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5200]);
         $baseRun = $this->createRun();
         $baseSlip = $baseRun->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
         $this->actingHr()->post("/app/payroll/payslips/{$baseSlip->id}", ['overtime_hours' => 10, 'bonus' => 500])->assertRedirect();

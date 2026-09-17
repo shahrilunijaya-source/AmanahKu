@@ -38,12 +38,56 @@
         form: null, edit: null, busy: false, err: '',
         note: { title: '', starts_at: '', ends_at: '', body: '' },
         pin: '',
+        // Note time pickers: half-hour slots in our own list rather than the
+        // browser's time box. `timeOpen` is which list is open, if any.
+        timeOpen: null,
+        times(which) {
+            const out = [];
+            for (let m = 0; m < 1440; m += 30) { out.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')); }
+            const cur = this.note[which];
+            if (cur && ! out.includes(cur)) { out.push(cur); out.sort(); }
+            return which === 'ends_at' ? out.filter(t => t > this.note.starts_at) : out;
+        },
+        toggleTime(which) {
+            if (which === 'ends_at' && ! this.note.starts_at) { return; }
+            this.timeOpen = this.timeOpen === which ? null : which;
+            if (! this.timeOpen) { return; }
+            this.$nextTick(() => {
+                const list = this.$refs[which === 'starts_at' ? 'startList' : 'endList'];
+                const at = list?.querySelector('[data-t][aria-selected=true]') ?? list?.querySelector('[data-t=\'08:00\']') ?? list?.querySelector('[data-t]');
+                if (list && at) { list.scrollTop = at.offsetTop - 4; }
+            });
+        },
+        setTime(which, t) {
+            this.note[which] = t;
+            if (which === 'starts_at' && (t === '' || (this.note.ends_at && this.note.ends_at <= t))) { this.note.ends_at = ''; }
+            this.timeOpen = null;
+        },
+        // The pin picker: a searchable list of your open cards, filtered by title
+        // as you type. `pinQ` is the search text, `pinIdx` the highlighted row.
+        cards: @js($w['pinnable'] ?? []), pinQ: '', pinOpen: false, pinIdx: 0,
+        pinHits() {
+            const q = this.pinQ.trim().toLowerCase();
+            return q === '' ? this.cards : this.cards.filter(c => c.title.toLowerCase().includes(q));
+        },
+        pinPick(c) { this.pin = c.id; this.pinQ = c.title; this.pinOpen = false; },
+        pinKey(e) {
+            const hits = this.pinHits();
+            if (e.key === 'ArrowDown') { e.preventDefault(); this.pinOpen = true; this.pinIdx = Math.min(this.pinIdx + 1, hits.length - 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); this.pinIdx = Math.max(this.pinIdx - 1, 0); }
+            else if (e.key === 'Enter' && this.pinOpen && hits[this.pinIdx]) { e.preventDefault(); this.pinPick(hits[this.pinIdx]); }
+            else if (e.key === 'Escape') { this.pinOpen = false; }
+        },
         openNote(e) {
             this.edit = e ?? null;
             this.note = { title: e?.title ?? '', starts_at: e?.starts_at ?? '', ends_at: e?.ends_at ?? '', body: e?.body ?? '' };
-            this.err = ''; this.form = 'note';
+            this.err = ''; this.timeOpen = null; this.form = 'note';
+            this.$nextTick(() => this.$refs.noteTitle?.focus());
         },
-        openPin() { this.pin = ''; this.err = ''; this.form = 'pin'; },
+        openPin() {
+            this.pin = ''; this.pinQ = ''; this.pinIdx = 0; this.err = ''; this.form = 'pin'; this.pinOpen = true;
+            this.$nextTick(() => this.$refs.pinSearch?.focus());
+        },
         async send(url, method, data) {
             const card = this.$root.closest('.uj-dw');
             this.busy = true; this.err = '';
@@ -165,7 +209,7 @@
 
         @if ($noteRoutes && ($w['pinnable'] ?? null) !== null)
             {{-- Your own additions to a day, Personal tab only: a note, or one of your
-                 open board cards pinned here. Both private to you. --}}
+                 open board cards (yours, or one you review or are tagged on) pinned here. Both private to you. --}}
             <div class="uj-dw-cal-add" x-show="tab === 'personal' && form === null" x-cloak>
                 <button type="button" class="uj-dw-btn uj-dw-btn-ghost" @click="openNote()"
                         x-text="$store.ui.lang==='en' ? '+ Note' : '+ Nota'">+ Note</button>
@@ -173,17 +217,59 @@
                     <button type="button" class="uj-dw-btn uj-dw-btn-ghost" @click="openPin()"
                             x-text="$store.ui.lang==='en' ? '+ Pin a card' : '+ Sematkan kad'">+ Pin a card</button>
                 @endif
+                <span class="uj-dw-cal-add-h" x-text="$store.ui.lang==='en' ? 'Add to this day. Only you can see it.' : 'Tambah pada hari ini. Hanya anda boleh melihatnya.'">Add to this day. Only you can see it.</span>
             </div>
-            <form class="uj-dw-cal-form" x-show="form === 'note'" x-cloak @submit.prevent="saveNote()">
-                <input type="text" class="uj-dw-cal-in" x-model="note.title" maxlength="120" required
-                       :placeholder="$store.ui.lang==='en' ? 'Add title' : 'Tambah tajuk'" x-ref="noteTitle">
-                <div class="uj-dw-cal-time">
-                    <input type="time" class="uj-dw-cal-in" x-model="note.starts_at" :aria-label="$store.ui.lang==='en' ? 'Starts' : 'Mula'">
-                    <span>–</span>
-                    <input type="time" class="uj-dw-cal-in" x-model="note.ends_at" :disabled="! note.starts_at" :aria-label="$store.ui.lang==='en' ? 'Ends' : 'Tamat'">
+            <form class="uj-dw-cal-form" x-show="form === 'note'" x-cloak @submit.prevent="saveNote()" @keydown.escape="timeOpen = null">
+                <div class="uj-dw-cal-fh">
+                    <p class="t" x-text="($store.ui.lang==='en' ? (edit ? 'Edit note' : 'New note') : (edit ? 'Sunting nota' : 'Nota baharu')) + ' · ' + (meta[sel]?.label ?? '')"></p>
+                    <p class="s" x-text="$store.ui.lang==='en' ? 'A private reminder on this day. Only you can see it.' : 'Peringatan peribadi pada hari ini. Hanya anda boleh melihatnya.'"></p>
                 </div>
-                <textarea class="uj-dw-cal-in" rows="2" x-model="note.body" maxlength="2000"
-                          :placeholder="$store.ui.lang==='en' ? 'Notes (optional)' : 'Catatan (pilihan)'"></textarea>
+                <label class="uj-dw-cal-lbl">
+                    <span x-text="$store.ui.lang==='en' ? 'Title' : 'Tajuk'">Title</span>
+                    <input type="text" class="uj-dw-cal-in" x-model="note.title" maxlength="120" required
+                           :placeholder="$store.ui.lang==='en' ? 'e.g. Dentist' : 'cth. Doktor gigi'" x-ref="noteTitle">
+                </label>
+                <div class="uj-dw-cal-lbl" @click.outside="timeOpen = null">
+                    <span x-text="$store.ui.lang==='en' ? 'Time' : 'Masa'">Time</span>
+                    <div class="uj-dw-cal-time">
+                        <button type="button" class="uj-dw-cal-in uj-dw-cal-sel" @click="toggleTime('starts_at')"
+                                :aria-expanded="timeOpen === 'starts_at' ? 'true' : 'false'" :aria-label="$store.ui.lang==='en' ? 'Starts' : 'Mula'">
+                            <span x-text="note.starts_at || ($store.ui.lang==='en' ? 'All day' : 'Sepanjang hari')"></span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        <span>–</span>
+                        <button type="button" class="uj-dw-cal-in uj-dw-cal-sel" @click="toggleTime('ends_at')" :disabled="! note.starts_at"
+                                :aria-expanded="timeOpen === 'ends_at' ? 'true' : 'false'" :aria-label="$store.ui.lang==='en' ? 'Ends' : 'Tamat'">
+                            <span x-text="note.ends_at || ($store.ui.lang==='en' ? 'No end time' : 'Tiada masa tamat')"></span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                    </div>
+                    <div class="uj-dw-cal-pick-list uj-dw-cal-times" x-ref="startList" role="listbox" x-show="timeOpen === 'starts_at'" x-cloak>
+                        <button type="button" role="option" class="wide" :aria-selected="note.starts_at === '' ? 'true' : 'false'" @click="setTime('starts_at', '')">
+                            <span class="t" x-text="$store.ui.lang==='en' ? 'All day' : 'Sepanjang hari'"></span>
+                        </button>
+                        <template x-for="t in times('starts_at')" :key="t">
+                            <button type="button" role="option" :data-t="t" :aria-selected="note.starts_at === t ? 'true' : 'false'" @click="setTime('starts_at', t)">
+                                <span class="t" x-text="t"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <div class="uj-dw-cal-pick-list uj-dw-cal-times" x-ref="endList" role="listbox" x-show="timeOpen === 'ends_at'" x-cloak>
+                        <button type="button" role="option" class="wide" :aria-selected="note.ends_at === '' ? 'true' : 'false'" @click="setTime('ends_at', '')">
+                            <span class="t" x-text="$store.ui.lang==='en' ? 'No end time' : 'Tiada masa tamat'"></span>
+                        </button>
+                        <template x-for="t in times('ends_at')" :key="t">
+                            <button type="button" role="option" :data-t="t" :aria-selected="note.ends_at === t ? 'true' : 'false'" @click="setTime('ends_at', t)">
+                                <span class="t" x-text="t"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                <label class="uj-dw-cal-lbl">
+                    <span><span x-text="$store.ui.lang==='en' ? 'Details' : 'Butiran'">Details</span> <em x-text="$store.ui.lang==='en' ? '(optional)' : '(pilihan)'">(optional)</em></span>
+                    <textarea class="uj-dw-cal-in" rows="2" x-model="note.body" maxlength="2000"
+                              :placeholder="$store.ui.lang==='en' ? 'Anything to remember' : 'Apa-apa untuk diingat'"></textarea>
+                </label>
                 <p class="uj-dw-cal-err" x-show="err" x-text="err"></p>
                 <div class="uj-dw-cal-acts">
                     <button type="button" class="uj-dw-btn uj-dw-btn-ghost" @click="form = null"
@@ -193,12 +279,28 @@
                 </div>
             </form>
             <form class="uj-dw-cal-form" x-show="form === 'pin'" x-cloak @submit.prevent="savePin()">
-                <select class="uj-dw-cal-in" x-model="pin" required>
-                    <option value="" x-text="$store.ui.lang==='en' ? 'Choose one of your open cards' : 'Pilih kad terbuka anda'">Choose one of your open cards</option>
-                    @foreach ($w['pinnable'] as $card)
-                        <option value="{{ $card['id'] }}">{{ $card['title'] }}@if ($card['due']) · {{ $card['due'] }}@endif</option>
-                    @endforeach
-                </select>
+                <div class="uj-dw-cal-fh">
+                    <p class="t" x-text="($store.ui.lang==='en' ? 'Pin a card' : 'Sematkan kad') + ' · ' + (meta[sel]?.label ?? '')"></p>
+                    <p class="s" x-text="$store.ui.lang==='en' ? 'Shows one of your open board cards on this day. Only you can see it.' : 'Paparkan satu kad papan terbuka anda pada hari ini. Hanya anda boleh melihatnya.'"></p>
+                </div>
+                <div class="uj-dw-cal-pick uj-dw-cal-lbl" @click.outside="pinOpen = false">
+                    <span x-text="$store.ui.lang==='en' ? 'Card' : 'Kad'">Card</span>
+                    <input type="text" class="uj-dw-cal-in" x-ref="pinSearch" x-model="pinQ" autocomplete="off"
+                           role="combobox" aria-controls="uj-dw-cal-pick-list" :aria-expanded="pinOpen ? 'true' : 'false'"
+                           :placeholder="$store.ui.lang==='en' ? 'Search your open cards' : 'Cari kad terbuka anda'"
+                           @focus="pinOpen = true" @input="pin = ''; pinIdx = 0; pinOpen = true" @keydown="pinKey($event)">
+                    <div id="uj-dw-cal-pick-list" class="uj-dw-cal-pick-list" role="listbox" x-show="pinOpen" x-cloak>
+                        <template x-for="(c, i) in pinHits()" :key="c.id">
+                            <button type="button" role="option" :aria-selected="c.id === pin ? 'true' : 'false'"
+                                    :data-active="i === pinIdx ? '' : null" @mouseenter="pinIdx = i" @mousedown.prevent="pinPick(c)">
+                                <span class="t" x-text="c.title"></span>
+                                <span class="m" x-text="[c.role, c.due].filter(Boolean).join(' · ')"></span>
+                            </button>
+                        </template>
+                        <p class="uj-dw-cal-pick-none" x-show="! pinHits().length"
+                           x-text="$store.ui.lang==='en' ? 'No open card matches that title.' : 'Tiada kad terbuka sepadan dengan tajuk itu.'"></p>
+                    </div>
+                </div>
                 <p class="uj-dw-cal-err" x-show="err" x-text="err"></p>
                 <div class="uj-dw-cal-acts">
                     <button type="button" class="uj-dw-btn uj-dw-btn-ghost" @click="form = null"

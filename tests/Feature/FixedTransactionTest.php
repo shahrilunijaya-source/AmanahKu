@@ -44,6 +44,7 @@ class FixedTransactionTest extends TestCase
 
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
 
         PayrollItem::seedFor($this->tenant);
         $this->fixedAllowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'fixed-allowance')->firstOrFail();
@@ -227,12 +228,25 @@ class FixedTransactionTest extends TestCase
         $this->assertDatabaseHas('fixed_transactions', ['id' => $ft->id, 'end_period' => '2026-03']);
     }
 
+    public function test_fixed_transaction_writes_land_on_the_fixed_tab_with_that_person_picked(): void
+    {
+        $ft = $this->ft();
+        $target = route('app.screen', ['screen' => 'payroll-transaction', 'tab' => 'fixed', 'emp' => $ft->employee_id]);
+
+        $this->actingHr()->from('/app/payroll-transaction')->post("/app/payroll/fixed-transactions/{$ft->id}/end", ['end_period' => '2026-03'])->assertRedirect($target);
+
+        $this->actingHr()->get($target)->assertOk()->assertSee('pick: '.$ft->employee_id.',', false);
+    }
+
     // ── Migrated allowances ──────────────────────────────────────
 
     public function test_migrated_allowances_produce_the_same_payslip_totals_as_before(): void
     {
         SalaryStructure::where('employee_id', $this->emp1->id)->update([
             'basic_salary' => 4000,
+        ]);
+        Employee::whereKey($this->emp1->id)->update(['salary' => 4000]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update([
             'allowances' => [['name' => 'Transport', 'amount' => 250], ['name' => 'Meal', 'amount' => 150]],
         ]);
 

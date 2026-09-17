@@ -101,7 +101,7 @@ class SetupController extends Controller
 
         // Payroll is only relevant when the module is enabled for the tenant.
         if ($this->payrollEnabled()) {
-            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'screen' => 'payroll', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
+            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'screen' => 'payroll-process', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
         }
 
         // Dashboard touches — optional. Both banks are seeded for every company, so these

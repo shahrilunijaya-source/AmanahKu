@@ -136,7 +136,13 @@ class Employee extends Model
     {
         return [
             'joined_at' => 'date',
+            'confirmed_at' => 'date',
+            'resigned_at' => 'date',
+            'last_working_day' => 'date',
             'date_of_birth' => 'date',
+            'passport_expiry' => 'date',
+            'benefit_start_at' => 'date',
+            'permit_expiry' => 'date',
             // Personal identity captured by the first-login wizard; encrypted at rest
             // like salary_structures.nric (migration 2026_06_24_000022).
             'nric' => 'encrypted',
@@ -215,6 +221,12 @@ class Employee extends Model
     }
 
     /** Client site for resident engineers (work_arrangement = client). */
+    /** Client sites this person may clock in at (geofence allow-list). Empty = any configured site. */
+    public function allowedWorkSites(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkSite::class, 'employee_work_site')->withPivot('tenant_id')->withTimestamps();
+    }
+
     public function workSite(): BelongsTo
     {
         return $this->belongsTo(WorkSite::class);
@@ -348,9 +360,64 @@ class Employee extends Model
         return $this->hasMany(KpiItem::class);
     }
 
-    public function careerTimeline(): HasMany
+    /** Employment columns that the Timeline snapshots and the Progression forms edit. */
+    public const EMPLOYMENT_FIELDS = [
+        'department_id', 'branch_id', 'position_id', 'staff_level_id', 'position', 'level', 'reports_to_id', 'employment_type_id',
+        'division', 'section', 'job_grade', 'category', 'line',
+        'probation_months', 'probation_days', 'resign_notice_months', 'resign_notice_days',
+        'short_notice_months', 'short_notice_days',
+        'salary', 'pay_mode', 'payment_term', 'payment_method', 'employment_remark',
+    ];
+
+    /** Work tab columns written by WorkRecordController. */
+    public const WORK_FIELDS = ['attendance_id', 'work_phone', 'benefit_start_at', 'work_site_id'];
+
+    /** Personal tab fields the person may edit on their own record. */
+    public const PERSONAL_FIELDS = [
+        'first_name', 'last_name', 'full_name_ic', 'nickname', 'religion', 'date_of_birth', 'gender', 'marital_status', 'race', 'nationality', 'blood_type',
+        'phone', 'personal_email', 'address', 'address_2', 'city', 'state', 'postcode', 'country',
+        'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
+    ];
+
+    /** HR/management only: identity documents. */
+    public const IDENTITY_FIELDS = ['nric', 'passport_no', 'passport_expiry', 'permit_no', 'permit_expiry'];
+
+    /** Family tab rows (parents, spouse, children, dependents). */
+    public function familyMembers(): HasMany
     {
-        return $this->hasMany(CareerTimelineEntry::class)->orderBy('sort');
+        return $this->hasMany(EmployeeFamilyMember::class)->orderBy('relation')->orderBy('date_of_birth');
+    }
+
+    /** Experience tab rows. */
+    public function workHistories(): HasMany
+    {
+        return $this->hasMany(EmployeeWorkHistory::class)->orderByDesc('joined_on');
+    }
+
+    public function educations(): HasMany
+    {
+        return $this->hasMany(EmployeeEducation::class)->orderByDesc('to_year');
+    }
+
+    public function certificates(): HasMany
+    {
+        return $this->hasMany(EmployeeCertificate::class)->orderByDesc('awarded_on');
+    }
+
+    public function awards(): HasMany
+    {
+        return $this->hasMany(EmployeeAward::class)->orderByDesc('year');
+    }
+
+    public function languages(): HasMany
+    {
+        return $this->hasMany(EmployeeLanguage::class)->orderBy('language');
+    }
+
+    /** Employment history, newest first (append-only, see EmployeeProgression). */
+    public function progressions(): HasMany
+    {
+        return $this->hasMany(EmployeeProgression::class)->orderByDesc('effective_on')->orderByDesc('id');
     }
 
     public function onboardingProfile(): HasOne
