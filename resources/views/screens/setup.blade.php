@@ -112,7 +112,7 @@
                                         <span class="uj-pill" style="background:var(--red-tint);color:var(--red);" x-text="$store.ui.lang==='en' ? 'Required to launch' : 'Wajib untuk lancar'">Required to launch</span>
                                     @endif
                                 </div>
-                                <div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ $step['desc'] }}</div>
+                                <div style="font-size:12px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? @js($step['desc']) : @js($step['desc_ms'])">{{ $step['desc'] }}</div>
                             </div>
                             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                                 @if ($embedUrl)

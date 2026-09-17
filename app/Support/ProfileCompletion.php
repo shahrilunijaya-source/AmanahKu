@@ -50,7 +50,8 @@ class ProfileCompletion
     /**
      * The four completeness groups, each {key, label, label_ms, done, essential}.
      * The bank group is dropped when the payroll module is off for the tenant, so a
-     * company that doesn't run payroll can still reach 100%.
+     * company that doesn't run payroll can still reach 100%. The same goes for the
+     * personality half of the certs group when the Profile Test is off.
      *
      * @return array<int, array{key:string,label:string,label_ms:string,done:bool,essential:bool}>
      */
@@ -85,11 +86,13 @@ class ProfileCompletion
             ];
         }
 
+        // With the Profile Test off nobody can take it, so it drops out of this group.
+        $profileTest = $this->profileTestEnabled();
         $groups[] = [
             'key' => 'certs',
-            'label' => 'Certificates & personality',
-            'label_ms' => 'Sijil & personaliti',
-            'done' => $this->certsDone($employee) && $this->personalityDone($employee),
+            'label' => $profileTest ? 'Certificates & personality' : 'Certificates',
+            'label_ms' => $profileTest ? 'Sijil & personaliti' : 'Sijil',
+            'done' => $this->certsDone($employee) && (! $profileTest || $this->personalityDone($employee)),
             'essential' => false,
         ];
 
@@ -235,5 +238,12 @@ class ProfileCompletion
         $tenant = app(CurrentTenant::class)->get();
 
         return $tenant !== null && app(FeatureManager::class)->screenAllowed($tenant, 'payroll');
+    }
+
+    private function profileTestEnabled(): bool
+    {
+        $tenant = app(CurrentTenant::class)->get();
+
+        return $tenant !== null && app(FeatureManager::class)->screenAllowed($tenant, 'profile-test');
     }
 }

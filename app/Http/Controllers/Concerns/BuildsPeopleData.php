@@ -192,6 +192,7 @@ trait BuildsPeopleData
         $reviewsGate = $canViewFull && $features->screenAllowed($tenant, 'reviews');
         $probationGate = $canViewFull && $features->screenAllowed($tenant, 'probation');
         $skillsGate = $canViewFull && $features->screenAllowed($tenant, 'skills');
+        $profileTestGate = $canViewFull && $features->screenAllowed($tenant, 'profile-test');
         $payrollGate = $canSeeMoney && $features->screenAllowed($tenant, 'payroll');
         $claimsGate = $canSeeMoney && $features->screenAllowed($tenant, 'claims');
         $loansGate = $canSeeMoney && $features->screenAllowed($tenant, 'loans');
@@ -333,6 +334,7 @@ trait BuildsPeopleData
             'probation' => $probation,
             'skillsGate' => $skillsGate,
             'skills' => $skills,
+            'profileTestGate' => $profileTestGate,
             'wall' => $wallData['wall'],
             'canGiveFlower' => $wallData['canGiveFlower'],
             'flowersLeft' => $wallData['flowersLeft'],

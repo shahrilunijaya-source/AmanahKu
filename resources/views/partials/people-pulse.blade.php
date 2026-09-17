@@ -7,9 +7,13 @@
      * greeting (?to=<id>&draft=…) — reuses the existing DM system, no new tables.
      *
      * Expects: $onLeave, $birthdays (Collections). Viewer already excluded upstream.
+     * $messagesAllowed (bool): whether the messages screen the Wish button deep-links
+     * to is switched on for this tenant; defaults on so an existing caller that hasn't
+     * been updated to pass it keeps today's behaviour.
      */
     $onLeave = $onLeave ?? collect();
     $birthdays = $birthdays ?? collect();
+    $messagesAllowed = $messagesAllowed ?? true;
     $todayKey = now()->format('m-d');
     // Open on whichever tab actually has something; default to leave.
     $startTab = $onLeave->isEmpty() && $birthdays->isNotEmpty() ? 'bday' : 'leave';
@@ -80,8 +84,10 @@
                         @endif
                     </div>
                 </div>
+                @if ($messagesAllowed)
                 <a href="{{ $wishUrl }}" class="uj-btn-ghost"
                    style="height:30px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px;text-decoration:none;border:1px solid var(--hairline);border-radius:8px;color:var(--body);white-space:nowrap;">🎂 <span x-text="$store.ui.lang==='en' ? 'Wish' : 'Ucap'">Wish</span></a>
+                @endif
             </div>
         @empty
             @include('partials.list-empty', [

@@ -294,7 +294,7 @@
                 </div>
                 @endif
 
-                @if ($pers)
+                @if ($pers && ($profileTestGate ?? false))
                 <div>
                     <div class="uj-section-head" style="margin-bottom:14px;"><span x-text="$store.ui.lang==='en' ? 'Personality profile' : 'Profil personaliti'">Personality profile</span></div>
                     <div style="margin-bottom:14px;">
@@ -309,7 +309,7 @@
                     <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline-soft);font-size:12px;color:var(--body);line-height:1.5;">{{ $pers['blurb'] ?? '' }}</div>
                 </div>
                 @endif
-                @if ($isOwn)
+                @if ($isOwn && ($profileTestGate ?? false))
                 <div>
                     {{-- CR-15: the test lost its sidebar row, so the profile page links to it. --}}
                     <a href="{{ route('app.screen', 'profile-test') }}" class="uj-btn-ghost" style="display:inline-flex;height:36px;align-items:center;padding:0 16px;font-size:13px;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? @js($pers ? 'Retake the Profile Test' : 'Take the Profile Test') : @js($pers ? 'Ambil semula Ujian Profil' : 'Ambil Ujian Profil')">{{ $pers ? 'Retake the Profile Test' : 'Take the Profile Test' }}</span></a>

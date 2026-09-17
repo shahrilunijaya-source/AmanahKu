@@ -689,7 +689,7 @@
                         </template>
                         @if ($canSeeCost)
                         <template x-if="!p.costed">
-                            <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'"></div>
+                            <div class="uj-tr-note" style="margin-top:12px" x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band jawatan, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Jawatan & Kadar Manday.'"></div>
                         </template>
                         @endif
                     </div>

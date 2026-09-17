@@ -425,6 +425,10 @@ trait BuildsWorkData
             'isApprover' => $isApprover,
             'privileged' => $privileged,
             'givesFinalApproval' => $givesFinalApproval,
+            // Whether an approved claim's "pays next run" payroll suffix means anything for
+            // this tenant: payroll can be switched off, and the claims screen must not
+            // promise a payroll run that will never happen.
+            'payrollAllowed' => app(FeatureManager::class)->screenAllowed(app(CurrentTenant::class)->get(), 'payroll'),
         ];
 
         if ($isApprover) {

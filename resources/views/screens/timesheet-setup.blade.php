@@ -44,8 +44,8 @@
     @include('partials.coachmark', [
         'key' => 'guide-timesheet-categories',
         'when' => "\$store.guide.current === 'timesheet_categories'",
-        'en' => ['title' => 'Add a category', 'body' => 'Click Add category, give it a name and click Save. Staff log their week against these.'],
-        'ms' => ['title' => 'Tambah kategori', 'body' => 'Klik Tambah kategori, beri nama dan klik Simpan. Staf merekod minggu mereka mengikut kategori ini.'],
+        'en' => ['title' => 'Add a category', 'body' => 'Click Add category, give it a name, then click Add category again to save it. Staff log their week against these.'],
+        'ms' => ['title' => 'Tambah kategori', 'body' => 'Klik Tambah kategori, beri nama, kemudian klik Tambah kategori sekali lagi untuk simpan. Staf merekod minggu mereka mengikut kategori ini.'],
     ])
     <div x-show="open" x-cloak style="padding:18px 22px;border-top:1px solid var(--hairline);">
         @include('partials.ts-category-form', ['category' => null, 'action' => route('timesheet.admin.categories.store'), 'ajaxTarget' => '#ts-categories'])

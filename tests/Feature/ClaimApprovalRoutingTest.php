@@ -337,6 +337,31 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertDontSee('All claims');
     }
 
+    public function test_approved_claim_shows_payroll_suffix_when_payroll_is_on(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.payroll', true);
+        $employee = $this->member('employee', 'Payee');
+        $this->claim($employee, 'approved');
+
+        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
+            ->assertViewHas('payrollAllowed', true)
+            ->assertSee('Approved · pays next run')
+            ->assertSee('paid in the next payroll run');
+    }
+
+    public function test_approved_claim_hides_payroll_suffix_when_payroll_is_off(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.payroll', false);
+        $employee = $this->member('employee', 'Payee');
+        $this->claim($employee, 'approved');
+
+        $this->actingAsEmployee($employee)->get('/app/claims')->assertOk()
+            ->assertViewHas('payrollAllowed', false)
+            ->assertSee('Approved')
+            ->assertDontSee('pays next run')
+            ->assertDontSee('payroll run');
+    }
+
     public function test_manager_claims_screen_has_the_approvals_queue_but_no_company_ledger(): void
     {
         $manager = $this->member('manager', 'Manager');
