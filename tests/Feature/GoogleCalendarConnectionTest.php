@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\CalendarFullSyncJob;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
@@ -9,6 +10,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class GoogleCalendarConnectionTest extends TestCase
@@ -80,7 +82,7 @@ class GoogleCalendarConnectionTest extends TestCase
         session(['google_calendar.state' => 'expected-state']);
 
         $this->get(route('google-calendar.callback', ['state' => 'expected-state', 'code' => 'auth-code']))
-            ->assertRedirect();
+            ->assertRedirect(route('app.screen', 'board').'?calendar=connected');
 
         $this->assertDatabaseHas('google_calendar_connections', ['user_id' => $this->user->id]);
         $this->assertSame('access-1', GoogleCalendarConnection::where('user_id', $this->user->id)->first()->access_token);
@@ -92,9 +94,26 @@ class GoogleCalendarConnectionTest extends TestCase
         GoogleCalendarConnection::create(['user_id' => $this->user->id, 'access_token' => 'a', 'refresh_token' => 'b', 'expires_at' => now()]);
         GoogleCalendarConnection::create(['user_id' => $other->id, 'access_token' => 'c', 'refresh_token' => 'd', 'expires_at' => now()]);
 
-        $this->actingInTenant()->post(route('google-calendar.disconnect'))->assertRedirect();
+        $this->actingInTenant()->post(route('google-calendar.disconnect'))->assertRedirect(route('app.screen', 'board'));
 
         $this->assertDatabaseMissing('google_calendar_connections', ['user_id' => $this->user->id]);
         $this->assertDatabaseHas('google_calendar_connections', ['user_id' => $other->id]);
+    }
+
+    public function test_reconnecting_clears_a_revoked_flag_and_starts_a_full_sync(): void
+    {
+        Queue::fake();
+        Http::fake(['oauth2.googleapis.com/token' => Http::response(['access_token' => 'new', 'refresh_token' => 'r2', 'expires_in' => 3600])]);
+        GoogleCalendarConnection::create(['user_id' => $this->user->id, 'access_token' => 'old', 'refresh_token' => 'r1', 'expires_at' => now(), 'revoked_at' => now(), 'calendar_id' => 'cal-old', 'sync_token' => 'tok']);
+        $this->actingInTenant();
+        session(['google_calendar.state' => 's']);
+
+        $this->get(route('google-calendar.callback', ['state' => 's', 'code' => 'c']));
+
+        $connection = GoogleCalendarConnection::where('user_id', $this->user->id)->first();
+        $this->assertNull($connection->revoked_at);
+        $this->assertNull($connection->calendar_id, 'a reconnect may be a different Google account, find the calendar again');
+        $this->assertNull($connection->sync_token);
+        Queue::assertPushed(CalendarFullSyncJob::class, fn ($job) => $job->userId === $this->user->id);
     }
 }

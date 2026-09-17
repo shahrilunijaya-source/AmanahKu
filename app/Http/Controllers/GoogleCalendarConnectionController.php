@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Jobs\SyncWorkItemCalendarEventJob;
+use App\Jobs\CalendarFullSyncJob;
 use App\Models\GoogleCalendarConnection;
-use App\Models\WorkItem;
 use App\Services\GoogleCalendarClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,14 +40,14 @@ class GoogleCalendarConnectionController extends Controller
         $returned = (string) $request->query('state', '');
 
         if (blank($expected) || ! hash_equals((string) $expected, $returned)) {
-            return redirect('/app/profile')->withErrors([
+            return redirect()->route('app.screen', 'board')->withErrors([
                 'google_calendar' => 'Google Calendar connection could not be verified. Please try again.',
             ]);
         }
 
         $code = (string) $request->query('code', '');
         if (blank($code)) {
-            return redirect('/app/profile')->withErrors([
+            return redirect()->route('app.screen', 'board')->withErrors([
                 'google_calendar' => 'Google Calendar connection was cancelled.',
             ]);
         }
@@ -58,7 +57,7 @@ class GoogleCalendarConnectionController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return redirect('/app/profile')->withErrors([
+            return redirect()->route('app.screen', 'board')->withErrors([
                 'google_calendar' => 'Google could not be reached. Please try again.',
             ]);
         }
@@ -69,28 +68,21 @@ class GoogleCalendarConnectionController extends Controller
                 'access_token' => $tokens['access_token'],
                 'refresh_token' => $tokens['refresh_token'],
                 'expires_at' => now()->addSeconds($tokens['expires_in']),
+                'revoked_at' => null,
+                'calendar_id' => null,
+                'sync_token' => null,
             ]
         );
 
-        return redirect('/app/profile')->with('ok', 'Google Calendar connected.');
-    }
+        CalendarFullSyncJob::dispatch($request->user()->id);
 
-    /** CR-01 rule 9: one more push for a card that gave up, from the Sync issues list. */
-    public function retry(Request $request, WorkItem $workItem): RedirectResponse
-    {
-        $employee = $request->attributes->get('employee');
-        abort_unless($employee && $workItem->employee_id === $employee->id, 403);
-
-        WorkItem::withoutGlobalScopes()->where('id', $workItem->id)->update(['calendar_sync_error' => null]);
-        SyncWorkItemCalendarEventJob::dispatch(tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id);
-
-        return redirect('/app/profile')->with('ok', 'Calendar sync queued again.');
+        return redirect()->to(route('app.screen', 'board').'?calendar=connected');
     }
 
     public function disconnect(Request $request): RedirectResponse
     {
         GoogleCalendarConnection::where('user_id', $request->user()->id)->delete();
 
-        return redirect('/app/profile')->with('ok', 'Google Calendar disconnected.');
+        return redirect()->route('app.screen', 'board')->with('ok', 'Google Calendar disconnected.');
     }
 }

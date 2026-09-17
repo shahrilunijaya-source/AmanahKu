@@ -34,16 +34,17 @@ class PullCalendarChangesJob implements ShouldBeUnique, ShouldQueue
         return (string) $this->connectionId;
     }
 
-    public function handle(CurrentTenant $context, CalendarPort $port, CalendarReconciler $reconciler): void
+    public function handle(CurrentTenant $context, CalendarPort $port, CalendarReconciler $reconciler): int
     {
         $connection = GoogleCalendarConnection::find($this->connectionId);
-        if (! $connection) {
-            return;
+        if (! $connection || $connection->revoked_at) {
+            return 0;
         }
 
         $since = CarbonImmutable::instance($connection->last_pulled_at ?? now()->subDays(30));
         $employees = Employee::withoutGlobalScope('tenant')->where('user_id', $connection->user_id)->get();
         $previous = $context->get();
+        $pulled = 0;
 
         try {
             foreach ($employees as $employee) {
@@ -51,6 +52,7 @@ class PullCalendarChangesJob implements ShouldBeUnique, ShouldQueue
                 $result = $port->pullChanges($employee, $since);
                 if ($result->ok) {
                     $reconciler->reconcile($employee, $result->payload);
+                    $pulled += count($result->payload);
                 }
             }
         } finally {
@@ -58,5 +60,7 @@ class PullCalendarChangesJob implements ShouldBeUnique, ShouldQueue
         }
 
         $connection->forceFill(['last_pulled_at' => now()])->save();
+
+        return $pulled;
     }
 }
