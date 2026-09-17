@@ -11,3 +11,9 @@ parameters:
     ignoreErrors:
         # Eloquent dynamic props / query-builder returns are heavily used app-wide.
         - '#Access to an undefined property Illuminate\\Database\\Eloquent\\Model#'
+        # Larastan types ->pivot on a single model fetched via firstWhere(), but
+        # loses it once the relation's collection is iterated/filtered (as here);
+        # scoped to this one pivot-reading call site.
+        -
+            message: '#Access to an undefined property App\\Models\\Employee::\$pivot#'
+            path: app/Support/Calendar/TaggedCopies.php

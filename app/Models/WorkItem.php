@@ -348,7 +348,7 @@ class WorkItem extends Model implements HasAuditedFields
      * People included on this card beyond its owner. The same shared card appears
      * on every participant's board; they may view / move / comment but not edit.
      *
-     * @return BelongsToMany<Employee, $this>
+     * @return BelongsToMany<Employee, $this, WorkItemParticipant>
      */
     public function participants(): BelongsToMany
     {
