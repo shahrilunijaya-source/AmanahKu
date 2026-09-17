@@ -66,6 +66,9 @@
                    :placeholder="$store.ui.lang==='en' ? 'Search card title…' : 'Cari tajuk kad…'"
                    :aria-label="$store.ui.lang==='en' ? 'Search card title' : 'Cari tajuk kad'"
                    style="width:220px;max-width:100%;padding:7px 14px;font-size:12.5px;border:1px solid var(--hairline);border-radius:9999px;background:#fff;color:var(--ink);outline:none;">
+            @if ($calendarSync ?? null)
+                @include('partials.board-calendar-sync', ['calendarSync' => $calendarSync])
+            @endif
     </div>
 
     {{-- CR-04 role chips: whose work this is for me. Assigned is the default view and

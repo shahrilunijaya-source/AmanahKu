@@ -2,6 +2,7 @@ import Alpine from 'alpinejs';
 import Sortable from 'sortablejs';
 import './passkeys';
 import { registerAppearanceCard } from './appearance-card';
+import { registerCalendarSync } from './calendar-sync';
 import { registerDarkSurfaces } from './dark-surfaces';
 import { registerDashboardWidgets } from './dashboard-widgets';
 import { registerTicketAttach } from './ticket-attach';
@@ -85,6 +86,7 @@ registerTotSlotThread(Alpine);
 registerUploadFilenameSanitizer();
 registerDashboardWidgets(Alpine);
 registerWorkBoard(Alpine);
+registerCalendarSync(Alpine);
 registerServiceWorker();
 
 Alpine.start();

@@ -279,4 +279,28 @@ class CalendarSyncControlTest extends TestCase
         $this->as()->getJson(route('calendar-sync.status'))->assertNotFound();
         $this->as()->postJson(route('calendar-sync.sync'))->assertNotFound();
     }
+
+    public function test_the_board_shows_the_calendar_control_when_configured(): void
+    {
+        $this->as()->get(route('app.screen', 'board'))
+            ->assertOk()
+            ->assertSee('data-testid="calendar-sync"', escape: false)
+            ->assertSee(route('calendar-sync.sync'), escape: false);
+    }
+
+    public function test_the_board_hides_it_when_google_is_not_configured(): void
+    {
+        config(['services.google_calendar.client_id' => null]);
+
+        $this->as()->get(route('app.screen', 'board'))
+            ->assertOk()
+            ->assertDontSee('data-testid="calendar-sync"', escape: false);
+    }
+
+    public function test_profile_no_longer_has_the_calendar_section(): void
+    {
+        $this->as()->get(route('app.screen', 'profile'))
+            ->assertOk()
+            ->assertDontSee(route('google-calendar.redirect'), escape: false);
+    }
 }
