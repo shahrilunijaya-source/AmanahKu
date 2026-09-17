@@ -120,4 +120,35 @@ class GoogleCalendarClientTest extends TestCase
         $this->assertSame('fresh', $this->connection->fresh()->sync_token);
         Http::assertSentCount(2);
     }
+
+    public function test_invalid_grant_on_refresh_marks_the_connection_revoked(): void
+    {
+        Http::fake(['oauth2.googleapis.com/token' => Http::response(['error' => 'invalid_grant', 'error_description' => 'Token has been expired or revoked.'], 400)]);
+        $user = User::create(['name' => 'X', 'email' => 'x@example.com', 'password' => 'x']);
+        $connection = GoogleCalendarConnection::create(['user_id' => $user->id, 'access_token' => 'a', 'refresh_token' => 'r', 'expires_at' => now()->subHour()]);
+        $client = new GoogleCalendarClient(['client_id' => 'a', 'client_secret' => 'b', 'redirect' => 'http://x']);
+
+        try {
+            $client->accessTokenFor($connection);
+            $this->fail('expected an exception');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('revoked', $e->getMessage());
+        }
+
+        $this->assertNotNull($connection->fresh()->revoked_at);
+    }
+
+    public function test_other_refresh_failures_do_not_mark_revoked(): void
+    {
+        Http::fake(['oauth2.googleapis.com/token' => Http::response('down', 503)]);
+        $user = User::create(['name' => 'Y', 'email' => 'y@example.com', 'password' => 'x']);
+        $connection = GoogleCalendarConnection::create(['user_id' => $user->id, 'access_token' => 'a', 'refresh_token' => 'r', 'expires_at' => now()->subHour()]);
+
+        try {
+            (new GoogleCalendarClient(['client_id' => 'a', 'client_secret' => 'b', 'redirect' => 'http://x']))->accessTokenFor($connection);
+        } catch (\RuntimeException) {
+        }
+
+        $this->assertNull($connection->fresh()->revoked_at);
+    }
 }

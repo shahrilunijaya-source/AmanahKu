@@ -74,7 +74,7 @@ class SetupGuideTest extends TestCase
         $tenant = Tenant::create(['slug' => 'acme'.$level, 'name' => 'Acme '.$level, 'initials' => 'A'.$level, 'company_category_id' => $category->id]);
         app(FeatureManager::class)->applyCategoryPackage($tenant, $level);
 
-        $hr = User::create(['name' => 'HR', 'email' => 'hr'.$level.'@example.com', 'password' => Hash::make('password')]);
+        $hr = User::create(['name' => 'HR', 'email' => 'hr'.$level.'@example.com', 'password' => Hash::make('<redacted>')]);
         $hr->tenants()->attach($tenant->id, ['role' => 'hr']);
         Employee::create(['tenant_id' => $tenant->id, 'user_id' => $hr->id, 'name' => 'HR', 'status' => 'active', 'workload' => 'green', 'initials' => 'HR', 'avatar_color' => '#000', 'joined_at' => now()->toDateString()]);
 
@@ -84,7 +84,7 @@ class SetupGuideTest extends TestCase
     /** @return User a plain staff member of the tenant. */
     private function staff(Tenant $tenant): User
     {
-        $u = User::create(['name' => 'Staff', 'email' => 'staff'.Employee::count().'@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Staff', 'email' => 'staff'.Employee::count().'@example.com', 'password' => Hash::make('<redacted>')]);
         $u->tenants()->attach($tenant->id, ['role' => 'employee']);
         Employee::create(['tenant_id' => $tenant->id, 'user_id' => $u->id, 'name' => 'Staff', 'status' => 'active', 'workload' => 'green', 'initials' => 'ST', 'avatar_color' => '#000', 'joined_at' => now()->toDateString()]);
 
@@ -93,7 +93,7 @@ class SetupGuideTest extends TestCase
 
     private function superAdmin(): User
     {
-        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('<redacted>')]);
         $u->forceFill(['is_super_admin' => true])->save();
 
         return $u;
@@ -1423,7 +1423,7 @@ Expected: green. Also `vendor/bin/pint --dirty --format agent` reports nothing t
 
 - [ ] **Step 4: Browser check (integrated browser MCP, http://localhost:9100)**
 
-Log in as the Super Admin quick-login (`superadmin@amanahku.com`, password `password`), switch to a tenant with no `completed_at` (create one from the Companies page if none exists — the migration stamped every tenant with staff, including Unijaya), then:
+Log in as the Super Admin quick-login (`superadmin@amanahku.com`), switch to a tenant with no `completed_at` (create one from the Companies page if none exists — the migration stamped every tenant with staff, including Unijaya), then:
 - Dashboard shows the dock bottom-right reading "Setting up · step 1 of N"; the Administration row pulses.
 - "Skip for now" moves to step 2 and survives a reload; clearing `localStorage['amanahku-guide-skip']` brings step 1 back.
 - "Take me there" on the branches step lands on Company Settings with the bubble under the Branches "+ Add" button; "Got it" closes it; reload brings it back.

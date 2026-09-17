@@ -178,4 +178,20 @@ class SuperAdminCompanyTest extends TestCase
         // Validation fails before the transaction — no partial tenant created.
         $this->assertSame($before, Tenant::count());
     }
+
+    public function test_provisioning_writes_the_audit_row_against_the_new_tenant(): void
+    {
+        $this->actingAs($this->superAdmin())->post('/admin/companies', $this->validPayload());
+
+        $tenant = Tenant::where('name', 'Beta Industries')->firstOrFail();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'tenant_id' => $tenant->id,
+            'action' => 'Provisioned company',
+            'target' => 'Beta Industries · admin siti@beta.com',
+        ]);
+        $this->assertDatabaseHas('branches', ['tenant_id' => $tenant->id, 'state' => 'Selangor']);
+        $this->assertDatabaseHas('employees', ['tenant_id' => $tenant->id, 'position' => 'HR Admin', 'status' => 'active']);
+        $this->assertTrue($tenant->onboarding_enforced);
+    }
 }

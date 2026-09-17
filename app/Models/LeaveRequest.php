@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
-use App\Timesheet\DayCapacity;
+use App\Support\WorkWeek;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -67,10 +67,9 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Working days between $from and $to inclusive. Unijaya works Mon–Fri plus the TOT
-     * Saturday (the first Saturday of the month, a half day, counted 0.5); Sundays,
-     * ordinary Saturdays and the tenant's public holidays are not working days and cost
-     * nothing.
+     * Working days between $from and $to inclusive, per the tenant's work week: a listed
+     * work day costs 1, the TOT Saturday (Unijaya's first-Saturday half day) 0.5, and days
+     * off and the tenant's public holidays cost nothing.
      */
     public static function countDays(Carbon $from, Carbon $to): float
     {
@@ -80,16 +79,14 @@ class LeaveRequest extends Model
             ->map(fn (Carbon $d) => $d->toDateString())
             ->flip();
 
+        $workWeek = WorkWeek::for();
+
         $days = 0.0;
         for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
             if ($holidays->has($date->toDateString())) {
                 continue;
             }
-            if (DayCapacity::isFirstSaturday($date)) {
-                $days += 0.5;
-            } elseif ($date->isWeekday()) {
-                $days += 1.0;
-            }
+            $days += $workWeek->dayFraction($date);
         }
 
         return $days;

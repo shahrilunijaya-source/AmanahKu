@@ -11,6 +11,7 @@ use App\Models\RecurringTask;
 use App\Models\RecurringTaskOccurrence;
 use App\Models\Tenant;
 use App\Models\WorkItem;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
@@ -136,7 +137,7 @@ class CreateRecurringWorkItems extends Command
     /**
      * The day a period's card is made: the period start, brought forward by the lead
      * days. A public holiday on that day pushes it to the next working day (CR-18 item
-     * 3d); a plain weekend does not, the card simply waits on the board until Monday.
+     * 3d); a plain day off does not, the card simply waits on the board until the next work day.
      */
     private function creationDay(RecurringTask $schedule, CarbonImmutable $period): CarbonImmutable
     {
@@ -144,7 +145,8 @@ class CreateRecurringWorkItems extends Command
         if (! $this->isPublicHoliday($day)) {
             return $day;
         }
-        while ($day->isWeekend() || $this->isPublicHoliday($day)) {
+        $workWeek = WorkWeek::for();
+        while (! $workWeek->isWorkingDay($day) || $this->isPublicHoliday($day)) {
             $day = $day->addDay();
         }
 

@@ -27,7 +27,7 @@
                     : ($store.ui.lang==='en' ? 'The person you choose will report to this seat. Whoever sits here then verifies their leave, claims and overtime.' : 'Orang yang anda pilih akan melapor kepada kerusi ini. Sesiapa di sini kemudian mengesahkan cuti, tuntutan dan kerja lebih masa mereka.')"></p>
 
             <input type="search" x-model="q" x-ref="search"
-                   :placeholder="$store.ui.lang==='en' ? 'Search name, position, department' : 'Cari nama, pangkat, bahagian'"
+                   :placeholder="$store.ui.lang==='en' ? 'Search name, position, department' : 'Cari nama, jawatan, jabatan'"
                    :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'"
                    style="width:100%;height:38px;border:1px solid var(--hairline);border-radius:9px;background:var(--canvas);padding:0 12px;font-size:13px;color:var(--ink);">
 
@@ -79,7 +79,7 @@
                x-text="$store.ui.lang==='en' ? 'An extra verifier can verify this person\'s leave, claims and overtime without being their manager. The reporting line does not change.' : 'Pengesah tambahan boleh mengesahkan cuti, tuntutan dan kerja lebih masa orang ini tanpa menjadi pengurus mereka. Talian pelaporan tidak berubah.'"></p>
 
             <input type="search" x-model="q" x-ref="search"
-                   :placeholder="$store.ui.lang==='en' ? 'Search name, position, department' : 'Cari nama, pangkat, bahagian'"
+                   :placeholder="$store.ui.lang==='en' ? 'Search name, position, department' : 'Cari nama, jawatan, jabatan'"
                    :aria-label="$store.ui.lang==='en' ? 'Search people' : 'Cari orang'"
                    style="width:100%;height:38px;border:1px solid var(--hairline);border-radius:9px;background:var(--canvas);padding:0 12px;font-size:13px;color:var(--ink);">
 

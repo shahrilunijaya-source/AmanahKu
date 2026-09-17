@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Support\DashboardBands;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
@@ -51,7 +52,7 @@ class BirthdayNotify extends Command
 
     private function sweepTenant(CarbonImmutable $today): int
     {
-        $isWorkingDay = fn (CarbonImmutable $day): bool => ! $day->isWeekend()
+        $isWorkingDay = fn (CarbonImmutable $day): bool => WorkWeek::for()->isWorkingDay($day)
             && ! PublicHoliday::whereDate('date', $day->toDateString())->exists();
 
         $celebratedDates = DashboardBands::celebratedOn($today, $isWorkingDay);

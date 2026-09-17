@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\CompanyCategory;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use App\Models\LeaveType;
 use App\Models\Position;
 use App\Models\ProfileTestQuestion;
@@ -108,6 +109,28 @@ class OnboardingWizardTest extends TestCase
         $this->assertSame(['certs'], $svc->missing($emp));
     }
 
+    public function test_certs_group_skips_personality_when_profile_test_is_off(): void
+    {
+        [$tenant] = $this->company(1);
+        app(CurrentTenant::class)->set($tenant);
+        [, $emp] = $this->staff($tenant, $this->essentialAttrs() + ['gender' => 'male', 'marital_status' => 'single']);
+        EmployeeDocument::create([
+            'tenant_id' => $tenant->id, 'employee_id' => $emp->id,
+            'title' => 'Degree', 'category' => 'Certificate',
+            'file_path' => 'x', 'original_name' => 'degree.pdf',
+        ]);
+        $svc = app(ProfileCompletion::class);
+
+        // Certificate uploaded, test never taken: with the module on, the group stays open.
+        app(FeatureManager::class)->setTenant($tenant, 'module.profiletest', true);
+        $this->assertSame(['certs'], $svc->missing($emp->fresh()));
+
+        // Module off: nobody can take the test, so it no longer holds the profile below 100%.
+        app(FeatureManager::class)->setTenant($tenant, 'module.profiletest', false);
+        $this->assertTrue($svc->fullyComplete($emp->fresh()));
+        $this->assertSame('Certificates', $svc->groups($emp->fresh())[2]['label']);
+    }
+
     public function test_a_new_working_style_question_reopens_the_personality_group(): void
     {
         [$tenant] = $this->company(1);
@@ -158,6 +181,57 @@ class OnboardingWizardTest extends TestCase
 
         $this->actingAs($user)->withSession(['current_tenant' => $tenant->id])
             ->get('/app/welcome')->assertOk();
+    }
+
+    public function test_personality_step_is_dropped_when_profile_test_module_is_off(): void
+    {
+        [$tenant] = $this->company(1);
+        $this->launch($tenant);
+        // Essentials + certs both done, so the resume logic runs past 'personal' and
+        // 'cert' and actually reaches the personality branch below.
+        [$user, $emp] = $this->staff($tenant, $this->essentialAttrs());
+        EmployeeDocument::create([
+            'tenant_id' => $tenant->id, 'employee_id' => $emp->id,
+            'title' => 'Degree', 'category' => 'Certificate',
+            'file_path' => 'x', 'original_name' => 'degree.pdf',
+        ]);
+        app(FeatureManager::class)->setTenant($tenant, 'module.profiletest', false);
+
+        $response = $this->actingAs($user)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/welcome')->assertOk();
+
+        $response->assertViewHas('profileTestEnabled', false);
+        $response->assertDontSee('Personality test');
+        // The Certificates step's "Skip for now" button must not strand the visitor on
+        // a step that no longer exists in the DOM.
+        $response->assertDontSee("step='personality'", false);
+        // Everything else is done and the module is off, so the wizard must resume on
+        // 'done' rather than the resume logic still landing on the dropped step.
+        $response->assertDontSee("step: 'personality'", false);
+        $response->assertSee("step: 'done'", false);
+    }
+
+    public function test_personality_step_shows_when_profile_test_module_is_on(): void
+    {
+        [$tenant] = $this->company(1);
+        $this->launch($tenant);
+        [$user, $emp] = $this->staff($tenant, $this->essentialAttrs());
+        EmployeeDocument::create([
+            'tenant_id' => $tenant->id, 'employee_id' => $emp->id,
+            'title' => 'Degree', 'category' => 'Certificate',
+            'file_path' => 'x', 'original_name' => 'degree.pdf',
+        ]);
+        app(FeatureManager::class)->setTenant($tenant, 'module.profiletest', true);
+
+        $response = $this->actingAs($user)->withSession(['current_tenant' => $tenant->id])
+            ->get('/app/welcome')->assertOk();
+
+        $response->assertViewHas('profileTestEnabled', true);
+        $response->assertSee('Personality test');
+        $response->assertSee("step='personality'", false);
+        // Same fixture (essentials + certs done) but the module is on, so resume logic
+        // lands right on the personality step instead of skipping past it to 'done'.
+        $response->assertSee("step: 'personality'", false);
     }
 
     // ── Launch lock ────────────────────────────────────────────────────────────

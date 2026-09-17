@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\CompanyInvite;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
@@ -251,7 +252,9 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_registration_enabled_by_default_loads(): void
     {
-        $this->get('/register')->assertOk();
+        $invite = CompanyInvite::factory()->create();
+
+        $this->get('/register?invite='.$invite->token)->assertOk();
     }
 
     public function test_registration_disabled_blocks_get(): void

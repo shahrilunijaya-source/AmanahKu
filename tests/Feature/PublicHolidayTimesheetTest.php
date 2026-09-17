@@ -9,6 +9,7 @@ use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetEntry;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use App\Timesheet\WeekReconciler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -38,7 +39,10 @@ class PublicHolidayTimesheetTest extends TestCase
         parent::setUp();
 
         $this->user = User::create(['name' => 'Demo', 'email' => 'demo@example.com', 'password' => Hash::make('password')]);
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped: the first Saturday of the month is the TOT half day.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
+        // Direct DayCapacity / LockedDays calls (outside a request) read the tenant from the container.
+        app(CurrentTenant::class)->set($this->tenant);
         $this->user->tenants()->attach($this->tenant->id, ['role' => 'employee']);
         $this->employee = Employee::create([
             'tenant_id' => $this->tenant->id, 'user_id' => $this->user->id,

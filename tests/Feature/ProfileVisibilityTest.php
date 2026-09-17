@@ -207,6 +207,29 @@ class ProfileVisibilityTest extends TestCase
         $on->assertSee('KPI · H1');
     }
 
+    public function test_personality_card_and_test_cta_hidden_when_profile_test_module_is_off(): void
+    {
+        $employee = $this->actor('employee');
+        $employee->personality = ['type' => 'The Fox', 'animal' => 'Fox', 'traits' => [], 'blurb' => 'Sly and quick.'];
+        $employee->save();
+
+        // module.profiletest defaults ON (not in Features::OFF), so switch it off explicitly
+        // to see the CTA/results card actually disappear rather than relying on shipped defaults.
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.profiletest', false);
+
+        $off = $this->get("/app/profile?emp={$employee->id}")->assertOk();
+        $off->assertViewHas('profileTestGate', false);
+        $off->assertDontSee('Personality profile');
+        $off->assertDontSee('Retake the Profile Test');
+
+        app(FeatureManager::class)->setTenant($this->tenant, 'module.profiletest', true);
+
+        $on = $this->get("/app/profile?emp={$employee->id}")->assertOk();
+        $on->assertViewHas('profileTestGate', true);
+        $on->assertSee('Personality profile');
+        $on->assertSee('Retake the Profile Test');
+    }
+
     public function test_sr_manager_opens_someone_three_steps_below_via_transitive_ancestor(): void
     {
         $srManagerLevel = $this->level('Sr Manager', 2);

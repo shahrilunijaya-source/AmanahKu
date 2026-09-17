@@ -460,19 +460,20 @@ checked per tool:
 | `board:write` | Create and edit board cards, assign tasks |
 | `timesheets:write` | Save timesheet drafts |
 | `tot:write` | Post external TOT events |
+| `invites:write` | Generate company signup invite links (director/HR only) |
 
-These six scopes are minted the same way as the ones above
+These seven scopes are minted the same way as the ones above
 (`php artisan api:token ... --ability=timesheets:read`) but have no
 corresponding `/api/v1` route — they exist only for the MCP tools.
 
-The three `:write` scopes are separate from their matching `:read` scope, so
+The `:write` scopes are separate from their matching `:read` scope, so
 a key can browse a tenant's board, timesheets and TOT sessions without ever
-being able to change any of it. Every write tool behind them is two-step: a
+being able to change any of it. Every write tool behind them is two-step (with one exception, below): a
 preview tool validates and authorizes the change and returns a short-lived
 `confirm_token` without writing anything, and only a second call to
 `confirm_write` with that token actually applies it — the MCP client is
 expected to show the preview to a person and wait for approval in between.
-The self-service AI key screen (Account & security) mints the three `:write`
+The self-service AI key screen (Account & security) mints the `:write`
 scopes only when its "allow this key to make changes" box is ticked;
 unticked (the default) mints the three `:read` scopes only, same as before
 this flow existed.
@@ -484,3 +485,9 @@ the URL — a route-level throttle can't single out writes. `confirm_write`
 budget in code: 20 applied writes per minute per caller, well under the
 route's shared 60/min. The preview tools carry no extra limit — they only
 read and cache a token, the same cost as a read tool.
+
+The exception is `create_company_invite` (`invites:write`): a director or HR
+calls it once and gets back a self-serve signup link for a brand-new company
+(one use, 7 days), no `confirm_token`. It is the same link a super-admin mints
+from `/admin/companies`, and it needs a person's AI key — an application key
+is refused, because the invite records who created it.

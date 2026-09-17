@@ -678,7 +678,7 @@ class SuperAdminCompanyInviteTest extends TestCase
 
     private function superAdmin(): User
     {
-        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('<redacted>')]);
         $u->forceFill(['is_super_admin' => true])->save();
 
         return $u;
@@ -686,7 +686,7 @@ class SuperAdminCompanyInviteTest extends TestCase
 
     private function ordinaryUser(): User
     {
-        $u = User::create(['name' => 'Joe', 'email' => 'joe@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Joe', 'email' => 'joe@example.com', 'password' => Hash::make('<redacted>')]);
         $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
         $u->tenants()->attach($tenant->id, ['role' => 'hr']);
 
@@ -1056,7 +1056,7 @@ class CompanySignupTest extends TestCase
 
     private function superAdmin(): User
     {
-        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Platform', 'email' => 'super@example.com', 'password' => Hash::make('<redacted>')]);
         $u->forceFill(['is_super_admin' => true])->save();
 
         return $u;
@@ -1064,7 +1064,7 @@ class CompanySignupTest extends TestCase
 
     private function memberOfAcme(): User
     {
-        $u = User::create(['name' => 'Mei Ling', 'email' => 'mei@example.com', 'password' => Hash::make('password')]);
+        $u = User::create(['name' => 'Mei Ling', 'email' => 'mei@example.com', 'password' => Hash::make('<redacted>')]);
         $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
         $u->tenants()->attach($tenant->id, ['role' => 'employee']);
 
@@ -1449,8 +1449,8 @@ git commit -m "feat(signup): /register needs a live invite token; Fortify regist
             'company_name' => 'Maju Bina Sdn Bhd',
             'name' => 'Faizal bin Ahmad',
             'email' => 'faizal@majubina.com',
-            'password' => 'Sup3r-Secret-Pw!',
-            'password_confirmation' => 'Sup3r-Secret-Pw!',
+            'password' => '<redacted>',
+            'password_confirmation' => '<redacted>',
         ], $overrides);
     }
 
@@ -1474,7 +1474,7 @@ git commit -m "feat(signup): /register needs a live invite token; Fortify regist
         $this->assertDatabaseHas('departments', ['tenant_id' => $tenant->id, 'name' => 'General']);
 
         $user = User::where('email', 'faizal@majubina.com')->firstOrFail();
-        $this->assertTrue(Hash::check('Sup3r-Secret-Pw!', $user->password));
+        $this->assertTrue(Hash::check('<redacted>', $user->password));
         $this->assertFalse($user->password_change_required);
         $this->assertNotNull($user->email_verified_at);
         $this->assertFalse($user->isSuperAdmin());
@@ -1531,7 +1531,7 @@ git commit -m "feat(signup): /register needs a live invite token; Fortify regist
 
     public function test_guest_with_an_existing_email_is_told_to_sign_in_and_nothing_is_created(): void
     {
-        User::create(['name' => 'Taken', 'email' => 'faizal@majubina.com', 'password' => Hash::make('password')]);
+        User::create(['name' => 'Taken', 'email' => 'faizal@majubina.com', 'password' => Hash::make('<redacted>')]);
         $invite = CompanyInvite::factory()->create();
 
         $response = $this->from('/register?invite='.$invite->token)
@@ -1631,7 +1631,7 @@ git commit -m "feat(signup): /register needs a live invite token; Fortify regist
         $invite = CompanyInvite::factory()->create();
 
         $this->from('/register?invite='.$invite->token)
-            ->post('/register', $this->guestPayload($invite, ['password_confirmation' => 'different']))
+            ->post('/register', $this->guestPayload($invite, ['password_confirmation' => '<redacted-mismatch>']))
             ->assertRedirect('/register?invite='.$invite->token)
             ->assertSessionHasErrors('password');
 

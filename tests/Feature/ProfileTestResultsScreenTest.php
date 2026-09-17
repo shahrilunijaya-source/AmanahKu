@@ -26,12 +26,12 @@ class ProfileTestResultsScreenTest extends TestCase
     {
         parent::setUp();
 
-        $category = CompanyCategory::where('level', 3)->first();
+        $category = CompanyCategory::where('level', 2)->first();
         $this->tenant = Tenant::create([
             'slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
             'company_category_id' => $category?->id,
         ]);
-        app(FeatureManager::class)->applyCategoryPackage($this->tenant, 3);
+        app(FeatureManager::class)->applyCategoryPackage($this->tenant, 2);
     }
 
     /** @return array{0:User,1:Employee} */

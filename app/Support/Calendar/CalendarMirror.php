@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Calendar;
 
 use App\Models\WorkItem;
+use App\Models\WorkItemCalendarCopy;
 use App\Ports\Data\CalendarEvent;
 use Carbon\CarbonImmutable;
 
@@ -25,7 +26,7 @@ final class CalendarMirror
             && $item->status !== 'done';
     }
 
-    public static function event(WorkItem $item): CalendarEvent
+    public static function event(WorkItem $item, ?WorkItemCalendarCopy $copy = null): CalendarEvent
     {
         $start = CarbonImmutable::instance($item->due_at)->startOfDay();
         $companyEvent = $item->type === 'event' ? $item->companyEvent : null;
@@ -42,9 +43,9 @@ final class CalendarMirror
             endsAt: $end,
             description: self::description($item),
             subject: $item,
-            externalId: $item->google_event_id,
+            externalId: $copy ? $copy->google_event_id : $item->google_event_id,
             allDay: $companyEvent === null,
-            version: $item->calendar_version,
+            version: $copy ? $copy->calendar_version : $item->calendar_version,
         );
     }
 

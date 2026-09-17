@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers;
+
+use App\Jobs\CalendarFullSyncJob;
+use App\Jobs\SyncWorkItemCalendarEventJob;
+use App\Models\GoogleCalendarConnection;
+use App\Models\WorkItem;
+use App\Models\WorkItemCalendarCopy;
+use App\Ports\CalendarPort;
+use App\Services\GoogleCalendarClient;
+use App\Support\Calendar\CalendarSyncProgress;
+use App\Support\Calendar\CalendarSyncStatus;
+use App\Tenancy\CurrentTenant;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Throwable;
+
+/**
+ * The task board's Google Calendar control. JSON only; the board swaps its own panel.
+ * Sync now and Retry share one per-person limit so the button cannot be hammered.
+ */
+class CalendarSyncController extends Controller
+{
+    public const LIMIT_SECONDS = 120;
+
+    public function __construct(GoogleCalendarClient $client)
+    {
+        abort_unless($client->configured(), 404);
+    }
+
+    public static function limiterKey(int $userId): string
+    {
+        return "calendar-sync:{$userId}";
+    }
+
+    public function status(Request $request): JsonResponse
+    {
+        return response()->json(CalendarSyncStatus::for($request->user(), $this->tenantId($request)));
+    }
+
+    public function sync(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // The queue is async in production: a sync already running for this person is
+        // not a new request to rate-limit or re-dispatch, just report where it's at.
+        $progress = CalendarSyncProgress::get($user->id);
+        if ($progress && $progress['state'] === 'running') {
+            return response()->json(CalendarSyncStatus::for($user, $this->tenantId($request)), 202);
+        }
+
+        if (! GoogleCalendarConnection::where('user_id', $user->id)->whereNull('revoked_at')->exists()) {
+            return response()->json(['message' => 'Connect Google Calendar first.'], 409);
+        }
+        if ($blocked = $this->limited($user->id)) {
+            return $blocked;
+        }
+
+        CalendarSyncProgress::start($user->id, 0);
+        CalendarFullSyncJob::dispatch($user->id);
+
+        return response()->json(CalendarSyncStatus::for($user, $this->tenantId($request)), 202);
+    }
+
+    public function retry(Request $request, WorkItem $workItem): JsonResponse
+    {
+        $employee = $request->attributes->get('employee');
+        // Route binding ignores tenants: check this card is in the caller's company.
+        abort_unless($employee && $workItem->tenant_id === $employee->tenant_id, 403);
+
+        $isOwner = $workItem->employee_id === $employee->id;
+        $copy = $isOwner ? null : WorkItemCalendarCopy::where('work_item_id', $workItem->id)->where('employee_id', $employee->id)->first();
+        abort_unless($isOwner || $copy, 403);
+
+        if ($blocked = $this->limited($request->user()->id)) {
+            return $blocked;
+        }
+
+        if ($isOwner) {
+            WorkItem::withoutGlobalScopes()->where('id', $workItem->id)->update(['calendar_sync_error' => null]);
+        } else {
+            $copy->update(['sync_error' => null]);
+        }
+
+        // Inline, same as CalendarFullSyncJob: "Retry" is a person waiting on this one
+        // card, not a fire-and-forget queue push.
+        $job = new SyncWorkItemCalendarEventJob(
+            tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id,
+            recipientEmployeeId: $isOwner ? null : $employee->id,
+        );
+        try {
+            $job->handle(app(CurrentTenant::class), app(CalendarPort::class));
+        } catch (Throwable $e) {
+            $job->failed($e);
+        }
+
+        return response()->json(CalendarSyncStatus::for($request->user(), $this->tenantId($request)));
+    }
+
+    private function tenantId(Request $request): ?int
+    {
+        return $request->attributes->get('employee')?->tenant_id;
+    }
+
+    private function limited(int $userId): ?JsonResponse
+    {
+        $key = self::limiterKey($userId);
+        if (RateLimiter::tooManyAttempts($key, 1)) {
+            $wait = RateLimiter::availableIn($key);
+
+            return response()->json(['message' => "You can sync again in {$wait} seconds.", 'retry_after' => $wait], 429);
+        }
+        RateLimiter::hit($key, self::LIMIT_SECONDS);
+
+        return null;
+    }
+}

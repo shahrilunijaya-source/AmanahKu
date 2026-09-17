@@ -158,8 +158,28 @@ class EventAttendeesTest extends TestCase
         $this->actingInTenantAs($hr)->get('/app/events')
             ->assertOk()
             ->assertSee(route('events.show', $event), false)
-            ->assertSee('name="starts_at"', false)
-            ->assertSee('name="ends_at"', false);
+            ->assertSee('name="start_clock"', false)
+            ->assertSee('name="end_clock"', false);
+    }
+
+    #[Test]
+    public function the_form_date_and_clock_times_become_the_event_slot_and_its_label(): void
+    {
+        $hr = $this->person('Hr', 'hr');
+        $fields = ['title' => 'Briefing', 'type' => 'event', 'event_date' => '2026-10-05'];
+
+        $this->actingInTenantAs($hr)
+            ->post('/app/events', [...$fields, 'start_clock' => '09:00', 'end_clock' => '16:30'])
+            ->assertSessionHasNoErrors();
+
+        $event = CompanyEvent::where('title', 'Briefing')->firstOrFail();
+        $this->assertSame('2026-10-05 09:00', $event->starts_at->format('Y-m-d H:i'));
+        $this->assertSame('2026-10-05 16:30', $event->ends_at->format('Y-m-d H:i'));
+        $this->assertSame('9:00 AM – 4:30 PM', $event->start_time);
+
+        $this->actingInTenantAs($hr)
+            ->post('/app/events', [...$fields, 'title' => 'Backwards', 'start_clock' => '16:00', 'end_clock' => '09:00'])
+            ->assertSessionHasErrors('end_clock');
     }
 
     /** QA F4/F5 (CR-11): the plain form redirects back instead of showing JSON, and the organiser can mark attendance from the page. */

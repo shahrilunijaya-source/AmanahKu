@@ -37,21 +37,21 @@
         ],
     ],
     'ms'  => [
-        'title' => 'Pangkat & kadar manday',
-        'body'  => 'Setiap pangkat ialah satu sel dalam carta organisasi — jabatan + peringkat dengan gaji MAKSIMUM. Kadar caj untuk mengira kos timesheet diambil dari band itu, bukan gaji sebenar seseorang. Tetapkan pangkat kepada setiap staf supaya jam timesheet mereka boleh dihargakan.',
+        'title' => 'Jawatan & kadar manday',
+        'body'  => 'Setiap jawatan ialah satu sel dalam carta organisasi: jabatan + peringkat dengan gaji MAKSIMUM. Kadar caj untuk mengira kos timesheet diambil dari band itu, bukan gaji sebenar seseorang. Tetapkan jawatan kepada setiap staf supaya jam timesheet mereka boleh dihargakan.',
         'who'   => 'HR & Pengurusan sahaja',
         'steps' => [
-            'Tambah pangkat: pilih jabatan dan peringkat, namakan jawatan, dan masukkan gaji MAKSIMUM.',
+            'Tambah jawatan: pilih jabatan dan peringkat, beri nama, dan masukkan gaji MAKSIMUM.',
             'Kadar manday dan manhour dikira automatik dari formula di bawah.',
-            'Tetapkan setiap staf kepada satu pangkat dalam jadual di bawah.',
-            'Pada Timesheet, HR & pengurusan melihat kos RM = jam × kadar manhour pangkat itu.',
+            'Tetapkan setiap staf kepada satu jawatan dalam jadual di bawah.',
+            'Pada Timesheet, HR & pengurusan melihat kos RM = jam × kadar manhour jawatan itu.',
         ],
     ],
 ])
 
 {{-- ── Stat strip (global context, above the tabs) ──────────────────────── --}}
 <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
-    <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Position bands' : 'Band pangkat'">Position bands</span></div><div class="uj-stat-value">{{ $positions->count() }}</div></div>
+    <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Position bands' : 'Band jawatan'">Position bands</span></div><div class="uj-stat-value">{{ $positions->count() }}</div></div>
     <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Staff assigned' : 'Staf ditetapkan'">Staff assigned</span></div><div class="uj-stat-value" style="color:var(--success);">{{ $assigned }}</div></div>
     <div class="uj-card uj-stat" style="flex:1;min-width:160px;"><div class="uj-stat-label"><span x-text="$store.ui.lang==='en' ? 'Unassigned' : 'Belum ditetapkan'">Unassigned</span></div><div class="uj-stat-value" style="color:{{ $unassigned > 0 ? 'var(--amber)' : 'var(--muted)' }};">{{ $unassigned }}</div></div>
 </div>
@@ -106,7 +106,7 @@
             <div class="uj-card-head" style="padding:16px 20px;"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Rate card (department × level)' : 'Jadual kadar (jabatan × peringkat)'">Rate card</span></h3></div>
             @if ($emptyState)
                 <div style="padding:36px 20px;text-align:center;font-size:13px;color:var(--muted);">
-                    <span x-text="$store.ui.lang==='en' ? 'No position bands yet.' : 'Tiada band pangkat lagi.'">No position bands yet.</span>
+                    <span x-text="$store.ui.lang==='en' ? 'No position bands yet.' : 'Tiada band jawatan lagi.'">No position bands yet.</span>
                     <button type="button" @click="tab='bands'; showAdd=true" class="uj-btn-primary" style="margin-left:8px;height:32px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Add your first band' : 'Tambah band pertama'">Add your first band</span></button>
                 </div>
             @else
@@ -155,12 +155,19 @@
         {{-- Add / import — collapsed by default, toggled inline (no modal) --}}
         <div class="uj-card" style="margin-bottom:16px;padding:0;overflow:hidden;">
             <div class="uj-card-head" style="padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Add a position band' : 'Tambah band pangkat'">Add a position band</span></h3>
+                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Add a position band' : 'Tambah band jawatan'">Add a position band</span></h3>
                 <button type="button" @click="showAdd = ! showAdd" class="uj-btn-ghost" style="height:32px;padding:0 14px;font-size:12.5px;">
                     <span x-show="! showAdd"><span x-text="$store.ui.lang==='en' ? '+ New band' : '+ Band baru'">+ New band</span></span>
                     <span x-show="showAdd" x-cloak><span x-text="$store.ui.lang==='en' ? 'Close' : 'Tutup'">Close</span></span>
                 </button>
             </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-positions',
+                'when' => "\$store.guide.current === 'positions'",
+                'anchor' => 'button.uj-btn-ghost',
+                'en' => ['title' => 'Add your first position band', 'body' => 'Click + New band, fill in the job title, department and salary band, then click Add position.'],
+                'ms' => ['title' => 'Tambah band jawatan pertama', 'body' => 'Klik + Band baru, isi jawatan, jabatan dan band gaji, kemudian klik Tambah jawatan.'],
+            ])
 
             <div x-show="showAdd" x-cloak style="padding:4px 20px 20px;border-top:1px solid var(--hairline-soft);">
                 <form method="post" action="{{ route('position.store') }}" style="padding-top:14px;">
@@ -215,7 +222,7 @@
                     @foreach (['department_id', 'staff_level_id', 'title', 'max_salary'] as $f)
                         @error($f)<div style="font-size:12px;color:var(--error);margin-bottom:8px;">{{ $message }}</div>@enderror
                     @endforeach
-                    <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Add position' : 'Tambah pangkat'">Add position</span></button>
+                    <button type="submit" class="uj-btn-primary" style="height:40px;padding:0 18px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Add position' : 'Tambah jawatan'">Add position</span></button>
                 </form>
 
                 {{-- Bulk import via spreadsheet --}}
@@ -242,7 +249,7 @@
         {{-- Band list — searchable + height-capped (internal scroll) --}}
         <div class="uj-card" style="padding:0;overflow:hidden;">
             <div class="uj-card-head" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'All position bands' : 'Semua band pangkat'">All position bands</span></h3>
+                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'All position bands' : 'Semua band jawatan'">All position bands</span></h3>
                 @unless ($emptyState)
                     <input type="search" x-model="bandFilter" :placeholder="$store.ui.lang==='en' ? 'Filter bands…' : 'Tapis band…'" style="height:32px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;min-width:200px;" />
                 @endunless
@@ -288,7 +295,7 @@
                                 </label>
                                 <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
                             </form>
-                            <form method="post" action="{{ route('position.destroy', $p) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Delete this position? Staff on it become unassigned.' : 'Padam pangkat ini? Staf padanya menjadi belum ditetapkan.')) $event.preventDefault()" style="margin-top:8px;">
+                            <form method="post" action="{{ route('position.destroy', $p) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Delete this position? Staff on it become unassigned.' : 'Padam jawatan ini? Staf padanya menjadi belum ditetapkan.')) $event.preventDefault()" style="margin-top:8px;">
                                 @csrf
                                 <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
                             </form>
@@ -306,7 +313,7 @@
         <div class="uj-card" style="padding:0;overflow:hidden;">
             <div class="uj-card-head" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                 <div>
-                    <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Assign position to staff' : 'Tetapkan pangkat kepada staf'">Assign position to staff</span></h3>
+                    <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Assign position to staff' : 'Tetapkan jawatan kepada staf'">Assign position to staff</span></h3>
                     @unless ($emptyState)
                         <div style="font-size:11.5px;color:var(--muted);margin-top:3px;"><span x-text="$store.ui.lang==='en' ? 'Pick a band — it saves automatically.' : 'Pilih band — ia simpan automatik.'">Pick a band — it saves automatically.</span></div>
                     @endunless
@@ -317,7 +324,7 @@
             </div>
             @if ($emptyState)
                 <div style="padding:28px 20px;text-align:center;font-size:13px;color:var(--muted);">
-                    <span x-text="$store.ui.lang==='en' ? 'Add at least one position band before assigning staff.' : 'Tambah sekurang-kurangnya satu band pangkat sebelum menetapkan staf.'">Add at least one position band before assigning staff.</span>
+                    <span x-text="$store.ui.lang==='en' ? 'Add at least one position band before assigning staff.' : 'Tambah sekurang-kurangnya satu band jawatan sebelum menetapkan staf.'">Add at least one position band before assigning staff.</span>
                     <button type="button" @click="tab='bands'; showAdd=true" class="uj-btn-primary" style="margin-left:8px;height:32px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Add a band' : 'Tambah band'">Add a band</span></button>
                 </div>
             @else

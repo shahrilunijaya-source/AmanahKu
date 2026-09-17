@@ -74,9 +74,8 @@ class DatabaseSeeder extends Seeder
         // workspaces keep every module on, matching the rich seed data + screen tests.
         $stage1 = CompanyCategory::where('level', 1)->value('id');
         $stage2 = CompanyCategory::where('level', 2)->value('id');
-        $stage3 = CompanyCategory::where('level', 3)->value('id');
 
-        $unijaya = Tenant::create(['slug' => 'unijaya', 'name' => 'Unijaya Resources', 'initials' => 'UR', 'color' => '#d6232b', 'plan' => 'Enterprise', 'company_category_id' => $stage3, 'meta' => '4 branches · 186 employees']);
+        $unijaya = Tenant::create(['slug' => 'unijaya', 'name' => 'Unijaya Resources', 'initials' => 'UR', 'color' => '#d6232b', 'plan' => 'Enterprise', 'company_category_id' => $stage2, 'meta' => '4 branches · 186 employees']);
         $shell = Tenant::create(['slug' => 'shell-s2', 'name' => 'Shell Seremban 2', 'initials' => 'SS', 'color' => '#1f8a65', 'plan' => 'Business', 'company_category_id' => $stage2, 'meta' => '2 branches · 142 employees']);
         $petron = Tenant::create(['slug' => 'petron-tl', 'name' => 'Petron Tg Lumpur', 'initials' => 'PT', 'color' => '#3a6ea5', 'plan' => 'Business', 'company_category_id' => $stage1, 'meta' => '1 branch · 84 employees']);
 

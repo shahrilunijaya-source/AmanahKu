@@ -19,8 +19,10 @@ use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarNoteController;
+use App\Http\Controllers\CalendarSyncController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
+use App\Http\Controllers\CompanySignupController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EaFormController;
@@ -91,6 +93,7 @@ use App\Http\Controllers\SkillController;
 use App\Http\Controllers\SuperAdmin\ApiKeyController;
 use App\Http\Controllers\SuperAdmin\AttendanceAttemptController;
 use App\Http\Controllers\SuperAdmin\CompanyController as SuperCompanyController;
+use App\Http\Controllers\SuperAdmin\CompanyInviteController as SuperCompanyInviteController;
 use App\Http\Controllers\SuperAdmin\ErrorEventController;
 use App\Http\Controllers\SuperAdmin\FeatureController;
 use App\Http\Controllers\SurveyController;
@@ -138,6 +141,16 @@ Route::post('/activate/{user}', [ActivationController::class, 'update'])->middle
 // handler renders every error as JSON — a typo'd URL there would hand a developer a raw
 // JSON body instead of a 404 page.
 Route::get('/docs/api', [ApiDocsController::class, 'show'])->name('docs.api');
+
+// Invite-link company signup. Fortify's registration feature is off (config/fortify.php),
+// so these two routes own /register. The names stay `register` / `register.store`
+// because BlockRegistrationWhenDisabled keys on them. Not guest-only: a signed-in
+// member may use a link to start a second company. GET is throttled per IP so a
+// token cannot be scanned for; POST keeps Fortify's old 5/min.
+Route::get('/register', [CompanySignupController::class, 'show'])
+    ->middleware('throttle:20,1,signup')->name('register');
+Route::post('/register', [CompanySignupController::class, 'store'])
+    ->middleware('throttle:5,1,signup-post')->name('register.store');
 
 // Linked from Google's OAuth consent screen, whose reviewers open them logged out.
 Route::view('/privacy', 'legal.privacy')->name('privacy');
@@ -194,8 +207,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/companies/{tenant:slug}/category', [SuperCompanyController::class, 'updateCategory'])->name('companies.category');
         Route::post('/companies/{tenant:slug}/status', [SuperCompanyController::class, 'setStatus'])->name('companies.status');
         Route::post('/companies/{tenant:slug}/members', [SuperCompanyController::class, 'assignMember'])->name('companies.members.assign');
+        // Empty companies only (test or mistaken signups); see CompanyController::destroy.
+        Route::post('/companies/{tenant:slug}/delete', [SuperCompanyController::class, 'destroy'])->name('companies.destroy');
         Route::get('/companies/{tenant:slug}/features', [FeatureController::class, 'show'])->name('companies.features');
         Route::post('/companies/{tenant:slug}/features', [FeatureController::class, 'update'])->name('companies.features.update');
+        // Signup links: one-use, seven-day invites that let the person in charge of a
+        // new company provision it themselves (see CompanySignupController).
+        Route::post('/invites', [SuperCompanyInviteController::class, 'store'])->name('invites.store');
+        Route::post('/invites/{invite}/delete', [SuperCompanyInviteController::class, 'destroy'])->name('invites.destroy');
 
         // Machine API keys, per company. An app key belongs to an ApiClient rather than
         // a staff member, so it survives that person leaving and carries only the scopes
@@ -332,7 +351,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
         Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
-        Route::post('/app/settings/google-calendar/retry/{workItem}', [GoogleCalendarConnectionController::class, 'retry'])->name('google-calendar.retry');
+        // The task board's Google Calendar control (status, Sync now, Retry). JSON only.
+        Route::get('/app/calendar-sync/status', [CalendarSyncController::class, 'status'])->name('calendar-sync.status');
+        Route::post('/app/calendar-sync/sync', [CalendarSyncController::class, 'sync'])->name('calendar-sync.sync');
+        Route::post('/app/calendar-sync/retry/{workItem}', [CalendarSyncController::class, 'retry'])->name('calendar-sync.retry');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
@@ -386,6 +408,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1,welcome-cert')->name('welcome.certificate');
         Route::post('/app/welcome/finish', [WelcomeWizardController::class, 'finish'])->name('welcome.finish');
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
+        Route::post('/app/admin/work-week', [AdminController::class, 'updateWorkWeek'])->name('admin.workweek.update');
         // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
         Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
         // CR-30 reaction set: read by every picker, curated by HR on Company Settings.

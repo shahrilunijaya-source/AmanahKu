@@ -19,7 +19,8 @@ The directors own other businesses. The person in charge (PIC) of each one must 
 ### Superadmin side
 
 - Superadmin Companies page gets a "Generate signup link" action.
-- New table `company_invites`: `id`, `token` (40 random chars, unique), `note` (nullable, who it is for), `company_category_id` (stage package the new company starts on, default Stage 3), `expires_at` (7 days), `used_at` (nullable), `used_by_tenant_id` (nullable), `created_by_user_id`, timestamps.
+- New table `company_invites`: `id`, `token` (40 random chars, unique), `note` (nullable, who it is for), `company_category_id` (stage package the new company starts on, default Stage 2), `expires_at` (7 days), `used_at` (nullable), `used_by_tenant_id` (nullable), `created_by_user_id`, timestamps.
+- Update 2026-09-17: Stage 3 was dropped, there is no AI package to sell yet. New links default to Stage 2, the top stage that still exists.
 - Page lists invites: note, category, created, expires, status (pending / used by X / expired), copy-link button, revoke (deletes the row if unused).
 
 ### Signup side

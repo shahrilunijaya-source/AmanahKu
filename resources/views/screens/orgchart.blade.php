@@ -115,7 +115,7 @@
                         </button>
                         <div class="oc-subrole"
                              x-text="[subject.role, subject.dept].filter(Boolean).join(' · ')
-                                || ($store.ui.lang==='en' ? 'No position or department set' : 'Tiada pangkat atau bahagian')"></div>
+                                || ($store.ui.lang==='en' ? 'No position or department set' : 'Tiada jawatan atau jabatan')"></div>
 
                         {{-- Extra verifiers: approval power without a reporting line, so they
                              orbit the seat rather than sitting in it. --}}

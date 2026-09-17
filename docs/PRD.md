@@ -59,9 +59,9 @@ One deployment serves many companies. Unijaya is the first; Shell Seremban 2 and
 Tg Lumpur exist as additional tenants. A user can belong to several companies with a
 different role in each.
 
-Companies are provisioned by a super-admin, who assigns a **category** (Stage 1 / 2 / 3)
+Companies are provisioned by a super-admin, who assigns a **category** (Stage 1 / 2)
 that seeds which modules the company gets. Stage 1 is basic HR, Stage 2 adds the HR-ops
-suite, Stage 3 adds AI. The seeded package is only a starting point — the resolved
+suite. Stage 3 (AI) was dropped on 2026-09-17, since there is no AI package yet. The seeded package is only a starting point — the resolved
 per-company entitlement is the source of truth after that.
 
 ## Non-goals

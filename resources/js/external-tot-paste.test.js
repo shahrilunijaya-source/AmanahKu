@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { parseExternalTotInvite, parseHumanDate } from './external-tot-paste';
+import { parseExternalTotInvite, parseHumanDate, parseTimeRange } from './external-tot-paste';
 
 const NEOCLOUD_INVITE = `Hi Partner,
 
@@ -72,4 +72,12 @@ test('accepts "Month Day, Year" as well as "Day Month Year"', () => {
 test('parseHumanDate returns empty for unreadable text', () => {
     expect(parseHumanDate('sometime next month')).toBe('');
     expect(parseHumanDate('')).toBe('');
+});
+
+test('parseTimeRange reads 12-hour, compact and 24-hour ranges', () => {
+    expect(parseTimeRange('10:00 AM – 12:00 PM')).toEqual(['10:00', '12:00']);
+    expect(parseTimeRange('9am-4:30pm')).toEqual(['09:00', '16:30']);
+    expect(parseTimeRange('14:00 - 16:30')).toEqual(['14:00', '16:30']);
+    expect(parseTimeRange('12:15 AM')).toEqual(['00:15', '']);
+    expect(parseTimeRange('All day')).toEqual(['', '']);
 });

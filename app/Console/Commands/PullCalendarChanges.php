@@ -18,7 +18,7 @@ class PullCalendarChanges extends Command
     public function handle(): int
     {
         $count = 0;
-        GoogleCalendarConnection::query()->each(function (GoogleCalendarConnection $connection) use (&$count) {
+        GoogleCalendarConnection::query()->whereNull('revoked_at')->each(function (GoogleCalendarConnection $connection) use (&$count) {
             PullCalendarChangesJob::dispatch($connection->id);
             $count++;
         });

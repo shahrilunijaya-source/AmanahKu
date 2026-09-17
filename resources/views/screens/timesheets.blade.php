@@ -55,7 +55,7 @@
 @if (($positionMissing ?? false))
     <div class="uj-card" style="margin-bottom:16px;padding:12px 18px;display:flex;align-items:flex-start;gap:11px;font-size:12.5px;color:var(--ink);line-height:1.5;">
         <span class="uj-stamp" data-tone="amber" style="margin-top:1px;" x-text="$store.ui.lang==='en' ? 'Needs setup' : 'Perlu tetapan'">Needs setup</span>
-        <span x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band pangkat, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Pangkat & Kadar Manday.'">You have no position band assigned, so your timesheet cost can't be computed.</span>
+        <span x-text="$store.ui.lang==='en' ? 'You have no position band assigned, so your timesheet cost can\'t be computed. Set it in Administration → Position & Manday Rates.' : 'Anda belum ada band jawatan, jadi kos timesheet anda tidak dapat dikira. Tetapkan di Pentadbiran → Jawatan & Kadar Manday.'">You have no position band assigned, so your timesheet cost can't be computed.</span>
     </div>
 @endif
 
@@ -130,6 +130,8 @@
     <div class="uj-card uj-ts-card" style="width:100%;position:relative;"
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
+            workDays: @js($tsWorkDays),
+            totSaturday: @js($tsTotSaturday),
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),
@@ -676,8 +678,8 @@
                     </button>
                 </template>
             </div>
-            {{-- Base is 6 on a first-Saturday week (the TOT half day is shown by default),
-                 5 otherwise; the toggle reaches Sunday and back. --}}
+            {{-- Base runs Monday through the last working day of the company's week (6 on a
+                 TOT week or for a Saturday-working company); the toggle reaches Sunday and back. --}}
             <button type="button" @click="days = (days === 7 ? baseDays() : 7)" class="uj-btn-ghost" style="height:30px;padding:0 11px;font-size:12px;">
                 <span x-text="days !== 7 ? ($store.ui.lang==='en' ? 'Show weekend' : 'Papar hujung minggu') : ($store.ui.lang==='en' ? 'Hide weekend' : 'Sembunyi hujung minggu')"></span>
             </button>

@@ -33,6 +33,7 @@ class WelcomeWizardController extends Controller
             'employee' => $employee,
             'completion' => $completion->summary($employee),
             'payrollEnabled' => $this->payrollEnabled(),
+            'profileTestEnabled' => $this->profileTestEnabled(),
             'salary' => $employee->salaryStructure,
             'certificates' => $employee->documents()->where('category', 'Certificate')->latest()->get(),
             'personalityDone' => $completion->personalityDone($employee),
@@ -160,5 +161,12 @@ class WelcomeWizardController extends Controller
         $tenant = app(CurrentTenant::class)->get();
 
         return $tenant !== null && app(FeatureManager::class)->screenAllowed($tenant, 'payroll');
+    }
+
+    private function profileTestEnabled(): bool
+    {
+        $tenant = app(CurrentTenant::class)->get();
+
+        return $tenant !== null && app(FeatureManager::class)->screenAllowed($tenant, 'profile-test');
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\PublicHoliday;
 use App\Models\Reaction;
 use App\Support\DashboardBands;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
@@ -157,7 +158,7 @@ class BirthdayWishController extends Controller
         }
 
         $today = CarbonImmutable::now()->startOfDay();
-        $isWorkingDay = fn (CarbonImmutable $day): bool => ! $day->isWeekend()
+        $isWorkingDay = fn (CarbonImmutable $day): bool => WorkWeek::for()->isWorkingDay($day)
             && ! PublicHoliday::whereDate('date', $day->toDateString())->exists();
 
         foreach (DashboardBands::celebratedOn($today, $isWorkingDay) as $date) {

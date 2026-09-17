@@ -86,7 +86,7 @@ class SecurityAiKeyTest extends TestCase
         $token = $this->tokensFor($this->user)->first();
         $this->assertNotNull($token);
         $this->assertSame(
-            ['timesheets:read', 'board:read', 'tot:read', 'board:write', 'timesheets:write', 'tot:write'],
+            ['timesheets:read', 'board:read', 'tot:read', 'board:write', 'timesheets:write', 'tot:write', 'invites:write'],
             $token->abilities,
         );
     }

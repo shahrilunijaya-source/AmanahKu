@@ -43,7 +43,7 @@ class EventController extends Controller
      */
     private const PRIVILEGED_ROLES = ['manager', 'management', 'hr'];
 
-    private const TYPES = ['townhall', 'training', 'holiday', 'social', 'meeting'];
+    private const TYPES = ['townhall', 'training', 'holiday', 'social', 'meeting', 'event'];
 
     /** How far back "recent" past events reach before an older event is collapsed. */
     private const RECENT_PAST_DAYS = 30;
@@ -137,6 +137,8 @@ class EventController extends Controller
             'start_time' => ['nullable', 'string', 'max:40'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'start_clock' => ['nullable', 'date_format:H:i', 'required_with:end_clock'],
+            'end_clock' => ['nullable', 'date_format:H:i', 'after:start_clock'],
             'location' => ['nullable', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:2000'],
             'host' => ['nullable', 'string', 'max:120'],
@@ -146,6 +148,7 @@ class EventController extends Controller
             'tagged.*' => ['integer'],
         ]);
 
+        $data = $this->withClockTimes($request, $data);
         $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
         unset($data['tagged']);
 
@@ -197,6 +200,8 @@ class EventController extends Controller
             'start_time' => ['nullable', 'string', 'max:40'],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'start_clock' => ['nullable', 'date_format:H:i', 'required_with:end_clock'],
+            'end_clock' => ['nullable', 'date_format:H:i', 'after:start_clock'],
             'location' => ['nullable', 'string', 'max:160'],
             'description' => ['nullable', 'string', 'max:2000'],
             'host' => ['nullable', 'string', 'max:120'],
@@ -206,6 +211,7 @@ class EventController extends Controller
             'tagged.*' => ['integer'],
         ]);
 
+        $data = $this->withClockTimes($request, $data);
         $previouslyTagged = $event->taggedIds();
         $tagged = $this->taggedFromDescription($data['tagged'] ?? [], $data['description'] ?? null);
         unset($data['tagged']);
@@ -234,6 +240,41 @@ class EventController extends Controller
         AuditLog::record('Updated event', $event->title);
 
         return back()->with('ok', 'Event updated.');
+    }
+
+    /**
+     * The screen's form sends Date + Start/End time; join them into starts_at/ends_at and
+     * the "10:00 AM – 12:00 PM" label the cards show. A post without start_clock (the API,
+     * older callers) keeps whatever starts_at/ends_at/start_time it sent.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withClockTimes(Request $request, array $data): array
+    {
+        $start = $data['start_clock'] ?? null;
+        $end = $data['end_clock'] ?? null;
+        unset($data['start_clock'], $data['end_clock']);
+
+        if (! $request->exists('start_clock')) {
+            return $data;
+        }
+
+        if (! $start) {
+            // Cleared on the form: drop the slot, but leave a pasted free-text time alone.
+            return [...$data, 'starts_at' => null, 'ends_at' => null];
+        }
+
+        $date = CarbonImmutable::parse($data['event_date'])->format('Y-m-d');
+        $startsAt = CarbonImmutable::parse("{$date} {$start}");
+        $endsAt = $end ? CarbonImmutable::parse("{$date} {$end}") : null;
+
+        return [
+            ...$data,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'start_time' => $startsAt->format('g:i A').($endsAt ? ' – '.$endsAt->format('g:i A') : ''),
+        ];
     }
 
     /** Privileged-only: remove an event entirely. */

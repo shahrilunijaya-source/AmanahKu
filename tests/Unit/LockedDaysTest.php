@@ -31,7 +31,8 @@ class LockedDaysTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // Unijaya-shaped: the first Saturday of the month is the TOT half day.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC', 'tot_saturday' => true]);
         app(CurrentTenant::class)->set($this->tenant);
         $this->employee = Employee::create([
             'tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',

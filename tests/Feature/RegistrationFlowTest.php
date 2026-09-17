@@ -4,44 +4,21 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Self-serve registration + email verification + no-workspace landing (Phase 2).
+ * No-workspace landing for an account with no company, and the fact that /register
+ * is no longer an open door (invite-link signup lives in CompanySignupTest).
  */
 class RegistrationFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_register_page_loads(): void
+    public function test_register_page_without_an_invite_is_a_404(): void
     {
-        $this->get('/register')->assertOk()->assertSee('Create your account');
-    }
-
-    public function test_a_visitor_can_register_and_is_unverified(): void
-    {
-        Event::fake();
-
-        $response = $this->post('/register', [
-            'name' => 'New Person',
-            'email' => 'new@example.com',
-            'password' => 'Sup3r-Secret-Pw!',
-            'password_confirmation' => 'Sup3r-Secret-Pw!',
-        ]);
-
-        $response->assertRedirect('/tenant');
-
-        $user = User::where('email', 'new@example.com')->firstOrFail();
-        $this->assertNull($user->email_verified_at);
-        $this->assertFalse($user->isSuperAdmin());
-        $this->assertCount(0, $user->tenants);
-
-        // MustVerifyEmail → Fortify fires Registered, which triggers the verification mail.
-        Event::assertDispatched(Registered::class);
+        $this->get('/register')->assertNotFound();
     }
 
     public function test_registered_user_with_no_company_sees_no_workspace_state(): void

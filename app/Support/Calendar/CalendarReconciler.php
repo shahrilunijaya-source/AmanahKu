@@ -8,6 +8,7 @@ use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\AppNotification;
 use App\Models\Employee;
 use App\Models\WorkItem;
+use App\Models\WorkItemCalendarCopy;
 use App\Models\WorkItemComment;
 use App\Ports\Data\CalendarEvent;
 use App\Support\AutoDone;
@@ -24,7 +25,8 @@ use App\Support\AutoDone;
  *    to the locked date and the card history says so (rule 4 of the dates contract);
  *  - work item entry deleted in the calendar: re-created on this pass, card untouched;
  *  - unknown event on the Amanahku calendar: becomes an Event card the person can
- *    convert (rule 1); nothing from any other calendar ever gets here.
+ *    convert (rule 1); nothing from any other calendar ever gets here;
+ *  - a tagged person's copy moved or deleted: pushed back / re-created, card untouched;
  *
  * Only writes that are real edits go through the model (audit rows, observers); the
  * version stamp is a query-builder update so it never counts as an edit.
@@ -48,7 +50,11 @@ final class CalendarReconciler
                 ->first();
 
             if ($card === null) {
-                $this->import($for, $change);
+                $copy = WorkItemCalendarCopy::where('employee_id', $for->id)
+                    ->where('google_event_id', $change->externalId)
+                    ->first();
+
+                $copy ? $this->taggedCopyChanged($copy, $change) : $this->import($for, $change);
 
                 continue;
             }
@@ -133,6 +139,28 @@ final class CalendarReconciler
             'calendar_version' => $change->version,
         ]);
         $this->trail($card, 'Imported from Google Calendar');
+    }
+
+    /**
+     * A tagged person's own copy changed in their calendar. Their calendar never edits
+     * the card: a move is pushed back to the card's date, a delete is re-created.
+     */
+    private function taggedCopyChanged(WorkItemCalendarCopy $copy, CalendarEvent $change): void
+    {
+        if ($change->version !== null && $change->version === $copy->calendar_version) {
+            return; // our own push coming back
+        }
+
+        $card = WorkItem::withoutGlobalScopes()->find($copy->work_item_id);
+        if ($card === null) {
+            return;
+        }
+
+        if ($change->cancelled) {
+            $copy->update(['google_event_id' => null, 'calendar_version' => null]);
+        }
+
+        TaggedCopies::pushOne($card, $copy->employee_id);
     }
 
     private function repush(WorkItem $card): void

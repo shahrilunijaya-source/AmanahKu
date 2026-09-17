@@ -8,6 +8,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
+use App\Support\WorkWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -187,12 +188,12 @@ class ReminderTargets
     }
 
     /**
-     * Weekends and tenant public holidays. There is no per-branch working-days column in
-     * the schema yet, so Saturday rosters are not covered — see the plan's known ceilings.
+     * Days off in the tenant's work week (App\Support\WorkWeek) and tenant public
+     * holidays. The work week is company-wide; there is no per-branch roster.
      */
     private function isNonWorkingDay(Carbon $now): bool
     {
-        return $now->isWeekend()
+        return ! WorkWeek::for()->isWorkingDay($now)
             || PublicHoliday::query()->whereDate('date', $now->toDateString())->exists();
     }
 

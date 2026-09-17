@@ -8,6 +8,7 @@ use App\Mcp\Tools\ArchiveCardTool;
 use App\Mcp\Tools\AssignTaskTool;
 use App\Mcp\Tools\ConfirmWriteTool;
 use App\Mcp\Tools\CreateCardTool;
+use App\Mcp\Tools\CreateCompanyInviteTool;
 use App\Mcp\Tools\CreateExternalTotEventTool;
 use App\Mcp\Tools\MoveCardTool;
 use App\Mcp\Tools\RestoreCardTool;
@@ -97,6 +98,10 @@ use Laravel\Mcp\Server\Attributes\Version;
     host, since the host is what marks an event External rather than internal. It
     never tags anyone, on any run, so it never sends a "you're required to
     attend" email.
+
+    The one exception to the two-step rule is create_company_invite: a director
+    or HR calls it once, with invites:write, and gets back a self-serve signup
+    link (one use, 7 days) for a brand-new company. No confirm_write needed.
     MARKDOWN
 )]
 class AmanahkuServer extends Server
@@ -114,6 +119,7 @@ class AmanahkuServer extends Server
         AssignTaskTool::class,
         SaveTimesheetDraftTool::class,
         CreateExternalTotEventTool::class,
+        CreateCompanyInviteTool::class,
         ConfirmWriteTool::class,
     ];
 

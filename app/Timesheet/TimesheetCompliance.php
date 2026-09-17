@@ -7,6 +7,7 @@ namespace App\Timesheet;
 use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -115,7 +116,7 @@ final class TimesheetCompliance
         // Nobody is expected to file a timesheet for a week they were never at work for.
         // Only fully locked days (holiday / whole-day leave) count: a half-day leave still
         // expects the staffer to fill the other half, so it does not excuse the week.
-        return $this->fullyLockedCount($this->lockedDays->forWeek($employee, $weekStart)) < 5;
+        return $this->fullyLockedCount($this->lockedDays->forWeek($employee, $weekStart)) < count(WorkWeek::for()->workingDays());
     }
 
     /**
