@@ -146,12 +146,12 @@ class Amanahku
 
             // ── Pay & Benefits ────────────────────────────────────────────────
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'payroll', 'label' => 'Payroll', 'label_ms' => 'Gaji', 'landing' => true, 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6M6 8v8M18 8v8', 'children' => [
-                ['id' => 'payroll-my', 'label' => 'My Payroll', 'label_ms' => 'Gaji Saya'],
-                ['id' => 'payroll-transaction', 'label' => 'Transaction', 'label_ms' => 'Transaksi', 'roles' => ['management', 'hr']],
-                ['id' => 'payroll-process', 'label' => 'Process', 'label_ms' => 'Proses', 'roles' => ['management', 'hr']],
-                ['id' => 'payroll-review', 'label' => 'Payroll Review', 'label_ms' => 'Semakan Gaji', 'roles' => ['management', 'hr']],
-                ['id' => 'payroll-payment', 'label' => 'Payment', 'label_ms' => 'Pembayaran', 'roles' => ['management', 'hr']],
-                ['id' => 'payroll-form', 'label' => 'Form', 'label_ms' => 'Borang', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-my', 'label' => 'My Payroll', 'label_ms' => 'Gaji Saya', 'icon' => 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8'],
+                ['id' => 'payroll-transaction', 'label' => 'Transaction', 'label_ms' => 'Transaksi', 'icon' => 'M8 3L4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-process', 'label' => 'Process', 'label_ms' => 'Proses', 'icon' => 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-review', 'label' => 'Payroll Review', 'label_ms' => 'Semakan Gaji', 'icon' => 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-payment', 'label' => 'Payment', 'label_ms' => 'Pembayaran', 'icon' => 'M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM1 10h22', 'roles' => ['management', 'hr']],
+                ['id' => 'payroll-form', 'label' => 'Form', 'label_ms' => 'Borang', 'icon' => 'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6v4H9z', 'roles' => ['management', 'hr']],
             ]]),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'loans', 'label' => 'Loans & Advances', 'label_ms' => 'Pinjaman & Pendahuluan', 'icon' => 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']),
             $s('Pay & Benefits', 'Gaji & Faedah', ['id' => 'pettycash', 'label' => 'Petty Cash', 'label_ms' => 'Wang Runcit', 'icon' => 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 12h.01M6 9v6M18 9v6']),
