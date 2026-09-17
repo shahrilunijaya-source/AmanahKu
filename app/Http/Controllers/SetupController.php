@@ -103,7 +103,7 @@ class SetupController extends Controller
 
         // Payroll is only relevant when the module is enabled for the tenant.
         if ($this->payrollEnabled()) {
-            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'desc_ms' => 'Struktur gaji untuk pekerja aktif. EPF/SOCSO/EIS/PCB ikut jadual rasmi tetap.', 'guide' => 'Go to Payroll, open an employee under Salary structures and save their basic salary and statutory numbers.', 'guide_ms' => 'Pergi ke Gaji, buka pekerja di bawah Struktur gaji dan simpan gaji pokok serta nombor berkanun mereka.', 'screen' => 'payroll', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
+            $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'desc_ms' => 'Struktur gaji untuk pekerja aktif. EPF/SOCSO/EIS/PCB ikut jadual rasmi tetap.', 'guide' => 'Open each active employee\'s profile and save their basic salary and statutory numbers under Bank & Statutory.', 'guide_ms' => 'Buka profil setiap pekerja aktif dan simpan gaji pokok serta nombor berkanun mereka di bawah Bank & Statutori.', 'screen' => 'payroll-process', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
         }
 
         // Dashboard touches — optional. Both banks are seeded for every company, so these

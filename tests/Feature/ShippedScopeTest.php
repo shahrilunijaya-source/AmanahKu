@@ -43,7 +43,8 @@ class ShippedScopeTest extends TestCase
     /** One screen per descoped module — each must read as absent. */
     private const OUT_OF_SCOPE = [
         'roster', 'shiftswap', 'overtime', 'events', 'rooms', 'vehicles',
-        'payroll', 'loans', 'pettycash', 'benefits', 'wellness',
+        'payroll', 'payroll-my', 'payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form',
+        'loans', 'pettycash', 'benefits', 'wellness',
         'kpi', 'achievements', 'reviews', 'goals', 'skills',
         'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',

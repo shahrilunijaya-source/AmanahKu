@@ -661,7 +661,11 @@
                         <div class="uj-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft);">
                             <span style="flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--success);"></span>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);">{{ $money($ps->net_pay) }}</div>
+                                @if (request()->attributes->get('employee')?->id === $ps->employee_id && $ps->payrollRun?->status === 'finalized')
+                                    <a href="{{ route('app.screen', ['screen' => 'payroll-my', 'payslip' => $ps->id]) }}" style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);text-decoration:none;">{{ $money($ps->net_pay) }}</a>
+                                @else
+                                    <div style="font-size:13px;color:var(--ink);font-weight:500;font-family:var(--font-mono);">{{ $money($ps->net_pay) }}</div>
+                                @endif
                                 <div style="font-size:11.5px;color:var(--muted);">{{ $ps->created_at?->format('d M Y') }}</div>
                             </div>
                             <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;"><span x-text="$store.ui.lang==='en' ? 'Gross' : 'Kasar'"></span> {{ $money($ps->gross) }}</span>

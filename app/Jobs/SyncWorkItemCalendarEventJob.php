@@ -8,8 +8,10 @@ use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
 use App\Models\WorkItem;
+use App\Models\WorkItemCalendarCopy;
 use App\Ports\CalendarPort;
 use App\Support\Calendar\CalendarMirror;
+use App\Support\Calendar\TaggedCopies;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -48,11 +50,13 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
         public readonly ?int $workItemId = null,
         public readonly ?int $userId = null,
         public readonly ?string $googleEventId = null,
+        /** A tagged person's copy instead of the owner's entry. Null = the owner. */
+        public readonly ?int $recipientEmployeeId = null,
     ) {}
 
     public function uniqueId(): string
     {
-        return "{$this->action}:{$this->workItemId}:{$this->userId}:{$this->googleEventId}";
+        return "{$this->action}:{$this->workItemId}:{$this->userId}:{$this->googleEventId}:{$this->recipientEmployeeId}";
     }
 
     public function handle(CurrentTenant $context, CalendarPort $port): void
@@ -76,16 +80,32 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
 
     public function failed(?Throwable $e): void
     {
-        if ($this->workItemId) {
-            WorkItem::withoutGlobalScopes()->where('id', $this->workItemId)
-                ->update(['calendar_sync_error' => mb_substr($e?->getMessage() ?? 'Calendar sync failed', 0, 500)]);
+        if (! $this->workItemId) {
+            return;
         }
+        $message = mb_substr($e?->getMessage() ?? 'Calendar sync failed', 0, 500);
+
+        if ($this->recipientEmployeeId !== null) {
+            WorkItemCalendarCopy::where('work_item_id', $this->workItemId)
+                ->where('employee_id', $this->recipientEmployeeId)
+                ->update(['sync_error' => $message]);
+
+            return;
+        }
+
+        WorkItem::withoutGlobalScopes()->where('id', $this->workItemId)->update(['calendar_sync_error' => $message]);
     }
 
     private function runUpsert(CalendarPort $port): void
     {
         $item = WorkItem::withoutGlobalScopes()->find($this->workItemId);
         if (! $item || ! CalendarMirror::syncable($item)) {
+            return;
+        }
+
+        if ($this->recipientEmployeeId !== null) {
+            $this->upsertCopy($port, $item);
+
             return;
         }
 
@@ -107,6 +127,34 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
         ]);
     }
 
+    private function upsertCopy(CalendarPort $port, WorkItem $item): void
+    {
+        $employee = Employee::withoutGlobalScope('tenant')->find($this->recipientEmployeeId);
+        if (! $employee?->user_id || ! $this->connected($employee)) {
+            return;
+        }
+        // Untagged between dispatch and run: nothing to send.
+        if (! TaggedCopies::recipients($item)->contains('id', $employee->id)) {
+            return;
+        }
+
+        $copy = WorkItemCalendarCopy::firstOrNew(
+            ['work_item_id' => $item->id, 'employee_id' => $employee->id],
+            ['tenant_id' => $item->tenant_id],
+        );
+
+        $result = $port->upsertEvent($employee, CalendarMirror::event($item, $copy));
+        if (! $result->ok) {
+            throw new RuntimeException("Calendar push failed (outbox #{$result->outboxId}).");
+        }
+
+        $copy->fill([
+            'google_event_id' => $result->externalId,
+            'calendar_version' => $result->payload['version'] ?? null,
+            'sync_error' => null,
+        ])->save();
+    }
+
     private function runDelete(CalendarPort $port): void
     {
         if (! $this->userId || ! $this->googleEventId) {
@@ -121,6 +169,17 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
             }
         }
 
+        if ($this->recipientEmployeeId !== null) {
+            // Only the row still holding the event we just removed: a re-tag may have
+            // written a newer one.
+            WorkItemCalendarCopy::where('work_item_id', $this->workItemId)
+                ->where('employee_id', $this->recipientEmployeeId)
+                ->where('google_event_id', $this->googleEventId)
+                ->delete();
+
+            return;
+        }
+
         if ($this->workItemId) {
             // Scoped by the event id we just deleted: if a later upsert already wrote a
             // newer event id onto this row, don't clobber it.
@@ -130,9 +189,9 @@ class SyncWorkItemCalendarEventJob implements ShouldBeUniqueUntilProcessing, Sho
         }
     }
 
-    /** No connection, nothing to mirror: silently done, not a failure to retry. */
+    /** No live connection, nothing to mirror: silently done, not a failure to retry. */
     private function connected(Employee $employee): bool
     {
-        return GoogleCalendarConnection::where('user_id', $employee->user_id)->exists();
+        return GoogleCalendarConnection::where('user_id', $employee->user_id)->whereNull('revoked_at')->exists();
     }
 }

@@ -221,7 +221,7 @@ trait BuildsPeopleData
             : collect();
 
         $payslips = ($e && $payrollGate)
-            ? $e->payslips()->orderByDesc('id')->limit(12)->get()
+            ? $e->payslips()->with('payrollRun')->orderByDesc('id')->limit(12)->get()
             : collect();
 
         $claims = ($e && $claimsGate)

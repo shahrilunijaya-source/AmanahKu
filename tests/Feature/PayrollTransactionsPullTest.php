@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\FixedTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\OvertimeRequest;
@@ -379,8 +381,73 @@ class PayrollTransactionsPullTest extends TestCase
             'unpaid_leave_request_ids' => null,
         ])->save();
 
-        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll', 'payslip' => $slip->id]))->assertOk()
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $run->id, 'payslip' => $slip->id]))->assertOk()
             ->assertSee('Legacy travel claim')
             ->assertSee('Legacy advance');
+    }
+    // ── Pull ticks on the new-run form ───────────────────────────
+
+    public function test_the_new_run_form_offers_the_four_pull_ticks_all_on(): void
+    {
+        $html = $this->actingHr()->get('/app/payroll-process')->assertOk()->getContent();
+
+        foreach (['pull_fixed', 'pull_claims', 'pull_overtime', 'pull_unpaid'] as $name) {
+            $this->assertMatchesRegularExpression('/<input type="checkbox" name="'.$name.'" value="1" checked/', $html);
+        }
+    }
+
+    public function test_unticked_pulls_are_skipped_at_create_and_stay_skipped_on_recompute(): void
+    {
+        PayrollItem::seedFor($this->tenant);
+        FixedTransaction::forceCreate([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id,
+            'payroll_item_id' => PayrollItem::where('code', 'fixed-allowance')->value('id'),
+            'amount' => 300, 'start_period' => '2026-01', 'end_period' => null, 'prorate' => false,
+        ]);
+        $claim = Claim::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id,
+            'type' => 'expense', 'title' => 'Dock', 'amount' => 120, 'status' => 'approved', 'date' => '2026-06-05',
+        ]);
+        $ot = $this->overtimeRequest();
+        LeaveRequest::forceCreate([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'leave_type_id' => $this->unpaidLeaveType()->id,
+            'date_from' => '2026-06-08', 'date_to' => '2026-06-08', 'days' => 1, 'status' => 'approved',
+        ]);
+
+        $this->actingHr()->post('/app/payroll/runs', [
+            'period' => '2026-06', 'pull_fixed' => '0', 'pull_claims' => '0', 'pull_overtime' => '0', 'pull_unpaid' => '0',
+        ])->assertRedirect();
+        $run = PayrollRun::where('period', '2026-06')->firstOrFail();
+        $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+
+        $this->assertSame(['fixed' => false, 'claims' => false, 'overtime' => false, 'unpaid' => false], $run->pull_options);
+        $this->assertEqualsWithDelta(0.0, (float) $slip->allowances_total, 0.001);
+        $this->assertEqualsWithDelta(0.0, (float) $slip->claims_reimbursement, 0.001);
+        $this->assertNull($slip->claim_ids);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Created payroll run', 'target' => 'June 2026 · 1 payslips · not pulled: fixed, claims, overtime, unpaid']);
+        $this->assertEqualsWithDelta(0.0, (float) $slip->overtime_amount, 0.001);
+        $this->assertEqualsWithDelta(0.0, (float) $slip->pulled_unpaid_days, 0.001);
+
+        // A payslip edit re-reads overtime and unpaid leave; the run's choice still holds.
+        $this->actingHr()->post("/app/payroll/payslips/{$slip->id}", ['bonus' => 50])->assertRedirect();
+        $slip->refresh();
+        $this->assertEqualsWithDelta(0.0, (float) $slip->overtime_amount, 0.001);
+        $this->assertNull($slip->overtime_request_ids);
+        $this->assertEqualsWithDelta(0.0, (float) $slip->pulled_unpaid_days, 0.001);
+
+        // Skipped items stay free for the next run.
+        $july = $this->createRun('2026-07');
+        $this->assertTrue($july->pull_options === null || $july->pulls('claims'));
+        $this->assertContains($claim->id, $july->payslips()->firstOrFail()->claim_ids);
+        $this->assertNull($ot->fresh()->paid_at);
+    }
+
+    public function test_a_run_created_without_the_fields_pulls_everything(): void
+    {
+        $this->overtimeRequest();
+        $run = $this->createRun();
+
+        $this->assertTrue($run->pulls('overtime'));
+        $this->assertGreaterThan(0, (float) $run->payslips()->firstOrFail()->overtime_amount);
     }
 }

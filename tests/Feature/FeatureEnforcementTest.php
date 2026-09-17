@@ -51,7 +51,7 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_enabled_module_screen_and_nav_are_reachable(): void
     {
-        $this->actingHr()->get('/app/payroll')
+        $this->actingHr()->get('/app/payroll-process')
             ->assertOk()
             ->assertSee('Payroll');
     }

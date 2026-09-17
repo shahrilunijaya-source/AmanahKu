@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property array<string, bool>|null $pull_options
+ */
 class PayrollRun extends Model
 {
     use BelongsToTenant;
@@ -24,14 +27,27 @@ class PayrollRun extends Model
         'run_by_id',
         'approved_by_id',
         'notes',
+        'payment_date',
+        'pull_options',
     ];
+
+    /** Sources a run can pull in; the new-run form shows one tick per key. */
+    public const PULL_SOURCES = ['fixed', 'claims', 'overtime', 'unpaid'];
 
     protected function casts(): array
     {
         return [
             'totals' => 'array',
             'finalized_at' => 'datetime',
+            'payment_date' => 'date',
+            'pull_options' => 'array',
         ];
+    }
+
+    /** Whether this run pulls the given source. A run with no stored choice pulls everything. */
+    public function pulls(string $source): bool
+    {
+        return (bool) ($this->pull_options[$source] ?? true);
     }
 
     /** @return HasMany<Payslip, $this> */

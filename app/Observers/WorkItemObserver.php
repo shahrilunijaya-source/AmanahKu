@@ -7,8 +7,10 @@ namespace App\Observers;
 use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\Employee;
 use App\Models\WorkItem;
+use App\Models\WorkItemCalendarCopy;
 use App\Models\WorkItemProgressStint;
 use App\Support\Calendar\CalendarMirror;
+use App\Support\Calendar\TaggedCopies;
 
 /**
  * Detects the WorkItem changes that matter for calendar sync (CR-01) and
@@ -61,6 +63,9 @@ class WorkItemObserver
 
         $syncable = CalendarMirror::syncable($item);
 
+        // Tagged Helper/FYI copies follow the same edits (and leave with the owner's).
+        TaggedCopies::sync($item);
+
         if (! $syncable) {
             if (! $reassigned && $item->google_event_id) {
                 $this->deleteCurrentEvent($item);
@@ -83,6 +88,13 @@ class WorkItemObserver
         }
 
         $this->deleteCurrentEvent($item);
+    }
+
+    /** Copies vanish with the card via the FK cascade, so take them out of Google first. */
+    public function deleting(WorkItem $item): void
+    {
+        WorkItemCalendarCopy::where('work_item_id', $item->id)->get()
+            ->each(fn (WorkItemCalendarCopy $copy) => TaggedCopies::remove($copy));
     }
 
     /**

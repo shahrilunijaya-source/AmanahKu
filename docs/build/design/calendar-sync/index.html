@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board · Google Calendar control (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--red:#d6232b;--red-active:#b01b22;--red-tint:#fcebec;--canvas:#f6f6f3;--card:#fff;--sidebar:#1f1e1a;--sidebar-soft:#2b2a25;--sidebar-text:#b8b6ad;--ink:#26251e;--body:#5a5852;--muted:#6f6c61;--muted-soft:#8b887e;--hairline:#e6e5e0;--hairline-soft:#efeee8;--success:#1f8a65;--success-ink:#14614a;--amber:#c08532;--amber-ink:#7a5210;--error:#cf2d56;--error-ink:#a01840;--shelf:#ece9e1;--shadow-menu:0 5px 14px rgba(31,30,26,.13);--font-sans:Poppins,system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;--ease:cubic-bezier(.2,.7,.2,1)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--font-sans);font-size:14px}
+button{font-family:inherit}
+
+/* mockup-only state switcher */
+.states{position:sticky;top:0;z-index:100;background:#111;color:#ddd;padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.states b{margin-right:6px;color:#fff}
+.states button{background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.states button.on{background:#fff;color:#111}
+
+.app{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 44px)}
+.side{background:var(--sidebar);color:var(--sidebar-text);padding:18px 14px;font-size:13px}
+.side .logo{color:#fff;font-weight:600;display:flex;gap:9px;align-items:center;margin-bottom:22px}
+.side .mark{width:26px;height:26px;border-radius:7px;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.side a{display:block;padding:7px 10px;border-radius:7px;color:inherit;text-decoration:none;margin-bottom:2px}
+.side a.on{background:var(--sidebar-soft);color:#fff}
+main{padding:22px 28px;min-width:0}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}
+.head .sp{flex:1}
+.chip{padding:7px 14px;font-size:12.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;background:#fff;color:var(--body);display:inline-flex;gap:7px}
+.chip.on{background:var(--red);color:#fff;border-color:var(--red)}
+.row{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.cols{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:12px;overflow-x:auto}
+.col{background:var(--shelf);border-radius:12px;padding:10px;min-height:260px}
+.col h3{margin:2px 4px 10px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--hairline);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.card small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+
+/* ---- the new piece ---- */
+.gc{position:relative}
+.gc-pill{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border:1px solid var(--hairline);border-radius:9999px;background:#fff;color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer;transition:border-color .14s var(--ease),box-shadow .14s var(--ease)}
+.gc-pill:hover{border-color:#d4d2cb}
+.gc-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.gc-pill .sub{font-weight:500;color:var(--muted);font-size:11.5px}
+.gc-pill.warn{border-color:#f0c9d3;background:#fdf3f6;color:var(--error-ink)}
+.gc-pill.warn .sub{color:var(--error-ink)}
+.badge{min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:var(--error);color:#fff;font-size:10.5px;font-family:var(--font-mono);display:grid;place-items:center}
+.gc-panel{position:absolute;right:0;top:42px;width:340px;max-width:calc(100vw - 32px);background:#fff;border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow-menu);z-index:40;overflow:hidden}
+.gc-top{padding:14px 16px 12px;display:flex;gap:11px;align-items:flex-start;border-bottom:1px solid var(--hairline-soft)}
+.gc-top svg{flex-shrink:0;margin-top:2px}
+.gc-top .t{font-weight:600;font-size:13.5px}
+.gc-top .s{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45}
+.gc-body{padding:12px 16px 14px}
+.btn{height:34px;padding:0 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent}
+.btn-red{background:var(--red);color:#fff}
+.btn-red:hover{background:var(--red-active)}
+.btn-red[disabled]{background:#eceae4;color:var(--muted-soft);cursor:not-allowed}
+.btn-ghost{background:#fff;color:var(--body);border-color:var(--hairline)}
+.btn-google{background:#fff;color:#3c4043;border-color:#dadce0;width:100%;height:38px}
+.btn-link{background:none;border:none;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer;padding:0}
+.w100{width:100%}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.bar{height:4px;border-radius:4px;background:var(--hairline-soft);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;width:62%;background:var(--red);border-radius:4px;transition:width .3s var(--ease)}
+.note{font-size:11.5px;color:var(--muted);margin-top:8px;text-align:center}
+.result{display:flex;gap:9px;align-items:flex-start;background:#eef7f3;border:1px solid #cfe7dc;color:var(--success-ink);border-radius:10px;padding:9px 11px;font-size:12px;margin-bottom:10px;line-height:1.45}
+.result.bad{background:#fdf3f6;border-color:#f0c9d3;color:var(--error-ink)}
+.issues{margin-top:12px;border-top:1px solid var(--hairline-soft);padding-top:10px}
+.issues h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--error)}
+.iss{display:flex;gap:8px;align-items:center;padding:6px 0;font-size:12px}
+.iss .n{flex:1;min-width:0}
+.iss .n div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);font-weight:500}
+.iss .n span{color:var(--muted);font-size:11px}
+.iss button{height:26px;padding:0 9px;font-size:11px;border-radius:7px}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:#fbfbf9;border-top:1px solid var(--hairline-soft);font-size:11.5px;color:var(--muted)}
+.toast[hidden]{display:none}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;box-shadow:var(--shadow-menu);display:flex;gap:10px;align-items:center}
+.explain{max-width:760px;margin:26px 0 0;padding:14px 16px;border:1px dashed #cfccc2;border-radius:10px;font-size:12.5px;color:var(--body);line-height:1.6;background:#fff}
+.explain b{color:var(--ink)}
+@media(max-width:760px){.app{grid-template-columns:1fr}.side{display:none}.cols{grid-template-columns:repeat(4,78%)}}
+</style>
+</head>
+<body>
+
+<div class="states">
+  <b>Mockup state:</b>
+  <button data-s="off">1 · Not connected</button>
+  <button data-s="idle" class="on">2 · Connected</button>
+  <button data-s="busy">3 · Syncing</button>
+  <button data-s="done">4 · Sync finished</button>
+  <button data-s="issues">5 · Some cards failed</button>
+  <button data-s="expired">6 · Connection expired</button>
+  <button data-s="limit">7 · Tried again too soon</button>
+</div>
+
+<div class="app">
+  <aside class="side">
+    <div class="logo"><div class="mark">A</div>AmanahKu</div>
+    <a>Dashboard</a><a class="on">T.A.A. board</a><a>Timesheet</a><a>Leave</a><a>Claims</a><a>Profile</a>
+  </aside>
+
+  <main>
+    <div class="head">
+      <h1>T.A.A. board</h1>
+      <div class="sp"></div>
+
+      <!-- NEW: Google Calendar control -->
+      <div class="gc">
+        <button class="gc-pill" id="pill"></button>
+        <div class="gc-panel" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="chip on">All work 12</span><span class="chip">Tasks 5</span><span class="chip">Assignments 6</span><span class="chip">Adhoc 1</span>
+    </div>
+    <div class="cols">
+      <div class="col"><h3>To do</h3><div class="card">Prepare Q4 budget<small>Due 24 Sep · Assignment</small></div><div class="card">Vendor follow-up<small>Due 26 Sep · Task</small></div></div>
+      <div class="col"><h3>In progress</h3><div class="card">Test<small>Due 22 Sep · Assignment</small></div></div>
+      <div class="col"><h3>In review</h3><div class="card">Staff handbook update<small>Due 30 Sep · Task · Tagged – Helper</small></div></div>
+      <div class="col"><h3>Done</h3></div>
+    </div>
+
+    <div class="explain" id="explain"></div>
+  </main>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const G = '<svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>';
+const dot = c => `<span class="dot" style="background:${c}"></span>`;
+const foot = `<div class="foot"><span>Only your "Amanahku" calendar is used.</span><button class="btn-link">Disconnect</button></div>`;
+const panelHead = (t, s) => `<div class="gc-top">${G}<div><div class="t">${t}</div><div class="s">${s}</div></div></div>`;
+const issueList = `<div class="issues"><h4>2 cards could not be sent</h4>
+  <div class="iss"><div class="n"><div>Prepare Q4 budget</div><span>Google did not answer. Tried 5 times.</span></div><button class="btn btn-ghost">Retry</button></div>
+  <div class="iss"><div class="n"><div>Vendor follow-up</div><span>Google did not answer. Tried 5 times.</span></div><button class="btn btn-ghost">Retry</button></div></div>`;
+
+const S = {
+  off: {
+    pill: `${dot('#b9b6ad')}Google Calendar <span class="sub">Not connected</span>`,
+    panel: panelHead('Not connected', 'Connect once and every card you own or are tagged on shows up in a separate "Amanahku" calendar. Your main calendar is never touched.')
+      + `<div class="gc-body"><button class="btn btn-google">${G} Connect Google Calendar</button><div class="note">Your cards are sent automatically right after you connect.</div></div>`,
+    explain: '<b>Not connected.</b> Grey dot. The panel explains what connecting does and has the only Connect button in the app (removed from Profile). After Google sends you back, you land on this board, the panel opens by itself and shows state 3 while your cards are sent.'
+  },
+  idle: {
+    pill: `${dot('var(--success)')}Google Calendar <span class="sub">Synced 3 min ago</span>`,
+    panel: panelHead('Connected', '12 cards in your "Amanahku" calendar · last synced 3 min ago')
+      + `<div class="gc-body"><button class="btn btn-red w100">Sync now</button><div class="note">Sends all your cards to Google and brings back changes made there. Changes also come in by themselves every 5 minutes.</div></div>` + foot,
+    explain: '<b>Connected.</b> Green dot and when it last synced. "Sync now" is for when something looks missing, such as right after reconnecting.'
+  },
+  busy: {
+    pill: `<span class="spin" style="border-color:rgba(214,35,43,.25);border-top-color:var(--red)"></span>Google Calendar <span class="sub">Syncing…</span>`,
+    panel: panelHead('Connected', '12 cards in your "Amanahku" calendar')
+      + `<div class="gc-body"><button class="btn btn-red w100" disabled style="background:var(--red);color:#fff;opacity:.85"><span class="spin"></span> Syncing 8 of 12 cards…</button><div class="bar"><i></i></div><div class="note">You can keep working. This finishes in the background.</div></div>` + foot,
+    explain: '<b>Syncing.</b> The button locks so it can\'t be pressed twice, a count and bar show progress, and the pill spins too, so you can close the panel and still see it working.'
+  },
+  done: {
+    pill: `${dot('var(--success)')}Google Calendar <span class="sub">Synced just now</span>`,
+    panel: panelHead('Connected', '12 cards in your "Amanahku" calendar · last synced just now')
+      + `<div class="gc-body"><div class="result"><span>✓</span><span><b>All 12 cards sent.</b> 1 change brought back from Google: "Team lunch" moved to 25 Sep.</span></div><button class="btn btn-red w100" disabled>Sync again in 1:52</button><div class="note">You can sync once every 2 minutes.</div></div>` + foot,
+    toast: '✓ Google Calendar synced · 12 cards sent',
+    explain: '<b>Finished.</b> A short message pops up at the bottom (in case the panel was closed), and the panel says exactly what happened. <b>Limit:</b> the button then waits 2 minutes with a live countdown, so it can\'t be pressed over and over.'
+  },
+  issues: {
+    pill: `${dot('var(--error)')}Google Calendar <span class="badge">2</span>`,
+    cls: 'warn',
+    panel: panelHead('Connected, 2 cards need attention', 'Last synced 4 min ago')
+      + `<div class="gc-body"><div class="result bad"><span>!</span><span><b>10 of 12 cards sent.</b> 2 could not be sent. Use Retry below, or Sync now.</span></div><button class="btn btn-red w100">Sync now</button>${issueList}</div>` + foot,
+    explain: '<b>Some cards failed.</b> The pill turns red with a count, even when the panel is closed, so problems aren\'t hidden on another page. Each failed card says why and has its own Retry (Retry uses the same limit).'
+  },
+  expired: {
+    pill: `${dot('var(--error)')}Google Calendar <span class="sub">Reconnect</span>`,
+    cls: 'warn',
+    panel: panelHead('Connection expired', 'Google stopped letting AmanahKu update your calendar, so nothing is being sent right now. Your cards are safe; reconnect and they will be sent again.')
+      + `<div class="gc-body"><button class="btn btn-google">${G} Reconnect Google Calendar</button><div class="note">This happens if access was removed in your Google account, or Google cancelled it.</div></div>`,
+    explain: '<b>Expired.</b> Today the app keeps showing "connected" after Google cancels access (the 7-day problem). Now the first failed attempt flips this to red "Reconnect". Reconnecting sends everything again by itself.'
+  },
+  limit: {
+    pill: `${dot('var(--success)')}Google Calendar <span class="sub">Synced 40 sec ago</span>`,
+    panel: panelHead('Connected', '12 cards in your "Amanahku" calendar · last synced 40 sec ago')
+      + `<div class="gc-body"><button class="btn btn-red w100" disabled>Sync again in 1:20</button><div class="note">You can sync once every 2 minutes. Changes from Google still come in by themselves every 5 minutes.</div></div>` + foot,
+    explain: '<b>Limit.</b> Also counted on the server, so it holds across tabs, a page refresh, or someone calling the address directly (they get "try again in 80 seconds"). The limit is per person and covers Sync now and Retry together.'
+  },
+};
+
+function show(k) {
+  const s = S[k];
+  document.querySelectorAll('.states button').forEach(b => b.classList.toggle('on', b.dataset.s === k));
+  const pill = document.getElementById('pill');
+  pill.className = 'gc-pill ' + (s.cls || '');
+  pill.innerHTML = s.pill;
+  document.getElementById('panel').innerHTML = s.panel;
+  document.getElementById('explain').innerHTML = s.explain;
+  const t = document.getElementById('toast');
+  t.hidden = !s.toast; t.textContent = s.toast || '';
+}
+document.querySelectorAll('.states button').forEach(b => b.onclick = () => show(b.dataset.s));
+document.getElementById('pill').onclick = () => { const p = document.getElementById('panel'); p.hidden = !p.hidden; };
+show('idle');
+</script>
+</body>
+</html>

@@ -158,7 +158,7 @@ class PayrollController extends Controller
     /**
      * Normalise the child-relief grid to every LHDN category × {100, 50} as ints, or null when nothing was sent.
      *
-     * @param  array<string, array<string, mixed>>|null  $grid
+     * @param  array<string, array<int, mixed>>|null  $grid
      * @return array<string, array{100: int, 50: int}>|null
      */
     private static function childRelief(?array $grid): ?array
@@ -168,7 +168,7 @@ class PayrollController extends Controller
         }
         $out = [];
         foreach (array_keys(StatutoryOptions::CHILD_RELIEF_CATEGORIES) as $cat) {
-            $out[$cat] = ['100' => (int) ($grid[$cat]['100'] ?? 0), '50' => (int) ($grid[$cat]['50'] ?? 0)];
+            $out[$cat] = ['100' => (int) ($grid[$cat][100] ?? 0), '50' => (int) ($grid[$cat][50] ?? 0)];
         }
 
         return $out;
@@ -234,7 +234,7 @@ class PayrollController extends Controller
         $name = $tx->employee?->name;
         AuditLog::record('Added fixed transaction', $name.' · '.$tx->payrollItem?->name.' · RM '.number_format($tx->amount, 2));
 
-        return back()->with('ok', 'Fixed transaction added for '.$name.'.');
+        return $this->toFixedTab($tx->employee_id)->with('ok', 'Fixed transaction added for '.$name.'.');
     }
 
     public function updateFixedTransaction(Request $request, FixedTransaction $fixedTransaction): RedirectResponse
@@ -247,7 +247,13 @@ class PayrollController extends Controller
 
         AuditLog::record('Updated fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name);
 
-        return back()->with('ok', 'Fixed transaction updated for '.$fixedTransaction->employee?->name.'.');
+        return $this->toFixedTab($fixedTransaction->employee_id)->with('ok', 'Fixed transaction updated for '.$fixedTransaction->employee?->name.'.');
+    }
+
+    /** Back to the Fixed Transaction tab with the same staff member still picked. */
+    private function toFixedTab(int $employeeId): RedirectResponse
+    {
+        return redirect()->route('app.screen', ['screen' => 'payroll-transaction', 'tab' => 'fixed', 'emp' => $employeeId]);
     }
 
     /**
@@ -267,7 +273,7 @@ class PayrollController extends Controller
         $fixedTransaction->update(['end_period' => $data['end_period']]);
         AuditLog::record('Ended fixed transaction', $fixedTransaction->employee?->name.' · '.$fixedTransaction->payrollItem?->name.' · last period '.$data['end_period']);
 
-        return back()->with('ok', 'Fixed transaction ended after '.$data['end_period'].'.');
+        return $this->toFixedTab($fixedTransaction->employee_id)->with('ok', 'Fixed transaction ended after '.$data['end_period'].'.');
     }
 
     /**
@@ -677,6 +683,26 @@ class PayrollController extends Controller
     }
 
     /**
+     * A staff member confirms they have seen their own issued payslip. Once only, own
+     * slip only, finalized runs only. HR does not acknowledge on anyone's behalf.
+     */
+    public function acknowledgePayslip(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $tid = app(CurrentTenant::class)->id();
+        abort_unless($payslip->tenant_id === $tid, 403);
+        $user = $request->user();
+        $employee = $user ? Employee::where('tenant_id', $tid)->where('user_id', $user->id)->first() : null;
+        abort_unless($employee && $payslip->employee_id === $employee->id, 403);
+        abort_unless($payslip->payrollRun?->status === 'finalized', 422);
+        abort_if($payslip->acknowledged_at !== null, 422);
+
+        $payslip->forceFill(['acknowledged_at' => now()])->save();
+        AuditLog::record('Acknowledged payslip', $payslip->payrollRun->label);
+
+        return redirect()->route('app.screen', ['screen' => 'payroll-my', 'payslip' => $payslip->id])->with('ok', 'Payslip acknowledged.');
+    }
+
+    /**
      * Approved unpaid leave for $employee overlapping $period, not yet paid and not
      * already reserved by another payslip. "Unpaid" is whichever LeaveType has is_unpaid
      * set (leave_types.is_unpaid) — never matched by name, which breaks the moment a
@@ -712,7 +738,14 @@ class PayrollController extends Controller
 
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            'payment_date' => ['nullable', 'date'],
+            'pull_fixed' => ['nullable', 'boolean'],
+            'pull_claims' => ['nullable', 'boolean'],
+            'pull_overtime' => ['nullable', 'boolean'],
+            'pull_unpaid' => ['nullable', 'boolean'],
         ]);
+        // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
+        $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
 
         if (PayrollRun::where('tenant_id', $tid)->where('period', $data['period'])->exists()) {
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
@@ -733,11 +766,13 @@ class PayrollController extends Controller
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
 
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog) {
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
                 'run_by_id' => Auth::id(),
+                'payment_date' => $data['payment_date'] ?? null,
+                'pull_options' => $pulls,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';
@@ -753,15 +788,15 @@ class PayrollController extends Controller
 
             foreach ($employees as $employee) {
                 $structure = $employee->salaryStructure;
-                $claims = $employee->claims()
+                $claims = ! $pulls['claims'] ? collect() : $employee->claims()
                     ->where('status', 'approved')->whereNull('paid_at')
                     ->whereNotIn('id', $usedClaimIds)
                     ->lockForUpdate()->get();
 
-                $overtimeRequests = $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds);
+                $overtimeRequests = $pulls['overtime'] ? $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds) : collect();
                 $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
                 $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
-                $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds);
+                $unpaidLeaveRequests = $pulls['unpaid'] ? $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds) : collect();
                 $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
                 $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
@@ -772,7 +807,7 @@ class PayrollController extends Controller
                 // Fixed Transactions replace salary_structures.allowances as the source of
                 // recurring earnings/deductions (see migration 2026_08_25_200200) — split
                 // by the transaction's own Payroll Item type.
-                $ftLines = $this->fixedTransactionLines($employee, $data['period']);
+                $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $data['period']) : collect();
                 $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
                 $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
@@ -845,7 +880,8 @@ class PayrollController extends Controller
             }
 
             $this->recalcTotals($run);
-            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips');
+            $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
+            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips'.($skipped ? ' · not pulled: '.implode(', ', $skipped) : ''));
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
@@ -925,12 +961,12 @@ class PayrollController extends Controller
             $request, $data, $payslip, $structure, $epfPart, $periodEnd,
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
         ) {
-            $overtimeRequests = $this->pullableOvertimeFor(
+            $overtimeRequests = ! $payslip->payrollRun->pulls('overtime') ? collect() : $this->pullableOvertimeFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
             );
             $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
             $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
-            $unpaidLeaveRequests = $this->pullableUnpaidLeaveFor(
+            $unpaidLeaveRequests = ! $payslip->payrollRun->pulls('unpaid') ? collect() : $this->pullableUnpaidLeaveFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedUnpaidLeaveIds($payslip->id)
             );
             $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
@@ -1050,7 +1086,8 @@ class PayrollController extends Controller
         $this->recalcTotals($payslip->payrollRun);
         AuditLog::record('Updated payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
 
-        return back()->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
+        return redirect()->route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $payslip->payroll_run_id, 'payslip' => $payslip->id])
+            ->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
     }
 
     public function approveRun(Request $request, PayrollRun $run): RedirectResponse
@@ -1063,7 +1100,7 @@ class PayrollController extends Controller
         $run->forceFill(['status' => 'approved', 'approved_by_id' => Auth::id()])->save();
         AuditLog::record('Approved payroll run', $run->label);
 
-        return back()->with('ok', $run->label.' payroll approved. Finalize to issue payslips.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll approved. Finalize to issue payslips.');
     }
 
     public function finalizeRun(Request $request, PayrollRun $run): RedirectResponse
@@ -1116,14 +1153,14 @@ class PayrollController extends Controller
                     $payslip->employee->user_id,
                     'Payslip ready',
                     'Your '.$run->label.' payslip is available · net RM '.number_format($payslip->net_pay, 2),
-                    route('app.screen', 'payroll'),
+                    route('app.screen', 'payroll-my'),
                 );
             }
 
             AuditLog::record('Finalized payroll run', $run->label.' · '.$payslips->count().' payslips issued');
         });
 
-        return back()->with('ok', $run->label.' payroll finalized — payslips issued and employees notified.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll finalized, payslips issued and employees notified.');
     }
 
     /**
@@ -1189,7 +1226,7 @@ class PayrollController extends Controller
             $label.' ('.$period.')'.($wasFinalized ? ' · claims/overtime/unpaid-leave reversed to unpaid' : ''),
         );
 
-        return redirect()->route('app.screen', 'payroll')->with('ok', $label.' payroll run deleted.');
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout'])->with('ok', $label.' payroll run deleted.');
     }
 
     // ── Helpers ───────────────────────────────────────────────────

@@ -23,7 +23,7 @@ class CompanyInviteModelTest extends TestCase
         $this->assertSame(40, strlen($invite->token));
         $this->assertTrue($invite->isUsable());
         $this->assertSame('pending', $invite->status());
-        $this->assertSame(3, $invite->category->level);
+        $this->assertSame(2, $invite->category->level);
         $this->assertNotNull($invite->creator);
     }
 

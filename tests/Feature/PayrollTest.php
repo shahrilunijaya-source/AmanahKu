@@ -157,7 +157,8 @@ class PayrollTest extends TestCase
         // MY statutory wage brackets), net 4415.35.
         $this->assertEqualsWithDelta(4415.35, (float) $payslip->net_pay, 0.001);
 
-        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/payslips/{$payslip->id}", ['pcb_override' => 200])
+            ->assertRedirect(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $run->id, 'payslip' => $payslip->id]));
 
         $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb, 0.001);
         $this->assertEqualsWithDelta(200.0, (float) $payslip->fresh()->pcb_override, 0.001);
@@ -659,16 +660,20 @@ class PayrollTest extends TestCase
     /**
      * Same haystack shape as leave-setup's grid (display name + legal name + position,
      * lower-cased) — present once per Alpine-filtered employee list on the screen:
-     * Salary structures, Previous employment (TP3), the Individual transactions
-     * employee picker, and this run's payslip rows.
+     * the Transaction screen's fixed-transaction picker, Individual transactions
+     * picker and Payroll Figures Take On list, and Payroll Review's payslip picker.
      */
     public function test_payroll_employee_lists_are_searchable_by_nickname(): void
     {
         $this->emp1->update(['nickname' => 'wory']);
         $this->createRun('2026-06');
 
-        $html = $this->actingHr()->get('/app/payroll')->assertOk()->getContent();
+        $transaction = $this->actingHr()->get('/app/payroll-transaction')->assertOk()->getContent();
+        $review = $this->actingHr()->get('/app/payroll-review')->assertOk()->getContent();
 
-        $this->assertSame(4, substr_count($html, 'wory worker'));
+        // Transaction: fixed-transaction staff picker, individual transactions picker, take on list.
+        $this->assertSame(3, substr_count($transaction, 'wory worker'));
+        // Payroll Review: the run's payslip picker.
+        $this->assertSame(1, substr_count($review, 'wory worker'));
     }
 }

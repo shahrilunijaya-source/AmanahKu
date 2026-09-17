@@ -129,6 +129,7 @@ class ExperienceRecordController extends Controller
                 'reading' => ['nullable', Rule::in(ExperienceOptions::PROFICIENCY)],
                 'writing' => ['nullable', Rule::in(ExperienceOptions::PROFICIENCY)],
             ],
+            default => abort(404),
         };
         $rules['_row'] = ['nullable', 'integer'];
 

@@ -20,6 +20,7 @@ class EmployeeFamilyMember extends Model
         return ['date_of_birth' => 'date', 'marriage_date' => 'date', 'deceased' => 'boolean'];
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
