@@ -19,6 +19,7 @@ use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\BigDealController;
 use App\Http\Controllers\BirthdayWishController;
 use App\Http\Controllers\CalendarNoteController;
+use App\Http\Controllers\CalendarSyncController;
 use App\Http\Controllers\CaseController;
 use App\Http\Controllers\ClaimController;
 use App\Http\Controllers\ComplianceController;
@@ -332,6 +333,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/settings/google-calendar/connect', [GoogleCalendarConnectionController::class, 'redirect'])->name('google-calendar.redirect');
         Route::get('/app/settings/google-calendar/callback', [GoogleCalendarConnectionController::class, 'callback'])->name('google-calendar.callback');
         Route::post('/app/settings/google-calendar/disconnect', [GoogleCalendarConnectionController::class, 'disconnect'])->name('google-calendar.disconnect');
+        // The task board's Google Calendar control (status, Sync now, Retry). JSON only.
+        Route::get('/app/calendar-sync/status', [CalendarSyncController::class, 'status'])->name('calendar-sync.status');
+        Route::post('/app/calendar-sync/sync', [CalendarSyncController::class, 'sync'])->name('calendar-sync.sync');
+        Route::post('/app/calendar-sync/retry/{workItem}', [CalendarSyncController::class, 'retry'])->name('calendar-sync.retry');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
