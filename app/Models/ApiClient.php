@@ -71,6 +71,7 @@ class ApiClient extends Model implements AuthenticatableContract
         'board:write' => 'Create and edit board cards, assign tasks (MCP only)',
         'timesheets:write' => 'Save timesheet drafts (MCP only)',
         'tot:write' => 'Post external TOT events (MCP only)',
+        'invites:write' => 'Generate company signup invite links (MCP only, director/HR)',
     ];
 
     protected $fillable = ['tenant_id', 'name', 'created_by'];

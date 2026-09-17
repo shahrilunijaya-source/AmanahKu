@@ -24,7 +24,7 @@ class SecurityController extends Controller
      * write behind these still goes through the preview/confirm flow and asks before
      * doing anything; ticking this only makes the write tools reachable at all.
      */
-    public const AI_KEY_WRITE_ABILITIES = ['board:write', 'timesheets:write', 'tot:write'];
+    public const AI_KEY_WRITE_ABILITIES = ['board:write', 'timesheets:write', 'tot:write', 'invites:write'];
 
     /**
      * Turn off an active 2FA enrolment. Re-entering the current password guards against
