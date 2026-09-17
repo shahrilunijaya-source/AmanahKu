@@ -21,10 +21,12 @@ class Features
      * are intentionally NOT toggleable.
      *
      * The 3rd element is the minimum **company category stage** (1/2/3) at which the
-     * module is included in the default package (Stage 1 = basic HR, Stage 2 adds the
-     * HR-ops suite, Stage 3 adds AI/intelligence). Cumulative: a Stage-2 company gets
-     * every stage ≤ 2 module. The category only seeds defaults; the resolved tenant
-     * entitlement remains the source of truth (see FeatureManager::applyCategoryPackage).
+     * module is included in the default package. Packages are now Stage 1 (basic HR)
+     * and Stage 2 (HR operations) only; Stage 3 was dropped 2026-09-17 (no AI package
+     * sold). module.ai keeps stage 3 here, a stage no package reaches, so category alone
+     * never turns it on. Cumulative: a Stage-2 company gets every stage ≤ 2 module. The
+     * category only seeds defaults; the resolved tenant entitlement remains the source
+     * of truth (see FeatureManager::applyCategoryPackage).
      */
     public const MODULES = [
         'module.roster' => ['Roster & Shifts', ['roster', 'shiftswap'], 1],
@@ -59,38 +61,86 @@ class Features
         'module.ai' => ['AI Workforce Intelligence', ['workload'], 3],
     ];
 
+    /** Malay label for each module key, same order as MODULES. See labelMs(). */
+    public const MODULE_LABELS_MS = [
+        'module.roster' => 'Jadual Kerja & Syif',
+        'module.leave' => 'Cuti',
+        'module.overtime' => 'Kerja Lebih Masa',
+        'module.events' => 'Acara Syarikat',
+        'module.bookings' => 'Tempahan Bilik & Kenderaan',
+        'module.payroll' => 'Gaji & Pampasan',
+        'module.loans' => 'Pinjaman & Pendahuluan',
+        'module.pettycash' => 'Wang Runcit',
+        'module.benefits' => 'Faedah',
+        'module.wellness' => 'Kesejahteraan & EAP',
+        'module.performance' => 'Prestasi (KPI, penilaian, matlamat, kemahiran)',
+        'module.onboarding' => 'Onboarding',
+        'module.probation' => 'Percubaan',
+        'module.offboarding' => 'Peletakan Jawatan & Offboarding',
+        'module.compliance' => 'Pematuhan & Lesen',
+        'module.recruitment' => 'Pengambilan & Rujukan',
+        'module.cases' => 'Kes Tatatertib',
+        'module.learning' => 'Latihan & Pembelajaran',
+        'module.documents' => 'Peti Dokumen',
+        'module.claims' => 'Tuntutan',
+        'module.expenses' => 'Laporan Perbelanjaan & Perjalanan',
+        'module.helpdesk' => 'Helpdesk',
+        'module.assets' => 'Daftar Aset',
+        'module.reports' => 'Laporan',
+        'module.surveys' => 'Tinjauan & Cadangan',
+        'module.knowledge' => 'Bank Pengetahuan',
+        'module.messages' => 'Mesej',
+        'module.sharedresources' => 'Sumber Kongsi',
+        'module.profiletest' => 'Ujian Profil Pekerja',
+        'module.ai' => 'Risikan Tenaga Kerja AI',
+    ];
+
     /**
      * Behavioural (non-module) settings. type bool|enum.
      * `scope` = 'tenant' (per company) or 'platform' (global, super-admin only).
+     * `label_ms`/`help_ms`/`options_ms` are the Malay counterparts shown when
+     * $store.ui.lang is 'ms'; a setting without them falls back to English (labelMs()).
      */
     public const SETTINGS = [
         'security.2fa' => [
             'label' => 'Two-factor authentication',
+            'label_ms' => 'Pengesahan dua faktor',
             'type' => 'enum', 'scope' => 'tenant', 'default' => 'optional',
-            'options' => ['off' => 'Off', 'optional' => 'Optional', 'required' => 'Required'],
+            'options' => ['optional' => 'Optional', 'required' => 'Required'],
+            'options_ms' => ['optional' => 'Pilihan', 'required' => 'Wajib'],
             'help' => 'Required forces every member to enrol 2FA before using the app.',
+            'help_ms' => 'Wajib: setiap ahli perlu sediakan kod log masuk sebelum boleh guna aplikasi.',
         ],
         'security.passkey' => [
             'label' => 'Passkey sign-in',
+            'label_ms' => 'Log masuk dengan passkey',
             'type' => 'enum', 'scope' => 'tenant', 'default' => 'optional',
             'options' => ['off' => 'Off', 'optional' => 'Optional'],
-            'help' => 'Allow members to register WebAuthn passkeys.',
+            'options_ms' => ['off' => 'Tutup', 'optional' => 'Pilihan'],
+            'help' => 'Lets members sign in with a passkey (face, fingerprint or device PIN). Off blocks passkey sign-in for this company\'s staff.',
+            'help_ms' => 'Membolehkan ahli log masuk dengan passkey (wajah, cap jari atau PIN peranti). Tutup menyekat log masuk passkey untuk staf syarikat ini.',
         ],
         'ai.assistant' => [
             'label' => 'AI assistant panel',
+            'label_ms' => 'Panel pembantu AI',
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,
             'help' => 'The in-app AI assistant slide-over.',
+            'help_ms' => 'Panel pembantu AI dalam aplikasi.',
         ],
         'payroll.four_eyes' => [
             'label' => 'Require payroll approval before finalize',
+            'label_ms' => 'Perlu kelulusan sebelum gaji dimuktamadkan',
             'type' => 'bool', 'scope' => 'tenant', 'default' => false,
-            'help' => 'Block finalizing a run until it has been approved (four-eyes control).',
+            'help' => 'Only used when payroll is on: a pay run cannot be finalized until someone approves it.',
+            'help_ms' => 'Hanya digunakan jika modul gaji dihidupkan: larian gaji tidak boleh dimuktamadkan sehingga diluluskan.',
         ],
         'claims.medical_cap' => [
             'label' => 'Medical claim annual cap (RM)',
+            'label_ms' => 'Had tahunan tuntutan perubatan (RM)',
             'type' => 'number', 'scope' => 'tenant', 'default' => 500,
             'min' => 0, 'max' => 1000000,
             'help' => 'Most one employee can be reimbursed for medical claims per calendar year.',
+            'help_ms' => 'Jumlah paling tinggi seorang pekerja boleh dibayar balik untuk tuntutan perubatan dalam satu tahun kalendar.',
         ],
         'platform.registration' => [
             'label' => 'Signup links',
@@ -148,6 +198,15 @@ class Features
         'module.ai',
     ];
 
+    /**
+     * Tenant-scope settings the company Features card does not offer, even though
+     * they still resolve normally for enforcement everywhere else. ai.assistant: no
+     * AI package exists yet, so a company has nothing to switch it on for; a
+     * super-admin can still turn it on per company from the platform matrix, which
+     * writes an override the card must keep honouring (see BuildsSettingsData).
+     */
+    public const HIDDEN_SETTINGS = ['ai.assistant'];
+
     /** All keys with their registry default. */
     public static function defaults(): array
     {
@@ -193,6 +252,16 @@ class Features
         }
 
         return self::SETTINGS[$key]['label'] ?? $key;
+    }
+
+    /** Malay label for any key (module or setting), falling back to the English label. */
+    public static function labelMs(string $key): string
+    {
+        if (isset(self::MODULE_LABELS_MS[$key])) {
+            return self::MODULE_LABELS_MS[$key];
+        }
+
+        return self::SETTINGS[$key]['label_ms'] ?? self::label($key);
     }
 
     /** Normalise a raw stored/registry value to bool for boolean features. */

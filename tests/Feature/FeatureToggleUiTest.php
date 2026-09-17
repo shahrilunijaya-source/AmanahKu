@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\StaffLevel;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\FeatureManager;
+use App\Support\Features;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -262,5 +264,124 @@ class FeatureToggleUiTest extends TestCase
         $this->assertDatabaseMissing('tenant_features', [
             'tenant_id' => $this->tenant->id, 'key' => 'module.payroll',
         ]);
+    }
+
+    // ── C. Malay copy on the company card ─────────────────────────
+
+    public function test_malay_module_and_setting_labels_appear_on_the_settings_page(): void
+    {
+        $html = $this->actingHr()->get('/app/settings')->assertOk()->getContent();
+
+        // module.documents (shipped, not in Features::OFF) and security.2fa, both
+        // rendered through the x-text pattern (@js-encoded, no special characters
+        // in either string so a plain substring check is safe).
+        $this->assertStringContainsString('Peti Dokumen', $html);
+        $this->assertStringContainsString('Pengesahan dua faktor', $html);
+    }
+
+    public function test_a_module_missing_from_the_nav_falls_back_to_lain_lain(): void
+    {
+        // module.messages's only screen ('messages') is not in Amanahku::nav(), and the
+        // module itself isn't in Features::OFF, so a plain HTTP request really hits the
+        // section-fallback branch without any special test harness.
+        $html = $this->actingHr()->get('/app/settings')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Lain-lain', $html);
+    }
+
+    public function test_setting_enum_options_show_malay_choice_text(): void
+    {
+        $html = $this->actingHr()->get('/app/settings')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Pilihan', $html); // security.2fa optional
+        $this->assertStringContainsString('Wajib', $html);   // security.2fa required
+    }
+
+    public function test_two_factor_off_option_was_removed_from_the_registry(): void
+    {
+        $this->assertArrayNotHasKey('off', Features::SETTINGS['security.2fa']['options']);
+    }
+
+    public function test_submitting_2fa_off_is_rejected_and_the_value_is_unchanged(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'security.2fa', 'required');
+
+        $this->actingHr()->post('/app/admin/features', [
+            'features_present' => '1',
+            'features' => ['security.2fa' => 'off', 'module.leave' => '1'],
+        ])->assertRedirect();
+
+        // 'off' is no longer in security.2fa's options, so validateFeatureValue()
+        // returns null and the whole key is rejected rather than written.
+        $this->assertSame('required', app(FeatureManager::class)->value($this->tenant, 'security.2fa'));
+    }
+
+    public function test_ai_assistant_setting_is_hidden_from_the_company_card_by_default(): void
+    {
+        $this->actingHr()->get('/app/settings')
+            ->assertOk()
+            ->assertDontSee('ai.assistant');
+    }
+
+    public function test_ai_assistant_setting_shows_once_a_company_already_has_it_on(): void
+    {
+        app(FeatureManager::class)->setTenant($this->tenant, 'ai.assistant', true);
+
+        $this->actingHr()->get('/app/settings')
+            ->assertOk()
+            ->assertSee('ai.assistant');
+    }
+
+    public function test_the_modules_coachmark_no_longer_mentions_payroll(): void
+    {
+        $html = $this->actingHr()->get('/app/settings')->assertOk()->getContent();
+
+        $this->assertStringContainsString('your company uses, then click Save features', $html);
+        $this->assertStringNotContainsString('adds the payroll step', $html);
+    }
+
+    public function test_staff_level_seniority_help_shown_while_adding_and_editing(): void
+    {
+        $level = StaffLevel::create(['tenant_id' => $this->tenant->id, 'name' => 'L1', 'rank' => 1]);
+
+        $html = $this->actingHr()->get('/app/settings')->assertOk()->getContent();
+
+        // Each block renders the line twice (the x-text ternary + the static fallback
+        // content): once in the always-present "adding" form, once in this level's own
+        // edit form. One staff level → 4 raw occurrences.
+        $this->assertSame(4, substr_count($html, 'A smaller number means more senior'));
+
+        // Structural: the edit-scoped copy sits within this level's own edit form, not
+        // just present somewhere else on the page.
+        $editForm = 'x-show="editId === '.$level->id.'"';
+        $afterForm = strstr($html, $editForm);
+        $this->assertNotFalse($afterForm);
+        $this->assertStringContainsString('A smaller number means more senior', substr($afterForm, 0, 2000));
+    }
+
+    // ── D. Registry data integrity ──────────────────────────────────
+
+    public function test_every_module_has_a_malay_label(): void
+    {
+        $this->assertSame(array_keys(Features::MODULES), array_keys(Features::MODULE_LABELS_MS));
+    }
+
+    public function test_tenant_settings_with_malay_copy_have_label_ms_and_help_ms(): void
+    {
+        foreach (['security.2fa', 'security.passkey', 'ai.assistant', 'payroll.four_eyes', 'claims.medical_cap'] as $key) {
+            $meta = Features::meta($key);
+            $this->assertArrayHasKey('label_ms', $meta, $key);
+            $this->assertArrayHasKey('help_ms', $meta, $key);
+        }
+    }
+
+    public function test_enum_options_ms_keys_match_options_keys(): void
+    {
+        foreach (Features::SETTINGS as $key => $meta) {
+            if (($meta['type'] ?? null) !== 'enum' || ! isset($meta['options_ms'])) {
+                continue;
+            }
+            $this->assertSame(array_keys($meta['options']), array_keys($meta['options_ms']), $key);
+        }
     }
 }

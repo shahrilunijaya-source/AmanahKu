@@ -6,12 +6,17 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
+use App\Models\Tenant;
+use App\Models\User;
+use App\Services\FeatureManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Exceptions\InvalidPasskeyException;
+use Laravel\Passkeys\Passkeys;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -40,6 +45,34 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::twoFactorChallengeView(fn () => view('auth.two-factor-challenge'));
         Fortify::confirmPasswordView(fn () => view('auth.confirm-password'));
         Fortify::verifyEmailView(fn () => view('auth.verify-email'));
+
+        // A company can turn passkey sign-in off (security.passkey = 'off'). The
+        // Passkeys package has no notion of tenants, so gate it here: refuse when ANY
+        // tenant the user belongs to currently resolves it to 'off', unless the user is
+        // a super admin, who is never gated by a single company's settings. Throwing
+        // (rather than returning false) surfaces our message on the login page instead
+        // of PasskeyLoginController's generic "Unable to sign in with this account."
+        Passkeys::authorizeLoginUsing(function (Request $request, $user, $passkey): bool {
+            /** @var User $user */
+            if ($user->isSuperAdmin()) {
+                return true;
+            }
+
+            $features = app(FeatureManager::class);
+            foreach ($user->tenants as $tenant) {
+                // tenants() is a BelongsToMany with no generic PHPDoc, so static analysis
+                // sees a bare Model here; it is always a Tenant at runtime.
+                if (! $tenant instanceof Tenant) {
+                    continue;
+                }
+
+                if ($features->value($tenant, 'security.passkey') === 'off') {
+                    throw InvalidPasskeyException::make('Your company has turned off passkey sign-in. Please use your password.');
+                }
+            }
+
+            return true;
+        });
 
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());

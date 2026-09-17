@@ -311,7 +311,7 @@
                     <input name="rank" type="number" min="0" max="65535" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                     <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
-                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'Smaller number = more senior. This order controls who can view whose profile.':'Nombor lebih kecil = lebih kanan. Susunan ini mengawal siapa boleh lihat profil siapa.'">Smaller number = more senior. This order controls who can view whose profile.</p>
+                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
             @endif
             @forelse ($staffLevels as $lv)
                 <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
@@ -333,6 +333,7 @@
                             <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
                             <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>
+                        <p x-show="editId === {{ $lv->id }}" x-cloak style="font-size:11.5px;color:var(--muted);margin:6px 0 0;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
                     @endif
                 </div>
             @empty
@@ -500,7 +501,7 @@
                                 @disabled($row['locked'])>
                             <span style="flex:1;min-width:0;">
                                 <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                    <span style="font-size:13.5px;color:var(--ink);">{{ $row['label'] }}</span>
+                                    <span style="font-size:13.5px;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
                                     @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
                                 </span>
                                 @if ($showNav)
@@ -520,17 +521,17 @@
                 <div style="display:flex;align-items:flex-start;gap:14px;">
                     <div style="flex:1;">
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:13.5px;font-weight:500;color:var(--ink);">{{ $row['label'] }}</span>
+                            <span style="font-size:13.5px;font-weight:500;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
                             @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
                         </div>
-                        @if (!empty($row['help']))<div style="font-size:12px;color:var(--muted);margin-top:2px;">{{ $row['help'] }}</div>@endif
+                        @if (!empty($row['help']))<div style="font-size:12px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? @js($row['help']) : @js($row['help_ms'])">{{ $row['help'] }}</div>@endif
                     </div>
                     <div style="width:200px;flex-shrink:0;">
                         @if ($row['type'] === 'enum')
                             <select name="features[{{ $row['key'] }}]" @disabled($row['locked'])
                                 style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;background:{{ $row['locked'] ? 'var(--hairline-soft)' : '#fff' }};color:var(--ink);">
                                 @foreach ($row['options'] as $val => $optLabel)
-                                    <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val)>{{ $optLabel }}</option>
+                                    <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val) x-text="$store.ui.lang==='en' ? @js($optLabel) : @js($row['options_ms'][$val] ?? $optLabel)">{{ $optLabel }}</option>
                                 @endforeach
                             </select>
                         @elseif ($row['type'] === 'number')
@@ -554,8 +555,8 @@
         @include('partials.coachmark', [
             'key' => 'guide-modules',
             'when' => "\$store.guide.current === 'modules'",
-            'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company runs on, then click Save features. Turning payroll on here adds the payroll step to the guide.'],
-            'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Menghidupkan gaji di sini menambah langkah gaji ke panduan.'],
+            'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company uses, then click Save features. Untick the ones you don\'t need.'],
+            'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Buang tanda pada modul yang tidak perlu.'],
         ])
     </form>
 </div>

@@ -61,8 +61,10 @@ trait BuildsSettingsData
 
     /**
      * Tenant-scope feature rows for the Company Settings panel: every module +
-     * non-platform setting, with its resolved value and lock state. Platform-scope
-     * keys (e.g. platform.registration) are intentionally excluded.
+     * non-platform setting, with its resolved value, lock state, and English +
+     * Malay copy (label_ms/help_ms/options_ms, section_ms) for the bilingual
+     * card. Platform-scope keys (e.g. platform.registration) are intentionally
+     * excluded, as are Features::HIDDEN_SETTINGS unless already switched on.
      *
      * @return array{modules:array,settings:array}
      */
@@ -89,10 +91,14 @@ trait BuildsSettingsData
 
             $place = $nav[$screens[0]] ?? null;
             $sectionEn = $place['section'] ?? 'Other';
+            // navScreenIndex() always fills section_ms when $place exists (falling back to
+            // the English section name itself), so this ?? only fires for a module whose
+            // first screen isn't in the nav at all, e.g. module.messages.
+            $sectionMs = $place['section_ms'] ?? 'Lain-lain';
 
             $sections[$sectionEn] ??= [
                 'section' => $sectionEn,
-                'section_ms' => $place['section_ms'] ?? $sectionEn,
+                'section_ms' => $sectionMs,
                 'order' => $place['section_order'] ?? 999,
                 'rows' => [],
             ];
@@ -108,6 +114,7 @@ trait BuildsSettingsData
             $sections[$sectionEn]['rows'][] = [
                 'key' => $key,
                 'label' => $label,
+                'label_ms' => Features::labelMs($key),
                 'type' => 'bool',
                 'value' => $features->value($tenant, $key),
                 'locked' => $features->platformLocked($key),
@@ -127,14 +134,24 @@ trait BuildsSettingsData
             if ($meta['scope'] !== 'tenant') {
                 continue;
             }
+            // Same idea as the OFF-module skip above: hidden settings (no AI package to
+            // sell yet) drop off the company card unless a super admin already switched
+            // one on for this tenant from the platform matrix, so that override stays
+            // visible and switchable back off.
+            if (in_array($key, Features::HIDDEN_SETTINGS, true) && ! $features->enabled($tenant, $key)) {
+                continue;
+            }
             $settings[] = [
                 'key' => $key,
                 'label' => $meta['label'],
+                'label_ms' => $meta['label_ms'] ?? $meta['label'],
                 'type' => $meta['type'],
                 'options' => $meta['options'] ?? null,
+                'options_ms' => $meta['options_ms'] ?? $meta['options'] ?? null,
                 'min' => $meta['min'] ?? null,
                 'max' => $meta['max'] ?? null,
                 'help' => $meta['help'],
+                'help_ms' => $meta['help_ms'] ?? $meta['help'],
                 'value' => $features->value($tenant, $key),
                 'locked' => $features->platformLocked($key),
             ];
