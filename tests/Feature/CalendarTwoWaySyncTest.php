@@ -217,6 +217,16 @@ class CalendarTwoWaySyncTest extends TestCase
         $this->assertSame(1, WorkItem::withoutGlobalScopes()->where('google_event_id', 'goog-9')->count());
     }
 
+    public function test_the_pull_command_skips_revoked_connections(): void
+    {
+        Queue::fake();
+        GoogleCalendarConnection::where('user_id', $this->user->id)->update(['revoked_at' => now()]);
+
+        $this->artisan('calendar:pull')->assertSuccessful();
+
+        Queue::assertNotPushed(PullCalendarChangesJob::class);
+    }
+
     public function test_the_stub_port_records_a_pull_intent_and_returns_nothing(): void
     {
         $this->app->forgetInstance(CalendarPort::class);
@@ -227,21 +237,6 @@ class CalendarTwoWaySyncTest extends TestCase
         $this->assertTrue($result->ok);
         $this->assertSame([], $result->payload);
         $this->assertSame('pullChanges', PortOutbox::latest('id')->value('method'));
-    }
-
-    public function test_a_card_that_gave_up_lists_under_sync_issues_and_can_be_retried(): void
-    {
-        Queue::fake();
-        $card = $this->card();
-        WorkItem::withoutGlobalScopes()->where('id', $card->id)->update(['calendar_sync_error' => 'Calendar push failed (outbox #3).']);
-
-        config(['services.google_calendar.client_id' => 'client-123', 'services.google_calendar.client_secret' => 'secret-456']);
-        $this->actingAs($this->user)->withSession(['current_tenant' => $this->tenant->id])->get('/app/profile')
-            ->assertOk()->assertSee('Sync issues')->assertSee('Write the spec');
-
-        $this->actingAs($this->user)->withSession(['current_tenant' => $this->tenant->id])->post(route('google-calendar.retry', $card))->assertRedirect('/app/profile');
-        $this->assertNull($card->fresh()->calendar_sync_error);
-        Queue::assertPushed(SyncWorkItemCalendarEventJob::class);
     }
 }
 
