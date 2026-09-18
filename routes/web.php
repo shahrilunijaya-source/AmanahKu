@@ -801,6 +801,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
+        Route::get('/app/payroll/runs/{run}/statutory-file/{key}', [PayrollExportController::class, 'statutoryFile'])
+            ->where('key', '[a-z0-9\-]+')->name('payroll.export.statutory-file');
         // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
         Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
         // Bulk payslip PDF for a finalized run — HR/management only.

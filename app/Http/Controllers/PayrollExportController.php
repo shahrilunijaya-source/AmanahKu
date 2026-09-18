@@ -6,7 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\PayrollRun;
+use App\Models\Payslip;
+use App\Services\FeatureManager;
 use App\Services\Payroll\BankFile\BankFileRegistry;
+use App\Services\Payroll\HrdCorpLevy;
+use App\Services\Payroll\Statutory\StatutoryFileRegistry;
 use App\Support\Csv;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -95,6 +99,31 @@ class PayrollExportController extends Controller
     }
 
     /** management/hr only, own tenant, finalized runs only (drafts aren't submittable). */
+    /**
+     * Agency upload file (spec F6/F7) for a finalized run: KWSP Form A, PERKESO Borang 8A,
+     * LHDN CP39 or the HRD Corp levy file. Every one carries NRICs, so every download is
+     * audited; an unverified layout is named as such in the trail.
+     */
+    public function statutoryFile(Request $request, PayrollRun $run, string $key): StreamedResponse
+    {
+        $this->authorize($request, $run);
+        $file = StatutoryFileRegistry::find($key) ?? abort(404);
+        $tenant = app(CurrentTenant::class)->get();
+        if ($key === 'hrdcorp') {
+            abort_if(HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf')) <= 0, 422, 'HRD Corp levy is switched off for this company.');
+        }
+
+        $payslips = $run->payslips()->with('employee.salaryStructure')->get()
+            ->sortBy(fn (Payslip $p) => $p->employee?->name)->values();
+        $body = $file->build($run, $tenant, $payslips);
+
+        AuditLog::record('Exported statutory file', $run->label.' · '.$file->label().' · '.$payslips->count().' employees · includes NRIC'.($file->verified() ? '' : ' (unverified layout)'));
+
+        return response()->streamDownload(function () use ($body) {
+            echo $body;
+        }, $file->filename($run, $tenant), ['Content-Type' => $file->contentType()]);
+    }
+
     private function authorize(Request $request, PayrollRun $run): void
     {
         $this->authorizeTenantRole($request, self::ADMIN_ROLES);

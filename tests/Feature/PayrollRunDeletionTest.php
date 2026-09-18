@@ -14,6 +14,7 @@ use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -69,7 +70,10 @@ class PayrollRunDeletionTest extends TestCase
 
     private function createRun(string $period = '2026-06'): PayrollRun
     {
-        $this->actingHr()->post('/app/payroll/runs', ['period' => $period])->assertRedirect();
+        // Spec F5: finalize needs a pay date within seven days of the period end (EA s.19),
+        // so every run this helper creates carries the last day of its own period.
+        $payDate = Carbon::createFromFormat('Y-m-d', $period.'-01')->endOfMonth()->toDateString();
+        $this->actingHr()->post('/app/payroll/runs', ['period' => $period, 'payment_date' => $payDate])->assertRedirect();
 
         return PayrollRun::where('period', $period)->firstOrFail();
     }

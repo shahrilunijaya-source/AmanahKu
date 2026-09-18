@@ -272,7 +272,9 @@ class PayrollNavigationTest extends TestCase
         $this->assertStringContainsString(route('payroll.export.payslips-pdf', $run), $html);
         $this->assertStringContainsString(route('payroll.payslips.pdf', $slip), $html);
         $this->assertStringContainsString(route('payroll.form-e.cp8d', ['year' => 2026]), $html);
-        $this->assertStringContainsString('Spec F6', $html);
+        // Spec F6: the agency upload files replaced the old "Spec F6" placeholder buttons.
+        $this->assertStringContainsString(route('payroll.export.statutory-file', [$run, 'cp39']), $html);
+        $this->assertStringContainsString(route('payroll.export.statutory-file', [$run, 'kwsp-form-a']), $html);
 
         $this->assertStringNotContainsString('No payroll runs in this year.', $html);
         $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2019')->assertOk()->assertSee('No payroll runs in this year.');
