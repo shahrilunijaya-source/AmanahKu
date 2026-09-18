@@ -212,7 +212,7 @@ class FeatureEnforcementTest extends TestCase
         Employee::whereKey($emp->id)->update(['salary' => 5000]);
         app(FeatureManager::class)->setTenant($this->tenant, 'payroll.four_eyes', true);
 
-        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
+        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06', 'payment_date' => '2026-06-30'])->assertRedirect();
         $run = PayrollRun::where('period', '2026-06')->firstOrFail();
 
         // A draft cannot be finalized directly under four-eyes.
@@ -233,7 +233,7 @@ class FeatureEnforcementTest extends TestCase
             'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp->id)->update(['salary' => 5000]);
 
-        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();
+        $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06', 'payment_date' => '2026-06-30'])->assertRedirect();
         $run = PayrollRun::where('period', '2026-06')->firstOrFail();
 
         // Default (off) → a draft finalizes directly.

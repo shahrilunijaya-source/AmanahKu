@@ -22,10 +22,28 @@
                         <form method="post" action="{{ route('payroll.runs.approve', $r) }}">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button></form>
                     @endif
                     @if (in_array($r->status, ['draft', 'approved'], true))
-                        <form method="post" action="{{ route('payroll.runs.finalize', $r) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$r->label.'? Payslip dikunci, pekerja dimaklumkan, dan tuntutan yang dibayar balik ditanda sebagai paid.') : @js('Finalize '.$r->label.'? Payslips lock, employees are notified, and reimbursed claims are marked paid.'));">@csrf<button class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Finalize & issue' : 'Finalize & keluarkan'">Finalize & issue</button></form>
+                        @php $payBy = $r->payByDate()->toDateString(); $payDefault = old('payment_date', $r->payment_date?->toDateString() ?? $r->payByDate()->subDays(7)->toDateString()); @endphp
+                        <form method="post" action="{{ route('payroll.runs.finalize', $r) }}" x-data="{ late: @js($payDefault > $payBy) }" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$r->label.'? Payslip dikunci, pekerja dimaklumkan, dan tuntutan yang dibayar balik ditanda sebagai paid.') : @js('Finalize '.$r->label.'? Payslips lock, employees are notified, and reimbursed claims are marked paid.'));">@csrf
+                            <div>
+                                <label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Pay date' : 'Tarikh bayaran'">Pay date</label>
+                                <input name="payment_date" type="date" required value="{{ $payDefault }}" @change="late = $event.target.value > @js($payBy)" style="width:150px;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
+                            </div>
+                            <div x-show="late" x-cloak>
+                                <label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Reason for paying after the seventh day (EA s.19)' : 'Sebab bayar selepas hari ketujuh (AK s.19)'">Reason for paying after the seventh day (EA s.19)</label>
+                                <input name="pay_date_override_reason" maxlength="240" value="{{ old('pay_date_override_reason') }}" style="width:260px;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" />
+                            </div>
+                            <button class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Finalize & issue' : 'Finalize & keluarkan'">Finalize & issue</button>
+                        </form>
+                        @error('payment_date')<div style="flex-basis:100%;font-size:12px;color:var(--error);">{{ $message }}</div>@enderror
                         <form method="post" action="{{ route('payroll.runs.delete', $r) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam draft run '.$r->label.'? Semua payslip draf dalamnya turut dipadam. Tindakan ini tidak boleh dibatalkan.') : @js('Delete draft run '.$r->label.'? Every draft payslip in it is deleted too. This cannot be undone.'));">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete run' : 'Padam run'">Delete run</button></form>
                     @else
                         <span class="uj-pill" style="background:var(--red-tint);color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Finalized' : 'Difinalize'">Finalized</span> {{ $r->finalized_at?->format('j M') }}</span>
+                        <span style="font-size:11.5px;color:{{ $r->paid_at === null && now()->gt($r->payByDate()) ? 'var(--error)' : 'var(--muted)' }};"><span x-text="$store.ui.lang==='en' ? 'pay by' : 'bayar sebelum'">pay by</span> {{ $r->payByDate()->format('j M Y') }}</span>
+                        @if ($r->paid_at)
+                            <span class="uj-pill" style="background:var(--red-tint);color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Paid' : 'Dibayar'">Paid</span> {{ $r->paid_at->format('j M Y') }}</span>
+                        @else
+                            <form method="post" action="{{ route('payroll.runs.mark-paid', $r) }}">@csrf<button class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Mark paid' : 'Tanda dibayar'">Mark paid</button></form>
+                        @endif
                     @endif
                     <a href="{{ route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'submission', 'run' => $r->id]) }}" style="font-size:12px;color:var(--red);text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Files' : 'Fail'">Files</a>
                 </div>

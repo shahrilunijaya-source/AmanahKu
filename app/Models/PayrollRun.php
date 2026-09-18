@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property array<string, bool>|null $pull_options
+ * @property Carbon|null $payment_date
  */
 class PayrollRun extends Model
 {
@@ -40,10 +43,17 @@ class PayrollRun extends Model
         return [
             'totals' => 'array',
             'finalized_at' => 'datetime',
+            'paid_at' => 'datetime',
             'payment_date' => 'date',
             'pull_options' => 'array',
             'excluded_employee_ids' => 'array',
         ];
+    }
+
+    /** EA s.19: wages are due no later than the seventh day after the wage period ends. */
+    public function payByDate(): CarbonImmutable
+    {
+        return CarbonImmutable::createFromFormat('Y-m-d', $this->period.'-01')->endOfMonth()->startOfDay()->addDays(7);
     }
 
     /** Whether this run pulls the given source. A run with no stored choice pulls everything. */

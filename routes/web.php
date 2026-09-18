@@ -763,6 +763,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs', [PayrollController::class, 'createRun'])->name('payroll.runs.create');
             Route::post('/app/payroll/runs/{run}/approve', [PayrollController::class, 'approveRun'])->name('payroll.runs.approve');
             Route::post('/app/payroll/runs/{run}/finalize', [PayrollController::class, 'finalizeRun'])->name('payroll.runs.finalize');
+            Route::post('/app/payroll/runs/{run}/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.runs.mark-paid');
             Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
             Route::post('/app/payroll/payslips/{payslip}/acknowledge', [PayrollController::class, 'acknowledgePayslip'])->name('payroll.payslips.acknowledge');

@@ -32,6 +32,7 @@ use App\Services\Payroll\Proration;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -1157,6 +1158,20 @@ class PayrollController extends Controller
             ->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
     }
 
+    /** Spec F5: the one field that changes after finalize, set only here. */
+    public function markPaid(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($run);
+        abort_unless($run->status === 'finalized', 422, 'Only a finalized run can be marked paid.');
+        abort_if($run->paid_at !== null, 422, 'Already marked paid.');
+
+        $run->forceFill(['paid_at' => now()])->save();
+        AuditLog::record('Marked payroll paid', $run->label);
+
+        return back()->with('ok', $run->label.' marked paid.');
+    }
+
     /** Spec F4: HR confirms the employee's written consent for deductions above the s.24 cap. */
     public function confirmDeductionConsent(Request $request, Payslip $payslip): RedirectResponse
     {
@@ -1251,6 +1266,20 @@ class PayrollController extends Controller
             abort_unless(in_array($run->status, ['draft', 'approved'], true), 422);
         }
 
+        // Spec F5: a pay date is required at finalize and must be within seven days of the
+        // period end (EA s.19) unless HR gives a reason, which is audited.
+        $data = $request->validate([
+            'payment_date' => [$run->payment_date ? 'nullable' : 'required', 'date'],
+            'pay_date_override_reason' => ['nullable', 'string', 'max:240'],
+        ], ['payment_date.required' => 'Set the pay date before finalizing (EA s.19: wages are due within seven days of the period end).']);
+        // Validation guarantees one of the two is present.
+        $payDate = CarbonImmutable::parse($data['payment_date'] ?? $run->payment_date);
+        $late = $payDate->gt($run->payByDate());
+        $overrideReason = $data['pay_date_override_reason'] ?? null;
+        if ($late && blank($overrideReason)) {
+            return back()->withErrors(['payment_date' => 'Pay date '.$payDate->format('j M Y').' is later than the seventh day after the period end ('.$run->payByDate()->format('j M Y').'). EA s.19 requires payment within seven days; give a reason to override.'])->withInput();
+        }
+
         // Spec F4 guards: a payslip over the s.24 deduction cap needs recorded consent, and
         // a negative net is not payable until HR carries the shortfall forward.
         $slips = $run->payslips()->with('employee')->get();
@@ -1259,13 +1288,18 @@ class PayrollController extends Controller
         $negative = $slips->filter(fn (Payslip $p) => $p->net_pay < 0);
         abort_if($negative->isNotEmpty(), 422, 'Net pay is negative for: '.$negative->map(fn (Payslip $p) => $p->employee->name)->implode(', ').'. Carry the shortfall to next month first.');
 
-        DB::transaction(function () use ($run) {
+        DB::transaction(function () use ($run, $payDate, $late, $overrideReason) {
             // status + finalized_at are excluded from $fillable — set them directly.
             $run->forceFill([
                 'status' => 'finalized',
                 'finalized_at' => now(),
                 'approved_by_id' => $run->approved_by_id ?? Auth::id(),
+                'payment_date' => $payDate->toDateString(),
+                'pay_date_override_reason' => $late ? $overrideReason : null,
             ])->save();
+            if ($late) {
+                AuditLog::record('Pay date later than seven days', $run->label.' · '.$payDate->format('j M Y').' · '.$overrideReason);
+            }
 
             $payslips = $run->payslips()->with('employee')->get();
 
