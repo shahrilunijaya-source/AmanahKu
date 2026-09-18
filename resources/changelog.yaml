@@ -49,6 +49,12 @@
       link_text: "Open Task Board"
       link_text_ms: "Buka Papan Tugasan"
     - tag: added
+      text: "Every upcoming company event now goes into everyone's Google Calendar, whether you RSVP or not. The Google Calendar control from the task board is also on the company calendar screen now, behind a gear icon."
+      text_ms: "Setiap acara syarikat yang akan datang kini masuk ke Kalendar Google semua orang, sama ada anda RSVP atau tidak. Kawalan Kalendar Google dari papan tugasan kini turut ada pada skrin kalendar syarikat, di sebalik ikon gear."
+      link: "/app/calendar"
+      link_text: "Open Calendar"
+      link_text_ms: "Buka Kalendar"
+    - tag: added
       text: "Managers get a To approve queue on the timesheet screen."
       text_ms: "Pengurus mendapat senarai Untuk diluluskan pada skrin timesheet."
       link: "/app/timesheets"

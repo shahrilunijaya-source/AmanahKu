@@ -355,6 +355,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/calendar-sync/status', [CalendarSyncController::class, 'status'])->name('calendar-sync.status');
         Route::post('/app/calendar-sync/sync', [CalendarSyncController::class, 'sync'])->name('calendar-sync.sync');
         Route::post('/app/calendar-sync/retry/{workItem}', [CalendarSyncController::class, 'retry'])->name('calendar-sync.retry');
+        Route::post('/app/calendar-sync/retry-event/{event}', [CalendarSyncController::class, 'retryEvent'])->name('calendar-sync.retry-event');
         Route::post('/app/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::post('/app/employees/import', [EmployeeController::class, 'import'])->name('employees.import');
         Route::post('/app/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');

@@ -165,4 +165,25 @@ class CalendarTest extends TestCase
         $this->actingAs($manager->user)->withSession(['current_tenant' => $this->tenant->id]);
         $this->get('/app/calendar')->assertOk()->assertDontSee('Unverified Report');
     }
+
+    public function test_the_google_calendar_gear_renders_when_configured(): void
+    {
+        config(['services.google_calendar.client_id' => 'id', 'services.google_calendar.client_secret' => 'secret']);
+
+        $response = $this->actingInTenant()->get('/app/calendar');
+
+        $response->assertOk();
+        $response->assertSee('data-testid="calendar-sync"', false);
+        $response->assertSee('cs-gear', false);
+    }
+
+    public function test_the_google_calendar_gear_is_absent_when_not_configured(): void
+    {
+        config(['services.google_calendar.client_id' => null, 'services.google_calendar.client_secret' => null]);
+
+        $response = $this->actingInTenant()->get('/app/calendar');
+
+        $response->assertOk();
+        $response->assertDontSee('data-testid="calendar-sync"', false);
+    }
 }

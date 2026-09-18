@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Controllers\CalendarSyncController;
 use App\Jobs\CalendarFullSyncJob;
 use App\Models\CompanyEvent;
+use App\Models\CompanyEventCalendarCopy;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\Tenant;
@@ -220,6 +221,39 @@ class CalendarSyncControlTest extends TestCase
         $this->connect();
 
         $this->as()->postJson(route('calendar-sync.retry', $foreignCard))->assertForbidden();
+
+        $this->assertSame([], $this->port->pushedTo());
+    }
+
+    public function test_retry_event_resends_my_failed_copy(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+        $event = CompanyEvent::create([
+            'tenant_id' => $this->tenant->id, 'created_by_employee_id' => $this->colleague->id,
+            'title' => 'Town Hall', 'type' => 'townhall', 'event_date' => now()->addDays(5)->toDateString(),
+        ]);
+        $copy = CompanyEventCalendarCopy::create(['tenant_id' => $this->tenant->id, 'company_event_id' => $event->id, 'employee_id' => $this->me->id, 'sync_error' => 'boom']);
+        app(CurrentTenant::class)->set(null);
+        $this->connect();
+
+        $this->as()->postJson(route('calendar-sync.retry-event', $event))->assertOk();
+
+        $this->assertNull($copy->fresh()->sync_error);
+        $this->assertSame([$this->me->id], $this->port->pushedTo());
+    }
+
+    public function test_retry_event_refuses_an_event_from_another_company(): void
+    {
+        $otherTenant = Tenant::create(['slug' => 'other2', 'name' => 'Other2', 'initials' => 'O2']);
+        app(CurrentTenant::class)->set($otherTenant);
+        $foreignEvent = CompanyEvent::create([
+            'tenant_id' => $otherTenant->id, 'title' => 'Foreign event', 'type' => 'social',
+            'event_date' => now()->addDays(5)->toDateString(),
+        ]);
+        app(CurrentTenant::class)->set(null);
+        $this->connect();
+
+        $this->as()->postJson(route('calendar-sync.retry-event', $foreignEvent))->assertForbidden();
 
         $this->assertSame([], $this->port->pushedTo());
     }
