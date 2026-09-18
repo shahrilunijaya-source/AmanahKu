@@ -37,7 +37,7 @@
         @include('partials.payroll.transaction.takeon')
     </div>
     <div x-show="tab === 'tp1'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'Personal Tax Relief (TP1)', 'body' => 'Declare your personal tax reliefs so PCB is computed on the right base.', 'bodyMs' => 'Isytihar pelepasan cukai peribadi supaya PCB dikira atas asas yang betul.', 'pill' => 'Spec F8'])
+        @include('partials.payroll.transaction.tp1')
     </div>
     <div x-show="tab === 'items'" x-cloak>
         @include('partials.payroll.transaction.items')

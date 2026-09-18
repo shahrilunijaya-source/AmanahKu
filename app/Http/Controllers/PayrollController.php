@@ -1498,12 +1498,15 @@ class PayrollController extends Controller
             // $structure is genuinely nullable — Larastan false-positives
             // "nullsafe.neverNull" on ?-> below, so these are written as explicit null
             // checks to sidestep that rather than silence it.
-            currentZakat: (float) (($structure !== null ? $structure->zakat_monthly : null) ?? 0),
+            // Spec F8: zakat deducted from pay plus zakat the employee declared on TP1
+            // (paid straight to Pusat Zakat, so it never appears as a payslip deduction).
+            currentZakat: round((float) (($structure !== null ? $structure->zakat_monthly : null) ?? 0) + $ytd['currentZakat'], 2),
             disabledIndividual: (bool) (($structure !== null ? $structure->disabled_self : null) ?? false),
             // No spouse relief at all for category 1 (single) — see PcbCalculator::reliefs().
             disabledSpouse: $category !== 1 && (bool) (($structure !== null ? $structure->disabled_spouse : null) ?? false),
             qualifyingChildren: (int) (($structure !== null ? $structure->children_relief_count : null) ?? 0),
             ytdOptionalDeductions: $ytd['optionalDeductions'],
+            currentOptionalDeductions: $ytd['currentOptionalDeductions'],
             currentAdditionalGrossYt: $bonus,
             currentAdditionalEpfKt: $kt,
         );
