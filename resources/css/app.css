@@ -2943,6 +2943,7 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-ar-stamp[data-t="late"]{background:color-mix(in srgb,var(--amber) 15%,#fff);color:var(--amber-ink)}
 .uj-ar-stamp[data-t="absent"]{background:var(--red-tint);color:var(--error-ink)}
 .uj-ar-stamp[data-t="leave"]{background:color-mix(in srgb,var(--leave) 34%,#fff);color:var(--leave-ink)}
+.uj-ar-stamp[data-t="holiday"]{background:color-mix(in srgb,var(--leave) 18%,#fff);color:var(--leave-ink)}
 .uj-ar-stamp[data-t="half"]{background:color-mix(in srgb,var(--info) 9%,#fff);color:var(--info)}
 .uj-ar-stamp[data-t="miss"]{background:var(--red-tint);color:var(--error-ink)}
 

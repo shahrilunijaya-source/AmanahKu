@@ -32,7 +32,7 @@ final class LedgerTotals
         arsort($leaveByType);
 
         return [
-            'present' => $scopedRows->whereNotIn('status', ['absent', 'leave', 'pending'])->count(),
+            'present' => $scopedRows->whereNotIn('status', ['absent', 'leave', 'pending', 'holiday'])->count(),
             'absent' => $scopedRows->where('status', 'absent')->count(),
             'late' => $scopedRows->where('status', 'late')->count(),
             'leave' => $scopedRows->where('status', 'leave')->count(),

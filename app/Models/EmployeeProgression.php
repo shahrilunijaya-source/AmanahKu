@@ -29,11 +29,13 @@ class EmployeeProgression extends Model
         ];
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /** @return BelongsTo<Employee, $this> */
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'recorded_by_employee_id');

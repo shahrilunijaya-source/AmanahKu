@@ -23,6 +23,7 @@
         'miss' => ['Missing out', 'Tiada clock out'],
         'absent' => ['No punch', 'Tiada clock in'],
         'leave' => ['On leave', 'Bercuti'],
+        'holiday' => ['Public holiday', 'Cuti umum'],
         'half' => ['Half day', 'Separuh hari'],
         'pending' => ['Pending', 'Menunggu'],
     ];

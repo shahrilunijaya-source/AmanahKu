@@ -24,7 +24,7 @@ class AttendanceReportExportController extends Controller
 
     private const STATUS_LABEL = [
         'ontime' => 'On time', 'late' => 'Late', 'miss' => 'Missing clock-out',
-        'absent' => 'No punch', 'leave' => 'On leave', 'half' => 'Half day',
+        'absent' => 'No punch', 'leave' => 'On leave', 'holiday' => 'Public holiday', 'half' => 'Half day',
         'pending' => 'Pending',
     ];
 
