@@ -39,6 +39,30 @@ final class PayrollReadiness
         return $gaps;
     }
 
+    /**
+     * Non-blocking company-level notes. PSMB Act 2001: an employer in a covered industry
+     * with 10 or more Malaysian employees must register with HRD Corp, so a tenant running
+     * with the levy switched off past that headcount gets told once, in amber.
+     *
+     * @return list<string>
+     */
+    public function companyWarnings(Tenant $tenant): array
+    {
+        $hrdf = (string) ($this->features->value($tenant, 'payroll.hrdf') ?? 'off');
+        if ($hrdf !== 'off') {
+            return [];
+        }
+        $malaysians = Employee::active()->where('tenant_id', $tenant->id)
+            ->whereIn('status', ['active', 'probation', 'on_leave'])
+            ->whereHas('salaryStructure', fn ($q) => $q->where('nationality', 'citizen'))
+            ->count();
+        if ($malaysians < 10) {
+            return [];
+        }
+
+        return ["HRD Corp levy is off but the company has {$malaysians} Malaysian employees; registration is mandatory at 10."];
+    }
+
     /** @return list<array{employee: Employee, blocking: list<string>, warnings: list<string>}> */
     public function employeeRows(Tenant $tenant): array
     {

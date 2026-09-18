@@ -352,4 +352,20 @@ class PayrollPdfTest extends TestCase
         // opening 20 + earlier 25 = 45 (current payslip's own socso_employee is 25 too)
         $this->assertEqualsWithDelta(70.0, $ytd['socso']['employee']['ytd'], 0.001);
     }
+
+    /** Spec F7: the HRD Corp levy is employer cost, so it never appears on the employee's payslip. */
+    public function test_payslip_never_prints_an_hrd_corp_levy_line(): void
+    {
+        $payslip = $this->payslipFor($this->emp);
+        $payslip->forceFill(['hrdf_levy' => 50])->save();
+
+        $data = app(PayslipPdfData::class)->build($payslip->fresh(['lines']));
+
+        $flat = json_encode($data['earnings']->all()).json_encode($data['deductions']->all());
+        $this->assertStringNotContainsStringIgnoringCase('hrd', (string) $flat);
+        $this->assertStringNotContainsStringIgnoringCase('levy', (string) $flat);
+
+        $html = view('pdf.payslip', ['payslips' => collect([$data])])->render();
+        $this->assertStringNotContainsStringIgnoringCase('HRD Corp', $html);
+    }
 }

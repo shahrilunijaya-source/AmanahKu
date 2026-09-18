@@ -567,6 +567,7 @@ trait BuildsWorkData
                 'itxPeriodFinalized' => false,
                 'itxPeriodHasDraftRun' => false,
                 'readinessEmployer' => [],
+                'readinessCompanyWarnings' => [],
                 'readinessRows' => [],
                 'readinessBlockingCount' => 0,
             ];
@@ -580,11 +581,13 @@ trait BuildsWorkData
         $readinessTenant = app(CurrentTenant::class)->get();
         $readinessEmployer = $readinessTenant ? $readiness->employerGaps($readinessTenant) : [];
         $readinessRows = $readinessTenant ? $readiness->employeeRows($readinessTenant) : [];
+        $readinessCompanyWarnings = $readinessTenant ? $readiness->companyWarnings($readinessTenant) : [];
 
         return [
             'privileged' => true,
             // Spec F2: what still blocks a run, shown above the create form.
             'readinessEmployer' => $readinessEmployer,
+            'readinessCompanyWarnings' => $readinessCompanyWarnings,
             'readinessRows' => $readinessRows,
             'readinessBlockingCount' => count($readinessEmployer) + count(array_filter($readinessRows, fn (array $r) => $r['blocking'] !== [])),
             // Deleting a FINALIZED run is a step above the usual HR/management payroll

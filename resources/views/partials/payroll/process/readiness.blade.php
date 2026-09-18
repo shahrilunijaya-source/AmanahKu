@@ -1,5 +1,5 @@
 {{-- Spec F2 readiness panel: every currently employed person, red mark per missing item.
-     Expects $readinessEmployer (list<string>), $readinessRows, $readinessBlockingCount. --}}
+     Expects $readinessEmployer (list<string>), $readinessCompanyWarnings (list<string>), $readinessRows, $readinessBlockingCount. --}}
 @php
     $gapRows = array_filter($readinessRows, fn ($r) => $r['blocking'] !== [] || $r['warnings'] !== []);
 @endphp
@@ -16,6 +16,11 @@
     @if ($readinessEmployer)
         <div style="margin-top:10px;font-size:12.5px;"><b x-text="$store.ui.lang==='en' ? 'Company' : 'Syarikat'">Company</b>: <span style="color:var(--error);">{{ implode(', ', $readinessEmployer) }}</span> · <a href="{{ route('app.screen', ['screen' => 'settings']) }}" style="color:var(--red);" x-text="$store.ui.lang==='en' ? 'Fix in Settings' : 'Betulkan di Tetapan'">Fix in Settings</a></div>
     @endif
+    @foreach ($readinessCompanyWarnings as $w)
+        @php preg_match('/\d+/', $w, $m); $n = $m[0] ?? '0'; @endphp
+        <div style="margin-top:10px;background:#fff7e6;border:1px solid var(--amber);color:var(--amber);font-size:12.5px;border-radius:8px;padding:8px 11px;"
+             x-text="$store.ui.lang==='en' ? @js($w) : @js('Levi HRD Corp dimatikan tetapi syarikat mempunyai '.$n.' pekerja warganegara Malaysia; pendaftaran adalah wajib pada 10.')">{{ $w }}</div>
+    @endforeach
     @if ($gapRows)
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;">
             @foreach ($gapRows as $r)

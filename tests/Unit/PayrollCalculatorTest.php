@@ -396,4 +396,25 @@ class PayrollCalculatorTest extends TestCase
         $c = $this->calc->compute(['basic' => 3000, 'allowances_total' => 200, 'hrdf_rate' => 0.005]);
         $this->assertSame(16.00, $c->hrdfLevy);
     }
+
+    /**
+     * Spec F7 worked case: basic 3,000 + a fixed allowance of 300 (both HRD Corp liable),
+     * overtime that is not liable, and 2 unpaid days. Base 3,300 less 2 x (3,000 / 26)
+     * = 230.77 gives 3,069.23; at 1% the levy is 30.69.
+     */
+    public function test_hrdf_levy_spec_case_of_three_thousand_plus_allowance_less_two_unpaid_days(): void
+    {
+        $c = $this->calc->compute([
+            'basic' => 3000, 'allowances_total' => 300, 'unpaid_days' => 2, 'hrdf_rate' => 0.01,
+            // ~RM500 of overtime; the exact figure cannot move the levy because overtime is not liable.
+            'overtime_hours' => 23.11,
+            'lines' => [
+                ['amount' => 3000, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 300, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+            ],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => true, 'hrdf_liable' => false],
+        ]);
+
+        $this->assertSame(30.69, $c->hrdfLevy);
+    }
 }

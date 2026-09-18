@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
+use App\Services\FeatureManager;
 use App\Services\Payroll\PayrollReadiness;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,5 +81,29 @@ class PayrollReadinessTest extends TestCase
     {
         $this->tenant->update(['socso_employer_code' => null]);
         $this->assertSame(['SOCSO employer code'], app(PayrollReadiness::class)->employerGaps($this->tenant->fresh()));
+    }
+
+    public function test_no_hrdf_warning_below_ten_malaysian_employees(): void
+    {
+        for ($i = 0; $i < 9; $i++) {
+            $this->readyEmployee([], ['nationality' => 'citizen']);
+        }
+        $this->assertSame([], app(PayrollReadiness::class)->companyWarnings($this->tenant));
+    }
+
+    public function test_hrdf_warning_at_ten_malaysian_employees_and_none_once_the_levy_is_on(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->readyEmployee([], ['nationality' => 'citizen']);
+        }
+        $this->readyEmployee([], ['nationality' => 'foreign']);
+
+        $this->assertSame(
+            ['HRD Corp levy is off but the company has 10 Malaysian employees; registration is mandatory at 10.'],
+            app(PayrollReadiness::class)->companyWarnings($this->tenant),
+        );
+
+        app(FeatureManager::class)->setTenant($this->tenant, 'payroll.hrdf', '1');
+        $this->assertSame([], app(PayrollReadiness::class)->companyWarnings($this->tenant->fresh()));
     }
 }
