@@ -16,6 +16,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
+use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
@@ -32,6 +33,7 @@ use App\Services\Payroll\PcbCalculator;
 use App\Services\Payroll\PcbInputs;
 use App\Services\Payroll\PcbYearToDate;
 use App\Services\Payroll\Proration;
+use App\Services\Payroll\StatutoryCalendar;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
@@ -66,6 +68,7 @@ class PayrollController extends Controller
         private readonly EpfCalculator $epf,
         private readonly PcbYearToDate $pcbYtd,
         private readonly Cp38Notices $cp38,
+        private readonly StatutoryCalendar $calendar,
     ) {}
 
     // ── Salary structures ─────────────────────────────────────────
@@ -1353,6 +1356,13 @@ class PayrollController extends Controller
                 $this->cp38->applyFinalized($payslip);
             }
 
+            // Spec F12: open this month's agency filings so the Deadlines tab and the
+            // reminder digest have something to track from the moment the run is closed.
+            $tenant = app(CurrentTenant::class)->get();
+            if ($tenant !== null) {
+                $this->calendar->openFor($run, $tenant);
+            }
+
             // Notify each employee that their payslip is ready.
             foreach ($payslips as $payslip) {
                 AppNotification::send(
@@ -1393,6 +1403,10 @@ class PayrollController extends Controller
             $this->authorizeAdmin($request);
         }
 
+        // Spec F12: once a filing has gone to an agency the run behind it is history.
+        $filed = PayrollSubmission::where('payroll_run_id', $run->id)->whereNotNull('submitted_at')->exists();
+        abort_if($filed, 422, 'This run has already been filed with an agency; it cannot be deleted.');
+
         $label = $run->label;
         $period = $run->period;
 
@@ -1425,6 +1439,7 @@ class PayrollController extends Controller
             foreach ($payslips as $payslip) {
                 $payslip->lines()->delete();
             }
+            PayrollSubmission::where('payroll_run_id', $run->id)->delete();
             $run->payslips()->delete();
             $run->delete();
         });

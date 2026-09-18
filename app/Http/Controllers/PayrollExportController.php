@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\PayrollRun;
+use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Services\FeatureManager;
 use App\Services\Payroll\BankFile\BankFileRegistry;
@@ -116,6 +117,13 @@ class PayrollExportController extends Controller
         $payslips = $run->payslips()->with('employee.salaryStructure')->get()
             ->sortBy(fn (Payslip $p) => $p->employee?->name)->values();
         $body = $file->build($run, $tenant, $payslips);
+
+        // Spec F12: the first download of a statutory file marks that filing "file ready".
+        $agency = ['kwsp-form-a' => 'epf', 'perkeso-8a' => 'socso_eis', 'cp39' => 'pcb', 'hrdcorp' => 'hrdcorp'][$key] ?? null;
+        if ($agency !== null) {
+            PayrollSubmission::where('payroll_run_id', $run->id)->where('agency', $agency)
+                ->whereNull('downloaded_at')->update(['downloaded_at' => now()]);
+        }
 
         AuditLog::record('Exported statutory file', $run->label.' · '.$file->label().' · '.$payslips->count().' employees · includes NRIC'.($file->verified() ? '' : ' (unverified layout)'));
 

@@ -68,6 +68,7 @@ use App\Http\Controllers\PayrollCp38Controller;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollNoticeController;
 use App\Http\Controllers\PayrollPdfController;
+use App\Http\Controllers\PayrollSubmissionController;
 use App\Http\Controllers\PayrollTp1Controller;
 use App\Http\Controllers\PersonalRecordController;
 use App\Http\Controllers\PettyCashController;
@@ -778,6 +779,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/tp1-claims/{claim}/delete', [PayrollTp1Controller::class, 'destroy'])->name('payroll.tp1.delete');
             Route::post('/app/payroll/notices/{notice}/file', [PayrollNoticeController::class, 'file'])->name('payroll.notices.file');
             Route::post('/app/payroll/notices/{notice}/clear', [PayrollNoticeController::class, 'clear'])->name('payroll.notices.clear');
+            Route::post('/app/payroll/submissions/{submission}/submit', [PayrollSubmissionController::class, 'submit'])->name('payroll.submissions.submit');
             Route::post('/app/payroll/employees/{employee}/cp21', [PayrollNoticeController::class, 'cp21'])->name('payroll.notices.cp21');
             Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
             Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');

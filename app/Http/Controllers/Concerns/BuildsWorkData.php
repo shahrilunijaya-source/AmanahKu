@@ -15,6 +15,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollNotice;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
+use App\Models\PayrollSubmission;
 use App\Models\PayrollTp1Claim;
 use App\Models\Payslip;
 use App\Models\Project;
@@ -570,6 +571,8 @@ trait BuildsWorkData
                 'itxPeriodHasDraftRun' => false,
                 'readinessEmployer' => [],
                 'readinessCompanyWarnings' => [],
+                'payrollSubmissions' => collect(),
+                'payrollNotices' => collect(),
                 'readinessRows' => [],
                 'readinessBlockingCount' => 0,
             ];
@@ -604,9 +607,11 @@ trait BuildsWorkData
                 ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
-            // Spec F8: Form TP1 declarations for the year, newest first.
+            // Spec F12: statutory filings, soonest deadline first, submitted ones last.
+            'payrollSubmissions' => PayrollSubmission::with('payrollRun')->orderByRaw('submitted_at is not null')->orderBy('due_on')->get(),
             // Spec F11: statutory notices, open ones first.
             'payrollNotices' => PayrollNotice::with('employee')->orderByRaw('filed_on is not null')->orderBy('due_on')->get(),
+            // Spec F8: Form TP1 declarations for the year, newest first.
             'tp1Year' => $tp1Year = (int) ($request->integer('tp1_year') ?: now()->year),
             'tp1Claims' => PayrollTp1Claim::with('employee')->where('year', $tp1Year)->orderByDesc('month')->orderByDesc('id')->get(),
             'openingYear' => (int) now()->year,
