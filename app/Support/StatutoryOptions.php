@@ -13,6 +13,28 @@ final class StatutoryOptions
         'Public Bank', 'RHB Bank', 'Standard Chartered', 'United Overseas Bank', 'Other',
     ];
 
+    /** Form E item 3 (Category of employer) codes, transcribed from docs/statutory/form-e-sample-2025.pdf. */
+    public const EMPLOYER_CATEGORIES = [
+        '1' => 'Government', '2' => 'Statutory', '3' => 'Local authority',
+        '4' => 'Private Sector - Company', '5' => 'Private Sector - Other than company', '6' => 'Special class employer',
+    ];
+
+    /** Form E item 4 (Status of employer) codes, same source. */
+    public const EMPLOYER_STATUSES = ['1' => 'In operation', '2' => 'Dormant', '3' => 'In the process of winding up'];
+
+    /**
+     * Malaysian bank SWIFT/BIC codes keyed by the BANKS display name. Used by the salary
+     * structure bank picker (bank_code) and the employer's paying bank. "Other" has no
+     * code — a lookup on it yields null, which is what the agency files expect.
+     */
+    public const BANK_CODES = [
+        'Affin Bank' => 'PHBMMYKL', 'Agrobank' => 'AGOBMYKL', 'Alliance Bank' => 'MFBBMYKL', 'AmBank' => 'ARBKMYKL',
+        'Bank Islam' => 'BIMBMYKL', 'Bank Muamalat' => 'BMMBMYKL', 'Bank Rakyat' => 'BKRMMYKL', 'Bank Simpanan Nasional' => 'BSNAMYK1',
+        'CIMB Bank' => 'CIBBMYKL', 'Citibank' => 'CITIMYKL', 'Hong Leong Bank' => 'HLBBMYKL', 'HSBC Bank' => 'HBMBMYKL',
+        'Kuwait Finance House' => 'KFHOMYKL', 'Maybank' => 'MBBEMYKL', 'MBSB Bank' => 'AFBQMYKL', 'OCBC Bank' => 'OCBCMYKL',
+        'Public Bank' => 'PBBEMYKL', 'RHB Bank' => 'RHBBMYKL', 'Standard Chartered' => 'SCBLMYKX', 'United Overseas Bank' => 'UOVBMYKL',
+    ];
+
     /** LHDN PCB category codes. */
     public const TAX_CATEGORIES = ['1' => 'Category 1 · Single', '2' => 'Category 2 · Married, spouse not working', '3' => 'Category 3 · Married, spouse working'];
 
