@@ -65,8 +65,8 @@ export function registerCalendarSync(Alpine) {
         },
         get headText() {
             if (this.s.state === 'off') {
-                return this.t('Connect once and every card you own or are tagged on shows up in a separate “Amanahku” calendar. Your main calendar is never touched.',
-                    'Sambung sekali dan setiap kad milik anda atau yang anda ditanda akan muncul dalam kalendar “Amanahku” berasingan. Kalendar utama anda tidak disentuh.');
+                return this.t('Connect once and every card you own or are tagged on, and every company event, shows up in a separate “Amanahku” calendar. Your main calendar is never touched.',
+                    'Sambung sekali dan setiap kad milik anda atau yang anda ditanda, dan setiap acara syarikat, akan muncul dalam kalendar “Amanahku” berasingan. Kalendar utama anda tidak disentuh.');
             }
             if (this.s.state === 'expired') {
                 return this.t('Google stopped letting AmanahKu update your calendar, so nothing is being sent right now. Your cards are safe; reconnect and they will be sent again.',
