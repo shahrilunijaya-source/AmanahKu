@@ -28,6 +28,7 @@ class PayrollItem extends Model
         'name_ms',
         'epf_liable',
         'perkeso_liable',
+        'prorate_on_incomplete_month',
         'pcb_taxable',
         'pcb_exempt_cap_yearly',
         'ea_box',
@@ -154,6 +155,8 @@ class PayrollItem extends Model
                 'type' => $type,
                 'epf_liable' => $epf,
                 'perkeso_liable' => $perkeso,
+                // Spec F3: basic pay and fixed allowances are the wages s.18A prorates.
+                'prorate_on_incomplete_month' => in_array($code, ['basic-salary', 'fixed-allowance'], true),
                 'pcb_taxable' => $taxable,
                 'pcb_exempt_cap_yearly' => $cap,
                 'ea_box' => $eaBox,

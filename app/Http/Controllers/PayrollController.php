@@ -27,6 +27,7 @@ use App\Services\Payroll\PayslipComputation;
 use App\Services\Payroll\PcbCalculator;
 use App\Services\Payroll\PcbInputs;
 use App\Services\Payroll\PcbYearToDate;
+use App\Services\Payroll\Proration;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
@@ -592,35 +593,32 @@ class PayrollController extends Controller
 
     private function prorationFactor(Employee $employee, string $period): float
     {
+        $d = $this->employedDays($employee, $period);
+
+        return $d['in_month'] > 0 ? min(1.0, $d['employed'] / $d['in_month']) : 0.0;
+    }
+
+    /**
+     * Calendar days employed within the period (spec F3). Leaving date: the employee
+     * record's last_working_day first, then an offboarding case's last_day.
+     *
+     * @return array{employed: int, in_month: int}
+     */
+    private function employedDays(Employee $employee, string $period): array
+    {
         $periodStart = $this->periodStart($period);
         $periodEnd = $this->periodStart($period)->endOfMonth();
-        $daysInMonth = $periodEnd->day;
-
-        $employedFrom = $periodStart;
-        if ($employee->joined_at !== null && $employee->joined_at->gt($periodStart)) {
-            $employedFrom = $employee->joined_at->copy();
+        $lastDay = $employee->last_working_day;
+        if ($lastDay === null) {
+            $raw = OffboardingCase::where('employee_id', $employee->id)
+                ->whereIn('status', ['in_progress', 'completed'])
+                ->whereBetween('last_day', [$periodStart->toDateString(), $periodEnd->toDateString()])
+                ->orderByDesc('last_day')
+                ->value('last_day');
+            $lastDay = $raw !== null ? Carbon::parse($raw) : null;
         }
 
-        $employedTo = $periodEnd;
-        $lastDay = OffboardingCase::where('employee_id', $employee->id)
-            ->whereIn('status', ['in_progress', 'completed'])
-            ->whereBetween('last_day', [$periodStart->toDateString(), $periodEnd->toDateString()])
-            ->orderByDesc('last_day')
-            ->value('last_day');
-        if ($lastDay !== null) {
-            $employedTo = Carbon::parse($lastDay);
-        }
-
-        if ($employedFrom->gt($employedTo)) {
-            return 0.0;
-        }
-
-        // Both dates fall within the same calendar month (employedFrom/employedTo are
-        // clamped to [periodStart, periodEnd] above) — day-of-month subtraction avoids
-        // diffInDays' float rounding on a periodEnd that carries a 23:59:59 time part.
-        $daysEmployed = $employedTo->day - $employedFrom->day + 1;
-
-        return min(1.0, max(0.0, $daysEmployed / $daysInMonth));
+        return Proration::days($period, $employee->joined_at, $lastDay);
     }
 
     // ── Overtime / unpaid-leave pull (approved requests → payslip) ─────────────────
@@ -844,10 +842,20 @@ class PayrollController extends Controller
                 $individualEarnings = $itLines->filter(fn (array $l) => $l['item']->type === 'earning');
                 $individualDeductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
+                // Spec F3: an incomplete month of service is paid by calendar days (s.18A),
+                // but only for items flagged to prorate.
+                $days = $this->employedDays($employee, $data['period']);
+                // A tenant with no seeded catalogue prorates by default (has() guards the
+                // read; PHPStan types Collection::get() as non-null here).
+                $prorateBasic = ! $catalog->has('basic-salary') || (bool) $catalog->get('basic-salary')->prorate_on_incomplete_month;
+                $basic = $prorateBasic && $days['employed'] < $days['in_month']
+                    ? Proration::prorate((float) ($employee->salary ?? 0), $days['employed'], $days['in_month'])
+                    : (float) ($employee->salary ?? 0);
+
                 $inputs = [
                     // Basic salary is the employee record's (Employment tab / Progression), as in
                     // Worksy. salary_structures.basic_salary is history only since 2026-09-29.
-                    'basic' => (float) ($employee->salary ?? 0),
+                    'basic' => $basic,
                     'allowances_total' => round($fixedEarnings->sum('amount'), 2),
                     'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
                     'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
@@ -896,6 +904,8 @@ class PayrollController extends Controller
                     'claim_ids' => $claims->pluck('id')->all() ?: null,
                 ]);
                 $payslip->forceFill($comp->toPayslipAttributes() + [
+                    'days_employed' => $days['employed'],
+                    'days_in_month' => $days['in_month'],
                     'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
                     'pulled_overtime_hours' => $pulledOvertimeHours,
                     'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
@@ -940,6 +950,9 @@ class PayrollController extends Controller
             // Null/blank = go with the computed PCB; a value here overrides it verbatim
             // and survives future recomputes until cleared (see PayrollCalculator).
             'pcb_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Blank/absent = keep the generated (possibly prorated) basic; a value here
+            // is HR's own figure and sticks until the run is regenerated.
+            'basic' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             // Individual Transactions: a one-off earning/deduction against a Payroll Item,
             // an amount, and an optional remark — replaces the old free-form add_name/
             // ded_name pairs so every payslip amount traces back to a catalogue item.
@@ -981,10 +994,13 @@ class PayrollController extends Controller
         $rawOvertimeMultiplier = $request->input('overtime_multiplier');
         $rawUnpaidDays = $request->input('unpaid_days');
         $unpaidOverridden = $rawUnpaidDays !== null && $rawUnpaidDays !== '';
+        $rawBasic = $request->input('basic');
+        $basicOverridden = $rawBasic !== null && $rawBasic !== '';
 
         $comp = DB::transaction(function () use (
             $request, $data, $payslip, $structure, $epfPart, $periodEnd,
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
+            $basicOverridden, $rawBasic,
         ) {
             $overtimeRequests = ! $payslip->payrollRun->pulls('overtime') ? collect() : $this->pullableOvertimeFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
@@ -997,7 +1013,7 @@ class PayrollController extends Controller
             $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
             $baseInputs = [
-                'basic' => $payslip->basic,
+                'basic' => $basicOverridden ? (float) $rawBasic : $payslip->basic,
                 'allowances_total' => $payslip->allowances_total,
                 'fixed_deductions_total' => $payslip->fixed_deductions_total,
                 'claims_reimbursement' => $payslip->claims_reimbursement,
@@ -1102,6 +1118,7 @@ class PayrollController extends Controller
                 'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
                 'pulled_unpaid_days' => $pulledUnpaidDays,
                 'unpaid_days_overridden' => $unpaidOverridden,
+                'basic_overridden' => $basicOverridden || $payslip->basic_overridden,
             ])->save();
             $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
 
@@ -1532,6 +1549,7 @@ class PayrollController extends Controller
             'name_ms' => ['nullable', 'string', 'max:80'],
             'epf_liable' => ['boolean'],
             'perkeso_liable' => ['boolean'],
+            'prorate_on_incomplete_month' => ['boolean'],
             'pcb_taxable' => ['boolean'],
             'active' => ['boolean'],
         ]);
@@ -1541,6 +1559,7 @@ class PayrollController extends Controller
             'name_ms' => $data['name_ms'] ?? null,
             'epf_liable' => $request->boolean('epf_liable'),
             'perkeso_liable' => $request->boolean('perkeso_liable'),
+            'prorate_on_incomplete_month' => $request->boolean('prorate_on_incomplete_month'),
             'pcb_taxable' => $request->boolean('pcb_taxable'),
             'active' => $request->boolean('active'),
         ]);

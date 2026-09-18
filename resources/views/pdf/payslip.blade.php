@@ -62,7 +62,7 @@
             <div class="left">
                 <div class="company-name">{{ $tenant?->name ?? 'Company' }}</div>
                 <div class="doc-title">Official Payslip</div>
-                <div class="meta">Pay period: {{ $periodLabel }} &nbsp;·&nbsp; Payment date: {{ $payDate }}</div>
+                <div class="meta">Pay period: {{ $periodLabel }} &nbsp;·&nbsp; Payment date: {{ $payDate }}@if ($p->days_employed !== null && $p->days_in_month !== null && $p->days_employed < $p->days_in_month) &nbsp;·&nbsp; Days employed: {{ $p->days_employed }} / {{ $p->days_in_month }}@endif</div>
             </div>
             <div class="right">
                 @if ($logoPath && file_exists($logoPath))
