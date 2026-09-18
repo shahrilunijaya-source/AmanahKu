@@ -55,6 +55,7 @@ final class LedgerBuilder
      * @param  Collection<int, AttendanceRecord>  $records
      * @param  Collection<int, LeaveRequest>  $leaveRequests
      * @param  list<string>  $workingDays
+     * @param  list<string>  $holidays  Y-m-d public holidays inside the window
      * @return Collection<int, array<string, mixed>>
      */
     public function build(
@@ -63,6 +64,7 @@ final class LedgerBuilder
         Collection $leaveRequests,
         array $workingDays,
         CarbonImmutable $today,
+        array $holidays = [],
     ): Collection {
         $byEmployeeDate = [];
         foreach ($records as $r) {
@@ -89,6 +91,7 @@ final class LedgerBuilder
                     $leave[$emp->id] ?? [],
                     $date,
                     $todayStr,
+                    $holidays,
                 );
             }
         }
@@ -98,9 +101,10 @@ final class LedgerBuilder
 
     /**
      * @param  list<array{from: string, to: string, type: string|null}>  $leave
+     * @param  list<string>  $holidays
      * @return array<string, mixed>
      */
-    private function row(Employee $emp, ?AttendanceRecord $r, array $leave, string $date, string $todayStr): array
+    private function row(Employee $emp, ?AttendanceRecord $r, array $leave, string $date, string $todayStr, array $holidays = []): array
     {
         $base = [
             'employeeId' => $emp->id,
@@ -126,7 +130,10 @@ final class LedgerBuilder
 
             return array_merge($base, [
                 'status' => match (true) {
+                    // Leave first: whether a holiday refunds an approved leave day is a
+                    // policy question this screen does not get to answer silently.
                     $covering !== false => 'leave',
+                    in_array($date, $holidays, true) => 'holiday',
                     $date === $todayStr => 'pending',
                     default => 'absent',
                 },

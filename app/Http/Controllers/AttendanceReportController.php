@@ -11,6 +11,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
 use App\Services\DataScope;
 use App\Support\Permissions;
 use Carbon\CarbonImmutable;
@@ -121,7 +122,7 @@ class AttendanceReportController extends Controller
         );
 
         $scoped = app(LedgerBuilder::class)
-            ->build($employees, $records, $leaveRequests, $workingDays, $today);
+            ->build($employees, $records, $leaveRequests, $workingDays, $today, $this->holidays($from, $dayAfter));
 
         $canSeeLocation = $this->canSeeLocation($request);
 
@@ -317,6 +318,23 @@ class AttendanceReportController extends Controller
      * @param  list<int>|null  $visibleIds
      * @return array<string, mixed>|null
      */
+    /**
+     * Tenant public holidays inside the window. A day off is not a missed punch, so the
+     * ledger names it rather than counting it against anyone.
+     *
+     * @return list<string> Y-m-d
+     */
+    private function holidays(string $from, string $dayAfter): array
+    {
+        return PublicHoliday::query()
+            ->where('date', '>=', $from)
+            ->where('date', '<', $dayAfter)
+            ->pluck('date')
+            ->map(fn ($d) => $d->toDateString())
+            ->values()
+            ->all();
+    }
+
     public function personDetail(Request $request, int $id, ReportPeriod $period, ?array $visibleIds): ?array
     {
         if ($visibleIds !== null && ! in_array($id, $visibleIds, true)) {
@@ -355,7 +373,7 @@ class AttendanceReportController extends Controller
 
         $scoped = app(LedgerBuilder::class)->build(
             collect([$employee]), $records, $leaveRequests, $workingDays,
-            CarbonImmutable::now()->startOfDay(),
+            CarbonImmutable::now()->startOfDay(), $this->holidays($from, $dayAfter),
         );
 
         if (! $this->canSeeLocation($request)) {

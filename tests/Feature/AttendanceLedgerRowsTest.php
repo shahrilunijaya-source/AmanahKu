@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Attendance\LedgerBuilder;
+use App\Attendance\LedgerTotals;
 use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\Employee;
@@ -39,8 +40,11 @@ class AttendanceLedgerRowsTest extends TestCase
         ]);
     }
 
-    /** @return Collection<int, array<string, mixed>> */
-    private function build(): Collection
+    /**
+     * @param  list<string>  $holidays
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function build(array $holidays = []): Collection
     {
         return app(LedgerBuilder::class)->build(
             // Mirrors the controller's own employee query: active() only clears the
@@ -50,6 +54,7 @@ class AttendanceLedgerRowsTest extends TestCase
             LeaveRequest::where('status', 'approved')->with('leaveType:id,name')->get(),
             $this->days,
             CarbonImmutable::parse('2026-08-20'),
+            $holidays,
         );
     }
 
@@ -63,6 +68,21 @@ class AttendanceLedgerRowsTest extends TestCase
             $rows->pluck('status')->all(),
             'past days read as no-punch; today is still pending'
         );
+    }
+
+    public function test_a_public_holiday_reads_as_a_holiday_not_a_missed_punch(): void
+    {
+        $rows = $this->build(['2026-08-18']);
+
+        $this->assertSame(
+            ['absent', 'holiday', 'absent', 'pending'],
+            $rows->pluck('status')->all(),
+            'the holiday is named; the other days are untouched'
+        );
+
+        $totals = LedgerTotals::of($rows);
+        $this->assertSame(0, $totals['present'], 'a day off is not attendance');
+        $this->assertSame(2, $totals['absent'], 'and it is not a no-punch either');
     }
 
     public function test_a_clocked_day_carries_its_times_and_hours(): void

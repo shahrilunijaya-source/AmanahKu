@@ -40,6 +40,20 @@
                 </div>
             @endforeach
             @if ($row->remark)<div style="grid-column:1/-1;font-size:12.5px;color:var(--body);">{{ $row->remark }}</div>@endif
+            @if ($editable ?? false)
+                <div style="grid-column:1/-1;" x-data="{ editing: false }">
+                    <div x-show="!editing"><button type="button" @click="editing = true" style="background:transparent;border:0;padding:0;cursor:pointer;font-size:12px;color:var(--info);">{!! $L('Correct note or date', 'Betulkan catatan atau tarikh') !!}</button></div>
+                    <div x-show="editing" x-cloak>
+                        <form method="post" action="{{ route('progression.record.update', $row) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
+                            @csrf
+                            <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ $row->effective_on->toDateString() }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            <div style="flex:1;min-width:200px;"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ $row->remark }}" style="width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;padding:0 16px;">{!! $L('Save', 'Simpan') !!}</button>
+                            <button type="button" @click="editing = false" style="height:34px;background:transparent;border:0;cursor:pointer;font-size:12.5px;color:var(--muted);">{!! $L('Cancel', 'Batal') !!}</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
             <div style="grid-column:1/-1;font-size:11.5px;color:var(--muted);margin-top:4px;">{!! $L('Recorded on', 'Direkod pada') !!} {{ $row->created_at->format('jS F Y') }}@if ($row->recordedBy), {!! $L('by', 'oleh') !!} {{ $row->recordedBy->name }}@endif</div>
         </div>
     </div>
