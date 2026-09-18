@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeProgression;
 use App\Models\EmploymentType;
 use App\Models\Position;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -24,6 +27,9 @@ use Illuminate\Validation\Rule;
 class ProgressionController extends EmploymentRecordController
 {
     public const ACTIONS = ['confirmation', 'update', 'resignation', 'rehire'];
+
+    /** Which tab a saved row belongs to, for the redirect after a correction. */
+    public const ACTION_FOR_TYPE = ['hired' => 'confirmation', 'confirmed' => 'confirmation', 'updated' => 'update', 'resigned' => 'resignation', 'rehired' => 'rehire'];
 
     /** @return array<string, mixed> */
     public function screenData(Request $request): array
@@ -98,6 +104,43 @@ class ProgressionController extends EmploymentRecordController
         return $this->run('hired_on', 'rehire', $employee, fn () => $service->rehire(
             $employee, $data['hired_on'], self::fields($data, $this->hasTenantRole($request, ['director', 'hr'])), $data['remark'] ?? null, $request->attributes->get('employee')
         ));
+    }
+
+    /**
+     * Corrects a saved row: remark and effective date only. The snapshot stays as it was
+     * recorded, so the timeline still shows what the record actually held at the time.
+     */
+    public function updateRecord(Request $request, EmployeeProgression $progression): RedirectResponse
+    {
+        $this->authorizeTenantRole($request, ['management', 'hr']);
+        abort_unless($progression->tenant_id === app(CurrentTenant::class)->id(), 403);
+        $data = $request->validate(['effective_on' => ['required', 'date'], 'remark' => ['nullable', 'string', 'max:2000']]);
+        $employee = $progression->employee;
+        $on = CarbonImmutable::parse($data['effective_on']);
+
+        if (! in_array($progression->type, ['hired', 'rehired'], true) && $employee->joined_at && $on->lt($employee->joined_at)) {
+            return back()->withInput()->withErrors(['effective_on' => 'Date cannot be before the hire date ('.$employee->joined_at->format('d M Y').').']);
+        }
+
+        $progression->forceFill(['effective_on' => $on->toDateString(), 'remark' => $data['remark'] ?: null])->save();
+        $this->syncEmployeeDate($progression, $employee, $on->toDateString());
+        AuditLog::record('Edited progression record', $employee->name.' · '.$progression->type);
+
+        return redirect(route('app.screen', 'progression').'?emp='.$employee->id.'&action='.self::ACTION_FOR_TYPE[$progression->type])
+            ->with('ok', $employee->name.' · Record corrected.');
+    }
+
+    /** The employee column the row drives, kept in step only when this is their latest row of that type. */
+    private function syncEmployeeDate(EmployeeProgression $row, Employee $employee, string $on): void
+    {
+        $column = ['hired' => 'joined_at', 'rehired' => 'joined_at', 'confirmed' => 'confirmed_at', 'resigned' => 'resigned_at'][$row->type] ?? null;
+        if ($column === null) {
+            return;
+        }
+        $latest = EmployeeProgression::where('employee_id', $employee->id)->where('type', $row->type)->orderByDesc('id')->first();
+        if ($latest?->id === $row->id) {
+            $employee->forceFill([$column => $on])->save();
+        }
     }
 
     private function guard(Request $request, Employee $employee): void
