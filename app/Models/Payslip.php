@@ -79,6 +79,7 @@ class Payslip extends Model
             'pcb_additional' => 'float',
             'zakat' => 'float',
             'cp38' => 'float',
+            'pcb_exempt_amount' => 'float',
             'pcb_override' => 'float',
             'claims_reimbursement' => 'float',
             'total_deductions' => 'float',

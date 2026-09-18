@@ -22,6 +22,7 @@ use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
 use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
+use App\Services\Payroll\ExemptionCap;
 use App\Services\Payroll\HrdCorpLevy;
 use App\Services\Payroll\MinimumWage;
 use App\Services\Payroll\PayrollCalculator;
@@ -916,7 +917,11 @@ class PayrollController extends Controller
                 // PCB: the real LHDN computerised MTD calculation, year-to-date-aware —
                 // see buildPcbInputs(). Two-pass like EPF/SOCSO above: compute gross/EPF
                 // first, feed those into PCB, then recompute so the deduction flows into net.
-                $result = $this->pcb->calculate($this->buildPcbInputs($employee, $data['period'], $comp, $structure, $epfPart));
+                $exemptThisMonth = $this->exemptThisMonth($employee, $data['period'], [
+                    ...$fixedEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
+                    ...$individualEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
+                ]);
+                $result = $this->pcb->calculate($this->buildPcbInputs($employee, $data['period'], $comp, $structure, $epfPart, $exemptThisMonth));
                 $inputs['pcb'] = $result->netNormalMtd;
                 $inputs['pcb_additional'] = $result->additionalMtd;
                 $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
@@ -931,6 +936,7 @@ class PayrollController extends Controller
                     'claim_ids' => $claims->pluck('id')->all() ?: null,
                 ]);
                 $payslip->forceFill($comp->toPayslipAttributes() + [
+                    'pcb_exempt_amount' => $exemptThisMonth,
                     'days_employed' => $days['employed'],
                     'days_in_month' => $days['in_month'],
                     'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
@@ -1133,7 +1139,11 @@ class PayrollController extends Controller
             // First pass: gross + EPF, needed to split normal vs. additional remuneration
             // for PCB. Second pass: feed the computed PCB back in so it flows into net.
             $comp = $this->calculator->compute($baseInputs);
-            $result = $this->pcb->calculate($this->buildPcbInputs($payslip->employee, $payslip->payrollRun->period, $comp, $structure, $epfPart));
+            $exemptThisMonth = $this->exemptThisMonth($payslip->employee, $payslip->payrollRun->period, [
+                ...$fixedEarningLines->map(fn (PayslipLine $l) => ['item' => $l->payrollItem, 'amount' => (float) $l->amount])->values()->all(),
+                ...$individualEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
+            ]);
+            $result = $this->pcb->calculate($this->buildPcbInputs($payslip->employee, $payslip->payrollRun->period, $comp, $structure, $epfPart, $exemptThisMonth));
             $comp = $this->calculator->compute($baseInputs + [
                 'pcb' => $result->netNormalMtd,
                 'pcb_additional' => $result->additionalMtd,
@@ -1150,6 +1160,7 @@ class PayrollController extends Controller
             // request that got rejected after the last save) back to the pool, whether or
             // not HR's own override is what actually drives the amount used above.
             $payslip->forceFill($comp->toPayslipAttributes() + [
+                'pcb_exempt_amount' => $exemptThisMonth,
                 'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
                 'pulled_overtime_hours' => $pulledOvertimeHours,
                 'overtime_overridden' => $overtimeOverridden,
@@ -1447,7 +1458,7 @@ class PayrollController extends Controller
      * (Kt) is the difference between EPF on the full month's pay and EPF on the pay
      * excluding the bonus — EpfCalculator gives both.
      */
-    private function buildPcbInputs(Employee $employee, string $period, PayslipComputation $comp, ?SalaryStructure $structure, ?string $epfPart): PcbInputs
+    private function buildPcbInputs(Employee $employee, string $period, PayslipComputation $comp, ?SalaryStructure $structure, ?string $epfPart, float $exemptThisMonth = 0.0): PcbInputs
     {
         // Category derivation lives on PcbCalculator (also reused by Cp8dData for the
         // C.P.8D text file's "Category of employee" field) — never re-derive it here.
@@ -1477,7 +1488,9 @@ class PayrollController extends Controller
             isResident: true,
             ytdGrossY: $ytd['grossY'],
             ytdEpfK: $ytd['epfK'],
-            currentGrossY1: round($comp->gross - $bonus, 2),
+            // Spec F8: the part of this month's pay covered by a Payroll Item's yearly
+            // exemption cap is out of the PCB base (Y1) and nothing else.
+            currentGrossY1: round(max(0.0, $comp->gross - $bonus - $exemptThisMonth), 2),
             currentEpfK1: $k1,
             monthsRemainingAfterCurrent: $n,
             ytdZakatZ: $ytd['zakatZ'],
@@ -1494,6 +1507,29 @@ class PayrollController extends Controller
             currentAdditionalGrossYt: $bonus,
             currentAdditionalEpfKt: $kt,
         );
+    }
+
+    /**
+     * Spec F8: how much of this month's earnings falls under a Payroll Item's yearly
+     * tax-exempt cap. Only the PCB base moves — the EPF and PERKESO wage bases are
+     * separate statutory concepts and are deliberately left alone.
+     *
+     * @param  array<int, array{item: ?PayrollItem, amount: float}>  $earningLines
+     */
+    private function exemptThisMonth(Employee $employee, string $period, array $earningLines): float
+    {
+        $exempt = 0.0;
+        foreach ($earningLines as $line) {
+            $item = $line['item'];
+            if ($item === null || $item->pcb_exempt_cap_yearly === null || ! $item->pcb_taxable) {
+                continue;
+            }
+            $amount = round($line['amount'], 2);
+            $taxable = ExemptionCap::taxableThisMonth($amount, $this->pcbYtd->exemptUsed($employee, $period, $item), $item->pcb_exempt_cap_yearly);
+            $exempt += max(0.0, $amount - $taxable);
+        }
+
+        return round($exempt, 2);
     }
 
     /** Route-model binding resolves before the tenant scope is active — assert explicitly. */
