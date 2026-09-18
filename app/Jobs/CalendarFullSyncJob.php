@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\GoogleCalendarConnection;
 use App\Models\WorkItem;
 use App\Ports\CalendarPort;
 use App\Support\Calendar\CalendarReconciler;
 use App\Support\Calendar\CalendarSyncProgress;
+use App\Support\Calendar\CompanyEventCopies;
 use App\Support\Calendar\TaggedCopies;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Bus\Queueable;
@@ -55,8 +57,10 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
         CalendarSyncProgress::start($this->userId, count($targets));
 
         try {
-            foreach ($targets as [$tenantId, $workItemId, $recipientId]) {
-                $job = new SyncWorkItemCalendarEventJob(tenantId: $tenantId, action: 'upsert', workItemId: $workItemId, recipientEmployeeId: $recipientId);
+            foreach ($targets as $target) {
+                $job = $target['kind'] === 'event'
+                    ? new SyncCompanyEventCalendarCopyJob(tenantId: $target['tenantId'], action: 'upsert', companyEventId: $target['id'], employeeId: $target['recipient'])
+                    : new SyncWorkItemCalendarEventJob(tenantId: $target['tenantId'], action: 'upsert', workItemId: $target['id'], recipientEmployeeId: $target['recipient']);
                 try {
                     $job->handle($context, $port);
                     CalendarSyncProgress::tick($this->userId, true);
@@ -85,7 +89,7 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
         CalendarSyncProgress::finish($this->userId, 'done');
     }
 
-    /** @return list<array{0: int, 1: int, 2: ?int}> tenant id, card id, recipient (null = owner) */
+    /** @return list<array{tenantId: int, kind: 'work_item'|'event', id: int, recipient: ?int}> recipient null = card owner */
     private function targets(): array
     {
         $out = [];
@@ -96,7 +100,7 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
             $owned = WorkItem::withoutGlobalScopes()->where('employee_id', $employee->id)->tap($open)
                 ->whereNull('company_event_id')->pluck('id');
             foreach ($owned as $id) {
-                $out[] = [$employee->tenant_id, $id, null];
+                $out[] = ['tenantId' => $employee->tenant_id, 'kind' => 'work_item', 'id' => $id, 'recipient' => null];
             }
 
             $tagged = WorkItem::withoutGlobalScopes()->tap($open)
@@ -107,7 +111,14 @@ class CalendarFullSyncJob implements ShouldBeUnique, ShouldQueue
                     ->where(fn ($r) => $r->whereIn('role', array_filter(TaggedCopies::ROLES))->orWhereNull('role')))
                 ->pluck('id');
             foreach ($tagged as $id) {
-                $out[] = [$employee->tenant_id, $id, $employee->id];
+                $out[] = ['tenantId' => $employee->tenant_id, 'kind' => 'work_item', 'id' => $id, 'recipient' => $employee->id];
+            }
+
+            $events = CompanyEvent::withoutGlobalScopes()->where('tenant_id', $employee->tenant_id)
+                ->get()->reject(fn (CompanyEvent $e) => $e->isOver())
+                ->filter(fn (CompanyEvent $e) => CompanyEventCopies::recipients($e)->contains('id', $employee->id));
+            foreach ($events as $event) {
+                $out[] = ['tenantId' => $employee->tenant_id, 'kind' => 'event', 'id' => $event->id, 'recipient' => $employee->id];
             }
         }
 
