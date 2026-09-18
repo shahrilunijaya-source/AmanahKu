@@ -60,6 +60,7 @@ class Payslip extends Model
             'pulled_unpaid_days' => 'float',
             'unpaid_days_overridden' => 'boolean',
             'fixed_deductions_total' => 'float',
+            'hrdf_levy' => 'float',
             'deduction_cap_exceeded' => 'boolean',
             'deduction_consent_confirmed' => 'boolean',
             'carried_forward_amount' => 'float',

@@ -21,6 +21,7 @@ use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
 use App\Services\Payroll\EpfCalculator;
+use App\Services\Payroll\HrdCorpLevy;
 use App\Services\Payroll\MinimumWage;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\PayrollReadiness;
@@ -803,9 +804,11 @@ class PayrollController extends Controller
         $missingDob = $employees->whereNull('date_of_birth')->count();
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
+        // Spec F7: one tenant-level rate for the whole run; per-employee eligibility below.
+        $hrdfRate = HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf'));
 
         $overtimeWarnings = [];
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded, &$overtimeWarnings) {
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
@@ -882,6 +885,7 @@ class PayrollController extends Controller
                         'amount' => $l['amount'],
                         'epf_liable' => (bool) $l['item']->epf_liable,
                         'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                        'hrdf_liable' => (bool) $l['item']->hrdf_liable,
                     ])->values()->all(),
                     'individual_earnings_total' => round($individualEarnings->sum('amount'), 2),
                     'individual_deductions_total' => round($individualDeductions->sum('amount'), 2),
@@ -889,6 +893,7 @@ class PayrollController extends Controller
                         'amount' => $l['amount'],
                         'epf_liable' => (bool) $l['item']->epf_liable,
                         'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                        'hrdf_liable' => (bool) $l['item']->hrdf_liable,
                     ])->values()->all(),
                     'claims_reimbursement' => $claims->sum('amount'),
                     // Approved overtime/unpaid-leave populate the draft automatically — see
@@ -902,6 +907,8 @@ class PayrollController extends Controller
                     'statutory_category' => $employee->statutoryCategory($periodEnd),
                     'epf_part' => $epfPart,
                     'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
+                    // Spec F7: citizens only, and not when HR has marked the employee exempt.
+                    'hrdf_rate' => (($structure->nationality ?? 'citizen') === 'citizen' && ! $structure->hrdf_exempt) ? $hrdfRate : 0.0,
                 ];
                 $inputs = $this->withWageBaseFlags($inputs, $catalog);
                 $comp = $this->calculator->compute($inputs);
@@ -1046,6 +1053,10 @@ class PayrollController extends Controller
                 'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
                 // A payslip HR already carried forward keeps that policy across recomputes.
                 'carry_forward' => $payslip->carried_forward_amount > 0,
+                // Spec F7: citizens only, and not when HR has marked the employee exempt.
+                'hrdf_rate' => (($structure->nationality ?? 'citizen') === 'citizen' && ! $structure->hrdf_exempt)
+                    ? HrdCorpLevy::rate((string) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'payroll.hrdf'))
+                    : 0.0,
             ];
 
             if ($overtimeOverridden) {
@@ -1094,6 +1105,7 @@ class PayrollController extends Controller
                 'amount' => $l['amount'],
                 'epf_liable' => (bool) $l['item']->epf_liable,
                 'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                'hrdf_liable' => (bool) $l['item']->hrdf_liable,
             ])->values()->all();
 
             // Re-derive each Fixed Transaction earning's own wage-base flags from the lines
@@ -1112,6 +1124,7 @@ class PayrollController extends Controller
                     'amount' => (float) $l->amount,
                     'epf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->epf_liable : null) ?? true),
                     'perkeso_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->perkeso_liable : null) ?? true),
+                    'hrdf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->hrdf_liable : null) ?? true),
                 ])->all();
             }
 
@@ -1512,6 +1525,8 @@ class PayrollController extends Controller
             return [
                 'epf_liable' => $item ? (bool) $item->epf_liable : $defaultEpf,
                 'perkeso_liable' => $item ? (bool) $item->perkeso_liable : $defaultPerkeso,
+                // Spec F7: the levy's wage base is basic pay plus fixed allowances.
+                'hrdf_liable' => $item ? (bool) $item->hrdf_liable : in_array($code, ['basic-salary', 'fixed-allowance'], true),
             ];
         };
 
@@ -1685,6 +1700,7 @@ class PayrollController extends Controller
             'epf_liable' => ['boolean'],
             'perkeso_liable' => ['boolean'],
             'prorate_on_incomplete_month' => ['boolean'],
+            'hrdf_liable' => ['boolean'],
             'pcb_taxable' => ['boolean'],
             'active' => ['boolean'],
         ]);
@@ -1695,6 +1711,7 @@ class PayrollController extends Controller
             'epf_liable' => $request->boolean('epf_liable'),
             'perkeso_liable' => $request->boolean('perkeso_liable'),
             'prorate_on_incomplete_month' => $request->boolean('prorate_on_incomplete_month'),
+            'hrdf_liable' => $request->boolean('hrdf_liable'),
             'pcb_taxable' => $request->boolean('pcb_taxable'),
             'active' => $request->boolean('active'),
         ]);

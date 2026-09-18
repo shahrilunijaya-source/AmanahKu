@@ -48,6 +48,7 @@ final readonly class PayslipComputation
         public float $employerCost,
         public bool $deductionCapExceeded = false,
         public float $carriedForward = 0.0,
+        public float $hrdfLevy = 0.0,
     ) {}
 
     /** Total employee-side statutory contributions (EPF + SOCSO + EIS + SKBBK). */
@@ -99,6 +100,7 @@ final readonly class PayslipComputation
             'employer_cost' => $this->employerCost,
             'deduction_cap_exceeded' => $this->deductionCapExceeded,
             'carried_forward_amount' => $this->carriedForward,
+            'hrdf_levy' => $this->hrdfLevy,
         ];
     }
 }

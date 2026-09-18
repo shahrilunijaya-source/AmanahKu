@@ -367,4 +367,33 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(abs($neg->netPay), $c->carriedForward);
         $this->assertSame(round($neg->totalDeductions - $c->carriedForward, 2), $c->totalDeductions);
     }
+
+    public function test_hrdf_levy_is_one_percent_of_liable_wages_after_unpaid_leave_and_is_employer_cost_only(): void
+    {
+        $inputs = [
+            'basic' => 2600, 'allowances_total' => 400, 'bonus' => 1000, 'unpaid_days' => 1, 'hrdf_rate' => 0.01,
+            'lines' => [
+                ['amount' => 2600, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 400, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 1000, 'epf_liable' => true, 'perkeso_liable' => false, 'hrdf_liable' => false],
+            ],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => true, 'hrdf_liable' => false],
+        ];
+        $c = $this->calc->compute($inputs);
+        // Base: 2,600 + 400 minus one unpaid day (2,600 / 26 = 100) = 2,900; 1% = 29.00.
+        $this->assertSame(29.00, $c->hrdfLevy);
+
+        $without = $this->calc->compute(['hrdf_rate' => 0.0] + $inputs);
+        $this->assertSame(0.0, $without->hrdfLevy);
+        $this->assertSame(round($without->employerCost + 29.00, 2), $c->employerCost);
+        $this->assertSame($without->netPay, $c->netPay);
+        $this->assertSame($without->totalDeductions, $c->totalDeductions);
+    }
+
+    /** With no catalogue lines the base falls back to basic plus allowances, less unpaid leave. */
+    public function test_hrdf_levy_without_catalogue_lines_uses_basic_plus_allowances(): void
+    {
+        $c = $this->calc->compute(['basic' => 3000, 'allowances_total' => 200, 'hrdf_rate' => 0.005]);
+        $this->assertSame(16.00, $c->hrdfLevy);
+    }
 }
