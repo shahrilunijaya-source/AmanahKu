@@ -7,6 +7,8 @@ namespace App\Services\Payroll\Statutory;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Tenant;
+use App\Support\Csv;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -50,5 +52,31 @@ abstract class StatutoryFile
     protected function amount(float|int|string $value): string
     {
         return number_format((float) $value, 2, '.', '');
+    }
+
+    /** KWSP and PERKESO contributions for a wage month are remitted in the month after it. */
+    protected function contributionMonth(PayrollRun $run): string
+    {
+        return CarbonImmutable::createFromFormat('Y-m-d', $run->period.'-01')->addMonth()->format('mY');
+    }
+
+    /**
+     * CSV lines, LF ended. Written by hand rather than with fputcsv because PHP 8.4 quotes
+     * any cell holding a space, which the agency uploads and the golden files do not.
+     * Only a comma, a quote or a line break forces quoting here.
+     *
+     * @param  array<int, array<int, string|int|float|null>>  $rows
+     */
+    protected function csv(array $rows): string
+    {
+        $lines = [];
+        foreach ($rows as $row) {
+            $cells = array_map(function (string $cell): string {
+                return preg_match('/["\r\n,]/', $cell) === 1 ? '"'.str_replace('"', '""', $cell).'"' : $cell;
+            }, Csv::safeRow($row));
+            $lines[] = implode(',', $cells);
+        }
+
+        return implode("\n", $lines)."\n";
     }
 }
