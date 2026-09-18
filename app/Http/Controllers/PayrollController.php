@@ -1124,7 +1124,7 @@ class PayrollController extends Controller
                     'amount' => (float) $l->amount,
                     'epf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->epf_liable : null) ?? true),
                     'perkeso_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->perkeso_liable : null) ?? true),
-                    'hrdf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->hrdf_liable : null) ?? true),
+                    'hrdf_liable' => (bool) (($l->payrollItem !== null ? $l->payrollItem->hrdf_liable : null) ?? false),
                 ])->all();
             }
 
