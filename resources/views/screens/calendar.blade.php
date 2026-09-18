@@ -19,15 +19,14 @@
 ])
 
 <style>
-    .uj-cal-fold{padding:0}
-    .uj-cal-fold summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:16px 20px;min-height:44px}
-    .uj-cal-fold summary::-webkit-details-marker{display:none}
-    .uj-cal-fold summary .uj-card-title{margin:0;flex:1}
+    .uj-cal-list{padding:20px}
+    .uj-cal-list-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .uj-cal-list-head .uj-card-title{margin:0;flex:1}
     .uj-cal-fold-n{font-size:11.5px;font-family:var(--font-mono);color:var(--muted);background:var(--hairline-soft);border-radius:9999px;padding:2px 8px}
-    .uj-cal-fold-chev{width:14px;height:14px;color:var(--muted);transition:transform .16s var(--ease)}
-    .uj-cal-fold[open] .uj-cal-fold-chev{transform:rotate(180deg)}
-    .uj-cal-fold-body{padding:0 20px 14px}
-    @media (prefers-reduced-motion: reduce){.uj-cal-fold-chev{transition:none}}
+    .uj-cal-extra{display:none !important}
+    .uj-cal-list:hover .uj-cal-extra,.uj-cal-list.is-open .uj-cal-extra{display:flex !important}
+    .uj-cal-more{display:block;width:100%;background:none;border:0;padding:10px 0 0;font-size:12px;color:var(--muted);cursor:pointer;text-align:left;text-decoration:underline}
+    .uj-cal-list:hover .uj-cal-more,.uj-cal-list.is-open .uj-cal-more{display:none}
 </style>
 
 <div style="display:flex;flex-direction:column;gap:16px;">
@@ -70,11 +69,11 @@
 
     {{-- ── Side summary ──────────────────────────────────────────── --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start;">
-        <details class="uj-card uj-cal-fold" @if (count($outThisMonth) <= 5) open @endif>
-            <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Who is out this month' : 'Siapa bercuti bulan ini'">Who's out this month</span></h3><span class="uj-cal-fold-n">{{ count($outThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-            <div class="uj-cal-fold-body">
+        <div class="uj-card uj-cal-list" x-data="{ open: false }" :class="{ 'is-open': open }">
+            <div class="uj-cal-list-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Who is out this month' : 'Siapa bercuti bulan ini'">Who's out this month</span></h3><span class="uj-cal-fold-n">{{ count($outThisMonth) }}</span></div>
+            <div>
             @forelse ($outThisMonth as $l)
-                <div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
+                <div class="{{ $loop->index >= 5 ? 'uj-cal-extra' : '' }}" style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $l->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $l->employee?->initials }}</div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $l->employee?->display_name }}</div>
@@ -91,36 +90,44 @@
                     </div>
                     <span style="font-size:11.5px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $l->date_from->format('j') }}–{{ $l->date_to->format('j M') }}</span>
                 </div>
+            
+                @if ($loop->last && $loop->count > 5)
+                    <button type="button" class="uj-cal-more" @click="open = true" x-text="$store.ui.lang==='en' ? 'Show {{ $loop->count - 5 }} more' : 'Tunjuk {{ $loop->count - 5 }} lagi'"></button>
+                @endif
             @empty
                 <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'Nobody on leave this month' : 'Tiada sesiapa bercuti bulan ini'"></span></div>
                 <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Full attendance — approved leave will show here once anyone is booked off.' : 'Kehadiran penuh — cuti yang diluluskan akan dipaparkan di sini sebaik sahaja ada yang bercuti.'"></span></div>
             @endforelse
             </div>
-        </details>
+        </div>
 
-        <details class="uj-card uj-cal-fold" @if (count($holidaysThisMonth) <= 5) open @endif>
-            <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Holidays' : 'Cuti umum'">Holidays</span></h3><span class="uj-cal-fold-n">{{ count($holidaysThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-            <div class="uj-cal-fold-body">
+        <div class="uj-card uj-cal-list" x-data="{ open: false }" :class="{ 'is-open': open }">
+            <div class="uj-cal-list-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Holidays' : 'Cuti umum'">Holidays</span></h3><span class="uj-cal-fold-n">{{ count($holidaysThisMonth) }}</span></div>
+            <div>
             @forelse ($holidaysThisMonth as $h)
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
+                <div class="{{ $loop->index >= 5 ? 'uj-cal-extra' : '' }}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $h->name }}</div>
                         <div style="font-size:11.5px;color:var(--muted);">{{ $h->state }}</div>
                     </div>
                     <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $h->date->format('j M') }}</span>
                 </div>
+            
+                @if ($loop->last && $loop->count > 5)
+                    <button type="button" class="uj-cal-more" @click="open = true" x-text="$store.ui.lang==='en' ? 'Show {{ $loop->count - 5 }} more' : 'Tunjuk {{ $loop->count - 5 }} lagi'"></button>
+                @endif
             @empty
                 <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No holidays this month' : 'Tiada cuti umum bulan ini'"></span></div>
                 <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'No public holidays fall in this month. Use the arrows above to check other months.' : 'Tiada cuti umum jatuh pada bulan ini. Guna anak panah di atas untuk semak bulan lain.'"></span></div>
             @endforelse
             </div>
-        </details>
+        </div>
 
-        <details class="uj-card uj-cal-fold" @if (count($birthdaysThisMonth) <= 5) open @endif>
-            <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Birthdays' : 'Hari lahir'">Birthdays</span></h3><span class="uj-cal-fold-n">{{ count($birthdaysThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-            <div class="uj-cal-fold-body">
+        <div class="uj-card uj-cal-list" x-data="{ open: false }" :class="{ 'is-open': open }">
+            <div class="uj-cal-list-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Birthdays' : 'Hari lahir'">Birthdays</span></h3><span class="uj-cal-fold-n">{{ count($birthdaysThisMonth) }}</span></div>
+            <div>
             @forelse ($birthdaysThisMonth as $b)
-                <div style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
+                <div class="{{ $loop->index >= 5 ? 'uj-cal-extra' : '' }}" style="display:flex;align-items:center;gap:11px;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="width:30px;height:30px;border-radius:50%;background:{{ $b->avatar_color ?? '#c026d3' }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">{{ $b->initials }}</div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $b->display_name }}</div>
@@ -129,30 +136,38 @@
                         {{ $b->date_of_birth->format('j M') }} <span style="font-size:13px;">🎂</span>
                     </a>
                 </div>
+            
+                @if ($loop->last && $loop->count > 5)
+                    <button type="button" class="uj-cal-more" @click="open = true" x-text="$store.ui.lang==='en' ? 'Show {{ $loop->count - 5 }} more' : 'Tunjuk {{ $loop->count - 5 }} lagi'"></button>
+                @endif
             @empty
                 <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No birthdays this month' : 'Tiada hari lahir bulan ini'"></span></div>
                 <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Colleagues celebrating this month appear here.' : 'Rakan sekerja yang menyambut bulan ini muncul di sini.'"></span></div>
             @endforelse
             </div>
-        </details>
+        </div>
 
-        <details class="uj-card uj-cal-fold" @if (count($eventsThisMonth) <= 5) open @endif>
-            <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Events' : 'Acara'">Events</span></h3><span class="uj-cal-fold-n">{{ count($eventsThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
-            <div class="uj-cal-fold-body">
+        <div class="uj-card uj-cal-list" x-data="{ open: false }" :class="{ 'is-open': open }">
+            <div class="uj-cal-list-head"><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Events' : 'Acara'">Events</span></h3><span class="uj-cal-fold-n">{{ count($eventsThisMonth) }}</span></div>
+            <div>
             @forelse ($eventsThisMonth as $e)
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
+                <div class="{{ $loop->index >= 5 ? 'uj-cal-extra' : '' }}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div style="min-width:0;">
                         <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $e->title }}</div>
                         <div style="font-size:11.5px;color:var(--muted);">{{ $e->location ?: ucfirst($e->type ?? 'event') }}</div>
                     </div>
                     <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);white-space:nowrap;">{{ $e->event_date->format('j M') }}</span>
                 </div>
+            
+                @if ($loop->last && $loop->count > 5)
+                    <button type="button" class="uj-cal-more" @click="open = true" x-text="$store.ui.lang==='en' ? 'Show {{ $loop->count - 5 }} more' : 'Tunjuk {{ $loop->count - 5 }} lagi'"></button>
+                @endif
             @empty
                 <div style="font-size:13px;color:var(--ink);font-weight:500;margin-bottom:2px;"><span x-text="$store.ui.lang==='en' ? 'No events this month' : 'Tiada acara bulan ini'"></span></div>
                 <div style="font-size:12px;color:var(--muted);line-height:1.5;"><span x-text="$store.ui.lang==='en' ? 'Nothing scheduled. Company events created on the Events screen will appear here.' : 'Tiada apa-apa dijadualkan. Acara syarikat yang dicipta pada skrin Events akan muncul di sini.'"></span></div>
             @endforelse
             </div>
-        </details>
+        </div>
     </div>
 </div>
 @endsection
