@@ -70,7 +70,7 @@
 
     {{-- ── Side summary ──────────────────────────────────────────── --}}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start;">
-        <details class="uj-card uj-cal-fold">
+        <details class="uj-card uj-cal-fold" @if (count($outThisMonth) <= 5) open @endif>
             <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Who is out this month' : 'Siapa bercuti bulan ini'">Who's out this month</span></h3><span class="uj-cal-fold-n">{{ count($outThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
             <div class="uj-cal-fold-body">
             @forelse ($outThisMonth as $l)
@@ -98,7 +98,7 @@
             </div>
         </details>
 
-        <details class="uj-card uj-cal-fold" open>
+        <details class="uj-card uj-cal-fold" @if (count($holidaysThisMonth) <= 5) open @endif>
             <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Holidays' : 'Cuti umum'">Holidays</span></h3><span class="uj-cal-fold-n">{{ count($holidaysThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
             <div class="uj-cal-fold-body">
             @forelse ($holidaysThisMonth as $h)
@@ -116,7 +116,7 @@
             </div>
         </details>
 
-        <details class="uj-card uj-cal-fold">
+        <details class="uj-card uj-cal-fold" @if (count($birthdaysThisMonth) <= 5) open @endif>
             <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Birthdays' : 'Hari lahir'">Birthdays</span></h3><span class="uj-cal-fold-n">{{ count($birthdaysThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
             <div class="uj-cal-fold-body">
             @forelse ($birthdaysThisMonth as $b)
@@ -136,7 +136,7 @@
             </div>
         </details>
 
-        <details class="uj-card uj-cal-fold" open>
+        <details class="uj-card uj-cal-fold" @if (count($eventsThisMonth) <= 5) open @endif>
             <summary><h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? 'Events' : 'Acara'">Events</span></h3><span class="uj-cal-fold-n">{{ count($eventsThisMonth) }}</span><svg class="uj-cal-fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
             <div class="uj-cal-fold-body">
             @forelse ($eventsThisMonth as $e)
