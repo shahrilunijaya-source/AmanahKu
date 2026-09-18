@@ -352,7 +352,7 @@ class PayrollController extends Controller
         $tid = app(CurrentTenant::class)->id();
 
         $data = $this->validateIndividualTransaction($request, $tid);
-        $this->assertPeriodEditable($tid, $data['period']);
+        $this->assertPeriodEditable($tid, $data['period'], $data['for_bonus_run']);
 
         $tx = IndividualTransaction::create($data + ['created_by_id' => Auth::id()]);
 
@@ -366,9 +366,12 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
 
         $data = $this->validateIndividualTransaction($request, $individualTransaction->tenant_id, $individualTransaction->employee_id, $individualTransaction->period);
+        // Editing never moves a one-off between the monthly and the bonus run — the same
+        // rule the employee and the period follow.
+        unset($data['for_bonus_run']);
         $individualTransaction->update($data);
 
         AuditLog::record('Updated individual transaction', $individualTransaction->employee?->name.' · '.$individualTransaction->payrollItem?->name);
@@ -380,7 +383,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
 
         $name = $individualTransaction->employee?->name;
         $itemName = $individualTransaction->payrollItem?->name;
@@ -392,7 +395,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, period: string, amount: float, remarks: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, period: string, for_bonus_run: bool, amount: float, remarks: ?string}
      */
     private function validateIndividualTransaction(Request $request, int $tid, ?int $lockEmployeeId = null, ?string $lockPeriod = null): array
     {
@@ -410,6 +413,9 @@ class PayrollController extends Controller
             'period' => $lockPeriod !== null
                 ? ['prohibited']   // editing never moves a one-off to a different month
                 : ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            // Spec F10: ticked means "pay this in the bonus run for the month", so the
+            // monthly run leaves it alone.
+            'for_bonus_run' => ['nullable', 'boolean'],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:10000000'],
             'remarks' => ['nullable', 'string', 'max:255'],
         ]);
@@ -418,6 +424,7 @@ class PayrollController extends Controller
             'employee_id' => $lockEmployeeId ?? $data['employee_id'],
             'payroll_item_id' => $data['payroll_item_id'],
             'period' => $lockPeriod ?? $data['period'],
+            'for_bonus_run' => $request->boolean('for_bonus_run'),
             'amount' => $data['amount'],
             'remarks' => $data['remarks'] ?? null,
         ];
@@ -428,9 +435,13 @@ class PayrollController extends Controller
      * an Individual Transaction must not add, edit or delete anything against it. A
      * period with a draft run, or no run at all yet, is freely editable.
      */
-    private function assertPeriodEditable(int $tid, string $period): void
+    private function assertPeriodEditable(int $tid, string $period, bool $forBonus = false): void
     {
-        $finalized = PayrollRun::where('tenant_id', $tid)->where('period', $period)->where('status', 'finalized')->exists();
+        // Spec F10: the kinds are locked separately — a finalized monthly run must not
+        // stop HR queuing a bonus for the same month, and vice versa.
+        $finalized = PayrollRun::where('tenant_id', $tid)->where('period', $period)
+            ->where('kind', $forBonus ? 'bonus' : 'monthly')
+            ->where('status', 'finalized')->exists();
         abort_if($finalized, 422, 'Payroll for '.$period.' has already been finalized and can no longer be changed.');
     }
 
@@ -451,11 +462,12 @@ class PayrollController extends Controller
      * fix short of a baseline entry/ignore comment, which CLAUDE.md rules out for this
      * pass — see individualLineAttrs()/refreshVariableLines() below for the real shape.
      */
-    private function individualTransactionLinesForPeriod(Employee $employee, string $period): Collection
+    private function individualTransactionLinesForPeriod(Employee $employee, string $period, bool $forBonus = false): Collection
     {
         $rows = IndividualTransaction::with('payrollItem')
             ->where('employee_id', $employee->id)
             ->forPeriod($period)
+            ->forBonusRun($forBonus)
             ->get();
 
         $lines = [];
@@ -496,7 +508,7 @@ class PayrollController extends Controller
      * @param  array<int, mixed>  $remarks
      * @param  array<int, mixed>  $knownIds
      */
-    private function syncIndividualTransactions(Employee $employee, string $period, array $ids, array $itemIds, array $amounts, array $remarks, array $knownIds): void
+    private function syncIndividualTransactions(Employee $employee, string $period, array $ids, array $itemIds, array $amounts, array $remarks, array $knownIds, bool $forBonus = false): void
     {
         $knownIds = collect($knownIds)->filter(fn ($v) => $v !== null && $v !== '')->map(fn ($v) => (int) $v)->unique()->values()->all();
 
@@ -505,6 +517,7 @@ class PayrollController extends Controller
         // be updated or deleted by this form no matter what id was posted for it.
         $knownRows = IndividualTransaction::where('employee_id', $employee->id)
             ->forPeriod($period)
+            ->forBonusRun($forBonus)
             ->whereIn('id', $knownIds)
             ->get()->keyBy('id');
 
@@ -541,6 +554,9 @@ class PayrollController extends Controller
                 $tx = IndividualTransaction::create($attrs + [
                     'employee_id' => $employee->id,
                     'period' => $period,
+                    // A row added while editing a bonus payslip belongs to the bonus run,
+                    // not to next month's monthly one.
+                    'for_bonus_run' => $forBonus,
                     'created_by_id' => Auth::id(),
                 ]);
                 $touchedIds[] = $tx->id;
@@ -770,6 +786,9 @@ class PayrollController extends Controller
 
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+            // Spec F10: 'final' is one leaver's last pay and is created from the
+            // offboarding screen, never from this form.
+            'kind' => ['nullable', Rule::in(['monthly', 'bonus'])],
             'payment_date' => ['nullable', 'date'],
             'pull_fixed' => ['nullable', 'boolean'],
             'pull_claims' => ['nullable', 'boolean'],
@@ -780,33 +799,46 @@ class PayrollController extends Controller
         ]);
         // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
         $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
+        $kind = $data['kind'] ?? 'monthly';
 
-        if (PayrollRun::where('tenant_id', $tid)->where('period', $data['period'])->exists()) {
+        // Spec F10: still exactly one monthly run per tenant and period — but a bonus run
+        // may sit alongside it in the same month, and there may be more than one of those
+        // (two separate bonus payouts in December is an ordinary thing to do).
+        if ($kind === 'monthly' && PayrollRun::where('tenant_id', $tid)->where('period', $data['period'])->where('kind', 'monthly')->exists()) {
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
         }
 
+        $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
+        $employees = Employee::active()->with('salaryStructure')
+            ->whereHas('salaryStructure')
+            ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
+            ->whereNotIn('id', $excluded)
+            ->when($kind === 'bonus', fn ($q) => $q->whereIn('id', IndividualTransaction::where('tenant_id', $tid)
+                ->forPeriod($data['period'])->forBonusRun(true)->select('employee_id')))
+            ->orderBy('name')->get();
+
         // Spec F2 readiness gate: refuse while the employer or any included employee is
         // missing an identifier an agency upload needs. Exclusions are HR's explicit call
-        // and are stored on the run.
-        $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
+        // and are stored on the run. A bonus run only pays the people with a bonus queued,
+        // so only those people's gaps can block it.
         $tenant = app(CurrentTenant::class)->get();
         $readiness = app(PayrollReadiness::class);
+        $inThisRun = $employees->pluck('id')->all();
         $problems = array_map(fn (string $g) => 'Company: '.$g, $readiness->employerGaps($tenant));
         foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
+            if ($kind === 'bonus' && ! in_array($row['employee']->id, $inThisRun, true)) {
+                continue;
+            }
             $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
         }
         if ($problems !== []) {
             return back()->withErrors(['readiness' => 'Not ready to run payroll. '.implode(' · ', $problems)])->withInput();
         }
 
-        $employees = Employee::active()->with('salaryStructure')
-            ->whereHas('salaryStructure')
-            ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
-            ->whereNotIn('id', $excluded)
-            ->orderBy('name')->get();
-
         if ($employees->isEmpty()) {
-            return back()->withErrors(['period' => 'No employees have a salary structure yet. Add salary structures first.'])->withInput();
+            return back()->withErrors(['period' => $kind === 'bonus'
+                ? 'No bonus is queued for '.$data['period'].'. Tick "pay in the bonus run" on an individual transaction first.'
+                : 'No employees have a salary structure yet. Add salary structures first.'])->withInput();
         }
 
         // Contribution category is assessed at the pay period's end.
@@ -818,10 +850,11 @@ class PayrollController extends Controller
         $hrdfRate = HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf'));
 
         $overtimeWarnings = [];
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
+        DB::transaction(function () use ($data, $kind, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
-                'label' => $this->periodStart($data['period'])->format('F Y'),
+                'kind' => $kind,
+                'label' => $this->periodStart($data['period'])->format('F Y').($kind === 'bonus' ? ' bonus' : ''),
                 'run_by_id' => Auth::id(),
                 'payment_date' => $data['payment_date'] ?? null,
                 'pull_options' => $pulls,
@@ -831,134 +864,16 @@ class PayrollController extends Controller
             $run->status = 'draft';
             $run->save();
 
-            // Claims already attached to any run must never be pulled again — prevents
-            // double reimbursement across concurrent or sequential draft runs.
-            $usedClaimIds = Payslip::whereNotNull('claim_ids')
-                ->pluck('claim_ids')->flatten()->filter()->unique()->all();
-            // Same double-pull protection for approved overtime and unpaid leave.
-            $usedOvertimeIds = $this->usedOvertimeIds(null);
-            $usedLeaveIds = $this->usedUnpaidLeaveIds(null);
-
-            foreach ($employees as $employee) {
-                $structure = $employee->salaryStructure;
-                $claims = ! $pulls['claims'] ? collect() : $employee->claims()
-                    ->where('status', 'approved')->whereNull('paid_at')
-                    ->whereNotIn('id', $usedClaimIds)
-                    ->lockForUpdate()->get();
-
-                $overtimeRequests = $pulls['overtime'] ? $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds) : collect();
-                $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
-                $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
-                if ($pulledOvertimeHours > PayrollCalculator::OVERTIME_HOURS_CAP) {
-                    $overtimeWarnings[] = $employee->name.' ('.$pulledOvertimeHours.'h)';
-                }
-                $unpaidLeaveRequests = $pulls['unpaid'] ? $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds) : collect();
-                $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
-
-                $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
-                // electedBefore1998 has no column — no tenant has data going back that far,
-                // so every non-citizen falls under mandatory Part F.
-                $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
-
-                // Fixed Transactions replace salary_structures.allowances as the source of
-                // recurring earnings/deductions (see migration 2026_08_25_200200) — split
-                // by the transaction's own Payroll Item type.
-                $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $data['period']) : collect();
-                $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
-                $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
-
-                // Individual Transactions queued for this period — see
-                // individualTransactionLinesForPeriod(), the same read path updatePayslip
-                // uses, so a one-off queued before the run existed appears here exactly as
-                // it would if it had been typed into the payslip edit form instead.
-                $itLines = $this->individualTransactionLinesForPeriod($employee, $data['period']);
-                $individualEarnings = $itLines->filter(fn (array $l) => $l['item']->type === 'earning');
-                $individualDeductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
-
-                // Spec F3: an incomplete month of service is paid by calendar days (s.18A),
-                // but only for items flagged to prorate.
-                $days = $this->employedDays($employee, $data['period']);
-                // A tenant with no seeded catalogue prorates by default (has() guards the
-                // read; PHPStan types Collection::get() as non-null here).
-                $prorateBasic = ! $catalog->has('basic-salary') || (bool) $catalog->get('basic-salary')->prorate_on_incomplete_month;
-                $basic = $prorateBasic && $days['employed'] < $days['in_month']
-                    ? Proration::prorate((float) ($employee->salary ?? 0), $days['employed'], $days['in_month'])
-                    : (float) ($employee->salary ?? 0);
-
-                $inputs = [
-                    // Basic salary is the employee record's (Employment tab / Progression), as in
-                    // Worksy. salary_structures.basic_salary is history only since 2026-09-29.
-                    'basic' => $basic,
-                    'allowances_total' => round($fixedEarnings->sum('amount'), 2),
-                    'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
-                    'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
-                        'amount' => $l['amount'],
-                        'epf_liable' => (bool) $l['item']->epf_liable,
-                        'perkeso_liable' => (bool) $l['item']->perkeso_liable,
-                        'hrdf_liable' => (bool) $l['item']->hrdf_liable,
-                    ])->values()->all(),
-                    'individual_earnings_total' => round($individualEarnings->sum('amount'), 2),
-                    'individual_deductions_total' => round($individualDeductions->sum('amount'), 2),
-                    'individual_earning_lines' => $individualEarnings->map(fn (array $l) => [
-                        'amount' => $l['amount'],
-                        'epf_liable' => (bool) $l['item']->epf_liable,
-                        'perkeso_liable' => (bool) $l['item']->perkeso_liable,
-                        'hrdf_liable' => (bool) $l['item']->hrdf_liable,
-                    ])->values()->all(),
-                    'claims_reimbursement' => $claims->sum('amount'),
-                    // Approved overtime/unpaid-leave populate the draft automatically — see
-                    // pullableOvertimeFor()/pullableUnpaidLeaveFor()/overtimeGroups(). One
-                    // group per distinct rate_multiplier found (3x public holiday, 1.5x
-                    // ordinary, ...) so the calculator multiplies each rate's raw hours
-                    // exactly once — never flattened into one ambiguous "equivalent hours"
-                    // figure that could be double-multiplied later.
-                    'overtime_groups' => $pulledOvertimeGroups,
-                    'unpaid_days' => $pulledUnpaidDays,
-                    'statutory_category' => $employee->statutoryCategory($periodEnd),
-                    'epf_part' => $epfPart,
-                    'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
-                    // Spec F7: citizens only, and not when HR has marked the employee exempt.
-                    'hrdf_rate' => (($structure->nationality ?? 'citizen') === 'citizen' && ! $structure->hrdf_exempt) ? $hrdfRate : 0.0,
-                ];
-                $inputs = $this->withWageBaseFlags($inputs, $catalog);
-                $comp = $this->calculator->compute($inputs);
-
-                // PCB: the real LHDN computerised MTD calculation, year-to-date-aware —
-                // see buildPcbInputs(). Two-pass like EPF/SOCSO above: compute gross/EPF
-                // first, feed those into PCB, then recompute so the deduction flows into net.
-                $exemptThisMonth = $this->exemptThisMonth($employee, $data['period'], [
-                    ...$fixedEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
-                    ...$individualEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
-                ]);
-                $result = $this->pcb->calculate($this->buildPcbInputs($employee, $data['period'], $comp, $structure, $epfPart, $exemptThisMonth));
-                $inputs['pcb'] = $result->netNormalMtd;
-                $inputs['pcb_additional'] = $result->additionalMtd;
-                $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
-                $inputs['cp38'] = $this->cp38->instalmentFor($employee, $data['period']);
-                $comp = $this->calculator->compute($inputs);
-
-                // Computed amount columns are excluded from $fillable — forceFill them.
-                // employee_id + claim_ids are fillable; payroll_run_id is set by the relation;
-                // tenant_id is auto-filled by BelongsToTenant on save.
-                $payslip = $run->payslips()->make([
-                    'employee_id' => $employee->id,
-                    'claim_ids' => $claims->pluck('id')->all() ?: null,
-                ]);
-                $payslip->forceFill($comp->toPayslipAttributes() + [
-                    'pcb_exempt_amount' => $exemptThisMonth,
-                    'days_employed' => $days['employed'],
-                    'days_in_month' => $days['in_month'],
-                    'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
-                    'pulled_overtime_hours' => $pulledOvertimeHours,
-                    'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
-                    'pulled_unpaid_days' => $pulledUnpaidDays,
-                ])->save();
-                $this->writePayslipLines($payslip, $comp, $ftLines, $itLines, $catalog);
+            if ($kind === 'bonus') {
+                $this->buildBonusPayslips($run, $employees, $periodEnd, $catalog);
+            } else {
+                $this->buildMonthlyPayslips($run, $employees, $periodEnd, $catalog, $pulls, $hrdfRate, $overtimeWarnings);
             }
 
             $this->recalcTotals($run);
             $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
-            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips'.($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : ''));
+            $note = $kind === 'bonus' ? '' : ($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : '');
+            AuditLog::record('Created payroll run', $run->label.' · '.$run->payslips()->count().' payslips'.$note);
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
@@ -972,11 +887,267 @@ class PayrollController extends Controller
         return back()->with('ok', $msg);
     }
 
+    /**
+     * One draft payslip per employee for an ordinary monthly run — everything the run
+     * pulls (Fixed and Individual Transactions, claims, overtime, unpaid leave) plus the
+     * statutory deductions. Moved out of createRun() unchanged when spec F10 split runs
+     * by kind; buildBonusPayslips() is the other half.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @param  Collection<string, PayrollItem>  $catalog
+     * @param  array<string, bool>  $pulls
+     * @param  list<string>  $overtimeWarnings
+     */
+    private function buildMonthlyPayslips(PayrollRun $run, Collection $employees, Carbon $periodEnd, Collection $catalog, array $pulls, float $hrdfRate, array &$overtimeWarnings): void
+    {
+        $period = $run->period;
+        // Claims already attached to any run must never be pulled again — prevents
+        // double reimbursement across concurrent or sequential draft runs.
+        $usedClaimIds = Payslip::whereNotNull('claim_ids')
+            ->pluck('claim_ids')->flatten()->filter()->unique()->all();
+        // Same double-pull protection for approved overtime and unpaid leave.
+        $usedOvertimeIds = $this->usedOvertimeIds(null);
+        $usedLeaveIds = $this->usedUnpaidLeaveIds(null);
+
+        foreach ($employees as $employee) {
+            $structure = $employee->salaryStructure;
+            $claims = ! $pulls['claims'] ? collect() : $employee->claims()
+                ->where('status', 'approved')->whereNull('paid_at')
+                ->whereNotIn('id', $usedClaimIds)
+                ->lockForUpdate()->get();
+
+            $overtimeRequests = $pulls['overtime'] ? $this->pullableOvertimeFor($employee, $period, $usedOvertimeIds) : collect();
+            $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
+            $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
+            if ($pulledOvertimeHours > PayrollCalculator::OVERTIME_HOURS_CAP) {
+                $overtimeWarnings[] = $employee->name.' ('.$pulledOvertimeHours.'h)';
+            }
+            $unpaidLeaveRequests = $pulls['unpaid'] ? $this->pullableUnpaidLeaveFor($employee, $period, $usedLeaveIds) : collect();
+            $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
+
+            $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
+            // electedBefore1998 has no column — no tenant has data going back that far,
+            // so every non-citizen falls under mandatory Part F.
+            $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
+
+            // Fixed Transactions replace salary_structures.allowances as the source of
+            // recurring earnings/deductions (see migration 2026_08_25_200200) — split
+            // by the transaction's own Payroll Item type.
+            $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $period) : collect();
+            $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
+            $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+
+            // Individual Transactions queued for this period — see
+            // individualTransactionLinesForPeriod(), the same read path updatePayslip
+            // uses, so a one-off queued before the run existed appears here exactly as
+            // it would if it had been typed into the payslip edit form instead.
+            $itLines = $this->individualTransactionLinesForPeriod($employee, $period);
+            $individualEarnings = $itLines->filter(fn (array $l) => $l['item']->type === 'earning');
+            $individualDeductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+
+            // Spec F3: an incomplete month of service is paid by calendar days (s.18A),
+            // but only for items flagged to prorate.
+            $days = $this->employedDays($employee, $period);
+            // A tenant with no seeded catalogue prorates by default (has() guards the
+            // read; PHPStan types Collection::get() as non-null here).
+            $prorateBasic = ! $catalog->has('basic-salary') || (bool) $catalog->get('basic-salary')->prorate_on_incomplete_month;
+            $basic = $prorateBasic && $days['employed'] < $days['in_month']
+                ? Proration::prorate((float) ($employee->salary ?? 0), $days['employed'], $days['in_month'])
+                : (float) ($employee->salary ?? 0);
+
+            $inputs = [
+                // Basic salary is the employee record's (Employment tab / Progression), as in
+                // Worksy. salary_structures.basic_salary is history only since 2026-09-29.
+                'basic' => $basic,
+                'allowances_total' => round($fixedEarnings->sum('amount'), 2),
+                'fixed_deductions_total' => round($fixedDeductions->sum('amount'), 2),
+                'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
+                    'amount' => $l['amount'],
+                    'epf_liable' => (bool) $l['item']->epf_liable,
+                    'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                    'hrdf_liable' => (bool) $l['item']->hrdf_liable,
+                ])->values()->all(),
+                'individual_earnings_total' => round($individualEarnings->sum('amount'), 2),
+                'individual_deductions_total' => round($individualDeductions->sum('amount'), 2),
+                'individual_earning_lines' => $individualEarnings->map(fn (array $l) => [
+                    'amount' => $l['amount'],
+                    'epf_liable' => (bool) $l['item']->epf_liable,
+                    'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                    'hrdf_liable' => (bool) $l['item']->hrdf_liable,
+                ])->values()->all(),
+                'claims_reimbursement' => $claims->sum('amount'),
+                // Approved overtime/unpaid-leave populate the draft automatically — see
+                // pullableOvertimeFor()/pullableUnpaidLeaveFor()/overtimeGroups(). One
+                // group per distinct rate_multiplier found (3x public holiday, 1.5x
+                // ordinary, ...) so the calculator multiplies each rate's raw hours
+                // exactly once — never flattened into one ambiguous "equivalent hours"
+                // figure that could be double-multiplied later.
+                'overtime_groups' => $pulledOvertimeGroups,
+                'unpaid_days' => $pulledUnpaidDays,
+                'statutory_category' => $employee->statutoryCategory($periodEnd),
+                'epf_part' => $epfPart,
+                'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
+                // Spec F7: citizens only, and not when HR has marked the employee exempt.
+                'hrdf_rate' => (($structure->nationality ?? 'citizen') === 'citizen' && ! $structure->hrdf_exempt) ? $hrdfRate : 0.0,
+            ];
+            $inputs = $this->withWageBaseFlags($inputs, $catalog);
+            $comp = $this->calculator->compute($inputs);
+
+            // PCB: the real LHDN computerised MTD calculation, year-to-date-aware —
+            // see buildPcbInputs(). Two-pass like EPF/SOCSO above: compute gross/EPF
+            // first, feed those into PCB, then recompute so the deduction flows into net.
+            $exemptThisMonth = $this->exemptThisMonth($employee, $period, [
+                ...$fixedEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
+                ...$individualEarnings->map(fn (array $l) => ['item' => $l['item'], 'amount' => (float) $l['amount']])->values()->all(),
+            ]);
+            $result = $this->pcb->calculate($this->buildPcbInputs($employee, $period, $comp, $structure, $epfPart, $exemptThisMonth));
+            $inputs['pcb'] = $result->netNormalMtd;
+            $inputs['pcb_additional'] = $result->additionalMtd;
+            $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
+            $inputs['cp38'] = $this->cp38->instalmentFor($employee, $period);
+            $comp = $this->calculator->compute($inputs);
+
+            // Computed amount columns are excluded from $fillable — forceFill them.
+            // employee_id + claim_ids are fillable; payroll_run_id is set by the relation;
+            // tenant_id is auto-filled by BelongsToTenant on save.
+            $payslip = $run->payslips()->make([
+                'employee_id' => $employee->id,
+                'claim_ids' => $claims->pluck('id')->all() ?: null,
+            ]);
+            $payslip->forceFill($comp->toPayslipAttributes() + [
+                'pcb_exempt_amount' => $exemptThisMonth,
+                'days_employed' => $days['employed'],
+                'days_in_month' => $days['in_month'],
+                'overtime_request_ids' => $overtimeRequests->pluck('id')->all() ?: null,
+                'pulled_overtime_hours' => $pulledOvertimeHours,
+                'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
+                'pulled_unpaid_days' => $pulledUnpaidDays,
+            ])->save();
+            $this->writePayslipLines($payslip, $comp, $ftLines, $itLines, $catalog);
+        }
+    }
+
+    /**
+     * Spec F10: a bonus run pays the Individual Transactions flagged for it and nothing
+     * else — no basic salary, no Fixed Transactions, no claims, overtime or unpaid leave.
+     *
+     * EPF follows each item's own epf_liable flag (KWSP wages include bonus), while
+     * SOCSO, EIS and the HRD Corp levy are forced to zero for the whole run: PERKESO's
+     * published list of payments subject to contribution excludes the annual bonus, and
+     * the levy's base is basic pay plus fixed allowances. That is a property of the run,
+     * not of the item, so the item flags are deliberately overridden here.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @param  Collection<string, PayrollItem>  $catalog
+     */
+    private function buildBonusPayslips(PayrollRun $run, Collection $employees, Carbon $periodEnd, Collection $catalog): void
+    {
+        foreach ($employees as $employee) {
+            $structure = $employee->salaryStructure;
+            $itLines = $this->individualTransactionLinesForPeriod($employee, $run->period, true);
+            $earnings = $itLines->filter(fn (array $l) => $l['item']->type === 'earning');
+            $deductions = $itLines->filter(fn (array $l) => $l['item']->type === 'deduction');
+            if ($itLines->isEmpty()) {
+                continue;
+            }
+
+            $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
+            $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
+
+            $inputs = [
+                'basic' => 0.0,
+                'individual_earnings_total' => round($earnings->sum('amount'), 2),
+                'individual_deductions_total' => round($deductions->sum('amount'), 2),
+                'individual_earning_lines' => $earnings->map(fn (array $l) => [
+                    'amount' => $l['amount'],
+                    'epf_liable' => (bool) $l['item']->epf_liable,
+                    'perkeso_liable' => false,
+                    'hrdf_liable' => false,
+                ])->values()->all(),
+                'statutory_category' => $employee->statutoryCategory($periodEnd),
+                'epf_part' => $epfPart,
+                'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
+                'hrdf_rate' => 0.0,
+            ];
+            $inputs = $this->withWageBaseFlags($inputs, $catalog);
+            $comp = $this->calculator->compute($inputs);
+
+            // PCB: the bonus is additional remuneration (spec D.b.2), taxed on top of the
+            // month's normal pay — so the normal side of the calculation is the monthly
+            // payslip for the same month when there is one, and a projection of it when
+            // the bonus is paid before the monthly run exists. Only the additional half of
+            // the result belongs to this payslip: the normal MTD is the monthly run's.
+            [$normalGross, $normalEpf] = $this->normalRemunerationFor($employee, $run->period, $structure, $epfPart, $catalog);
+            $result = $this->pcb->calculate($this->pcbInputsFor(
+                $employee, $run->period, $structure,
+                $normalGross, $normalEpf, $comp->gross, $comp->epfEmployee,
+            ));
+            $inputs['pcb'] = 0.0;
+            $inputs['pcb_additional'] = $result->additionalMtd;
+            $comp = $this->calculator->compute($inputs);
+
+            $payslip = $run->payslips()->make(['employee_id' => $employee->id]);
+            $payslip->forceFill($comp->toPayslipAttributes())->save();
+            $payslip->lines()->createMany($this->individualLineAttrs($itLines, 0));
+        }
+    }
+
+    /**
+     * The normal remuneration (Y1) and its EPF (K1) that a bonus run's PCB has to sit on
+     * top of: the same month's monthly payslip when one exists — draft or finalized, the
+     * figures are the same money either way — otherwise a projection from the employee's
+     * current salary and Fixed Transactions, exactly as createRun() would have computed
+     * them. Nothing is saved.
+     *
+     * @param  Collection<string, PayrollItem>  $catalog
+     * @return array{0: float, 1: float}
+     */
+    private function normalRemunerationFor(Employee $employee, string $period, ?SalaryStructure $structure, ?string $epfPart, Collection $catalog): array
+    {
+        $monthly = Payslip::where('employee_id', $employee->id)
+            ->whereHas('payrollRun', fn ($q) => $q->where('period', $period)->where('kind', 'monthly'))
+            ->first();
+
+        if ($monthly !== null) {
+            // Same split buildPcbInputs() makes: overtime and any bonus already on the
+            // monthly payslip are not part of the EPF wage this K1 is taken on, and pay
+            // covered by a yearly exemption cap is out of the taxable base (spec F8).
+            $epfWage = max(0.0, round((float) $monthly->gross - (float) $monthly->bonus - (float) $monthly->overtime_amount, 2));
+
+            return [
+                round(max(0.0, (float) $monthly->gross - (float) $monthly->bonus - (float) $monthly->pcb_exempt_amount), 2),
+                $this->epf->contribution($epfWage, $epfPart)['employee'],
+            ];
+        }
+
+        $ftLines = $this->fixedTransactionLines($employee, $period);
+        $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
+        $projected = $this->calculator->compute($this->withWageBaseFlags([
+            'basic' => (float) ($employee->salary ?? 0),
+            'allowances_total' => round($fixedEarnings->sum('amount'), 2),
+            'fixed_earning_lines' => $fixedEarnings->map(fn (array $l) => [
+                'amount' => $l['amount'],
+                'epf_liable' => (bool) $l['item']->epf_liable,
+                'perkeso_liable' => (bool) $l['item']->perkeso_liable,
+                'hrdf_liable' => (bool) $l['item']->hrdf_liable,
+            ])->values()->all(),
+            'epf_part' => $epfPart,
+            'skbbk_opt_in' => (bool) (($structure !== null ? $structure->skbbk_opt_in : null) ?? false),
+        ], $catalog));
+
+        return [$projected->gross, $projected->epfEmployee];
+    }
+
     public function updatePayslip(Request $request, Payslip $payslip): RedirectResponse
     {
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
         abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        // Spec F10: a bonus payslip is nothing but the individual transactions flagged for
+        // the bonus run — recomputing it through the monthly path would put SOCSO/EIS and
+        // the levy back on it and tax the bonus as normal pay. Change the transaction and
+        // regenerate the run instead.
+        abort_if($payslip->payrollRun->isBonus(), 422, 'A bonus payslip is edited through its individual transaction — change that and create the bonus run again.');
 
         $data = $request->validate([
             // Blank/absent = use the auto-pulled figure (approved overtime for this
@@ -1109,9 +1280,10 @@ class PayrollController extends Controller
                     $request->input('tx_id', []), $request->input('tx_item_id', []),
                     $request->input('tx_amount', []), $request->input('tx_remark', []),
                     $request->input('tx_known_ids', []),
+                    $payslip->payrollRun->isBonus(),
                 );
             }
-            $individualLines = $this->individualTransactionLinesForPeriod($payslip->employee, $payslip->payrollRun->period);
+            $individualLines = $this->individualTransactionLinesForPeriod($payslip->employee, $payslip->payrollRun->period, $payslip->payrollRun->isBonus());
             $individualEarnings = $individualLines->filter(fn (array $l) => $l['item']->type === 'earning');
             $individualDeductions = $individualLines->filter(fn (array $l) => $l['item']->type === 'deduction');
             $baseInputs['individual_earnings_total'] = round($individualEarnings->sum('amount'), 2);
@@ -1545,6 +1717,26 @@ class PayrollController extends Controller
         $k1 = $this->epf->contribution($epfWageExclBonus, $epfPart)['employee'];
         $kt = max(0.0, round($comp->epfEmployee - $k1, 2));
 
+        return $this->pcbInputsFor(
+            $employee, $period, $structure,
+            // Spec F8: the part of this month's pay covered by a Payroll Item's yearly
+            // exemption cap is out of the PCB base (Y1) and nothing else.
+            round(max(0.0, $comp->gross - $bonus - $exemptThisMonth), 2),
+            $k1, $bonus, $kt,
+            $category,
+        );
+    }
+
+    /**
+     * The PcbInputs for one employee and month once the four money figures are known:
+     * Y1/K1 (this month's normal remuneration and its EPF) and Yt/Kt (this month's
+     * additional remuneration and its EPF). Split out of buildPcbInputs() so a bonus run
+     * — whose Y1 comes from the monthly payslip rather than from its own payslip — reuses
+     * the same year-to-date, relief and category wiring instead of a second copy of it.
+     */
+    private function pcbInputsFor(Employee $employee, string $period, ?SalaryStructure $structure, float $y1, float $k1, float $yt, float $kt, ?int $category = null): PcbInputs
+    {
+        $category ??= PcbCalculator::categoryFor($employee, $structure);
         $ytd = $this->pcbYtd->forPeriod($employee, $period);
         $n = 12 - (int) substr($period, 5, 2);
 
@@ -1560,9 +1752,7 @@ class PayrollController extends Controller
             isResident: true,
             ytdGrossY: $ytd['grossY'],
             ytdEpfK: $ytd['epfK'],
-            // Spec F8: the part of this month's pay covered by a Payroll Item's yearly
-            // exemption cap is out of the PCB base (Y1) and nothing else.
-            currentGrossY1: round(max(0.0, $comp->gross - $bonus - $exemptThisMonth), 2),
+            currentGrossY1: $y1,
             currentEpfK1: $k1,
             monthsRemainingAfterCurrent: $n,
             ytdZakatZ: $ytd['zakatZ'],
@@ -1579,7 +1769,7 @@ class PayrollController extends Controller
             qualifyingChildren: (int) (($structure !== null ? $structure->children_relief_count : null) ?? 0),
             ytdOptionalDeductions: $ytd['optionalDeductions'],
             currentOptionalDeductions: $ytd['currentOptionalDeductions'],
-            currentAdditionalGrossYt: $bonus,
+            currentAdditionalGrossYt: $yt,
             currentAdditionalEpfKt: $kt,
         );
     }

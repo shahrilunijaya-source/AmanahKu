@@ -20,6 +20,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property array<string, float>|null $cp38_applied
  * @property list<int>|null $overtime_request_ids
  * @property list<int>|null $unpaid_leave_request_ids
+ *
+ * pcb_exempt_amount is declared here because its migration adds the column from an arrow
+ * function (2026_10_02_100002), which the schema reader does not follow — the column and
+ * its float cast are real, this only tells static analysis about them.
+ * @property float $pcb_exempt_amount
  */
 class Payslip extends Model
 {

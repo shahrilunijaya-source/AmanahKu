@@ -662,7 +662,7 @@ trait BuildsWorkData
      * run, is freely editable; a finalized run locks it (see
      * PayrollController::assertPeriodEditable).
      *
-     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxPeriodHasDraftRun: bool}
+     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxBonusFinalized: bool, itxPeriodHasDraftRun: bool}
      */
     private function individualTransactionTabData(Request $request): array
     {
@@ -670,13 +670,17 @@ trait BuildsWorkData
             ? (string) $request->query('itx_period')
             : now()->format('Y-m');
 
-        $itxRun = PayrollRun::where('period', $period)->first();
+        // Spec F10: the monthly and the bonus run for a month lock their own rows
+        // separately — a finalized monthly run must not stop HR queuing a bonus.
+        $itxRun = PayrollRun::where('period', $period)->where('kind', 'monthly')->first();
+        $bonusFinalized = PayrollRun::where('period', $period)->where('kind', 'bonus')->where('status', 'finalized')->exists();
 
         return [
             'itxPeriod' => $period,
             'itxTransactions' => IndividualTransaction::with(['employee', 'payrollItem'])
                 ->forPeriod($period)->orderBy('employee_id')->get()->groupBy('employee_id'),
             'itxPeriodFinalized' => $itxRun?->status === 'finalized',
+            'itxBonusFinalized' => $bonusFinalized,
             // Surfaced so the UI can tell HR to recalculate the affected payslips — adding,
             // editing or deleting a one-off here does not itself touch an existing draft
             // payslip (see syncIndividualTransactions's doc comment); it becomes visible the

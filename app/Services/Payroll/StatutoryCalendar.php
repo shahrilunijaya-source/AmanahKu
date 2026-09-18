@@ -53,7 +53,7 @@ final class StatutoryCalendar
         }
 
         foreach ($agencies as $agency) {
-            $this->open($tenant->id, $agency, $due, $run->id, null);
+            $this->open($tenant->id, $agency, $due, $run->id, null, $run->period);
         }
 
         [$year, $month] = array_map('intval', explode('-', $run->period));
@@ -68,11 +68,17 @@ final class StatutoryCalendar
      * Written out rather than firstOrCreate because tenant_id is not fillable and this
      * also runs from a console command with no tenant context set.
      */
-    private function open(int $tenantId, string $agency, string $due, ?int $runId, ?int $year): void
+    private function open(int $tenantId, string $agency, string $due, ?int $runId, ?int $year, ?string $period = null): void
     {
+        // Spec F10: a month can hold more than one run (a bonus run alongside the monthly
+        // one), but each agency is filed once for the month — so an existing row is
+        // matched on the period, not on the run that happens to have opened it.
         $exists = PayrollSubmission::withoutGlobalScopes()
             ->where('tenant_id', $tenantId)->where('agency', $agency)
-            ->where('payroll_run_id', $runId)->where('year', $year)->exists();
+            ->when($period !== null,
+                fn ($q) => $q->whereHas('payrollRun', fn ($r) => $r->where('period', $period)),
+                fn ($q) => $q->where('payroll_run_id', $runId)->where('year', $year))
+            ->exists();
         if ($exists) {
             return;
         }

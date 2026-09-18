@@ -18,20 +18,22 @@
                 'ms' => 'Pendapatan atau potongan sekali sahaja untuk seorang bagi bulan ini sahaja — payroll run akan menariknya secara automatik apabila dijana (atau pada kira semula seterusnya, jika draft run bagi bulan ini sudah wujud). Yang berulang patut di Struktur gaji → Transaksi tetap.',
             ])
             @if ($itxPeriodFinalized)
-                <div style="margin-top:8px;font-size:12px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Payroll for this month has been finalized — individual transactions can no longer be added, edited or deleted for it.' : 'Payroll bagi bulan ini telah difinalize — transaksi individu tidak boleh ditambah, disunting atau dipadam lagi untuknya.'"></div>
+                <div style="margin-top:8px;font-size:12px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Monthly payroll for this month has been finalized — only transactions for the bonus run can still be added, edited or deleted.' : 'Payroll bulanan bagi bulan ini telah difinalize — hanya transaksi untuk run bonus masih boleh ditambah, disunting atau dipadam.'"></div>
             @elseif ($itxPeriodHasDraftRun)
                 <div style="margin-top:8px;font-size:12px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'A draft run already exists for this month. Changes here do not touch it automatically — open the affected payslip and Recalculate & save to apply them.' : 'Draft run bagi bulan ini sudah wujud. Perubahan di sini tidak menyentuhnya secara automatik — buka payslip berkenaan dan Kira semula & simpan untuk menerapkannya.'"></div>
             @endif
         </div>
 
-        @if (!$itxPeriodFinalized)
+        @if (!$itxPeriodFinalized || !$itxBonusFinalized)
             <div style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);display:flex;justify-content:flex-end;">
                 <button type="button" @click="itxAdding = !itxAdding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? (itxAdding ? 'Cancel' : '+ Add') : (itxAdding ? 'Batal' : '+ Tambah')">+ Add</button>
             </div>
             <div x-show="itxAdding" x-cloak
                  x-data="{
                      q: '',
+                     itemId: '',
                      rows: @js($salaryEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position)))->values()),
+                     bonusItems: @js($fixedTransactionItems->filter(fn ($i) => $i->ea_box === 'B1(b)')->map(fn ($i) => (string) $i->id)->values()),
                      hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
                  }"
                  style="padding:12px 22px;border-bottom:1px solid var(--hairline-soft);background:var(--canvas);">
@@ -54,9 +56,9 @@
                             </select>
                         </div>
                         <div style="flex:1;min-width:160px;"><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Payroll item' : 'Item payroll'">Payroll item</label>
-                            <select name="payroll_item_id" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
+                            <select name="payroll_item_id" x-model="itemId" required style="width:100%;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;">
                                 @foreach ($fixedTransactionItems as $item)
-                                    <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->type }})</option>
+                                    <option value="{{ $item->id }}" @if ($itxPeriodFinalized && $item->ea_box !== 'B1(b)') disabled hidden @endif>{{ $item->name }} ({{ $item->type }})</option>
                                 @endforeach
                             </select>
                         </div>
@@ -64,6 +66,15 @@
                         <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
                         <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
                     </div>
+                    @if ($itxPeriodFinalized)
+                        <div style="margin-top:8px;font-size:11.5px;color:#9a5b14;" x-text="$store.ui.lang==='en' ? 'Monthly payroll for this month is finalized, so anything added here is paid in the bonus run.' : 'Payroll bulanan bulan ini telah difinalize, jadi apa yang ditambah di sini dibayar dalam run bonus.'"></div>
+                        <input type="hidden" name="for_bonus_run" value="1" />
+                    @else
+                    <label x-show="bonusItems.includes(itemId)" x-cloak style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:12px;color:var(--ink);cursor:pointer;">
+                        <input type="checkbox" name="for_bonus_run" value="1" style="margin-top:2px;accent-color:var(--red);">
+                        <span x-text="$store.ui.lang==='en' ? 'Pay this in the bonus run for the month, not on the monthly payslip' : 'Bayar ini dalam run bonus bulan berkenaan, bukan pada payslip bulanan'">Pay this in the bonus run for the month, not on the monthly payslip</span>
+                    </label>
+                    @endif
                 </form>
             </div>
         @endif
@@ -75,16 +86,16 @@
                     <div style="border:1px solid var(--hairline);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
                         <div style="display:flex;align-items:center;gap:10px;">
                             <div style="flex:1;min-width:0;">
-                                <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $itx->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $itx->payrollItem?->type }})</span></div>
+                                <div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $itx->payrollItem?->name }} <span style="font-weight:400;color:var(--muted);">({{ $itx->payrollItem?->type }})</span>@if ($itx->for_bonus_run)<span class="uj-pill" style="margin-left:6px;background:#fff;border:1px solid var(--hairline);font-size:10px;" x-text="$store.ui.lang==='en' ? 'Bonus run' : 'Run bonus'">Bonus run</span>@endif</div>
                                 @if ($itx->remarks)<div style="font-size:10.5px;color:var(--muted);">{{ $itx->remarks }}</div>@endif
                             </div>
                             <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($itx->amount) }}</div>
-                            @if (!$itxPeriodFinalized)
+                            @if (!($itx->for_bonus_run ? $itxBonusFinalized : $itxPeriodFinalized))
                                 <button type="button" @click="itxEditing = itxEditing === {{ $itx->id }} ? null : {{ $itx->id }}" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
                                 <form method="post" action="{{ route('payroll.individual-transactions.delete', $itx) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam transaksi individu ini?' : 'Delete this individual transaction?');">@csrf<button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
                             @endif
                         </div>
-                        @if (!$itxPeriodFinalized)
+                        @if (!($itx->for_bonus_run ? $itxBonusFinalized : $itxPeriodFinalized))
                             <div x-show="itxEditing === {{ $itx->id }}" x-cloak style="margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft);">
                                 <form method="post" action="{{ route('payroll.individual-transactions.update', $itx) }}">
                                     @csrf

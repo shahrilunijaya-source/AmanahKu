@@ -27,6 +27,7 @@ class PayrollRun extends Model
      */
     protected $fillable = [
         'period',
+        'kind',
         'label',
         'run_by_id',
         'approved_by_id',
@@ -35,6 +36,13 @@ class PayrollRun extends Model
         'pull_options',
         'excluded_employee_ids',
     ];
+
+    /**
+     * Spec F10: monthly is the ordinary company-wide run (one per tenant and period);
+     * bonus pays flagged Individual Transactions as additional remuneration alongside it;
+     * final is one leaver's last pay. Only a final run carries an employee_id.
+     */
+    public const KINDS = ['monthly', 'bonus', 'final'];
 
     /** Sources a run can pull in; the new-run form shows one tick per key. */
     public const PULL_SOURCES = ['fixed', 'claims', 'overtime', 'unpaid'];
@@ -78,6 +86,11 @@ class PayrollRun extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_id');
+    }
+
+    public function isBonus(): bool
+    {
+        return $this->kind === 'bonus';
     }
 
     public function isDraft(): bool

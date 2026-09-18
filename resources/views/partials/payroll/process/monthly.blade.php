@@ -5,7 +5,7 @@
 @endphp
 {{-- excluded: how many blocked people HR has ticked "leave out", so the create button
      re-enables once every blocker is accounted for (the server-side gate still decides). --}}
-<div x-data="{ excluded: 0 }">
+<div x-data="{ excluded: 0, kind: '{{ old('kind', 'monthly') }}' }">
 @include('partials.payroll.process.readiness')
 <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
     <div class="uj-card" style="flex:1;min-width:260px;max-width:340px;padding:20px;">
@@ -15,12 +15,19 @@
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Pay month' : 'Bulan gaji'">Pay month</label>
             <input name="period" type="month" value="{{ old('period', now()->format('Y-m')) }}" required style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;margin-bottom:6px;" />
             @error('period')<div style="font-size:12px;color:var(--error);margin-bottom:8px;">{{ $message }}</div>@enderror
-            @include('partials.hint', ['en' => 'The month you are paying for. One draft run per month — you can edit it freely until you finalize.', 'ms' => 'Bulan yang anda bayar gaji. Satu draft run setiap bulan — anda boleh sunting dengan bebas sehingga finalize.'])
+            @include('partials.hint', ['en' => 'The month you are paying for. One monthly run per month — you can edit it freely until you finalize.', 'ms' => 'Bulan yang anda bayar gaji. Satu run bulanan setiap bulan — anda boleh sunting dengan bebas sehingga finalize.'])
+            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:12px 0 6px;" x-text="$store.ui.lang==='en' ? 'Run type' : 'Jenis run'">Run type</label>
+            <select name="kind" x-model="kind" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;margin-bottom:6px;">
+                <option value="monthly" x-text="$store.ui.lang==='en' ? 'Monthly salary' : 'Gaji bulanan'">Monthly salary</option>
+                <option value="bonus" x-text="$store.ui.lang==='en' ? 'Bonus' : 'Bonus'">Bonus</option>
+            </select>
+            @error('kind')<div style="font-size:12px;color:var(--error);margin-bottom:8px;">{{ $message }}</div>@enderror
+            @include('partials.hint', ['en' => 'A bonus run pays only the individual transactions ticked "pay in the bonus run" for that month. It carries no salary, no allowances and no SOCSO/EIS, and its tax is worked out as additional remuneration on top of the monthly pay.', 'ms' => 'Run bonus hanya membayar transaksi individu yang ditanda "bayar dalam run bonus" bagi bulan itu. Tiada gaji, tiada elaun dan tiada PERKESO/SIP, dan cukainya dikira sebagai saraan tambahan di atas gaji bulanan.'])
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:12px 0 6px;" x-text="$store.ui.lang==='en' ? 'Payment date (optional)' : 'Tarikh bayaran (pilihan)'">Payment date (optional)</label>
             <input name="payment_date" type="date" value="{{ old('payment_date') }}" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;margin-bottom:6px;" />
             @error('payment_date')<div style="font-size:12px;color:var(--error);margin-bottom:8px;">{{ $message }}</div>@enderror
             @include('partials.hint', ['en' => 'The day salaries reach staff bank accounts.', 'ms' => 'Hari gaji masuk ke akaun bank staf.'])
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:14px 0 4px;">
+            <div x-show="kind === 'monthly'" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:14px 0 4px;">
                 @foreach ([
                     'fixed' => ['Pull monthly allowance/deduction', 'Tarik elaun/potongan bulanan'],
                     'claims' => ['Pull claim data', 'Tarik data tuntutan'],
@@ -55,7 +62,7 @@
             @forelse ($runs as $r)
                 <tr style="border-top:1px solid var(--hairline-soft);">
                     <td style="padding:12px 18px;font-weight:500;color:var(--ink);">{{ $r->label }}</td>
-                    <td style="padding:12px 8px;">Month End</td>
+                    <td style="padding:12px 8px;" x-text="$store.ui.lang==='en' ? @js($r->kind === 'bonus' ? 'Bonus' : 'Month End') : @js($r->kind === 'bonus' ? 'Bonus' : 'Akhir Bulan')">{{ $r->kind === 'bonus' ? 'Bonus' : 'Month End' }}</td>
                     <td style="padding:12px 8px;"><span class="uj-pill" style="background:#fff;border:1px solid var(--hairline);color:{{ $statusColor[$r->status] ?? 'var(--muted)' }};text-transform:capitalize;font-size:10.5px;" x-text="$store.ui.lang==='en' ? @js($r->status) : @js($statusMs[$r->status] ?? $r->status)">{{ $r->status }}</span></td>
                     <td style="padding:12px 8px;text-align:right;">{{ $r->payslips_count }}</td>
                     <td style="padding:12px 8px;text-align:right;font-family:var(--font-mono);">{{ $money($r->totals['net'] ?? 0) }}</td>
