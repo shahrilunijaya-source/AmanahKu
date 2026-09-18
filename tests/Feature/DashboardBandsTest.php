@@ -154,7 +154,7 @@ class DashboardBandsTest extends TestCase
         $this->postJson(route('dashboard.prefs.update'), ['hidden' => [], 'order' => [], 'plain' => true])->assertOk();
         $this->assertTrue($user->fresh()->dashboard_prefs['dash']['plain']);
 
-        $this->postJson(route('dashboard.prefs.update'), ['hidden' => ['work'], 'order' => []])->assertOk();
+        $this->postJson(route('dashboard.prefs.update'), ['hidden' => ['claims'], 'order' => []])->assertOk();
         $this->assertTrue($user->fresh()->dashboard_prefs['dash']['plain']);
 
         $this->postJson(route('dashboard.prefs.update'), ['hidden' => [], 'order' => [], 'plain' => 'nope'])->assertStatus(422);
