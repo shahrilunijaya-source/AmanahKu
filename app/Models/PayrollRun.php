@@ -28,6 +28,7 @@ class PayrollRun extends Model
     protected $fillable = [
         'period',
         'kind',
+        'employee_id',
         'label',
         'run_by_id',
         'approved_by_id',
@@ -60,10 +61,20 @@ class PayrollRun extends Model
         ];
     }
 
-    /** EA s.19: wages are due no later than the seventh day after the wage period ends. */
+    /**
+     * EA s.19: wages are due no later than the seventh day after the wage period ends.
+     * A final pay run's wage period ends when the employee stops working (EA s.20), so
+     * its seven days are counted from the last working day instead of the month end.
+     */
     public function payByDate(): CarbonImmutable
     {
-        return CarbonImmutable::createFromFormat('Y-m-d', $this->period.'-01')->endOfMonth()->startOfDay()->addDays(7);
+        $end = CarbonImmutable::createFromFormat('Y-m-d', $this->period.'-01')->endOfMonth()->startOfDay();
+        $lastDay = $this->kind === 'final' ? $this->employee?->last_working_day : null;
+        if ($lastDay !== null && $lastDay->lt($end)) {
+            $end = CarbonImmutable::instance($lastDay)->startOfDay();
+        }
+
+        return $end->addDays(7);
     }
 
     /** Whether this run pulls the given source. A run with no stored choice pulls everything. */
@@ -76,6 +87,12 @@ class PayrollRun extends Model
     public function payslips(): HasMany
     {
         return $this->hasMany(Payslip::class);
+    }
+
+    /** Only a final pay run names one employee; every other kind covers the company. */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     public function runBy(): BelongsTo
@@ -91,6 +108,11 @@ class PayrollRun extends Model
     public function isBonus(): bool
     {
         return $this->kind === 'bonus';
+    }
+
+    public function isFinal(): bool
+    {
+        return $this->kind === 'final';
     }
 
     public function isDraft(): bool

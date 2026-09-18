@@ -11,6 +11,7 @@ use App\Models\Payslip;
 use App\Services\FeatureManager;
 use App\Services\Payroll\BankFile\BankFileRegistry;
 use App\Services\Payroll\HrdCorpLevy;
+use App\Services\Payroll\Statutory\MergedPayslips;
 use App\Services\Payroll\Statutory\StatutoryFileRegistry;
 use App\Support\Csv;
 use App\Tenancy\CurrentTenant;
@@ -32,11 +33,16 @@ class PayrollExportController extends Controller
 
         $format = BankFileRegistry::find($request->query('format'));
 
-        $payslips = $run->payslips()->with('employee.salaryStructure')->get()
+        $all = $run->payslips()->with('employee.salaryStructure')->get()
             ->sortBy(fn ($p) => $p->employee?->name)->values();
+        // Spec F10: a final pay held for an unsettled CP22A is not paid out yet, so it
+        // must not reach the bank. It appears here again once HR releases the hold.
+        $payslips = $all->reject(fn (Payslip $p) => (bool) $p->held_for_cp22a)->values();
+        $withheld = $all->count() - $payslips->count();
 
         AuditLog::record('Exported bank file', $run->label.' · '.$payslips->count().' employees · '
-            .$format->label().($format->verified() ? '' : ' (unverified layout)'));
+            .$format->label().($format->verified() ? '' : ' (unverified layout)')
+            .($withheld > 0 ? ' · '.$withheld.' withheld pending CP22A' : ''));
 
         $rows = $format->rows($payslips, $run);
 
@@ -114,14 +120,22 @@ class PayrollExportController extends Controller
             abort_if(HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf')) <= 0, 422, 'HRD Corp levy is switched off for this company.');
         }
 
-        $payslips = $run->payslips()->with('employee.salaryStructure')->get()
-            ->sortBy(fn (Payslip $p) => $p->employee?->name)->values();
+        // Spec F10: one file per employer per month, whatever the month was paid in —
+        // the monthly run, a bonus run and a leaver's final pay are folded into one row
+        // per employee before the exporter sees them.
+        $payslips = $tenant === null
+            ? collect()
+            : MergedPayslips::forPeriod($tenant, $run->period);
         $body = $file->build($run, $tenant, $payslips);
 
         // Spec F12: the first download of a statutory file marks that filing "file ready".
         $agency = ['kwsp-form-a' => 'epf', 'perkeso-8a' => 'socso_eis', 'cp39' => 'pcb', 'hrdcorp' => 'hrdcorp'][$key] ?? null;
         if ($agency !== null) {
-            PayrollSubmission::where('payroll_run_id', $run->id)->where('agency', $agency)
+            // One filing per agency per month (StatutoryCalendar::open matches on the
+            // period), so the row may hang off the monthly run while the download is
+            // started from the bonus or final run of the same month.
+            PayrollSubmission::whereHas('payrollRun', fn ($q) => $q->where('period', $run->period))
+                ->where('agency', $agency)
                 ->whereNull('downloaded_at')->update(['downloaded_at' => now()]);
         }
 

@@ -70,6 +70,8 @@ class Payslip extends Model
             'fixed_deductions_total' => 'float',
             'hrdf_levy' => 'float',
             'deduction_cap_exceeded' => 'boolean',
+            'held_for_cp22a' => 'boolean',
+            'hold_released_at' => 'datetime',
             'deduction_consent_confirmed' => 'boolean',
             'carried_forward_amount' => 'float',
             'gross' => 'float',

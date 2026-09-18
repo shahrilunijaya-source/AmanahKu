@@ -27,6 +27,7 @@ use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\ExemptionCap;
 use App\Services\Payroll\HrdCorpLevy;
+use App\Services\Payroll\LifecycleNotices;
 use App\Services\Payroll\MinimumWage;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\PayrollReadiness;
@@ -72,6 +73,7 @@ class PayrollController extends Controller
         private readonly PcbYearToDate $pcbYtd,
         private readonly Cp38Notices $cp38,
         private readonly StatutoryCalendar $calendar,
+        private readonly LifecycleNotices $notices,
     ) {}
 
     // ── Salary structures ─────────────────────────────────────────
@@ -646,6 +648,16 @@ class PayrollController extends Controller
      */
     private function employedDays(Employee $employee, string $period): array
     {
+        return Proration::days($period, $employee->joined_at, $this->lastWorkingDayFor($employee, $period));
+    }
+
+    /**
+     * The day this employee stops being paid — the employment record's own last working
+     * day, or an offboarding case's last day inside this period. Used both to prorate the
+     * last month's wages and to decide whether a final pay run may be created.
+     */
+    private function lastWorkingDayFor(Employee $employee, string $period): ?Carbon
+    {
         $periodStart = $this->periodStart($period);
         $periodEnd = $this->periodStart($period)->endOfMonth();
         $lastDay = $employee->last_working_day;
@@ -658,7 +670,7 @@ class PayrollController extends Controller
             $lastDay = $raw !== null ? Carbon::parse($raw) : null;
         }
 
-        return Proration::days($period, $employee->joined_at, $lastDay);
+        return $lastDay;
     }
 
     // ── Overtime / unpaid-leave pull (approved requests → payslip) ─────────────────
@@ -786,9 +798,10 @@ class PayrollController extends Controller
 
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
-            // Spec F10: 'final' is one leaver's last pay and is created from the
-            // offboarding screen, never from this form.
-            'kind' => ['nullable', Rule::in(['monthly', 'bonus'])],
+            // Spec F10: 'final' is one named leaver's last pay; the other kinds cover
+            // the whole company and take no employee_id.
+            'kind' => ['nullable', Rule::in(PayrollRun::KINDS)],
+            'employee_id' => [Rule::requiredIf(fn () => $request->input('kind') === 'final'), 'nullable', 'integer'],
             'payment_date' => ['nullable', 'date'],
             'pull_fixed' => ['nullable', 'boolean'],
             'pull_claims' => ['nullable', 'boolean'],
@@ -801,6 +814,23 @@ class PayrollController extends Controller
         $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
         $kind = $data['kind'] ?? 'monthly';
 
+        // Spec F10: a final pay run is for one leaver whose last working day falls inside
+        // the period, and there is only ever one of them per person.
+        $leaver = null;
+        if ($kind === 'final') {
+            $leaver = Employee::with('salaryStructure')->where('tenant_id', $tid)->find($data['employee_id'] ?? null);
+            if ($leaver === null || $leaver->salaryStructure === null) {
+                return back()->withErrors(['employee_id' => 'Choose an employee who has a salary structure.'])->withInput();
+            }
+            if ($leaver->final_pay_run_id !== null) {
+                return back()->withErrors(['employee_id' => $leaver->name.' has already been paid out in a final pay run.'])->withInput();
+            }
+            $lastDay = $this->lastWorkingDayFor($leaver, $data['period']);
+            if ($lastDay === null || ! $lastDay->betweenIncluded($this->periodStart($data['period']), $this->periodStart($data['period'])->endOfMonth())) {
+                return back()->withErrors(['employee_id' => $leaver->name.' has no last working day inside '.$data['period'].'. Record the leaving date first.'])->withInput();
+            }
+        }
+
         // Spec F10: still exactly one monthly run per tenant and period — but a bonus run
         // may sit alongside it in the same month, and there may be more than one of those
         // (two separate bonus payouts in December is an ordinary thing to do).
@@ -809,10 +839,14 @@ class PayrollController extends Controller
         }
 
         $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
-        $employees = Employee::active()->with('salaryStructure')
+        // A final run is that one leaver and nobody else — they may already be marked
+        // resigned, so the "currently employed" allowlist below would miss them.
+        $employees = $leaver !== null ? collect([$leaver]) : Employee::active()->with('salaryStructure')
             ->whereHas('salaryStructure')
             ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
             ->whereNotIn('id', $excluded)
+            // Anyone already paid out in a final run is done with payroll for good.
+            ->whereNull('final_pay_run_id')
             ->when($kind === 'bonus', fn ($q) => $q->whereIn('id', IndividualTransaction::where('tenant_id', $tid)
                 ->forPeriod($data['period'])->forBonusRun(true)->select('employee_id')))
             ->orderBy('name')->get();
@@ -826,7 +860,7 @@ class PayrollController extends Controller
         $inThisRun = $employees->pluck('id')->all();
         $problems = array_map(fn (string $g) => 'Company: '.$g, $readiness->employerGaps($tenant));
         foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
-            if ($kind === 'bonus' && ! in_array($row['employee']->id, $inThisRun, true)) {
+            if ($kind !== 'monthly' && ! in_array($row['employee']->id, $inThisRun, true)) {
                 continue;
             }
             $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
@@ -850,13 +884,18 @@ class PayrollController extends Controller
         $hrdfRate = HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf'));
 
         $overtimeWarnings = [];
-        DB::transaction(function () use ($data, $kind, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
+        // EA s.20: a leaver's wages are due on the day the contract ends, so that is the
+        // pay date unless HR typed one in.
+        $finalPayDate = $leaver === null ? null : $this->lastWorkingDayFor($leaver, $data['period'])?->toDateString();
+
+        DB::transaction(function () use ($data, $kind, $leaver, $finalPayDate, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'kind' => $kind,
-                'label' => $this->periodStart($data['period'])->format('F Y').($kind === 'bonus' ? ' bonus' : ''),
+                'employee_id' => $leaver?->id,
+                'label' => $this->periodStart($data['period'])->format('F Y').['monthly' => '', 'bonus' => ' bonus', 'final' => ' final pay'][$kind],
                 'run_by_id' => Auth::id(),
-                'payment_date' => $data['payment_date'] ?? null,
+                'payment_date' => $data['payment_date'] ?? $finalPayDate,
                 'pull_options' => $pulls,
                 'excluded_employee_ids' => $excluded ?: null,
             ]);
@@ -872,7 +911,7 @@ class PayrollController extends Controller
 
             $this->recalcTotals($run);
             $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
-            $note = $kind === 'bonus' ? '' : ($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : '');
+            $note = $kind !== 'monthly' ? '' : ($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : '');
             AuditLog::record('Created payroll run', $run->label.' · '.$run->payslips()->count().' payslips'.$note);
         });
 
@@ -1395,6 +1434,30 @@ class PayrollController extends Controller
      * the shortfall is queued as next period's Individual Transaction (subject to the same
      * 50% cap there when that run is created).
      */
+    /**
+     * Spec F10: let a held final pay go. HR does this once LHDN clears the CP22A (or the
+     * 90-day wait is over), which is a judgement call outside the system — so the reason
+     * is required and audited, and the payslip keeps who released it and when.
+     */
+    public function releaseHold(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        abort_unless((bool) $payslip->held_for_cp22a, 422, 'This payslip is not being held.');
+
+        $data = $request->validate(['reason' => ['required', 'string', 'max:240']]);
+
+        $payslip->forceFill([
+            'held_for_cp22a' => false,
+            'hold_released_at' => now(),
+            'hold_released_by_id' => Auth::id(),
+        ])->save();
+
+        AuditLog::record('Released final pay hold', $payslip->employee?->name.' · '.$payslip->payrollRun->label.' · '.$data['reason']);
+
+        return back()->with('ok', 'Final pay released. It is in the bank file from now on.');
+    }
+
     public function carryForward(Request $request, Payslip $payslip): RedirectResponse
     {
         $this->authorizeAdmin($request);
@@ -1532,6 +1595,22 @@ class PayrollController extends Controller
             // Spec F9: the CP38 balances move only now, never while the run is a draft.
             foreach ($payslips as $payslip) {
                 $this->cp38->applyFinalized($payslip);
+            }
+
+            // Spec F10/F11: a leaver is paid out for good here — no later monthly run
+            // picks them up — and the money itself waits while the CP22A is unsettled.
+            if ($run->isFinal()) {
+                foreach ($payslips as $payslip) {
+                    $employee = $payslip->employee;
+                    if ($employee === null) {
+                        continue;
+                    }
+                    $payslip->forceFill(['held_for_cp22a' => $this->notices->holdsFinalPay($employee)])->save();
+                    $employee->forceFill(['final_pay_run_id' => $run->id])->save();
+                    if ($payslip->held_for_cp22a) {
+                        AuditLog::record('Held final pay for CP22A', $employee->name.' · '.$run->label.' · released by hand once LHDN clears the CP22A');
+                    }
+                }
             }
 
             // Spec F12: open this month's agency filings so the Deadlines tab and the

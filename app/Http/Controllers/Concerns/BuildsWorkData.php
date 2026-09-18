@@ -560,6 +560,7 @@ trait BuildsWorkData
                 'runs' => collect(),
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
+                'finalPayCandidates' => collect(),
                 'payrollItems' => collect(),
                 'currentPeriod' => now()->format('Y-m'),
                 'fixedTransactions' => collect(),
@@ -605,7 +606,7 @@ trait BuildsWorkData
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
             'payoutYear' => $payoutYear = (int) ($request->integer('year') ?: now()->year),
-            'payoutRuns' => PayrollRun::withCount('payslips')
+            'payoutRuns' => PayrollRun::withCount('payslips')->with('payslips.employee:id,name')
                 ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
             // Spec F13: when payslip acknowledgement is on, who has not pressed it yet,
@@ -619,6 +620,10 @@ trait BuildsWorkData
                     ->all()
                 : [],
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
+            // Spec F10: who a final pay run can be created for — a recorded last working
+            // day, a salary structure, and not already paid out.
+            'finalPayCandidates' => Employee::whereNotNull('last_working_day')->whereNull('final_pay_run_id')
+                ->whereHas('salaryStructure')->orderBy('name')->get(['id', 'name', 'last_working_day']),
             // Spec F12: statutory filings, soonest deadline first, submitted ones last.
             'payrollSubmissions' => PayrollSubmission::with('payrollRun')->orderByRaw('submitted_at is not null')->orderBy('due_on')->get(),
             // Spec F11: statutory notices, open ones first.

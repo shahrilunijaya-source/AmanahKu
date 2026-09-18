@@ -64,6 +64,31 @@
                     <span style="color:var(--ink);">{{ implode(', ', $ackPending) }}</span>
                 </div>
             @endif
+            {{-- Spec F10/F11: a leaver's final pay waits here while the CP22A is unsettled. --}}
+            @foreach ($r->payslips->where('held_for_cp22a', true) as $held)
+                <div x-data="{ releasing: false }" style="margin-top:10px;padding:10px 12px;background:#fff7ed;border:1px solid var(--hairline);border-radius:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span class="uj-pill" style="background:#fff;border:1px solid var(--amber);color:var(--amber);font-size:10.5px;" x-text="$store.ui.lang==='en' ? 'Held · CP22A' : 'Ditahan · CP22A'">Held · CP22A</span>
+                        <span style="font-size:12.5px;color:var(--ink);">{{ $held->employee?->name }}</span>
+                        <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">RM {{ number_format((float) $held->net_pay, 2) }}</span>
+                        <button type="button" @click="releasing = !releasing" class="uj-btn-ghost" style="margin-left:auto;height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? (releasing ? 'Cancel' : 'Release final pay…') : (releasing ? 'Batal' : 'Lepaskan gaji akhir…')">Release final pay…</button>
+                    </div>
+                    <div x-show="releasing" x-cloak style="margin-top:8px;">
+                        <form method="post" action="{{ route('payroll.payslips.release-hold', $held) }}" style="display:flex;gap:8px;flex-wrap:wrap;">@csrf
+                            <input name="reason" required maxlength="240" :placeholder="$store.ui.lang==='en' ? 'Why it can be paid now (LHDN clearance, 90 days passed…)' : 'Kenapa boleh dibayar sekarang (pelepasan LHDN, 90 hari berlalu…)'" style="flex:1;min-width:240px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;" />
+                            <button class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Release' : 'Lepaskan'">Release</button>
+                        </form>
+                        @include('partials.hint', ['en' => 'Until it is released this payslip stays out of the bank file. The reason is recorded in the audit trail.', 'ms' => 'Sehingga dilepaskan, payslip ini tidak masuk fail bank. Sebab direkod dalam jejak audit.'])
+                    </div>
+                </div>
+            @endforeach
+            @foreach ($r->payslips->whereNotNull('hold_released_at') as $released)
+                <div style="margin-top:8px;font-size:11.5px;color:var(--muted);">
+                    <span x-text="$store.ui.lang==='en' ? 'Final pay released on' : 'Gaji akhir dilepaskan pada'">Final pay released on</span>
+                    <span style="color:var(--ink);">{{ $released->hold_released_at?->format('j M Y') }}</span> · {{ $released->employee?->name }}
+                </div>
+            @endforeach
+
             @if ($r->status === 'finalized' && $isManagementTier)
                 <div x-data="{ deleting: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;">
                     <button type="button" @click="deleting = !deleting" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? (deleting ? 'Cancel' : 'Delete finalized run…') : (deleting ? 'Batal' : 'Padam run difinalize…')">Delete finalized run…</button>
