@@ -45,6 +45,12 @@ export function registerCalendarSync(Alpine) {
             return this.s.state === 'connected' ? 'var(--success)' : '#b9b6ad';
         },
         get synced() { return this.s.last_synced_human; },
+        get issuesHeading() {
+            const anyEvent = this.s.issues.some((issue) => issue.kind === 'event');
+            const en = anyEvent ? `${this.issueCount} ${this.issueCount === 1 ? 'item' : 'items'}` : `${this.issueCount} ${this.issueCount === 1 ? 'card' : 'cards'}`;
+            const ms = anyEvent ? `${this.issueCount} item` : `${this.issueCount} kad`;
+            return this.t(`${en} could not be sent`, `${ms} tidak dapat dihantar`);
+        },
         get pillSub() {
             if (this.running) return this.t('Syncing…', 'Menyegerak…');
             if (this.s.state === 'off') return this.t('Not connected', 'Tidak bersambung');
@@ -102,6 +108,12 @@ export function registerCalendarSync(Alpine) {
                 : this.t(`All ${r.total} ${r.total === 1 ? 'card' : 'cards'} sent.`, `Kesemua ${r.total} kad dihantar.`)) + pulled;
         },
 
+        issueUrl(issue) {
+            return issue.kind === 'event'
+                ? this.urls.event.replace('__ID__', String(issue.id).replace(/^event-/, ''))
+                : this.urls.card.replace('__ID__', issue.id);
+        },
+
         friendly(message) {
             if (/revoked/i.test(message || '')) return this.t('Google access was removed.', 'Akses Google telah dibuang.');
             return this.t('Google did not accept it. Tried 5 times.', 'Google tidak menerimanya. Dicuba 5 kali.');
@@ -144,12 +156,16 @@ export function registerCalendarSync(Alpine) {
 
         // Retry now runs inline server-side: the response already carries fresh
         // status, so toast right away instead of polling for it.
-        async retry(id) {
+        async retry(issue) {
             if (this.running || this.cooldown > 0) return;
-            const data = await this.post(this.urls.retry.replace('__ID__', id));
+            const id = issue.id;
+            const url = issue.kind === 'event'
+                ? this.urls.retryEvent.replace('__ID__', String(id).replace(/^event-/, ''))
+                : this.urls.retry.replace('__ID__', id);
+            const data = await this.post(url);
             if (!data) return;
             this.apply(data);
-            const stillFailing = data.issues.some((issue) => issue.id === id);
+            const stillFailing = data.issues.some((i) => i.id === id);
             if (stillFailing) {
                 this.$store.toast.error(this.t('Still could not send that card.', 'Kad itu masih tidak dapat dihantar.'));
             } else {

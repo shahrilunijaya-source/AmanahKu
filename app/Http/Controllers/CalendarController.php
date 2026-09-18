@@ -8,6 +8,8 @@ use App\Models\CompanyEvent;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\PublicHoliday;
+use App\Services\GoogleCalendarClient;
+use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -59,6 +61,10 @@ class CalendarController extends Controller
         $weeks = $this->buildWeeks($gridStart, $gridEnd, $month, $today, $leave, $awaiting, $holidays, $events, $birthdays);
 
         return [
+            // The Google Calendar control (status, Sync now, issues), same as the board's. Null hides it.
+            'calendarSync' => app(GoogleCalendarClient::class)->configured() && $request->user()
+                ? CalendarSyncStatus::for($request->user(), $employee?->tenant_id)
+                : null,
             // Who this viewer may see a leave TYPE for; null means everybody. The
             // calendar names everyone who is away, but "Medical" beside a colleague's
             // name is their health, not the company's noticeboard.

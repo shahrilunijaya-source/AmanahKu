@@ -9,6 +9,11 @@
     .cs-sub{font-weight:500;color:var(--muted);font-size:11.5px}
     .cs-pill.is-warn .cs-sub{color:var(--error-ink)}
     .cs-badge{min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:var(--error);color:#fff;font-size:10.5px;font-family:var(--font-mono);display:grid;place-items:center}
+    .cs-gear{position:relative;width:32px;height:32px;border-radius:9999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:border-color .14s var(--ease)}
+    .cs-gear:hover{border-color:#d4d2cb}
+    .cs-gear.is-warn{border-color:#f0c9d3;background:#fdf3f6;color:var(--error-ink)}
+    .cs-gear-badge{position:absolute;top:2px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--error)}
+    .cs-gear .cs-spin{border-color:rgba(0,0,0,.15);border-top-color:var(--ink)}
     .cs-panel{position:absolute;right:0;top:40px;width:340px;max-width:calc(100vw - 32px);background:#fff;border:1px solid var(--hairline);border-radius:14px;box-shadow:var(--shadow-menu);z-index:40;overflow:hidden;text-align:left}
     .cs-head{padding:14px 16px 12px;display:flex;gap:11px;align-items:flex-start;border-bottom:1px solid var(--hairline-soft)}
     .cs-head svg{flex-shrink:0;margin-top:2px}
@@ -51,17 +56,28 @@
         'status' => route('calendar-sync.status'),
         'sync' => route('calendar-sync.sync'),
         'retry' => route('calendar-sync.retry', ['workItem' => '__ID__']),
+        'retryEvent' => route('calendar-sync.retry-event', ['event' => '__ID__']),
         'card' => route('app.screen', 'board').'?card=__ID__',
+        'event' => route('events.show', ['event' => '__ID__']),
      ], JSON_UNESCAPED_SLASHES))"
      @keydown.escape.window="open = false" @click.outside="open = false">
 
-    <button type="button" class="cs-pill" :class="{ 'is-warn': tone === 'warn' }" @click="open = !open" :aria-expanded="open" aria-haspopup="dialog">
-        <span x-show="running" class="cs-spin" aria-hidden="true"></span>
-        <span x-show="!running" class="cs-dot" :style="{ background: dotColor }" aria-hidden="true"></span>
-        <span>Google Calendar</span>
-        <span x-show="issueCount > 0 && s.state === 'connected' && !running" class="cs-badge" x-text="issueCount"></span>
-        <span x-show="!(issueCount > 0 && s.state === 'connected' && !running)" class="cs-sub" x-text="pillSub"></span>
-    </button>
+    @if (($trigger ?? 'pill') === 'gear')
+        <button type="button" class="cs-gear" :class="{ 'is-warn': tone === 'warn' }" @click="open = !open" :aria-expanded="open" aria-haspopup="dialog" :aria-label="t('Google Calendar', 'Kalendar Google')">
+            <span x-show="running" class="cs-spin" aria-hidden="true"></span>
+            <svg x-show="!running" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+            <span x-show="issueCount > 0 && s.state === 'connected' && !running" class="cs-gear-badge" aria-hidden="true"></span>
+            <span x-show="s.state === 'expired'" class="cs-gear-badge" aria-hidden="true"></span>
+        </button>
+    @else
+        <button type="button" class="cs-pill" :class="{ 'is-warn': tone === 'warn' }" @click="open = !open" :aria-expanded="open" aria-haspopup="dialog">
+            <span x-show="running" class="cs-spin" aria-hidden="true"></span>
+            <span x-show="!running" class="cs-dot" :style="{ background: dotColor }" aria-hidden="true"></span>
+            <span>Google Calendar</span>
+            <span x-show="issueCount > 0 && s.state === 'connected' && !running" class="cs-badge" x-text="issueCount"></span>
+            <span x-show="!(issueCount > 0 && s.state === 'connected' && !running)" class="cs-sub" x-text="pillSub"></span>
+        </button>
+    @endif
 
     <div class="cs-panel" x-show="open" x-cloak x-transition.opacity.duration.120ms role="dialog" :aria-label="t('Google Calendar', 'Kalendar Google')">
         <div class="cs-head">
@@ -100,14 +116,14 @@
                     <div class="cs-note" x-text="noteText"></div>
 
                     <div x-show="issueCount > 0" class="cs-issues">
-                        <h4 x-text="t(issueCount + (issueCount === 1 ? ' card' : ' cards') + ' could not be sent', issueCount + ' kad tidak dapat dihantar')"></h4>
+                        <h4 x-text="issuesHeading"></h4>
                         <template x-for="issue in s.issues" :key="issue.id">
                             <div class="cs-issue">
                                 <div class="cs-issue-name">
-                                    <a :href="urls.card.replace('__ID__', issue.id)" x-text="issue.title"></a>
+                                    <a :href="issueUrl(issue)" x-text="issue.title"></a>
                                     <span x-text="friendly(issue.message)" :title="issue.message"></span>
                                 </div>
-                                <button type="button" class="cs-retry" :disabled="running || cooldown > 0" @click="retry(issue.id)" x-text="t('Retry', 'Cuba lagi')"></button>
+                                <button type="button" class="cs-retry" :disabled="running || cooldown > 0" @click="retry(issue)" x-text="t('Retry', 'Cuba lagi')"></button>
                             </div>
                         </template>
                     </div>

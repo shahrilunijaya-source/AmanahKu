@@ -34,6 +34,9 @@
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#3a6ea5;"></span><span x-text="$store.ui.lang==='en' ? 'Event' : 'Acara'">Event</span></span>
                 <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#c026d3;"></span><span x-text="$store.ui.lang==='en' ? 'Birthday' : 'Hari lahir'">Birthday</span></span>
             </div>
+            @if ($calendarSync ?? null)
+                @include('partials.board-calendar-sync', ['calendarSync' => $calendarSync, 'trigger' => 'gear'])
+            @endif
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;">
