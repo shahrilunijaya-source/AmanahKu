@@ -66,6 +66,7 @@ use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PayrollCp38Controller;
 use App\Http\Controllers\PayrollExportController;
+use App\Http\Controllers\PayrollNoticeController;
 use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PayrollTp1Controller;
 use App\Http\Controllers\PersonalRecordController;
@@ -775,6 +776,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/cp38-notices/{notice}/cancel', [PayrollCp38Controller::class, 'cancel'])->name('payroll.cp38.cancel');
             Route::post('/app/payroll/tp1-claims', [PayrollTp1Controller::class, 'store'])->name('payroll.tp1.store');
             Route::post('/app/payroll/tp1-claims/{claim}/delete', [PayrollTp1Controller::class, 'destroy'])->name('payroll.tp1.delete');
+            Route::post('/app/payroll/notices/{notice}/file', [PayrollNoticeController::class, 'file'])->name('payroll.notices.file');
+            Route::post('/app/payroll/notices/{notice}/clear', [PayrollNoticeController::class, 'clear'])->name('payroll.notices.clear');
+            Route::post('/app/payroll/employees/{employee}/cp21', [PayrollNoticeController::class, 'cp21'])->name('payroll.notices.cp21');
             Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
             Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });
@@ -809,6 +813,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
         Route::get('/app/payroll/runs/{run}/statutory-file/{key}', [PayrollExportController::class, 'statutoryFile'])
             ->where('key', '[a-z0-9\-]+')->name('payroll.export.statutory-file');
+        // PCB 2(II) statement for a CP22A — HR/management only, audited (carries NRIC).
+        Route::get('/app/payroll/notices/{notice}/pcb2ii', [PayrollNoticeController::class, 'pcb2ii'])->name('payroll.notices.pcb2ii');
         // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
         Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
         // Bulk payslip PDF for a finalized run — HR/management only.

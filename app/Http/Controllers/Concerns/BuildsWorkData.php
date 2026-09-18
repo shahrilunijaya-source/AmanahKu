@@ -12,6 +12,7 @@ use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollItem;
+use App\Models\PayrollNotice;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\PayrollTp1Claim;
@@ -604,6 +605,8 @@ trait BuildsWorkData
             'activeRun' => $activeRun,
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
             // Spec F8: Form TP1 declarations for the year, newest first.
+            // Spec F11: statutory notices, open ones first.
+            'payrollNotices' => PayrollNotice::with('employee')->orderByRaw('filed_on is not null')->orderBy('due_on')->get(),
             'tp1Year' => $tp1Year = (int) ($request->integer('tp1_year') ?: now()->year),
             'tp1Claims' => PayrollTp1Claim::with('employee')->where('year', $tp1Year)->orderByDesc('month')->orderByDesc('id')->get(),
             'openingYear' => (int) now()->year,

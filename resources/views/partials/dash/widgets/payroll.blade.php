@@ -20,6 +20,11 @@
             @endif
         </div>
     @endif
+    @if (($w['openNotices'] ?? 0) > 0)
+        <div style="font-size:12.5px;color:{{ ($w['overdueNotices'] ?? 0) > 0 ? 'var(--error)' : 'var(--body)' }};margin-top:6px;">
+            {{ $w['openNotices'] }} <span x-text="$store.ui.lang==='en' ? 'statutory notices to file' : 'notis berkanun belum difailkan'">statutory notices to file</span>@if (($w['overdueNotices'] ?? 0) > 0) · {{ $w['overdueNotices'] }} <span x-text="$store.ui.lang==='en' ? 'overdue' : 'lewat'">overdue</span>@endif
+        </div>
+    @endif
 </div>
 <div class="uj-dw-foot">
     <a class="uj-dw-link" style="margin-left:auto" href="{{ route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout']) }}"

@@ -21,6 +21,7 @@ use App\Models\Employee;
 use App\Models\Flower;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Models\PayrollNotice;
 use App\Models\PayrollRun;
 use App\Models\PublicHoliday;
 use App\Models\VictoryBell;
@@ -1179,17 +1180,23 @@ trait BuildsDashboardWidgets
 
     /**
      * Spec F5: the newest run's pay-by date (EA s.19) and whether it has been marked paid.
+     * Spec F11 adds the count of statutory notices still waiting to be filed.
      *
-     * @return array{run: ?PayrollRun, payBy: ?string, late: bool}
+     * @return array{run: ?PayrollRun, payBy: ?string, late: bool, openNotices: int, overdueNotices: int}
      */
     private function payrollWidget(): array
     {
         $run = PayrollRun::orderByDesc('period')->first();
 
+        // Spec F11: statutory notices still to file, so HR sees them without a new card.
+        $openNotices = PayrollNotice::whereNull('filed_on')->get();
+
         return [
             'run' => $run,
             'payBy' => $run?->payByDate()->format('j M Y'),
             'late' => $run !== null && $run->status === 'finalized' && $run->paid_at === null && now()->gt($run->payByDate()),
+            'openNotices' => $openNotices->count(),
+            'overdueNotices' => $openNotices->filter(fn (PayrollNotice $n) => $n->isOverdue())->count(),
         ];
     }
 }

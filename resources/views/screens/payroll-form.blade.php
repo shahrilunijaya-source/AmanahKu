@@ -3,6 +3,7 @@
 @php
     $tabs = [
         'form-e' => ['LHDN Form E', 'LHDN Form E'],
+        'notices' => ['Statutory Notices', 'Notis Berkanun'],
         'borang-a' => ['EPF Borang A', 'EPF Borang A'],
         'borang-8a' => ['Perkeso Borang 8A', 'Perkeso Borang 8A'],
         'cp39' => ['LHDN CP39', 'LHDN CP39'],
@@ -23,6 +24,9 @@
 
     <div x-show="tab === 'form-e'" x-cloak>
         @include('partials.payroll.form.form-e')
+    </div>
+    <div x-show="tab === 'notices'" x-cloak>
+        @include('partials.payroll.form.notices')
     </div>
     <div x-show="tab === 'borang-a'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'EPF Borang A', 'body' => 'Monthly KWSP contribution form generated from the finalized run.', 'bodyMs' => 'Borang caruman KWSP bulanan dijana daripada run yang dimuktamadkan.', 'pill' => 'Spec F6'])
