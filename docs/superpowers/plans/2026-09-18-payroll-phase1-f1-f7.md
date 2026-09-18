@@ -1983,15 +1983,7 @@ Existing finalize tests now need `payment_date` in the POST body (or set on the 
         $this->assertSame($without->totalDeductions, $c->totalDeductions);
     }
 
-    public function test_hrdf_levy_is_zero_without_catalogue_lines(): void
-    {
-        $this->assertSame(0.0, $this->calc->compute(['basic' => 3000, 'hrdf_rate' => 0.01])->hrdfLevy === 0.0 ? 0.0 : 1.0);
-    }
-```
-
-The second test pins the fallback: a caller with no `lines` treats basic + allowances_total as the base. Decide one behaviour and test it; this plan uses: with no `lines`, base = basic + allowances_total − unpaid deduction. Replace the second test with:
-
-```php
+    // With no catalogue `lines`, the base falls back to basic + allowances_total - unpaid deduction.
     public function test_hrdf_levy_without_catalogue_lines_uses_basic_plus_allowances(): void
     {
         $c = $this->calc->compute(['basic' => 3000, 'allowances_total' => 200, 'hrdf_rate' => 0.005]);
