@@ -9,3 +9,6 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Fixed-width statutory golden files are byte-exact, CRLF included.
+tests/Fixtures/statutory/*.txt -text
