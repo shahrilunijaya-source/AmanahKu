@@ -22,7 +22,10 @@
             ['Disabled (self)', 'OKU (sendiri)', $s ? $yn($s->disabled_self) : '—'], ['Disabled (spouse)', 'OKU (pasangan)', $s ? $yn($s->disabled_spouse) : '—'],
         ]],
         ['EPF', 'KWSP', [['EPF No', 'No. KWSP', $v($s?->epf_no)], ['Scheme', 'Skim', StatutoryOptions::EPF_SCHEMES[$s?->epf_scheme] ?? '—']]],
-        ['SOCSO / EIS', 'PERKESO / SIP', [['SOCSO No', 'No. PERKESO', $v($s?->socso_no)], ['Category', 'Kategori', StatutoryOptions::SOCSO_CATEGORIES[$s?->socso_category] ?? '—']]],
+        ['SOCSO / EIS', 'PERKESO / SIP', [
+            ['SOCSO No', 'No. PERKESO', $v($s?->socso_no)], ['Category', 'Kategori', StatutoryOptions::SOCSO_CATEGORIES[$s?->socso_category] ?? '—'],
+            ['SOCSO exempt', 'Dikecualikan PERKESO', $s ? $yn($s->socso_exempt) : '—'], ['HRD Corp exempt', 'Dikecualikan HRD Corp', $s ? $yn($s->hrdf_exempt) : '—'],
+        ]],
         ['Zakat / CP38 / SKBBK', 'Zakat / CP38 / SKBBK', [
             ['Zakat (monthly)', 'Zakat (bulanan)', $s ? 'RM '.number_format($s->zakat_monthly, 2) : '—'], ['CP38 (monthly)', 'CP38 (bulanan)', $s ? 'RM '.number_format($s->cp38_monthly, 2) : '—'], ['SKBBK', 'SKBBK', $s ? $yn($s->skbbk_opt_in) : '—'],
         ]],
@@ -121,6 +124,8 @@
                 <div><label style="{{ $lbl }}">{!! $L('SOCSO No', 'No. PERKESO') !!}</label><input name="socso_no" value="{{ $old('socso_no') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('SOCSO Category', 'Kategori PERKESO') !!}</label>{!! $sel('socso_category', StatutoryOptions::SOCSO_CATEGORIES, $old('socso_category'), true) !!}</div>
                 <div><label style="{{ $lbl }}">{!! $L('Nationality (statutory)', 'Kewarganegaraan (statutori)') !!}</label>{!! $sel('nationality', ['citizen' => 'Citizen', 'pr' => 'Permanent resident', 'foreign' => 'Foreign'], $old('nationality', 'citizen'), true) !!}</div>
+                <label style="{{ $chkRow }}">{!! $chk('socso_exempt', (bool) $s?->socso_exempt) !!} {!! $L('SOCSO exempt (no PERKESO number required)', 'Dikecualikan PERKESO (no. PERKESO tidak diperlukan)') !!}</label>
+                <label style="{{ $chkRow }}">{!! $chk('hrdf_exempt', (bool) $s?->hrdf_exempt) !!} {!! $L('HRD Corp levy exempt', 'Dikecualikan levi HRD Corp') !!}</label>
             </div>
             <div class="uj-section-head">Zakat · CP38 · SKBBK</div>
             <div style="{{ $grid }}">

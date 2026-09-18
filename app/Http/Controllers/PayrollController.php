@@ -82,6 +82,8 @@ class PayrollController extends Controller
             'child_relief.*.*' => ['nullable', 'integer', 'min:0', 'max:20'],
             'epf_scheme' => ['nullable', Rule::in(array_keys(StatutoryOptions::EPF_SCHEMES))],
             'socso_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::SOCSO_CATEGORIES))],
+            'socso_exempt' => ['boolean'],
+            'hrdf_exempt' => ['boolean'],
             'epf_no' => ['nullable', 'string', 'max:40'],
             'socso_no' => ['nullable', 'string', 'max:40'],
             'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
@@ -115,6 +117,8 @@ class PayrollController extends Controller
                 // want it there, just nothing writes or reads it going forward.
                 'effective_from' => $data['effective_from'] ?? now()->toDateString(),
                 'bank_name' => $data['bank_name'] ?? null,
+                // SWIFT/BIC for the agency upload files; "Other" has no code and stays null.
+                'bank_code' => StatutoryOptions::BANK_CODES[$data['bank_name'] ?? ''] ?? null,
                 'bank_account_no' => $data['bank_account_no'] ?? null,
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,
@@ -138,6 +142,8 @@ class PayrollController extends Controller
                 'child_relief_breakdown' => self::childRelief($data['child_relief'] ?? null),
                 'epf_scheme' => $data['epf_scheme'] ?? null,
                 'socso_category' => $data['socso_category'] ?? null,
+                'socso_exempt' => $request->boolean('socso_exempt'),
+                'hrdf_exempt' => $request->boolean('hrdf_exempt'),
             ],
         );
 

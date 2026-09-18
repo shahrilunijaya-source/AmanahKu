@@ -22,6 +22,7 @@ class SalaryStructure extends Model
         'allowances',
         'effective_from',
         'bank_name',
+        'bank_code',
         'bank_account_no',
         'epf_no',
         'socso_no',
@@ -50,6 +51,8 @@ class SalaryStructure extends Model
         'child_relief_breakdown',
         'epf_scheme',
         'socso_category',
+        'socso_exempt',
+        'hrdf_exempt',
     ];
 
     protected function casts(): array
@@ -69,6 +72,8 @@ class SalaryStructure extends Model
             'tax_resident' => 'boolean',
             'child_relief_breakdown' => 'array',
             'skbbk_opt_in' => 'boolean',
+            'socso_exempt' => 'boolean',
+            'hrdf_exempt' => 'boolean',
         ];
     }
 
