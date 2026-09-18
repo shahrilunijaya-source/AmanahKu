@@ -16,7 +16,7 @@
         <span class="uj-pill" style="background:#fff;border:1px solid var(--hairline);color:{{ $statusColor[$run?->status] ?? 'var(--muted)' }};text-transform:capitalize;" x-text="$store.ui.lang==='en' ? @js(ucfirst((string) $run?->status)) : @js($statusMs[$run?->status] ?? ucfirst((string) $run?->status))">{{ $run?->status }}</span>
         @if ($run?->status === 'finalized')
             <a href="{{ route('payroll.payslips.pdf', $p) }}" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Download PDF' : 'Muat turun PDF'">Download PDF</a>
-            @if ($ackable ?? false)
+            @if (($ackable ?? false) && ($payslipAckOn ?? false) && $run->isPublished())
                 @if ($p->acknowledged_at)
                     <span style="font-size:12px;color:var(--success);"><span x-text="$store.ui.lang==='en' ? 'Acknowledged on' : 'Diakui pada'">Acknowledged on</span> {{ $p->acknowledged_at->format('d M Y') }}</span>
                 @elseif ($me?->id === $p->employee_id)

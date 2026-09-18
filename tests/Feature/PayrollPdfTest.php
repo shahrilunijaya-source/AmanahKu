@@ -70,6 +70,8 @@ class PayrollPdfTest extends TestCase
         $run = PayrollRun::forceCreate([
             'tenant_id' => $this->tenant->id, 'period' => '2026-06', 'label' => 'June 2026', 'status' => $status,
             'finalized_at' => $status === 'finalized' ? now() : null,
+            // Spec F13: staff only see a payslip once the run is published.
+            'published_at' => $status === 'finalized' ? now() : null,
         ]);
 
         $payslip = Payslip::forceCreate([

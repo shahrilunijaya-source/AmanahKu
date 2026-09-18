@@ -172,7 +172,7 @@ class PayrollNavigationTest extends TestCase
 
     private function finalizedPayslipFor(Employee $employee, string $period = '2026-03'): Payslip
     {
-        $run = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => $period, 'label' => 'Run '.$period, 'status' => 'finalized', 'finalized_at' => now()]);
+        $run = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => $period, 'label' => 'Run '.$period, 'status' => 'finalized', 'finalized_at' => now(), 'published_at' => now()]);
         $slip = new Payslip(['employee_id' => $employee->id]);
         $slip->tenant_id = $this->tenant->id;
         $slip->payroll_run_id = $run->id;
@@ -183,6 +183,8 @@ class PayrollNavigationTest extends TestCase
 
     public function test_my_payroll_shows_own_slip_and_acknowledges_it_once(): void
     {
+        // Spec F13: acknowledgement is opt-in per company, off by default.
+        app(FeatureManager::class)->setTenant($this->tenant, 'payroll.payslip_acknowledgement', true);
         $slip = $this->finalizedPayslipFor($this->emp);
 
         $this->acting($this->empUser)->get('/app/payroll-my?payslip='.$slip->id)->assertOk()
@@ -200,6 +202,7 @@ class PayrollNavigationTest extends TestCase
 
     public function test_cannot_acknowledge_another_persons_payslip(): void
     {
+        app(FeatureManager::class)->setTenant($this->tenant, 'payroll.payslip_acknowledgement', true);
         $other = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead2', 'status' => 'active', 'workload' => 'green',
             'nric' => '900101-14-5504', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
         $slip = $this->finalizedPayslipFor($other);

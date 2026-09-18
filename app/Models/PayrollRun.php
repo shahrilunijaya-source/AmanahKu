@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property array<string, bool>|null $pull_options
  * @property Carbon|null $payment_date
+ * @property Carbon|null $published_at
  */
 class PayrollRun extends Model
 {
@@ -43,6 +44,7 @@ class PayrollRun extends Model
         return [
             'totals' => 'array',
             'finalized_at' => 'datetime',
+            'published_at' => 'datetime',
             'paid_at' => 'datetime',
             'payment_date' => 'date',
             'pull_options' => 'array',
@@ -86,6 +88,15 @@ class PayrollRun extends Model
     public function isFinalized(): bool
     {
         return $this->status === 'finalized';
+    }
+
+    /**
+     * Spec F13: staff see a payslip only once the run is published, which is a separate
+     * step after finalize (finalize may also publish immediately, see publishRun()).
+     */
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null;
     }
 
     /** Payslips can be edited while the run is not yet finalized. */

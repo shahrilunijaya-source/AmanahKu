@@ -38,6 +38,11 @@ class PayrollPdfController extends Controller
         // An "Official Payslip" is only ever issued once its run is finalized — a draft's
         // figures can still change, for HR too, mirroring the CSV exports' finalized-only rule.
         abort_unless($payslip->payrollRun?->status === 'finalized', 422, 'This payslip is not yet issued.');
+        // Spec F13: HR keeps downloading from a finalized run while it is still being
+        // checked; staff only once the run has been published to them.
+        if (! $privileged) {
+            abort_unless($payslip->payrollRun->isPublished(), 403, 'This payslip has not been published yet.');
+        }
 
         $payslip->load(['employee.salaryStructure', 'employee.department', 'employee.employmentType', 'employee.leaveBalances.leaveType', 'payrollRun', 'lines']);
 

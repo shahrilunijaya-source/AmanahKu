@@ -134,6 +134,13 @@ class Features
             'help' => 'Only used when payroll is on: a pay run cannot be finalized until someone approves it.',
             'help_ms' => 'Hanya digunakan jika modul gaji dihidupkan: larian gaji tidak boleh dimuktamadkan sehingga diluluskan.',
         ],
+        'payroll.payslip_acknowledgement' => [
+            'label' => 'Ask staff to acknowledge payslips',
+            'label_ms' => 'Minta staf mengaku terima payslip',
+            'type' => 'bool', 'scope' => 'tenant', 'default' => false,
+            'help' => 'Shows an Acknowledge button on a published payslip and lists who has not pressed it yet.',
+            'help_ms' => 'Menunjukkan butang Akui pada payslip yang diterbitkan dan menyenaraikan siapa yang belum menekannya.',
+        ],
         'payroll.hrdf' => [
             'label' => 'HRD Corp levy',
             'label_ms' => 'Levi HRD Corp',

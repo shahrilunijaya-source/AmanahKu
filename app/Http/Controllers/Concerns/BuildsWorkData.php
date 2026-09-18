@@ -531,21 +531,21 @@ trait BuildsWorkData
     {
         $privileged = $this->hasTenantRole($request, ['management', 'hr']);
 
-        // Employee's own issued payslips — finalized runs only.
+        // Employee's own issued payslips — published runs only (spec F13).
         $myPayslips = $employee
             ? $employee->payslips()->with('payrollRun')->get()
-                ->filter(fn ($p) => $p->payrollRun?->status === 'finalized')
+                ->filter(fn ($p) => (bool) $p->payrollRun?->isPublished())
                 ->sortByDesc(fn ($p) => $p->payrollRun->period)->values()
             : collect();
         $myEaYears = $myPayslips->map(fn ($p) => (int) substr((string) $p->payrollRun?->period, 0, 4))->filter()->unique()->sortDesc()->values()->all();
 
-        // A specific payslip detail: own (finalized) for everyone, any for privileged.
+        // A specific payslip detail: own (published) for everyone, any for privileged.
         $selectedPayslip = null;
         if ($request->filled('payslip')) {
             $candidate = Payslip::with(['employee', 'payrollRun', 'lines'])->find($request->query('payslip'));
             if ($candidate) {
                 $ownIt = $employee && $candidate->employee_id === $employee->id;
-                $visible = $privileged || ($ownIt && $candidate->payrollRun?->status === 'finalized');
+                $visible = $privileged || ($ownIt && (bool) $candidate->payrollRun?->isPublished());
                 $selectedPayslip = $visible ? $candidate : null;
             }
         }
@@ -573,6 +573,8 @@ trait BuildsWorkData
                 'readinessCompanyWarnings' => [],
                 'payrollSubmissions' => collect(),
                 'payrollNotices' => collect(),
+                'payslipAckOn' => app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'),
+                'payslipAckOutstanding' => [],
                 'readinessRows' => [],
                 'readinessBlockingCount' => 0,
             ];
@@ -606,6 +608,16 @@ trait BuildsWorkData
             'payoutRuns' => PayrollRun::withCount('payslips')
                 ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
+            // Spec F13: when payslip acknowledgement is on, who has not pressed it yet,
+            // keyed by run — the payout tab lists them under each published run.
+            'payslipAckOn' => $ackOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'),
+            'payslipAckOutstanding' => $ackOn
+                ? Payslip::with('employee:id,name')->whereNull('acknowledged_at')
+                    ->whereHas('payrollRun', fn ($q) => $q->whereNotNull('published_at'))
+                    ->get()->groupBy('payroll_run_id')
+                    ->map(fn ($slips) => $slips->map(fn ($p) => $p->employee?->name)->filter()->values()->all())
+                    ->all()
+                : [],
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
             // Spec F12: statutory filings, soonest deadline first, submitted ones last.
             'payrollSubmissions' => PayrollSubmission::with('payrollRun')->orderByRaw('submitted_at is not null')->orderBy('due_on')->get(),

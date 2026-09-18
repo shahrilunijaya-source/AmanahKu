@@ -254,10 +254,14 @@ class PayrollTest extends TestCase
         $this->assertNotNull($claim->fresh()->paid_at);
     }
 
-    public function test_finalize_notifies_employees_with_a_login(): void
+    public function test_publishing_notifies_employees_with_a_login(): void
     {
         $run = $this->createRun();
+        // Spec F13: finalize locks the figures, publish is what staff hear about.
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->assertDatabaseMissing('app_notifications', ['title' => 'Payslip ready']);
+
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/publish")->assertRedirect();
 
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $this->empUser->id, 'title' => 'Payslip ready', 'tenant_id' => $this->tenant->id,

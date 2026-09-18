@@ -20,6 +20,8 @@ use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
+use App\Models\User;
+use App\Notifications\PayslipPublished;
 use App\Services\FeatureManager;
 use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
@@ -44,6 +46,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -710,7 +713,8 @@ class PayrollController extends Controller
 
     /**
      * A staff member confirms they have seen their own issued payslip. Once only, own
-     * slip only, finalized runs only. HR does not acknowledge on anyone's behalf.
+     * slip only, published runs only, and only while the company has the acknowledgement
+     * setting on. HR does not acknowledge on anyone's behalf.
      */
     public function acknowledgePayslip(Request $request, Payslip $payslip): RedirectResponse
     {
@@ -719,7 +723,9 @@ class PayrollController extends Controller
         $user = $request->user();
         $employee = $user ? Employee::where('tenant_id', $tid)->where('user_id', $user->id)->first() : null;
         abort_unless($employee && $payslip->employee_id === $employee->id, 403);
-        abort_unless($payslip->payrollRun?->status === 'finalized', 422);
+        // Spec F13: acknowledgement is opt-in per company. Off, there is nothing to sign.
+        abort_unless(app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'), 422, 'Payslip acknowledgement is switched off for this company.');
+        abort_unless($payslip->payrollRun?->isPublished(), 422);
         abort_if($payslip->acknowledged_at !== null, 422);
 
         $payslip->forceFill(['acknowledged_at' => now()])->save();
@@ -1363,20 +1369,71 @@ class PayrollController extends Controller
                 $this->calendar->openFor($run, $tenant);
             }
 
-            // Notify each employee that their payslip is ready.
+            AuditLog::record('Finalized payroll run', $run->label.' · '.$payslips->count().' payslips issued');
+        });
+
+        // Spec F13: staff see nothing until the run is published. HR may do both at once.
+        if ($request->boolean('publish_now')) {
+            $this->publish($run);
+
+            return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll finalized, payslips published and employees notified.');
+        }
+
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll finalized. Publish it when staff should see their payslips.');
+    }
+
+    /**
+     * Spec F13: release the payslips of a finalized run to staff. Separate from finalize
+     * so HR can close the figures, check the bank file and only then let everyone see
+     * their slip. Once only — a second publish would re-notify everybody.
+     */
+    public function publishRun(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($run);
+        abort_unless($run->status === 'finalized', 422, 'Only a finalized run can be published.');
+        abort_if($run->isPublished(), 422, 'This run has already been published.');
+
+        $this->publish($run);
+
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payslips published and employees notified.');
+    }
+
+    /**
+     * Stamps published_at and tells every employee once: the in-app notice for anyone
+     * with a login, plus a queued email to the same people (an employee with no user
+     * account has no inbox here, so they get neither and HR hands over the PDF).
+     */
+    private function publish(PayrollRun $run): void
+    {
+        $payslips = $run->payslips()->with('employee')->get();
+
+        DB::transaction(function () use ($run, $payslips) {
+            $run->forceFill(['published_at' => now()])->save();
+
             foreach ($payslips as $payslip) {
+                $userId = $payslip->employee?->user_id;
+                if ($userId === null) {
+                    continue;
+                }
                 AppNotification::send(
-                    $payslip->employee->user_id,
+                    $userId,
                     'Payslip ready',
                     'Your '.$run->label.' payslip is available · net RM '.number_format($payslip->net_pay, 2),
                     route('app.screen', 'payroll-my'),
                 );
             }
 
-            AuditLog::record('Finalized payroll run', $run->label.' · '.$payslips->count().' payslips issued');
+            AuditLog::record('Published payroll run', $run->label.' · '.$payslips->count().' payslips released to staff');
         });
 
-        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])->with('ok', $run->label.' payroll finalized, payslips issued and employees notified.');
+        foreach ($payslips as $payslip) {
+            $userId = $payslip->employee?->user_id;
+            $user = $userId !== null ? User::find($userId) : null;
+            if ($user !== null) {
+                Notification::send($user, new PayslipPublished($payslip));
+            }
+        }
     }
 
     /**
