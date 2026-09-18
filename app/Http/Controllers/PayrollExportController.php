@@ -125,7 +125,7 @@ class PayrollExportController extends Controller
         // per employee before the exporter sees them.
         $payslips = $tenant === null
             ? collect()
-            : MergedPayslips::forPeriod($tenant, $run->period);
+            : MergedPayslips::forPeriod($tenant, $run->period, $key !== 'perkeso-8a');
         $body = $file->build($run, $tenant, $payslips);
 
         // Spec F12: the first download of a statutory file marks that filing "file ready".

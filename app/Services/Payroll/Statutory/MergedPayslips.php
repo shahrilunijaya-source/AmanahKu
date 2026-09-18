@@ -32,13 +32,15 @@ final class MergedPayslips
     ];
 
     /** @return Collection<int, Payslip> */
-    public static function forPeriod(Tenant $tenant, string $period): Collection
+    public static function forPeriod(Tenant $tenant, string $period, bool $withBonusRuns = true): Collection
     {
         $payslips = Payslip::withoutGlobalScopes()
             ->where('tenant_id', $tenant->id)
             ->with('employee.salaryStructure')
             ->whereHas('payrollRun', fn ($q) => $q->where('tenant_id', $tenant->id)
-                ->where('period', $period)->where('status', 'finalized'))
+                ->where('period', $period)->where('status', 'finalized')
+                // PERKESO wages exclude the annual bonus, so Borang 8A leaves bonus runs out.
+                ->when(! $withBonusRuns, fn ($q) => $q->where('kind', '!=', 'bonus')))
             ->get();
 
         return $payslips->groupBy('employee_id')
