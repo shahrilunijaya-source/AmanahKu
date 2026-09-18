@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support\Calendar;
 
+use App\Models\CompanyEvent;
+use App\Models\CompanyEventCalendarCopy;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
 use App\Ports\Data\CalendarEvent;
@@ -47,6 +49,33 @@ final class CalendarMirror
             allDay: $companyEvent === null,
             version: $copy ? $copy->calendar_version : $item->calendar_version,
         );
+    }
+
+    /** Every employee's copy of an upcoming company event, RSVP'd or not. */
+    public static function companyEvent(CompanyEvent $event, CompanyEventCalendarCopy $copy): CalendarEvent
+    {
+        $allDay = $event->starts_at === null;
+        $start = $allDay
+            ? CarbonImmutable::instance($event->startsAtOrDate())->startOfDay()
+            : CarbonImmutable::instance($event->startsAtOrDate());
+        $end = $allDay ? $start->addDay() : CarbonImmutable::instance($event->endsAtOrDate());
+
+        return new CalendarEvent(
+            title: $event->title,
+            startsAt: $start,
+            endsAt: $end,
+            description: self::eventDescription($event),
+            subject: $event,
+            externalId: $copy->google_event_id,
+            allDay: $allDay,
+            version: $copy->calendar_version,
+        );
+    }
+
+    /** Location first (the calendar-relevant part), then the free-text body. */
+    public static function eventDescription(CompanyEvent $event): string
+    {
+        return collect([$event->location, $event->description])->filter()->implode("\n\n");
     }
 
     public static function description(WorkItem $item): string

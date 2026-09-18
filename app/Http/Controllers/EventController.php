@@ -21,6 +21,8 @@ use App\Models\WorkItem;
 use App\Ports\CalendarPort;
 use App\Ports\Data\CalendarEvent;
 use App\Support\AutoDone;
+use App\Support\Calendar\CalendarMirror;
+use App\Support\Calendar\CompanyEventCopies;
 use App\Support\ImageCompressor;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
@@ -171,6 +173,8 @@ class EventController extends Controller
 
         AuditLog::record('Created event', $event->title);
 
+        CompanyEventCopies::sync($event);
+
         return back()->with('ok', 'Event "'.$event->title.'" published.');
     }
 
@@ -239,6 +243,8 @@ class EventController extends Controller
 
         AuditLog::record('Updated event', $event->title);
 
+        CompanyEventCopies::sync($event);
+
         return back()->with('ok', 'Event updated.');
     }
 
@@ -284,6 +290,7 @@ class EventController extends Controller
         $this->authorizePrivileged($request);
 
         $title = $event->title;
+        CompanyEventCopies::removeAll($event);
         $event->delete();
 
         AuditLog::record('Removed event', $title);
@@ -339,6 +346,8 @@ class EventController extends Controller
             }
         }
 
+        CompanyEventCopies::sync($event);
+
         return back()->with('ok', 'RSVP recorded.');
     }
 
@@ -384,6 +393,7 @@ class EventController extends Controller
         }
 
         if ($toAdd->isNotEmpty() || $toRemove->isNotEmpty()) {
+            CompanyEventCopies::sync($event);
             AuditLog::record('Set event attendees', $event->title);
         }
 
@@ -661,7 +671,7 @@ class EventController extends Controller
     /** The event card's description: location first (the calendar-relevant part), then the free-text body. */
     private function eventCardDescription(CompanyEvent $event): string
     {
-        return collect([$event->location, $event->description])->filter()->implode("\n\n");
+        return CalendarMirror::eventDescription($event);
     }
 
     /** New attendee: a Going RSVP already exists by the time this runs — this makes the card + calendar intent. */
