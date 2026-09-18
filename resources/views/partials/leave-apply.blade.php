@@ -144,17 +144,11 @@
             const mf = this.minFrom();
             if (mf && this.dateFrom && this.dateFrom < mf) this.dateFrom = mf;
             if (this.dateTo && this.dateFrom && this.dateTo < this.dateFrom) this.dateTo = this.dateFrom;
-            // A half day cannot span a range or land on a weekend or public holiday (the
-            // TOT Saturday is already a half day); drop the marker so the form never posts
-            // what the server rejects.
-            if (!this.halvable()) this.half = '';
+            // A half day cannot span a range; drop the marker so a multi-day request
+            // always posts whole days, the same combination the server rejects.
+            if (!this.single()) this.half = '';
         },
         single() { return !!this.dateFrom && this.dateFrom === this.dateTo; },
-        halvable() {
-            if (!this.single() || this.holidays.includes(this.dateFrom)) return false;
-            const dow = new Date(this.dateFrom + 'T00:00').getDay();
-            return dow >= 1 && dow <= 5;
-        },
 
         /**
          * Working days inclusive, or 0.5 for a half day — the same arithmetic as
@@ -288,6 +282,12 @@
                                 @elseif ($t->is_unplanned && $t->deducts_from_leave_type_id)
                                     <b x-text="$store.ui.lang==='en' ? 'As needed' : 'Ikut perlu'">As needed</b>
                                     <span x-text="$store.ui.lang==='en' ? 'off {{ $deductsName }}' : 'dari {{ $deductsName }}'"></span>
+                                @elseif ($t->is_hr_granted_only && $bal)
+                                    {{-- Ad-hoc HR-granted quota (Replacement): entitlement is 0 by
+                                         design, so "of X left" would read as "of 0 left". The
+                                         balance itself is the only meaningful number here. --}}
+                                    <b>{{ rtrim(rtrim(number_format((float) $bal->balance, 1), '0'), '.') }}</b>
+                                    <span x-text="$store.ui.lang==='en' ? 'granted' : 'diberi'"></span>
                                 @elseif ($bal)
                                     <b>{{ rtrim(rtrim(number_format((float) $bal->balance, 1), '0'), '.') }}</b>
                                     <span x-text="$store.ui.lang==='en' ? 'of {{ (int) $t->entitlement }} left' : 'dari {{ (int) $t->entitlement }} baki'"></span>
@@ -347,7 +347,7 @@
                     </div>
                 </div>
 
-                <div x-show="halvable()" x-cloak style="margin-top:14px;">
+                <div x-show="single()" x-cloak style="margin-top:14px;">
                     <span class="uj-lv-field" x-text="$store.ui.lang==='en' ? 'How much of that day?' : 'Berapa banyak hari itu?'">How much of that day?</span>
                     <div class="uj-lv-half">
                         <button type="button" :data-on="half === '' ? '' : null" @click="half = ''"

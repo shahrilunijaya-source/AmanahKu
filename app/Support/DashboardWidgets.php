@@ -108,17 +108,11 @@ final class DashboardWidgets
             'blurb_ms' => 'Apa yang anda tuntut tahun ini dan statusnya.',
             'category' => 'Claim', 'roles' => null, 'screen' => 'claims', 'column' => 'right',
         ],
-        'work' => [
-            'title' => 'My work summary', 'title_ms' => 'Ringkasan kerja saya',
-            'blurb' => 'Clock in and out, day by day.',
-            'blurb_ms' => 'Masuk dan keluar, hari demi hari.',
-            'category' => 'Attendance', 'roles' => null, 'screen' => 'attendance', 'column' => 'right',
-        ],
         'style' => [
             'title' => 'My working style', 'title_ms' => 'Gaya kerja saya',
             'blurb' => 'Your Profile Test result: archetype and the four-way split.',
             'blurb_ms' => 'Keputusan Ujian Profil anda: arketip dan pecahan empat hala.',
-            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right', 'after' => 'work',
+            'category' => 'Me', 'roles' => null, 'screen' => 'profile-test', 'column' => 'right', 'after' => 'claims',
         ],
         'pulse' => [
             'title' => 'Company pulse', 'title_ms' => 'Nadi syarikat',
@@ -154,7 +148,6 @@ final class DashboardWidgets
         'calendar' => ['unit' => 'month', 'future' => true],
         'attendance' => ['unit' => 'day', 'future' => false],
         'claims' => ['unit' => 'year', 'future' => false],
-        'work' => ['unit' => 'month', 'future' => false],
     ];
 
     /** Picker filter chips, in the order they are shown. */
