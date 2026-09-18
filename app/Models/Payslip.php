@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property list<array{name?: string, amount?: float|int|string}>|null $additions
  * @property list<array{name?: string, amount?: float|int|string}>|null $other_deductions
  * @property list<int>|null $claim_ids
+ * @property array<string, float>|null $cp38_applied
  * @property list<int>|null $overtime_request_ids
  * @property list<int>|null $unpaid_leave_request_ids
  */
@@ -42,6 +43,8 @@ class Payslip extends Model
             'additions' => 'array',
             'other_deductions' => 'array',
             'claim_ids' => 'array',
+            // Spec F9: {notice_id: amount} of CP38 actually taken, set at finalize.
+            'cp38_applied' => 'array',
             'basic' => 'float',
             'days_employed' => 'integer',
             'days_in_month' => 'integer',

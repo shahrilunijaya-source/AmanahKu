@@ -28,7 +28,7 @@
         @include('partials.payroll.transaction.individual')
     </div>
     <div x-show="tab === 'cp38'" x-cloak>
-        @include('partials.payroll.stub', ['title' => 'CP38', 'body' => 'Extra monthly tax instalment ordered by LHDN for a staff member.', 'bodyMs' => 'Ansuran cukai tambahan bulanan yang diarahkan LHDN untuk seorang staf.', 'pill' => 'Spec F9'])
+        @include('partials.payroll.stub', ['title' => 'CP38', 'body' => 'Extra monthly tax instalment ordered by LHDN. Record each notice on the staff member\'s profile, Bank & Statutory tab.', 'bodyMs' => 'Ansuran cukai tambahan bulanan yang diarahkan LHDN. Rekod setiap notis pada profil staf, tab Bank & Berkanun.', 'pill' => 'Spec F9'])
     </div>
     <div x-show="tab === 'rebate'" x-cloak>
         @include('partials.payroll.stub', ['title' => 'Tax Rebate', 'body' => 'Zakat and levy offsets against PCB.', 'bodyMs' => 'Tolakan zakat dan levi terhadap PCB.', 'pill' => 'Follow-up'])

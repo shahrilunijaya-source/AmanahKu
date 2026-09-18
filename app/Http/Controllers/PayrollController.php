@@ -20,6 +20,7 @@ use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
+use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\HrdCorpLevy;
 use App\Services\Payroll\MinimumWage;
@@ -63,6 +64,7 @@ class PayrollController extends Controller
         private readonly PcbCalculator $pcb,
         private readonly EpfCalculator $epf,
         private readonly PcbYearToDate $pcbYtd,
+        private readonly Cp38Notices $cp38,
     ) {}
 
     // ── Salary structures ─────────────────────────────────────────
@@ -102,7 +104,6 @@ class PayrollController extends Controller
             'disabled_self' => ['boolean'],
             'disabled_spouse' => ['boolean'],
             'zakat_monthly' => ['nullable', 'numeric', 'min:0'],
-            'cp38_monthly' => ['nullable', 'numeric', 'min:0'],
             'skbbk_opt_in' => ['boolean'],
         ]);
         if ($validator->fails()) {
@@ -138,7 +139,6 @@ class PayrollController extends Controller
                 'disabled_self' => $request->boolean('disabled_self'),
                 'disabled_spouse' => $request->boolean('disabled_spouse'),
                 'zakat_monthly' => $data['zakat_monthly'] ?? 0,
-                'cp38_monthly' => $data['cp38_monthly'] ?? 0,
                 'skbbk_opt_in' => $request->boolean('skbbk_opt_in'),
                 'bank_holder_name' => $data['bank_holder_name'] ?? null,
                 'tax_resident' => $request->has('tax_resident') ? $request->boolean('tax_resident') : true,
@@ -920,7 +920,7 @@ class PayrollController extends Controller
                 $inputs['pcb'] = $result->netNormalMtd;
                 $inputs['pcb_additional'] = $result->additionalMtd;
                 $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
-                $inputs['cp38'] = (float) ($structure->cp38_monthly ?? 0);
+                $inputs['cp38'] = $this->cp38->instalmentFor($employee, $data['period']);
                 $comp = $this->calculator->compute($inputs);
 
                 // Computed amount columns are excluded from $fillable — forceFill them.
@@ -1138,7 +1138,7 @@ class PayrollController extends Controller
                 'pcb' => $result->netNormalMtd,
                 'pcb_additional' => $result->additionalMtd,
                 'zakat' => (float) ($structure->zakat_monthly ?? 0),
-                'cp38' => (float) ($structure->cp38_monthly ?? 0),
+                'cp38' => $this->cp38->instalmentFor($payslip->employee, $payslip->payrollRun->period),
                 'pcb_override' => $data['pcb_override'] ?? null,
             ]);
 
@@ -1337,6 +1337,11 @@ class PayrollController extends Controller
                 LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => now()]);
             }
 
+            // Spec F9: the CP38 balances move only now, never while the run is a draft.
+            foreach ($payslips as $payslip) {
+                $this->cp38->applyFinalized($payslip);
+            }
+
             // Notify each employee that their payslip is ready.
             foreach ($payslips as $payslip) {
                 AppNotification::send(
@@ -1399,6 +1404,10 @@ class PayrollController extends Controller
                 $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
                 if ($unpaidLeaveIds->isNotEmpty()) {
                     LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
+                }
+                // Spec F9: hand each notice back exactly what this run took from it.
+                foreach ($payslips as $payslip) {
+                    $this->cp38->reverseFinalized($payslip);
                 }
             }
 

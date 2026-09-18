@@ -64,6 +64,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\PayrollCp38Controller;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollPdfController;
 use App\Http\Controllers\PersonalRecordController;
@@ -769,6 +770,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/payslips/{payslip}/acknowledge', [PayrollController::class, 'acknowledgePayslip'])->name('payroll.payslips.acknowledge');
             Route::post('/app/payroll/payslips/{payslip}/consent', [PayrollController::class, 'confirmDeductionConsent'])->name('payroll.payslips.consent');
             Route::post('/app/payroll/payslips/{payslip}/carry-forward', [PayrollController::class, 'carryForward'])->name('payroll.payslips.carry-forward');
+            Route::post('/app/payroll/cp38-notices', [PayrollCp38Controller::class, 'store'])->name('payroll.cp38.store');
+            Route::post('/app/payroll/cp38-notices/{notice}/cancel', [PayrollCp38Controller::class, 'cancel'])->name('payroll.cp38.cancel');
             Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
             Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });
