@@ -87,7 +87,7 @@ class Amanahku
             $s('My Team', 'Pasukan Saya', ['id' => 'directory', 'label' => 'Employees', 'label_ms' => 'Pekerja', 'icon' => 'M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16.5 3.13a4 4 0 0 1 0 7.75']),
             $s('My Team', 'Pasukan Saya', ['id' => 'orgchart', 'label' => 'Organisation Chart', 'label_ms' => 'Carta Organisasi', 'icon' => 'M9 3h6v3H9zM3 18h4v3H3zM17 18h4v3h-4zM12 6v4M5 18v-3a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3']),
             $s('My Team', 'Pasukan Saya', ['id' => 'progression', 'label' => 'Progression', 'label_ms' => 'Kemajuan Kerjaya', 'icon' => 'M12 20V10M18 20V4M6 20v-4', 'roles' => ['management', 'hr']]),
-            $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Time-off Calendar', 'label_ms' => 'Kalendar Cuti', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
+            $s('My Team', 'Pasukan Saya', ['id' => 'calendar', 'label' => 'Company Calendar', 'label_ms' => 'Kalendar Syarikat', 'icon' => 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 16l2 2 4-4']),
             // Verify/approve queues + the company ledger now live as role-aware tabs on the
             // Claims screen itself (My Work), so there is no separate My Team entry. The
             // `claim-approvals` slug still resolves to that screen for old deep links.
@@ -361,7 +361,7 @@ class Amanahku
             // The balance is printed live in the screen's own shelf, so the subtitle no
             // longer carries a hardcoded "12.5 days" that was true for nobody.
             'leave' => ['title' => 'Leave', 'title_ms' => 'Cuti', 'sub' => 'Apply for leave, follow your own requests, and review anything waiting on you.', 'sub_ms' => 'Mohon cuti, ikuti permohonan anda sendiri, dan semak apa-apa yang menunggu anda.', 'crumb' => ['Leave', 'New Application']],
-            'calendar' => ['title' => 'Time-off Calendar', 'title_ms' => 'Kalendar Cuti', 'sub' => 'Company-wide leave, holidays and events — who is out and when.', 'sub_ms' => 'Cuti, cuti umum dan acara seluruh syarikat — siapa tiada dan bila.', 'crumb' => ['Time-off Calendar']],
+            'calendar' => ['title' => 'Company Calendar', 'title_ms' => 'Kalendar Syarikat', 'sub' => 'Company-wide leave, holidays and events — who is out and when.', 'sub_ms' => 'Cuti, cuti umum dan acara seluruh syarikat — siapa tiada dan bila.', 'crumb' => ['Company Calendar']],
             'overtime' => ['title' => 'Overtime Requests', 'title_ms' => 'Permohonan Overtime', 'sub' => 'Log overtime hours and track approvals.', 'sub_ms' => 'Rekod jam overtime dan jejak kelulusan.', 'crumb' => ['Overtime']],
             'resignation' => ['title' => 'Resignation & Exit', 'title_ms' => 'Perletakan Jawatan & Exit', 'sub' => 'Submit a resignation, track notice and exit interviews.', 'sub_ms' => 'Hantar perletakan jawatan, jejak notis dan temu duga exit.', 'crumb' => ['Resignation']],
             'compliance' => ['title' => 'Compliance & Licenses', 'title_ms' => 'Pematuhan & Lesen', 'sub' => 'Licenses, certifications and permits with expiry alerts.', 'sub_ms' => 'Lesen, pensijilan dan permit dengan amaran tamat tempoh.', 'crumb' => ['Compliance']],
@@ -468,7 +468,7 @@ class Amanahku
             'Suggestion Box' => 'Peti Cadangan',
             'Leave' => 'Cuti',
             'New Application' => 'Permohonan Baharu',
-            'Time-off Calendar' => 'Kalendar Cuti',
+            'Company Calendar' => 'Kalendar Syarikat',
             'Overtime' => 'Kerja Lebih Masa',
             'Resignation' => 'Perletakan Jawatan',
             'Compliance' => 'Pematuhan',

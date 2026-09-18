@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Jobs\CalendarFullSyncJob;
+use App\Jobs\SyncCompanyEventCalendarCopyJob;
 use App\Jobs\SyncWorkItemCalendarEventJob;
+use App\Models\CompanyEvent;
+use App\Models\CompanyEventCalendarCopy;
 use App\Models\GoogleCalendarConnection;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
@@ -91,6 +94,33 @@ class CalendarSyncController extends Controller
         $job = new SyncWorkItemCalendarEventJob(
             tenantId: $workItem->tenant_id, action: 'upsert', workItemId: $workItem->id,
             recipientEmployeeId: $isOwner ? null : $employee->id,
+        );
+        try {
+            $job->handle(app(CurrentTenant::class), app(CalendarPort::class));
+        } catch (Throwable $e) {
+            $job->failed($e);
+        }
+
+        return response()->json(CalendarSyncStatus::for($request->user(), $this->tenantId($request)));
+    }
+
+    /** Retry one non-attending employee's copy of a company event. */
+    public function retryEvent(Request $request, CompanyEvent $event): JsonResponse
+    {
+        $employee = $request->attributes->get('employee');
+        abort_unless($employee && $event->tenant_id === $employee->tenant_id, 403);
+
+        $copy = CompanyEventCalendarCopy::where('company_event_id', $event->id)->where('employee_id', $employee->id)->first();
+        abort_unless($copy !== null, 403);
+
+        if ($blocked = $this->limited($request->user()->id)) {
+            return $blocked;
+        }
+
+        $copy->update(['sync_error' => null]);
+
+        $job = new SyncCompanyEventCalendarCopyJob(
+            tenantId: $event->tenant_id, action: 'upsert', companyEventId: $event->id, employeeId: $employee->id,
         );
         try {
             $job->handle(app(CurrentTenant::class), app(CalendarPort::class));

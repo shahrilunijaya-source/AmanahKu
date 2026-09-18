@@ -60,6 +60,17 @@ class CompanyEvent extends Model
         return $this->hasMany(EventRsvp::class);
     }
 
+    /**
+     * Non-attending recipients' own calendar entries for this event (an attendee's
+     * lives on their event card instead, via WorkItemCalendarCopy).
+     *
+     * @return HasMany<CompanyEventCalendarCopy, $this>
+     */
+    public function calendarCopies(): HasMany
+    {
+        return $this->hasMany(CompanyEventCalendarCopy::class);
+    }
+
     public function photos(): HasMany
     {
         return $this->hasMany(EventPhoto::class)->orderBy('sort_order')->orderBy('id');

@@ -6,6 +6,8 @@ namespace App\Support\Calendar;
 
 use App\Jobs\SyncWorkItemCalendarEventJob;
 use App\Models\AppNotification;
+use App\Models\CompanyEvent;
+use App\Models\CompanyEventCalendarCopy;
 use App\Models\Employee;
 use App\Models\WorkItem;
 use App\Models\WorkItemCalendarCopy;
@@ -54,7 +56,17 @@ final class CalendarReconciler
                     ->where('google_event_id', $change->externalId)
                     ->first();
 
-                $copy ? $this->taggedCopyChanged($copy, $change) : $this->import($for, $change);
+                if ($copy) {
+                    $this->taggedCopyChanged($copy, $change);
+
+                    continue;
+                }
+
+                $eventCopy = CompanyEventCalendarCopy::where('employee_id', $for->id)
+                    ->where('google_event_id', $change->externalId)
+                    ->first();
+
+                $eventCopy ? $this->companyEventCopyChanged($eventCopy, $change) : $this->import($for, $change);
 
                 continue;
             }
@@ -161,6 +173,28 @@ final class CalendarReconciler
         }
 
         TaggedCopies::pushOne($card, $copy->employee_id);
+    }
+
+    /**
+     * A non-attending employee's own copy of a company event changed in their
+     * calendar. Never edits the event: a move or delete is just pushed back.
+     */
+    private function companyEventCopyChanged(CompanyEventCalendarCopy $copy, CalendarEvent $change): void
+    {
+        if ($change->version !== null && $change->version === $copy->calendar_version) {
+            return; // our own push coming back
+        }
+
+        $event = CompanyEvent::withoutGlobalScopes()->find($copy->company_event_id);
+        if ($event === null) {
+            return;
+        }
+
+        if ($change->cancelled) {
+            $copy->update(['google_event_id' => null, 'calendar_version' => null]);
+        }
+
+        CompanyEventCopies::pushOne($event, $copy->employee_id);
     }
 
     private function repush(WorkItem $card): void
