@@ -35,12 +35,15 @@ class PayrollItemTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
 
-        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
     }
 
@@ -136,11 +139,14 @@ class PayrollItemTest extends TestCase
     {
         // A second, identical tenant/employee with the catalogue seeded — same salary,
         // bonus and overtime should still produce identical statutory figures.
-        $seeded = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BT']);
+        $seeded = Tenant::create(['slug' => 'beta', 'name' => 'Beta', 'initials' => 'BT',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
         $hr2 = User::create(['name' => 'Boss2', 'email' => 'boss2@example.com', 'password' => Hash::make('password')]);
         $hr2->tenants()->attach($seeded->id, ['role' => 'hr']);
-        $emp = Employee::create(['tenant_id' => $seeded->id, 'name' => 'Worker2', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $seeded->id, 'employee_id' => $emp->id, 'basic_salary' => 5200]);
+        $emp = Employee::create(['tenant_id' => $seeded->id, 'name' => 'Worker2', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5502', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $seeded->id, 'employee_id' => $emp->id, 'basic_salary' => 5200,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp->id)->update(['salary' => 5200]);
 
         $this->actingAs($hr2)->withSession(['current_tenant' => $seeded->id]);

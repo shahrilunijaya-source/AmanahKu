@@ -22,6 +22,7 @@ use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\PayrollCalculator;
+use App\Services\Payroll\PayrollReadiness;
 use App\Services\Payroll\PayslipComputation;
 use App\Services\Payroll\PcbCalculator;
 use App\Services\Payroll\PcbInputs;
@@ -749,6 +750,8 @@ class PayrollController extends Controller
             'pull_claims' => ['nullable', 'boolean'],
             'pull_overtime' => ['nullable', 'boolean'],
             'pull_unpaid' => ['nullable', 'boolean'],
+            'exclude_employee_ids' => ['nullable', 'array'],
+            'exclude_employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
         ]);
         // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
         $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
@@ -757,9 +760,24 @@ class PayrollController extends Controller
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
         }
 
+        // Spec F2 readiness gate: refuse while the employer or any included employee is
+        // missing an identifier an agency upload needs. Exclusions are HR's explicit call
+        // and are stored on the run.
+        $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
+        $tenant = app(CurrentTenant::class)->get();
+        $readiness = app(PayrollReadiness::class);
+        $problems = array_map(fn (string $g) => 'Company: '.$g, $readiness->employerGaps($tenant));
+        foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
+            $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
+        }
+        if ($problems !== []) {
+            return back()->withErrors(['readiness' => 'Not ready to run payroll. '.implode(' · ', $problems)])->withInput();
+        }
+
         $employees = Employee::active()->with('salaryStructure')
             ->whereHas('salaryStructure')
             ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
+            ->whereNotIn('id', $excluded)
             ->orderBy('name')->get();
 
         if ($employees->isEmpty()) {
@@ -772,13 +790,14 @@ class PayrollController extends Controller
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
 
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls) {
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
                 'run_by_id' => Auth::id(),
                 'payment_date' => $data['payment_date'] ?? null,
                 'pull_options' => $pulls,
+                'excluded_employee_ids' => $excluded ?: null,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';
@@ -887,7 +906,7 @@ class PayrollController extends Controller
 
             $this->recalcTotals($run);
             $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
-            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips'.($skipped ? ' · not pulled: '.implode(', ', $skipped) : ''));
+            AuditLog::record('Created payroll run', $run->label.' · '.$employees->count().' payslips'.($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : ''));
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';

@@ -43,12 +43,15 @@ class IndividualTransactionTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
 
-        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
 
         PayrollItem::seedFor($this->tenant);
@@ -236,7 +239,10 @@ class IndividualTransactionTest extends TestCase
 
     public function test_a_posted_id_belonging_to_another_employee_or_period_is_ignored(): void
     {
-        $emp2 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
+        $emp2 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green', 'salary' => 3000,
+            'nric' => '900101-14-5502', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp2->id, 'basic_salary' => 3000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         $othersRow = $this->queue(['employee_id' => $emp2->id, 'amount' => 400]);
         $otherPeriodRow = $this->queue(['period' => '2026-05', 'amount' => 500]);
 

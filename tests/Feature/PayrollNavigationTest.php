@@ -38,19 +38,23 @@ class PayrollNavigationTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
 
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
-        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->hr->id, 'name' => 'Boss', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->hr->id, 'name' => 'Boss', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
 
         $this->manager = User::create(['name' => 'Lead', 'email' => 'lead@example.com', 'password' => Hash::make('password')]);
         $this->manager->tenants()->attach($this->tenant->id, ['role' => 'manager']);
-        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5502', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
 
         $this->empUser = User::create(['name' => 'Worker', 'email' => 'worker@example.com', 'password' => Hash::make('password')]);
         $this->empUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
-        $this->emp = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->empUser->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green', 'salary' => 4000]);
+        $this->emp = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->empUser->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green', 'salary' => 4000,
+            'nric' => '900101-14-5503', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
     }
 
     private function acting(User $user): self
@@ -196,7 +200,8 @@ class PayrollNavigationTest extends TestCase
 
     public function test_cannot_acknowledge_another_persons_payslip(): void
     {
-        $other = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead2', 'status' => 'active', 'workload' => 'green']);
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->manager->id, 'name' => 'Lead2', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5504', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
         $slip = $this->finalizedPayslipFor($other);
 
         $this->acting($this->empUser)->post(route('payroll.payslips.acknowledge', $slip))->assertForbidden();
@@ -208,7 +213,8 @@ class PayrollNavigationTest extends TestCase
         $this->finalizedPayslipFor($this->emp);
         $this->acting($this->empUser)->get(route('payroll.ea-form.show', ['employee' => $this->emp->id, 'year' => 2026]))->assertOk();
 
-        $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
+        $other = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5505', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
         $this->acting($this->empUser)->get(route('payroll.ea-form.show', ['employee' => $other->id, 'year' => 2026]))->assertForbidden();
     }
 
@@ -274,7 +280,15 @@ class PayrollNavigationTest extends TestCase
 
     public function test_payment_date_is_saved_at_create_and_shown_on_payout(): void
     {
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp->id, 'basic_salary' => 4000]);
+        // Everyone currently employed needs a structure and identifiers since the spec F2
+        // readiness gate, not just the person under test.
+        foreach (Employee::where('tenant_id', $this->tenant->id)->where('id', '!=', $this->emp->id)->get() as $other) {
+            $other->update(['salary' => 3000]);
+            SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $other->id, 'basic_salary' => 3000,
+                'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
+        }
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp->id, 'basic_salary' => 4000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
 
         $this->acting($this->hr)->get('/app/payroll-process')->assertSee('name="payment_date"', false);
 

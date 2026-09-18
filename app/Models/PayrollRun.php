@@ -29,6 +29,7 @@ class PayrollRun extends Model
         'notes',
         'payment_date',
         'pull_options',
+        'excluded_employee_ids',
     ];
 
     /** Sources a run can pull in; the new-run form shows one tick per key. */
@@ -41,6 +42,7 @@ class PayrollRun extends Model
             'finalized_at' => 'datetime',
             'payment_date' => 'date',
             'pull_options' => 'array',
+            'excluded_employee_ids' => 'array',
         ];
     }
 

@@ -33,11 +33,16 @@ class FeatureEnforcementTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
 
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
-        Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->hr->id, 'name' => 'Boss', 'status' => 'active', 'workload' => 'green']);
+        $boss = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->hr->id, 'name' => 'Boss', 'status' => 'active', 'workload' => 'green', 'salary' => 6000,
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        // Everyone on the payroll needs a structure and identifiers since the spec F2 readiness gate.
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $boss->id, 'basic_salary' => 6000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
     }
 
     private function actingHr(): self
@@ -184,8 +189,10 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_pcb_is_always_computed_no_flag_needed(): void
     {
-        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5502', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp->id)->update(['salary' => 5000]);
 
         // PCB is the real LHDN computation on every run — no feature flag gates it.
@@ -198,8 +205,10 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_four_eyes_flag_blocks_finalizing_a_draft(): void
     {
-        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5503', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp->id)->update(['salary' => 5000]);
         app(FeatureManager::class)->setTenant($this->tenant, 'payroll.four_eyes', true);
 
@@ -218,8 +227,10 @@ class FeatureEnforcementTest extends TestCase
 
     public function test_four_eyes_off_keeps_the_draft_finalize_shortcut(): void
     {
-        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000]);
+        $emp = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Payee', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5504', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp->id)->update(['salary' => 5000]);
 
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])->assertRedirect();

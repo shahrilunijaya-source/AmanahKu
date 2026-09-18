@@ -22,6 +22,7 @@ use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Services\GoogleCalendarClient;
+use App\Services\Payroll\PayrollReadiness;
 use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
@@ -565,6 +566,9 @@ trait BuildsWorkData
                 'itxTransactions' => collect(),
                 'itxPeriodFinalized' => false,
                 'itxPeriodHasDraftRun' => false,
+                'readinessEmployer' => [],
+                'readinessRows' => [],
+                'readinessBlockingCount' => 0,
             ];
         }
 
@@ -572,8 +576,17 @@ trait BuildsWorkData
             ? PayrollRun::with('payslips.employee', 'payslips.lines')->find($request->query('run'))
             : PayrollRun::with('payslips.employee', 'payslips.lines')->orderByDesc('period')->first();
 
+        $readiness = app(PayrollReadiness::class);
+        $readinessTenant = app(CurrentTenant::class)->get();
+        $readinessEmployer = $readinessTenant ? $readiness->employerGaps($readinessTenant) : [];
+        $readinessRows = $readinessTenant ? $readiness->employeeRows($readinessTenant) : [];
+
         return [
             'privileged' => true,
+            // Spec F2: what still blocks a run, shown above the create form.
+            'readinessEmployer' => $readinessEmployer,
+            'readinessRows' => $readinessRows,
+            'readinessBlockingCount' => count($readinessEmployer) + count(array_filter($readinessRows, fn (array $r) => $r['blocking'] !== [])),
             // Deleting a FINALIZED run is a step above the usual HR/management payroll
             // gate — see PayrollController::destroyRun() and Permissions::MANAGEMENT_TIER.
             'isManagementTier' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
