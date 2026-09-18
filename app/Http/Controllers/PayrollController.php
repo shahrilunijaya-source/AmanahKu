@@ -21,6 +21,7 @@ use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
 use App\Services\Payroll\EpfCalculator;
+use App\Services\Payroll\MinimumWage;
 use App\Services\Payroll\PayrollCalculator;
 use App\Services\Payroll\PayrollReadiness;
 use App\Services\Payroll\PayslipComputation;
@@ -149,10 +150,20 @@ class PayrollController extends Controller
             ],
         );
 
-        $name = Employee::find($data['employee_id'])?->name;
+        $employee = Employee::find($data['employee_id']);
+        $name = $employee?->name;
         AuditLog::record('Updated salary structure', $name);
 
-        return back()->with('ok', 'Salary structure saved for '.$name.'.');
+        // Spec F4: the Minimum Wages Order floor is a warning, never a block — interns and
+        // apprentices are outside it, and HR is the one who knows which this is.
+        $basic = (float) ($employee->salary ?? 0);
+        $warn = MinimumWage::below($basic)
+            ? 'Basic pay RM'.number_format($basic, 2).' is below the RM1,700 monthly minimum (Minimum Wages Order 2024, from '.MinimumWage::EFFECTIVE.'). Check the employment type: the floor does not apply to interns or apprentices.'
+            : null;
+
+        $back = back()->with('ok', 'Salary structure saved for '.$name.'.');
+
+        return $warn !== null ? $back->with('warn', $warn) : $back;
     }
 
     // ── Opening figures (mid-year "take on") ───────────────────────
@@ -285,7 +296,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string, consent_reference: ?string}
      */
     private function validateFixedTransaction(Request $request, int $tid, ?int $lockEmployeeId = null): array
     {
@@ -306,6 +317,9 @@ class PayrollController extends Controller
             'last_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'prorate' => ['boolean'],
             'remarks' => ['nullable', 'string', 'max:255'],
+            // EA s.24: a non-statutory deduction needs the employee's written consent —
+            // this records where that consent is filed, not the consent itself.
+            'consent_reference' => ['nullable', 'string', 'max:160'],
         ]);
 
         return [
@@ -317,6 +331,7 @@ class PayrollController extends Controller
             'last_amount' => $data['last_amount'] ?? null,
             'prorate' => $request->boolean('prorate'),
             'remarks' => $data['remarks'] ?? null,
+            'consent_reference' => $data['consent_reference'] ?? null,
         ];
     }
 

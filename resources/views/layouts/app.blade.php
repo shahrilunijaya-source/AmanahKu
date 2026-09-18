@@ -563,6 +563,11 @@
         @if (session('ok'))
         Alpine.store('toast').success(@js(session('ok')));
         @endif
+        {{-- A save that went through but needs a second look (e.g. pay below the minimum
+             wage). Shown in the error tone, held longer, because it is easy to miss. --}}
+        @if (session('warn'))
+        Alpine.store('toast').error(@js(session('warn')), 9000);
+        @endif
         {{-- Neither a success nor a failure: the request was understood and declined,
              e.g. a second clock-in on a day already punched. A green tick there reads as
              "punched again", which is exactly what it did not do. --}}

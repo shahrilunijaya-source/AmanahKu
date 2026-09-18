@@ -55,6 +55,9 @@
                                         @if($ft->remarks)
                                             · {{ $ft->remarks }}
                                         @endif
+                                        @if($ft->consent_reference)
+                                            · <span x-text="$store.ui.lang==='en' ? 'consent' : 'kebenaran'">consent</span> {{ $ft->consent_reference }}
+                                        @endif
                                     </div>
                                 </div>
                                 <div style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink);">{{ $money($ft->amount) }}</div>
@@ -71,6 +74,7 @@
                                         <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last month RM (optional)' : 'RM bulan akhir (pilihan)'">Last month RM (optional)</label><input name="last_amount" type="number" step="0.01" min="0" value="{{ $ft->last_amount !== null ? number_format($ft->last_amount, 2, '.', '') : '' }}" placeholder="—" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
                                         <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" @checked($ft->prorate) /> <span x-text="$store.ui.lang==='en' ? 'Prorate part-months' : 'Prorata bulan separuh'">Prorate part-months</span></label>
                                         <input name="remarks" value="{{ $ft->remarks }}" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                        <input name="consent_reference" value="{{ $ft->consent_reference }}" maxlength="160" placeholder="Written consent reference (deductions)" :placeholder="$store.ui.lang==='en' ? 'Written consent reference (deductions)' : 'Rujukan kebenaran bertulis (potongan)'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
                                         <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</button>
                                     </div>
                                 </form>
@@ -106,11 +110,16 @@
                                 <div><label style="display:block;font-size:10px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Last month RM (optional)' : 'RM bulan akhir (pilihan)'">Last month RM (optional)</label><input name="last_amount" type="number" step="0.01" min="0" placeholder="—" style="width:100px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;font-family:var(--font-mono);" /></div>
                                 <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink);height:30px;"><input type="checkbox" name="prorate" value="1" /> <span x-text="$store.ui.lang==='en' ? 'Prorate part-months' : 'Prorata bulan separuh'">Prorate part-months</span></label>
                                 <input name="remarks" placeholder="Remarks" :placeholder="$store.ui.lang==='en' ? 'Remarks' : 'Catatan'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
+                                <input name="consent_reference" maxlength="160" placeholder="Written consent reference (deductions)" :placeholder="$store.ui.lang==='en' ? 'Written consent reference (deductions)' : 'Rujukan kebenaran bertulis (potongan)'" style="flex:1;min-width:120px;height:30px;padding:0 7px;border:1px solid var(--hairline);border-radius:6px;font-size:12px;" />
                                 <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 12px;font-size:11.5px;" x-text="$store.ui.lang==='en' ? 'Add' : 'Tambah'">Add</button>
                             </div>
                             @include('partials.hint', [
                                 'en' => 'A joiner or leaver is paid for the days they were employed, counted on the real days in that month. (Unpaid leave and overtime use the 26-day rule instead — that difference is deliberate.)',
                                 'ms' => 'Pekerja baru atau yang keluar dibayar mengikut hari mereka bekerja, dikira atas hari sebenar dalam bulan itu. (Cuti tanpa gaji dan kerja lebih masa guna peraturan 26 hari — perbezaan itu memang disengajakan.)',
+                            ])
+                            @include('partials.hint', [
+                                'en' => 'EA s.24: a non-statutory deduction needs the employee\'s written consent. Put the date signed or the agreement reference.',
+                                'ms' => 'AK s.24: potongan bukan statutori perlu kebenaran bertulis pekerja. Isikan tarikh ditandatangani atau rujukan perjanjian.',
                             ])
                         </form>
                     </div>
