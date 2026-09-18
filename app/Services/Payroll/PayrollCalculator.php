@@ -23,6 +23,12 @@ class PayrollCalculator
 
     public const OVERTIME_MULTIPLIER = 1.5;
 
+    /** EA s.24: total non-statutory deductions in a month may not exceed half of wages. */
+    public const DEDUCTION_CAP = 0.5;
+
+    /** Employment (Limitation of Overtime Work) Regulations 1980: 104 hours a month. */
+    public const OVERTIME_HOURS_CAP = 104;
+
     public function __construct(
         private readonly EpfCalculator $epf,
         private readonly SocsoCalculator $socso,
@@ -55,6 +61,7 @@ class PayrollCalculator
      *     individual_earnings_total?: float|int|string,
      *     individual_earning_lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>,
      *     individual_deductions_total?: float|int|string,
+     *     carry_forward?: bool,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -196,7 +203,22 @@ class PayrollCalculator
         $pcbEffective = $pcbOverride ?? $pcb;
 
         $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
+
+        // EA s.24 cap (spec F4): only non-statutory deductions count — zakat, CP38, loans,
+        // advances, one-offs. EPF/SOCSO/EIS/SKBBK/PCB are the law's own deductions.
+        $nonStatutory = round($zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
+        $deductionCapExceeded = $gross > 0 && $nonStatutory > round($gross * self::DEDUCTION_CAP, 2);
+
         $netPay = round($statWage - $totalDeductions + $claimsReimbursement, 2);
+        // Negative net is not a payable figure. With carry_forward HR has chosen Worksy's
+        // "deduct next month": cap this month's deductions so net lands on zero and hand
+        // the shortfall to the caller, who books it as next period's Individual Transaction.
+        $carriedForward = 0.0;
+        if (! empty($inputs['carry_forward']) && $netPay < 0) {
+            $carriedForward = round(-$netPay, 2);
+            $totalDeductions = round($totalDeductions - $carriedForward, 2);
+            $netPay = 0.0;
+        }
         $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer, 2);
 
         return new PayslipComputation(
@@ -230,6 +252,8 @@ class PayrollCalculator
             totalDeductions: $totalDeductions,
             netPay: $netPay,
             employerCost: $employerCost,
+            deductionCapExceeded: $deductionCapExceeded,
+            carriedForward: $carriedForward,
         );
     }
 

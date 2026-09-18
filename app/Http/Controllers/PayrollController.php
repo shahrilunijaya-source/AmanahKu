@@ -803,7 +803,8 @@ class PayrollController extends Controller
 
         $catalog = PayrollItem::where('tenant_id', $tid)->get()->keyBy('code');
 
-        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded) {
+        $overtimeWarnings = [];
+        DB::transaction(function () use ($data, $employees, $periodEnd, $catalog, $pulls, $excluded, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'label' => $this->periodStart($data['period'])->format('F Y'),
@@ -834,6 +835,9 @@ class PayrollController extends Controller
                 $overtimeRequests = $pulls['overtime'] ? $this->pullableOvertimeFor($employee, $data['period'], $usedOvertimeIds) : collect();
                 $pulledOvertimeGroups = $this->overtimeGroups($overtimeRequests);
                 $pulledOvertimeHours = round($overtimeRequests->sum(fn (OvertimeRequest $o) => (float) $o->hours), 2);
+                if ($pulledOvertimeHours > PayrollCalculator::OVERTIME_HOURS_CAP) {
+                    $overtimeWarnings[] = $employee->name.' ('.$pulledOvertimeHours.'h)';
+                }
                 $unpaidLeaveRequests = $pulls['unpaid'] ? $this->pullableUnpaidLeaveFor($employee, $data['period'], $usedLeaveIds) : collect();
                 $pulledUnpaidDays = round($unpaidLeaveRequests->sum(fn (LeaveRequest $l) => (float) $l->days), 2);
 
@@ -938,6 +942,9 @@ class PayrollController extends Controller
         if ($missingDob > 0) {
             $msg .= ' Note: '.$missingDob.' employee(s) have no date of birth and were treated as below 60 (SOCSO Category 1) — set their DOB and recompute to confirm their contribution category.';
         }
+        if ($overtimeWarnings !== []) {
+            $msg .= ' Warning: overtime above the 104-hour monthly limit for '.implode(', ', $overtimeWarnings).'.';
+        }
 
         return back()->with('ok', $msg);
     }
@@ -1036,6 +1043,8 @@ class PayrollController extends Controller
                 'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
                 'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
+                // A payslip HR already carried forward keeps that policy across recomputes.
+                'carry_forward' => $payslip->carried_forward_amount > 0,
             ];
 
             if ($overtimeOverridden) {
@@ -1136,6 +1145,7 @@ class PayrollController extends Controller
                 'basic_overridden' => $basicOverridden || $payslip->basic_overridden,
             ])->save();
             $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
+            $this->syncCarriedForward($payslip, $comp);
 
             return $comp;
         });
@@ -1145,6 +1155,74 @@ class PayrollController extends Controller
 
         return redirect()->route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $payslip->payroll_run_id, 'payslip' => $payslip->id])
             ->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
+    }
+
+    /** Spec F4: HR confirms the employee's written consent for deductions above the s.24 cap. */
+    public function confirmDeductionConsent(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+
+        $payslip->forceFill(['deduction_consent_confirmed' => ! $payslip->deduction_consent_confirmed])->save();
+        AuditLog::record($payslip->deduction_consent_confirmed ? 'Confirmed deduction consent' : 'Withdrew deduction consent', $payslip->employee->name.' · '.$payslip->payrollRun->label);
+
+        return back()->with('ok', 'Consent '.($payslip->deduction_consent_confirmed ? 'recorded' : 'withdrawn').' for '.$payslip->employee->name.'.');
+    }
+
+    /**
+     * Spec F4 "deduct next month": cap this month's deductions at gross, net becomes zero,
+     * the shortfall is queued as next period's Individual Transaction (subject to the same
+     * 50% cap there when that run is created).
+     */
+    public function carryForward(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        abort_unless($payslip->net_pay < 0, 422, 'Net pay is not negative.');
+
+        DB::transaction(function () use ($payslip) {
+            $shortfall = round(-$payslip->net_pay, 2);
+            $payslip->forceFill([
+                'total_deductions' => round($payslip->total_deductions - $shortfall, 2),
+                'net_pay' => 0.0,
+                'carried_forward_amount' => $shortfall,
+            ])->save();
+            $this->syncCarriedForward($payslip, null);
+            $this->recalcTotals($payslip->payrollRun);
+            AuditLog::record('Carried shortfall to next month', $payslip->employee->name.' · '.$payslip->payrollRun->label.' · RM '.number_format($shortfall, 2));
+        });
+
+        return back()->with('ok', 'Shortfall carried to next month for '.$payslip->employee->name.'.');
+    }
+
+    /**
+     * Keep next period's carried-forward Individual Transaction equal to the payslip's
+     * carried_forward_amount: create, update or remove it. Tagged by remark so a recompute
+     * finds its own row and never touches a one-off HR typed.
+     */
+    private function syncCarriedForward(Payslip $payslip, ?PayslipComputation $comp): void
+    {
+        $amount = $comp !== null ? $comp->carriedForward : (float) $payslip->carried_forward_amount;
+        if ($comp !== null) {
+            $payslip->forceFill(['carried_forward_amount' => $amount])->save();
+        }
+        $nextPeriod = $this->periodStart($payslip->payrollRun->period)->addMonth()->format('Y-m');
+        $remark = 'Carried forward from '.$payslip->payrollRun->label;
+        $existing = IndividualTransaction::where('employee_id', $payslip->employee_id)->forPeriod($nextPeriod)->where('remarks', $remark)->first();
+
+        if ($amount <= 0) {
+            $existing?->delete();
+
+            return;
+        }
+        $item = PayrollItem::where('tenant_id', $payslip->tenant_id)->where('code', 'other-deduction')->firstOrFail();
+        if ($existing) {
+            $existing->update(['amount' => $amount]);
+        } else {
+            IndividualTransaction::create(['employee_id' => $payslip->employee_id, 'payroll_item_id' => $item->id, 'period' => $nextPeriod, 'amount' => $amount, 'remarks' => $remark, 'created_by_id' => Auth::id()]);
+        }
     }
 
     public function approveRun(Request $request, PayrollRun $run): RedirectResponse
@@ -1172,6 +1250,14 @@ class PayrollController extends Controller
         } else {
             abort_unless(in_array($run->status, ['draft', 'approved'], true), 422);
         }
+
+        // Spec F4 guards: a payslip over the s.24 deduction cap needs recorded consent, and
+        // a negative net is not payable until HR carries the shortfall forward.
+        $slips = $run->payslips()->with('employee')->get();
+        $unconsented = $slips->filter(fn (Payslip $p) => $p->deduction_cap_exceeded && ! $p->deduction_consent_confirmed);
+        abort_if($unconsented->isNotEmpty(), 422, 'Deductions exceed 50% of wages (EA s.24) without recorded consent for: '.$unconsented->map(fn (Payslip $p) => $p->employee->name)->implode(', ').'.');
+        $negative = $slips->filter(fn (Payslip $p) => $p->net_pay < 0);
+        abort_if($negative->isNotEmpty(), 422, 'Net pay is negative for: '.$negative->map(fn (Payslip $p) => $p->employee->name)->implode(', ').'. Carry the shortfall to next month first.');
 
         DB::transaction(function () use ($run) {
             // status + finalized_at are excluded from $fillable — set them directly.

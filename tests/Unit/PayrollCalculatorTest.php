@@ -343,4 +343,28 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(0.0, $withLines->epfEmployee);
         $this->assertSame(0.0, $withLines->socsoEmployee);
     }
+
+    public function test_deduction_cap_trips_above_fifty_percent_of_gross_and_ignores_statutory(): void
+    {
+        // Gross 1,000: fixed deductions of exactly 500.00 (50.00%) do not trip; 500.10 does.
+        $at = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 500.00]);
+        $over = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 500.10]);
+        $this->assertFalse($at->deductionCapExceeded);
+        $this->assertTrue($over->deductionCapExceeded);
+
+        // EPF/SOCSO/EIS/PCB are statutory and never count toward the cap.
+        $statutoryOnly = $this->calc->compute(['basic' => 1000, 'pcb' => 600]);
+        $this->assertFalse($statutoryOnly->deductionCapExceeded);
+    }
+
+    public function test_carry_forward_zeroes_a_negative_net_and_records_the_shortfall(): void
+    {
+        $neg = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 1500]);
+        $this->assertLessThan(0, $neg->netPay);
+
+        $c = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 1500, 'carry_forward' => true]);
+        $this->assertSame(0.0, $c->netPay);
+        $this->assertSame(abs($neg->netPay), $c->carriedForward);
+        $this->assertSame(round($neg->totalDeductions - $c->carriedForward, 2), $c->totalDeductions);
+    }
 }

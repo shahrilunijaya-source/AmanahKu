@@ -71,6 +71,38 @@
                                     @endif
                                 </div>
 
+                                {{-- Spec F4 flags: s.24 deduction cap, negative net and the 104-hour overtime limit. --}}
+                                @if ($p->deduction_cap_exceeded || $p->net_pay < 0 || $p->carried_forward_amount > 0 || $p->pulled_overtime_hours > \App\Services\Payroll\PayrollCalculator::OVERTIME_HOURS_CAP)
+                                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 22px 12px 64px;">
+                                        @if ($p->deduction_cap_exceeded)
+                                            <form method="post" action="{{ route('payroll.payslips.consent', $p) }}" style="display:flex;align-items:center;gap:6px;">@csrf
+                                                <span class="uj-pill" style="background:{{ $p->deduction_consent_confirmed ? 'var(--red-tint)' : '#fff7e6' }};color:{{ $p->deduction_consent_confirmed ? 'var(--success)' : 'var(--amber)' }};font-size:10.5px;" x-text="$store.ui.lang==='en' ? 'Deductions over 50% (s.24)' : 'Potongan melebihi 50% (s.24)'">Deductions over 50% (s.24)</span>
+                                                @if ($activeRun->status !== 'finalized')
+                                                    @if ($p->deduction_consent_confirmed)
+                                                        <button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Consent recorded · withdraw' : 'Kebenaran direkod · tarik balik'">Consent recorded · withdraw</button>
+                                                    @else
+                                                        <button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Employee consented in writing' : 'Pekerja beri kebenaran bertulis'">Employee consented in writing</button>
+                                                    @endif
+                                                @endif
+                                            </form>
+                                        @endif
+                                        @if ($p->net_pay < 0)
+                                            <form method="post" action="{{ route('payroll.payslips.carry-forward', $p) }}" style="display:flex;align-items:center;gap:6px;">@csrf
+                                                <span class="uj-pill" style="background:var(--red-tint);color:var(--error);font-size:10.5px;" x-text="$store.ui.lang==='en' ? 'Net pay negative' : 'Gaji bersih negatif'">Net pay negative</span>
+                                                @if ($activeRun->status !== 'finalized')
+                                                    <button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 8px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Carry to next month' : 'Bawa ke bulan depan'">Carry to next month</button>
+                                                @endif
+                                            </form>
+                                        @endif
+                                        @if ($p->carried_forward_amount > 0)
+                                            <span class="uj-pill" style="background:#fff7e6;color:var(--amber);font-size:10.5px;">{{ $money($p->carried_forward_amount) }} <span x-text="$store.ui.lang==='en' ? 'carried to next month' : 'dibawa ke bulan depan'">carried to next month</span></span>
+                                        @endif
+                                        @if ($p->pulled_overtime_hours > \App\Services\Payroll\PayrollCalculator::OVERTIME_HOURS_CAP)
+                                            <span class="uj-pill" style="background:#fff7e6;color:var(--amber);font-size:10.5px;" x-text="$store.ui.lang==='en' ? 'Overtime above 104h' : 'Kerja lebih masa melebihi 104j'">Overtime above 104h</span>
+                                        @endif
+                                    </div>
+                                @endif
+
                                 {{-- Inline variable-input editor --}}
                                 @if ($activeRun->status !== 'finalized')
                                     <div x-show="editing === {{ $p->id }}" x-cloak style="padding:4px 22px 18px 64px;">
