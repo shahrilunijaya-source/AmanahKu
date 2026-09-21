@@ -50,8 +50,9 @@
         $money = fn ($v) => 'MYR '.number_format((float) $v, 2, '.', ',');
         $tenant = $emp?->tenant;
         $logoPath = $tenant?->logo_path ? \Illuminate\Support\Facades\Storage::disk('public')->path($tenant->logo_path) : null;
-        $payDate = $run?->finalized_at ? $run->finalized_at->format('d/m/Y') : now()->format('d/m/Y');
+        $payDate = ($run?->payment_date ?? $run?->finalized_at)?->format('d/m/Y') ?? now()->format('d/m/Y');
         $periodLabel = $run?->label ?? $run?->period;
+        $pt = $d['particulars'];
         // Only the two headline entitlements. A granted type (Replacement) does carry a
         // balance now, but it is quota earned by working rest days, not part of the yearly
         // entitlement a payslip reports.
@@ -62,7 +63,7 @@
             <div class="left">
                 <div class="company-name">{{ $tenant?->name ?? 'Company' }}</div>
                 <div class="doc-title">Official Payslip</div>
-                <div class="meta">Pay period: {{ $periodLabel }} &nbsp;·&nbsp; Payment date: {{ $payDate }}</div>
+                <div class="meta">Pay period: {{ $periodLabel }} &nbsp;·&nbsp; Payment date: {{ $payDate }}@if ($p->days_employed !== null && $p->days_in_month !== null && $p->days_employed < $p->days_in_month) &nbsp;·&nbsp; Days employed: {{ $p->days_employed }} / {{ $p->days_in_month }}@endif</div>
             </div>
             <div class="right">
                 @if ($logoPath && file_exists($logoPath))
@@ -93,6 +94,39 @@
                 <td class="label"></td><td></td>
                 <td class="label">Income Tax No.</td><td>{{ $s?->tax_no }}</td>
             </tr>
+        </table>
+
+        <div class="section-title" style="margin-top:8px;">Pay Particulars</div>
+        <table class="emp-table">
+            <tr>
+                <td class="label">Monthly rate of pay</td><td>{{ $money($pt['monthlyRate']) }}</td>
+                <td class="label">Days employed</td><td>{{ $pt['daysEmployed'] !== null && $pt['daysInMonth'] !== null ? $pt['daysEmployed'].' / '.$pt['daysInMonth'] : '-' }}</td>
+            </tr>
+            @if ($pt['dailyRate'] !== null)
+                <tr>
+                    <td class="label">Ordinary daily rate</td><td>{{ $money($pt['dailyRate']) }} <span style="color:#666;">(monthly &divide; 26)</span></td>
+                    <td class="label">Hourly rate</td><td>{{ $money($pt['hourlyRate']) }} <span style="color:#666;">(daily &divide; 8)</span></td>
+                </tr>
+            @endif
+            @foreach ($pt['overtimeGroups'] as $g)
+                <tr>
+                    <td class="label">Overtime @if ($g['multiplier'] !== ''){{ $g['multiplier'] }}&times;@endif</td>
+                    <td>{{ rtrim(rtrim(number_format($g['hours'], 2), '0'), '.') }} hrs</td>
+                    <td class="label">Overtime pay</td><td>{{ $money($g['amount']) }}</td>
+                </tr>
+            @endforeach
+            @if ($pt['unpaidDays'] > 0)
+                <tr>
+                    <td class="label">Unpaid leave</td><td>{{ rtrim(rtrim(number_format($pt['unpaidDays'], 2), '0'), '.') }} days</td>
+                    <td class="label"></td><td></td>
+                </tr>
+            @endif
+            @foreach ($pt['leaveTaken'] as $l)
+                <tr>
+                    <td class="label">Leave taken — {{ $l['type'] }}</td><td>{{ rtrim(rtrim(number_format($l['days'], 1), '0'), '.') }} days</td>
+                    <td class="label"></td><td></td>
+                </tr>
+            @endforeach
         </table>
 
         <div class="cols">
@@ -191,6 +225,12 @@
             <div class="col">
                 <div class="section-title" style="margin-top:10px;">Remarks</div>
                 <div class="remark-box">{{ $p->notes }}</div>
+
+                <div class="section-title" style="margin-top:10px;">Employer</div>
+                <table class="emp-table">
+                    <tr><td class="label">EPF Employer No.</td><td>{{ $pt['employerEpfNo'] ?? '-' }}</td></tr>
+                    <tr><td class="label">SOCSO Employer Code</td><td>{{ $pt['employerSocsoNo'] ?? '-' }}</td></tr>
+                </table>
             </div>
         </div>
     </div>

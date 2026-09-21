@@ -23,6 +23,12 @@ class PayrollCalculator
 
     public const OVERTIME_MULTIPLIER = 1.5;
 
+    /** EA s.24: total non-statutory deductions in a month may not exceed half of wages. */
+    public const DEDUCTION_CAP = 0.5;
+
+    /** Employment (Limitation of Overtime Work) Regulations 1980: 104 hours a month. */
+    public const OVERTIME_HOURS_CAP = 104;
+
     public function __construct(
         private readonly EpfCalculator $epf,
         private readonly SocsoCalculator $socso,
@@ -49,12 +55,15 @@ class PayrollCalculator
      *     statutory_category?: int,
      *     epf_part?: string|null,
      *     skbbk_opt_in?: bool,
-     *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>|null,
-     *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool}|null,
+     *     socso_exempt?: bool,
+     *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}>|null,
+     *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}|null,
      *     fixed_deductions_total?: float|int|string,
      *     individual_earnings_total?: float|int|string,
-     *     individual_earning_lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool}>,
+     *     individual_earning_lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}>,
      *     individual_deductions_total?: float|int|string,
+     *     carry_forward?: bool,
+     *     hrdf_rate?: float|int|string,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -158,6 +167,7 @@ class PayrollCalculator
             $catalogueLines = [...$catalogueLines, ...($inputs['individual_earning_lines'] ?? [])];
             $epfBase = ! empty($overtimeFlags['epf_liable']) ? $overtimeAmount : 0.0;
             $perkesoBase = ! empty($overtimeFlags['perkeso_liable']) ? $overtimeAmount : 0.0;
+            $hrdfBase = ! empty($overtimeFlags['hrdf_liable']) ? $overtimeAmount : 0.0;
             foreach ($catalogueLines as $line) {
                 $lineAmount = $this->money($line['amount'] ?? 0);
                 if (! empty($line['epf_liable'])) {
@@ -166,12 +176,16 @@ class PayrollCalculator
                 if (! empty($line['perkeso_liable'])) {
                     $perkesoBase += $lineAmount;
                 }
+                if (! empty($line['hrdf_liable'])) {
+                    $hrdfBase += $lineAmount;
+                }
             }
             $epfWage = round(max(0.0, $epfBase - $unpaidDeduction), 2);
             $socsoWageFromLines = round(max(0.0, $perkesoBase - $unpaidDeduction), 2);
         } else {
             $epfWage = round(max(0.0, $statWage - $overtimeAmount), 2);
             $socsoWageFromLines = null;
+            $hrdfBase = $basic + $allowancesTotal;
         }
         $epfContribution = $this->epf->contribution($epfWage, $epfPart);
         $epfEmployee = $epfContribution['employee'];
@@ -190,14 +204,41 @@ class PayrollCalculator
         $eisEmployee = $eisContribution['employee'];
         $eisEmployer = $eisContribution['employer'];
 
+        // Spec F2: HR has marked this person outside PERKESO coverage (for example a
+        // director who is not an employee under the Act), so none of SOCSO, EIS or SKBBK
+        // applies. EPF, PCB and the HRD Corp levy are separate regimes and stay.
+        if (! empty($inputs['socso_exempt'])) {
+            $socsoEmployee = $socsoEmployer = $eisEmployee = $eisEmployer = $skbbkEmployee = 0.0;
+        }
+
+        // HRD Corp levy (spec F7): a third wage base, employer side only. Unpaid leave
+        // reduces it exactly as it reduces the EPF base.
+        $hrdfRate = max(0.0, (float) ($inputs['hrdf_rate'] ?? 0));
+        $hrdfLevy = $hrdfRate > 0 ? round(max(0.0, $hrdfBase - $unpaidDeduction) * $hrdfRate, 2) : 0.0;
+
         // A non-null override wins over the computed normal PCB verbatim — HR's manual
         // figure, not netted against zakat again (that netting already happened, or
         // didn't, in whatever the override represents).
         $pcbEffective = $pcbOverride ?? $pcb;
 
         $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
+
+        // EA s.24 cap (spec F4): only non-statutory deductions count — zakat, CP38, loans,
+        // advances, one-offs. EPF/SOCSO/EIS/SKBBK/PCB are the law's own deductions.
+        $nonStatutory = round($zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
+        $deductionCapExceeded = $gross > 0 && $nonStatutory > round($gross * self::DEDUCTION_CAP, 2);
+
         $netPay = round($statWage - $totalDeductions + $claimsReimbursement, 2);
-        $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer, 2);
+        // Negative net is not a payable figure. With carry_forward HR has chosen Worksy's
+        // "deduct next month": cap this month's deductions so net lands on zero and hand
+        // the shortfall to the caller, who books it as next period's Individual Transaction.
+        $carriedForward = 0.0;
+        if (! empty($inputs['carry_forward']) && $netPay < 0) {
+            $carriedForward = round(-$netPay, 2);
+            $totalDeductions = round($totalDeductions - $carriedForward, 2);
+            $netPay = 0.0;
+        }
+        $employerCost = round($statWage + $epfEmployer + $socsoEmployer + $eisEmployer + $hrdfLevy, 2);
 
         return new PayslipComputation(
             basic: $basic,
@@ -230,6 +271,9 @@ class PayrollCalculator
             totalDeductions: $totalDeductions,
             netPay: $netPay,
             employerCost: $employerCost,
+            deductionCapExceeded: $deductionCapExceeded,
+            carriedForward: $carriedForward,
+            hrdfLevy: $hrdfLevy,
         );
     }
 

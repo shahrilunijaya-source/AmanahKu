@@ -36,10 +36,10 @@
     <tr><td class="label">1. Name of employer as registered</td><td colspan="3">{{ $bp['name'] }}</td></tr>
     <tr>
         <td class="label">2. Employer's TIN</td><td class="{{ $blankClass($bp['employer_tin']) }}">{{ $bp['employer_tin'] ? 'E'.$bp['employer_tin'] : '' }}</td>
-        <td class="label">3. Category of employer</td><td class="blank">{{ $blank($bp['category_of_employer']) }}</td>
+        <td class="label">3. Category of employer</td><td class="{{ $blankClass($bp['category_of_employer']) }}">{{ $blank($bp['category_of_employer']) }}</td>
     </tr>
     <tr>
-        <td class="label">4. Status of employer</td><td class="blank">{{ $blank($bp['status_of_employer']) }}</td>
+        <td class="label">4. Status of employer</td><td class="{{ $blankClass($bp['status_of_employer']) }}">{{ $blank($bp['status_of_employer']) }}</td>
         <td class="label">5. Tax Identification No. (TIN) type code</td><td class="blank">{{ $blank($bp['tin_type_code']) }}</td>
     </tr>
     <tr>

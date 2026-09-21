@@ -152,6 +152,13 @@ final class EaFormData
             $taxableTotal += $legacyTotal;
         }
 
+        // Spec F8: the part of the year's pay that a Payroll Item's yearly cap exempted
+        // (payslips.pcb_exempt_amount, computed month by month when the run was built).
+        // Part F of Form EA reports it, and it must come back out of the taxable total.
+        $cappedExempt = round((float) $payslips->sum('pcb_exempt_amount'), 2);
+        $taxableTotal = max(0.0, $taxableTotal - $cappedExempt);
+        $exemptTotal += $cappedExempt;
+
         return [
             'by_category' => array_map(fn (float $v) => round($v, 2), $byCategory),
             // Informational only — already included in one of the by_category totals
@@ -160,15 +167,12 @@ final class EaFormData
             // never additive on top of them.
             'overtime_total' => round($overtimeTotal, 2),
             'taxable_total' => round($taxableTotal, 2),
-            // Raw total only — LHDN's RM6,000/year official-duties travel exemption cap
-            // (PayrollItem.pcb_exempt_cap_yearly) is a known separate gap and is NOT
-            // applied here.
+            // Form EA Part F: items that are never taxable, plus the part of a capped
+            // item (e.g. the RM6,000/year travel allowance) the cap actually exempted.
             'tax_exempt_total' => round($exemptTotal, 2),
-            // Subset of taxable_total: the raw amount paid through items that carry a
-            // pcb_exempt_cap_yearly (e.g. travel allowance) but were still counted fully
-            // taxable above because the cap isn't applied yet. A later pass subtracts
-            // min(this, the cap) from taxable_total / adds it to tax_exempt_total once
-            // that gap is closed.
+            // The raw amount paid through items that carry a pcb_exempt_cap_yearly,
+            // before the cap. Whatever part of it the cap exempted is already out of
+            // taxable_total and inside tax_exempt_total above.
             'exempt_cap_candidates_total' => round($capCandidateTotal, 2),
         ];
     }

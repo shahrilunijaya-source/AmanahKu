@@ -9,6 +9,7 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\Timesheet;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
@@ -116,6 +117,111 @@ class TimesheetEffortApiTest extends TestCase
 
         $response = $this->getJson('/api/v1/timesheet-effort?week_start='.self::WEEK, $this->bearer($this->hr));
 
+        $this->assertSame([], $response->json('data.projects'));
+    }
+
+    public function test_a_legacy_week_with_no_day_rows_still_counts_by_its_week_status(): void
+    {
+        // Every historical timesheet predates CR-03 and has no timesheet_days rows at
+        // all. Judging those by day status would zero every figure already in Track's
+        // ledger on the next nightly run.
+        $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100, 100, 100]);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(5.0, (float) $row['person_days']);
+        $this->assertSame(5, $row['days_present']);
+    }
+
+    public function test_a_part_submitted_week_counts_only_its_submitted_days(): void
+    {
+        // Mon-Wed submitted, Thu-Fri still being worked on, so the week itself is draft.
+        $timesheet = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100, 100, 100], 'draft');
+        $this->days($timesheet, ['submitted', 'submitted', 'submitted', 'draft', 'draft']);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(3.0, (float) $row['person_days']);
+        $this->assertSame(3, $row['days_present']);
+        $this->assertSame(1, $row['headcount']);
+        // 3.0 / (1 head x 3 days) = 100%. One person submitting a run of whole days
+        // keeps alloc_pct honest; see the ragged-band test below for the case that
+        // does not.
+        $this->assertSame(100.0, (float) $row['alloc_pct']);
+    }
+
+    public function test_a_fully_submitted_week_with_day_rows_reads_the_same_as_before(): void
+    {
+        $timesheet = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100, 100, 100]);
+        $this->days($timesheet, ['submitted', 'submitted', 'submitted', 'approved', 'approved']);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(5.0, (float) $row['person_days']);
+        $this->assertSame(5, $row['days_present']);
+    }
+
+    public function test_a_returned_day_stops_counting(): void
+    {
+        // A manager returning Tuesday for correction makes the project's money out go
+        // DOWN on the next pull. That is correct, not a regression.
+        $timesheet = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100], 'draft');
+        $this->days($timesheet, ['submitted', 'returned', 'submitted']);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(2.0, (float) $row['person_days']);
+        $this->assertSame(2, $row['days_present']);
+    }
+
+    public function test_a_day_with_no_row_never_inherits_a_submitted_week_status(): void
+    {
+        // Once a timesheet has any day rows, a missing row means not submitted. The
+        // fallback is per timesheet, not per date, or a submitted week would leak its
+        // unsubmitted days.
+        $timesheet = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100], 'submitted');
+        $this->days($timesheet, ['submitted']);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(1.0, (float) $row['person_days']);
+        $this->assertSame(1, $row['days_present']);
+    }
+
+    public function test_a_band_submitting_different_days_reads_a_low_alloc_pct(): void
+    {
+        // days_present counts distinct dates across the WHOLE band, not per person, so
+        // two people covering disjoint halves of the week look half-dedicated. This was
+        // unreachable while a week counted all-or-nothing. It is pinned here rather than
+        // discovered later: person_days is the figure Track costs from, alloc_pct is a
+        // reading aid and mid-week it under-reads.
+        $ali = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100, 100], 'draft');
+        $this->days($ali, ['submitted', 'submitted', 'submitted']);
+
+        $siti = $this->submitWeek($this->employee('Siti', $this->senior), [0, 0, 0, 100, 100], 'draft');
+        $this->days($siti, ['draft', 'draft', 'draft', 'submitted', 'submitted']);
+
+        $row = $this->effortRow();
+
+        $this->assertSame(5.0, (float) $row['person_days']);
+        $this->assertSame(2, $row['headcount']);
+        $this->assertSame(5, $row['days_present']);
+        // 5.0 / (2 heads x 5 days) = 50%, for a band that is in fact full-time.
+        $this->assertSame(50.0, (float) $row['alloc_pct']);
+    }
+
+    public function test_a_rejected_week_is_excluded_even_when_its_days_say_submitted(): void
+    {
+        // Nothing in the app writes 'rejected' to a week today and
+        // Timesheet::refreshStatusFromDays() overwrites the week status the moment day
+        // rows exist, so this combination should be unreachable. It is guarded anyway:
+        // a dead week must never leak effort into a ledger because a day row survived.
+        $timesheet = $this->submitWeek($this->employee('Ali', $this->senior), [100, 100], 'rejected');
+        $this->days($timesheet, ['submitted', 'submitted']);
+
+        $response = $this->getJson('/api/v1/timesheet-effort?week_start='.self::WEEK, $this->bearer($this->hr));
+
+        $response->assertOk();
         $this->assertSame([], $response->json('data.projects'));
     }
 
@@ -266,6 +372,29 @@ class TimesheetEffortApiTest extends TestCase
         app(CurrentTenant::class)->set(null);
 
         return $timesheet;
+    }
+
+    /**
+     * Give a timesheet the CR-03 per-day rows a modern week has. Offsets are Monday
+     * first, matching submitWeek()'s percentages array.
+     *
+     * @param  array<int, string>  $statuses  Day status per offset, Monday first.
+     */
+    private function days(Timesheet $timesheet, array $statuses): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+
+        foreach ($statuses as $offset => $status) {
+            TimesheetDay::create([
+                'tenant_id' => $this->tenant->id,
+                'timesheet_id' => $timesheet->id,
+                'entry_date' => date('Y-m-d', strtotime(self::WEEK.' +'.$offset.' day')),
+                'status' => $status,
+                'submitted_at' => in_array($status, ['submitted', 'approved'], true) ? now() : null,
+            ]);
+        }
+
+        app(CurrentTenant::class)->set(null);
     }
 
     /** The single position row for the shared project in the week under test. */

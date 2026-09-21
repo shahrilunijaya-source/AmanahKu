@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Payroll;
 
+use App\Models\LeaveRequest;
 use App\Models\Payslip;
 use App\Models\PayslipLine;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -44,7 +46,111 @@ final class PayslipPdfData
             // gross/TOTAL EARNINGS, so it is surfaced as its own figure rather than folded in.
             'reimbursement' => round((float) $payslip->claims_reimbursement, 2),
             'ytd' => $this->ytd->forPayslip($payslip),
+            // Spec F13: the pay-statement particulars EA s.19 and the First Schedule
+            // expect on a payslip, beyond the earnings/deductions tables above.
+            'particulars' => $this->particulars($payslip),
         ];
+    }
+
+    /**
+     * Rates and day counts behind the figures, plus the leave actually taken in the
+     * period. The 26-day divisor is the s.60I ordinary rate PayrollCalculator itself
+     * uses for overtime and unpaid leave — deliberately not the s.18A calendar-day
+     * proration, which is a different rule (see Proration).
+     *
+     * @return array{monthlyRate: float, daysEmployed: ?int, daysInMonth: ?int, dailyRate: ?float, hourlyRate: ?float, overtimeGroups: list<array{hours: float, multiplier: string, amount: float}>, unpaidDays: float, leaveTaken: list<array{type: string, days: float}>, paymentDate: ?string, employerEpfNo: ?string, employerSocsoNo: ?string}
+     */
+    private function particulars(Payslip $payslip): array
+    {
+        $basic = (float) $payslip->basic;
+        $unpaidDays = (float) $payslip->unpaid_days;
+        $overtimeGroups = $this->overtimeGroups($payslip);
+        $showRates = $unpaidDays > 0 || $overtimeGroups !== [];
+        $dailyRate = $basic / PayrollCalculator::WORKING_DAYS_PER_MONTH;
+        $employee = $payslip->employee;
+        $tenant = $employee?->tenant;
+        $run = $payslip->payrollRun;
+        // The contractual monthly rate, not the prorated basic actually paid.
+        $monthly = $employee?->salaryStructure?->basic_salary;
+        if ($monthly === null) {
+            $monthly = $employee?->salary;
+        }
+
+        return [
+            'monthlyRate' => round($monthly !== null ? (float) $monthly : $basic, 2),
+            'daysEmployed' => $payslip->days_employed,
+            'daysInMonth' => $payslip->days_in_month,
+            'dailyRate' => $showRates ? round($dailyRate, 2) : null,
+            'hourlyRate' => $showRates ? round($dailyRate / PayrollCalculator::WORKING_HOURS_PER_DAY, 2) : null,
+            'overtimeGroups' => $overtimeGroups,
+            'unpaidDays' => $unpaidDays,
+            'leaveTaken' => $run !== null ? $this->leaveTaken($payslip, (string) $run->period) : [],
+            'paymentDate' => $run?->payment_date?->format('d/m/Y'),
+            'employerEpfNo' => $tenant?->epf_employer_no,
+            'employerSocsoNo' => $tenant?->socso_employer_code,
+        ];
+    }
+
+    /**
+     * Overtime as it was actually paid: one row per rate group, read back from the
+     * payslip lines the run wrote (source 'overtime', name "Overtime 1.5×").
+     *
+     * @return list<array{hours: float, multiplier: string, amount: float}>
+     */
+    private function overtimeGroups(Payslip $payslip): array
+    {
+        return $payslip->lines->where('source', 'overtime')->values()
+            ->map(function (PayslipLine $line): array {
+                preg_match('/([\d.]+)×/', $line->name, $m);
+
+                return [
+                    'hours' => round((float) $line->quantity, 2),
+                    'multiplier' => $m[1] ?? '',
+                    'amount' => round((float) $line->amount, 2),
+                ];
+            })->all();
+    }
+
+    /**
+     * Approved leave overlapping the pay period, grouped by type — days counted inside
+     * the period only, so a request spanning two months reports its own share on each.
+     *
+     * @return list<array{type: string, days: float}>
+     */
+    private function leaveTaken(Payslip $payslip, string $period): array
+    {
+        if ($period === '') {
+            return [];
+        }
+        $start = CarbonImmutable::createFromFormat('Y-m-d', $period.'-01')->startOfDay();
+        $end = $start->endOfMonth();
+
+        return LeaveRequest::with('leaveType')
+            ->where('employee_id', $payslip->employee_id)
+            ->where('status', 'approved')
+            ->where('date_from', '<=', $end->toDateString())
+            ->where('date_to', '>=', $start->toDateString())
+            ->get()
+            ->groupBy(fn (LeaveRequest $r) => $r->leaveType !== null ? $r->leaveType->name : 'Leave')
+            ->map(fn (Collection $rows) => round($rows->sum(fn (LeaveRequest $r) => $this->daysInPeriod($r, $start, $end)), 1))
+            ->filter(fn (float $days) => $days > 0)
+            ->map(fn (float $days, string $type) => ['type' => $type, 'days' => $days])
+            ->values()->all();
+    }
+
+    private function daysInPeriod(LeaveRequest $request, CarbonImmutable $start, CarbonImmutable $end): float
+    {
+        $from = CarbonImmutable::parse($request->date_from)->startOfDay();
+        $to = CarbonImmutable::parse($request->date_to)->startOfDay();
+        $from = $from->lt($start) ? $start : $from;
+        $to = $to->gt($end) ? $end : $to;
+        if ($from->gt($to)) {
+            return 0.0;
+        }
+        $span = (int) $from->diffInDays($to) + 1;
+
+        // A half-day request is a single date; anything longer is counted whole days.
+        return $span === 1 ? (float) min((float) $request->days, 1.0) : (float) $span;
     }
 
     /**

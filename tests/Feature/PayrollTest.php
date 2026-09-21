@@ -7,12 +7,14 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\PayrollCp38Notice;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -36,7 +38,10 @@ class PayrollTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        // The statutory registration numbers and per-employee identifiers below are what
+        // the spec F2 readiness gate requires before a run can be created.
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
 
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
@@ -44,12 +49,15 @@ class PayrollTest extends TestCase
         $this->empUser = User::create(['name' => 'Worker', 'email' => 'worker@example.com', 'password' => Hash::make('password')]);
         $this->empUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
 
-        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->empUser->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
-        $this->emp2 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green']);
+        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $this->empUser->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
+        $this->emp2 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Colleague', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5502', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
 
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000]);
+        $identifiers = ['epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1'];
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5000] + $identifiers);
         Employee::whereKey($this->emp1->id)->update(['salary' => 5000]);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp2->id, 'basic_salary' => 3000]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp2->id, 'basic_salary' => 3000] + $identifiers);
         Employee::whereKey($this->emp2->id)->update(['salary' => 3000]);
     }
 
@@ -69,7 +77,10 @@ class PayrollTest extends TestCase
 
     private function createRun(string $period = '2026-06'): PayrollRun
     {
-        $this->actingHr()->post('/app/payroll/runs', ['period' => $period])->assertRedirect();
+        // Spec F5: finalize needs a pay date within seven days of the period end (EA s.19),
+        // so every run this helper creates carries the last day of its own period.
+        $payDate = Carbon::createFromFormat('Y-m-d', $period.'-01')->endOfMonth()->toDateString();
+        $this->actingHr()->post('/app/payroll/runs', ['period' => $period, 'payment_date' => $payDate])->assertRedirect();
 
         return PayrollRun::where('period', $period)->firstOrFail();
     }
@@ -103,7 +114,7 @@ class PayrollTest extends TestCase
         $this->assertSame(0.0, (float) $slip->eis_employee);
         $this->assertSame(0.0, (float) $slip->eis_employer);
 
-        // emp1 (under 60 / no DOB) still contributes.
+        // emp1 (born 1990, under 60) still contributes.
         $slip1 = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
         $this->assertGreaterThan(0.0, (float) $slip1->socso_employee);
     }
@@ -133,11 +144,14 @@ class PayrollTest extends TestCase
         $this->assertLessThan((float) $baselineSlip->net_pay, (float) $optedInSlip->net_pay);
     }
 
-    public function test_missing_dob_is_flagged_on_the_run(): void
+    public function test_missing_dob_blocks_the_run(): void
     {
-        // Neither seeded employee has a DOB → both treated as Category 1, count surfaced.
+        // A DOB decides the SOCSO contribution category, so since the spec F2 readiness
+        // gate it blocks the run outright rather than being noted after the fact.
+        $this->emp2->update(['date_of_birth' => null]);
         $this->actingHr()->post('/app/payroll/runs', ['period' => '2026-06'])
-            ->assertSessionHas('ok', fn ($msg) => str_contains($msg, 'no date of birth'));
+            ->assertSessionHasErrors('readiness');
+        $this->assertStringContainsString('Date of birth', session('errors')->first('readiness'));
     }
 
     public function test_duplicate_period_is_rejected(): void
@@ -240,10 +254,14 @@ class PayrollTest extends TestCase
         $this->assertNotNull($claim->fresh()->paid_at);
     }
 
-    public function test_finalize_notifies_employees_with_a_login(): void
+    public function test_publishing_notifies_employees_with_a_login(): void
     {
         $run = $this->createRun();
+        // Spec F13: finalize locks the figures, publish is what staff hear about.
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->assertDatabaseMissing('app_notifications', ['title' => 'Payslip ready']);
+
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/publish")->assertRedirect();
 
         $this->assertDatabaseHas('app_notifications', [
             'user_id' => $this->empUser->id, 'title' => 'Payslip ready', 'tenant_id' => $this->tenant->id,
@@ -307,7 +325,6 @@ class PayrollTest extends TestCase
             'disabled_self' => '1',
             'disabled_spouse' => '1',
             'zakat_monthly' => 150.50,
-            'cp38_monthly' => 75.25,
         ])->assertRedirect();
 
         $structure = SalaryStructure::where('employee_id', $emp3->id)->firstOrFail();
@@ -318,7 +335,8 @@ class PayrollTest extends TestCase
         $this->assertTrue($structure->disabled_self);
         $this->assertTrue($structure->disabled_spouse);
         $this->assertEqualsWithDelta(150.50, (float) $structure->zakat_monthly, 0.001);
-        $this->assertEqualsWithDelta(75.25, (float) $structure->cp38_monthly, 0.001);
+        // Spec F9: CP38 is a notice now (PayrollCp38Notice), not a field on this form.
+        $this->assertEqualsWithDelta(0.0, (float) $structure->cp38_monthly, 0.001);
     }
 
     /**
@@ -567,8 +585,10 @@ class PayrollTest extends TestCase
 
     public function test_opening_figures_change_the_computed_pcb_for_a_mid_year_joiner(): void
     {
-        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5503', 'date_of_birth' => '1990-01-01', 'joined_at' => '2026-05-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp3->id)->update(['salary' => 5000]);
 
         $withoutOpening = $this->createRun('2026-06');
@@ -589,8 +609,10 @@ class PayrollTest extends TestCase
 
     public function test_opening_socso_and_eis_do_not_change_the_computed_pcb(): void
     {
-        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000]);
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5503', 'date_of_birth' => '1990-01-01', 'joined_at' => '2026-05-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 5000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp3->id)->update(['salary' => 5000]);
 
         $withoutOpening = $this->createRun('2026-06');
@@ -611,8 +633,10 @@ class PayrollTest extends TestCase
 
     public function test_opening_optional_deductions_lower_the_computed_pcb(): void
     {
-        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green']);
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 9000]);
+        $emp3 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'MidYear', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5503', 'date_of_birth' => '1990-01-01', 'joined_at' => '2026-05-01']);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp3->id, 'basic_salary' => 9000,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($emp3->id)->update(['salary' => 9000]);
 
         $withoutOpening = $this->createRun('2026-06');
@@ -644,7 +668,10 @@ class PayrollTest extends TestCase
 
     public function test_zakat_nets_off_pcb_and_cp38_is_a_separate_deduction(): void
     {
-        SalaryStructure::where('employee_id', $this->emp1->id)->update(['zakat_monthly' => 50, 'cp38_monthly' => 30]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['zakat_monthly' => 50]);
+        // Spec F9: CP38 comes from an open-ended LHDN notice, not a flat monthly field.
+        PayrollCp38Notice::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id,
+            'monthly_instalment' => 30, 'first_period' => '2026-01', 'status' => 'active']);
         $run = $this->createRun('2026-01');
         $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
 

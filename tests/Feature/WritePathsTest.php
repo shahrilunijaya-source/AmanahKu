@@ -284,9 +284,12 @@ class WritePathsTest extends TestCase
 
     public function test_claim_is_submitted(): void
     {
+        Storage::fake('local');
+
         $this->actingInTenant()->post('/app/claims', [
             'type' => 'mileage', 'title' => 'Client visit', 'amount' => 120.50,
             'date' => '2026-06-20', 'reason' => 'Klang',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
 
         $this->assertDatabaseHas('claims', [

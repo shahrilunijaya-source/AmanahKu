@@ -182,16 +182,24 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->assertDatabaseMissing('claims', ['title' => 'No proof']);
     }
 
-    public function test_mileage_claim_submits_without_a_receipt(): void
+    public function test_mileage_claim_also_requires_a_receipt(): void
     {
+        Storage::fake('local');
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
 
         $this->actingAsEmployee($report)->post('/app/claims', [
             'type' => 'mileage', 'title' => 'Client run', 'amount' => 30, 'date' => '2026-06-21',
+        ])->assertSessionHasErrors('receipt');
+
+        $this->assertDatabaseMissing('claims', ['title' => 'Client run']);
+
+        $this->actingAsEmployee($report)->post('/app/claims', [
+            'type' => 'mileage', 'title' => 'Client run', 'amount' => 30, 'date' => '2026-06-21',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('claims', ['title' => 'Client run', 'receipt_path' => null]);
+        $this->assertDatabaseHas('claims', ['title' => 'Client run']);
     }
 
     public function test_medical_claims_are_capped_at_the_annual_limit(): void
@@ -494,11 +502,13 @@ class ClaimApprovalRoutingTest extends TestCase
 
     public function test_an_hr_claim_opens_pre_verified_and_goes_to_the_directors(): void
     {
+        Storage::fake('local');
         $director = $this->member('director', 'Shahril');
         $hr = $this->member('hr', 'HR Officer');
 
         $this->actingAsEmployee($hr)->post('/app/claims', [
             'type' => 'mileage', 'title' => 'HR Run', 'amount' => 40, 'date' => '2026-06-21',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $claim = Claim::where('title', 'HR Run')->firstOrFail();
@@ -735,12 +745,14 @@ class ClaimApprovalRoutingTest extends TestCase
 
     public function test_hr_can_file_a_claim_for_an_employee_and_it_routes_to_that_persons_manager(): void
     {
+        Storage::fake('local');
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
         $hr = $this->member('hr', 'HR Officer');
 
         $this->actingAsEmployee($hr)->post('/app/claims', [
             'employee_id' => $report->id, 'type' => 'other', 'title' => 'Parking', 'amount' => 12, 'date' => '2026-09-01',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $claim = Claim::where('employee_id', $report->id)->firstOrFail();
@@ -753,12 +765,14 @@ class ClaimApprovalRoutingTest extends TestCase
 
     public function test_hr_filing_for_a_director_opens_pre_verified_and_the_other_director_approves(): void
     {
+        Storage::fake('local');
         $shahril = $this->member('director', 'Shahril');
         $suandy = $this->member('director', 'Suandy');
         $hr = $this->member('hr', 'HR Officer');
 
         $this->actingAsEmployee($hr)->post('/app/claims', [
             'employee_id' => $shahril->id, 'type' => 'other', 'title' => 'Client dinner', 'amount' => 300, 'date' => '2026-09-01',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $claim = Claim::where('employee_id', $shahril->id)->firstOrFail();
@@ -772,12 +786,14 @@ class ClaimApprovalRoutingTest extends TestCase
 
     public function test_non_hr_posting_employee_id_files_for_themselves(): void
     {
+        Storage::fake('local');
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
         $other = $this->member('employee', 'Other', $manager->id);
 
         $this->actingAsEmployee($other)->post('/app/claims', [
             'employee_id' => $report->id, 'type' => 'other', 'title' => 'Parking', 'amount' => 12, 'date' => '2026-09-01',
+            'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $this->assertDatabaseMissing('claims', ['employee_id' => $report->id]);

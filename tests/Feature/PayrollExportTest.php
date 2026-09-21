@@ -145,4 +145,38 @@ class PayrollExportTest extends TestCase
         $response = $this->actingHr()->get("/app/payroll/runs/{$foreign->id}/bank-file");
         $this->assertContains($response->status(), [403, 404]);
     }
+    // ── Agency upload files (spec F6/F7) ──────────────────────────
+
+    public function test_cp39_downloads_for_a_finalized_run_and_is_audited(): void
+    {
+        $this->tenant->update(['employer_tin' => '9123456708']);
+        $run = $this->finalizedRun();
+        $res = $this->actingHr()->get(route('payroll.export.statutory-file', [$run, 'cp39']));
+        $res->assertOk();
+        $this->assertStringContainsString('912345670806_2026.txt', (string) $res->headers->get('content-disposition'));
+        $this->assertStringStartsWith('H9123456708', $res->streamedContent());
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Exported statutory file']);
+    }
+
+    public function test_statutory_file_refuses_a_draft_run_an_unknown_key_an_employee_and_another_tenant(): void
+    {
+        $draft = $this->finalizedRun('draft');
+        $this->actingHr()->get(route('payroll.export.statutory-file', [$draft, 'cp39']))->assertStatus(422);
+
+        $draft->forceFill(['status' => 'finalized', 'finalized_at' => now()])->save();
+        $this->actingHr()->get(route('payroll.export.statutory-file', [$draft, 'nope']))->assertNotFound();
+        $this->actingEmployee()->get(route('payroll.export.statutory-file', [$draft, 'cp39']))->assertForbidden();
+
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = PayrollRun::forceCreate(['tenant_id' => $other->id, 'period' => '2026-06', 'label' => 'June 2026', 'status' => 'finalized', 'finalized_at' => now()]);
+        // Same as the bank-file case above: the tenant scope hides another tenant's run
+        // from route-model binding, so this is a 404 rather than a 403.
+        $this->assertContains($this->actingHr()->get(route('payroll.export.statutory-file', [$foreign, 'cp39']))->status(), [403, 404]);
+    }
+
+    public function test_hrd_corp_file_is_refused_when_the_levy_is_off(): void
+    {
+        $run = $this->finalizedRun();
+        $this->actingHr()->get(route('payroll.export.statutory-file', [$run, 'hrdcorp']))->assertStatus(422);
+    }
 }

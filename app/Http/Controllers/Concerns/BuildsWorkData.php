@@ -12,8 +12,11 @@ use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollItem;
+use App\Models\PayrollNotice;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
+use App\Models\PayrollSubmission;
+use App\Models\PayrollTp1Claim;
 use App\Models\Payslip;
 use App\Models\Project;
 use App\Models\Scopes\ParentOnly;
@@ -22,6 +25,7 @@ use App\Models\WorkItem;
 use App\Services\DataScope;
 use App\Services\FeatureManager;
 use App\Services\GoogleCalendarClient;
+use App\Services\Payroll\PayrollReadiness;
 use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
@@ -527,21 +531,21 @@ trait BuildsWorkData
     {
         $privileged = $this->hasTenantRole($request, ['management', 'hr']);
 
-        // Employee's own issued payslips — finalized runs only.
+        // Employee's own issued payslips — published runs only (spec F13).
         $myPayslips = $employee
             ? $employee->payslips()->with('payrollRun')->get()
-                ->filter(fn ($p) => $p->payrollRun?->status === 'finalized')
+                ->filter(fn ($p) => (bool) $p->payrollRun?->isPublished())
                 ->sortByDesc(fn ($p) => $p->payrollRun->period)->values()
             : collect();
         $myEaYears = $myPayslips->map(fn ($p) => (int) substr((string) $p->payrollRun?->period, 0, 4))->filter()->unique()->sortDesc()->values()->all();
 
-        // A specific payslip detail: own (finalized) for everyone, any for privileged.
+        // A specific payslip detail: own (published) for everyone, any for privileged.
         $selectedPayslip = null;
         if ($request->filled('payslip')) {
             $candidate = Payslip::with(['employee', 'payrollRun', 'lines'])->find($request->query('payslip'));
             if ($candidate) {
                 $ownIt = $employee && $candidate->employee_id === $employee->id;
-                $visible = $privileged || ($ownIt && $candidate->payrollRun?->status === 'finalized');
+                $visible = $privileged || ($ownIt && (bool) $candidate->payrollRun?->isPublished());
                 $selectedPayslip = $visible ? $candidate : null;
             }
         }
@@ -556,6 +560,7 @@ trait BuildsWorkData
                 'runs' => collect(),
                 'activeRun' => null,
                 'salaryEmployees' => collect(),
+                'finalPayCandidates' => collect(),
                 'payrollItems' => collect(),
                 'currentPeriod' => now()->format('Y-m'),
                 'fixedTransactions' => collect(),
@@ -565,6 +570,14 @@ trait BuildsWorkData
                 'itxTransactions' => collect(),
                 'itxPeriodFinalized' => false,
                 'itxPeriodHasDraftRun' => false,
+                'readinessEmployer' => [],
+                'readinessCompanyWarnings' => [],
+                'payrollSubmissions' => collect(),
+                'payrollNotices' => collect(),
+                'payslipAckOn' => app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'),
+                'payslipAckOutstanding' => [],
+                'readinessRows' => [],
+                'readinessBlockingCount' => 0,
             ];
         }
 
@@ -572,8 +585,19 @@ trait BuildsWorkData
             ? PayrollRun::with('payslips.employee', 'payslips.lines')->find($request->query('run'))
             : PayrollRun::with('payslips.employee', 'payslips.lines')->orderByDesc('period')->first();
 
+        $readiness = app(PayrollReadiness::class);
+        $readinessTenant = app(CurrentTenant::class)->get();
+        $readinessEmployer = $readinessTenant ? $readiness->employerGaps($readinessTenant) : [];
+        $readinessRows = $readinessTenant ? $readiness->employeeRows($readinessTenant) : [];
+        $readinessCompanyWarnings = $readinessTenant ? $readiness->companyWarnings($readinessTenant) : [];
+
         return [
             'privileged' => true,
+            // Spec F2: what still blocks a run, shown above the create form.
+            'readinessEmployer' => $readinessEmployer,
+            'readinessCompanyWarnings' => $readinessCompanyWarnings,
+            'readinessRows' => $readinessRows,
+            'readinessBlockingCount' => count($readinessEmployer) + count(array_filter($readinessRows, fn (array $r) => $r['blocking'] !== [])),
             // Deleting a FINALIZED run is a step above the usual HR/management payroll
             // gate — see PayrollController::destroyRun() and Permissions::MANAGEMENT_TIER.
             'isManagementTier' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
@@ -582,10 +606,31 @@ trait BuildsWorkData
             'selectedPayslip' => $selectedPayslip,
             'runs' => PayrollRun::withCount('payslips')->orderByDesc('period')->get(),
             'payoutYear' => $payoutYear = (int) ($request->integer('year') ?: now()->year),
-            'payoutRuns' => PayrollRun::withCount('payslips')
+            'payoutRuns' => PayrollRun::withCount('payslips')->with('payslips.employee:id,name')
                 ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
+            // Spec F13: when payslip acknowledgement is on, who has not pressed it yet,
+            // keyed by run — the payout tab lists them under each published run.
+            'payslipAckOn' => $ackOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'),
+            'payslipAckOutstanding' => $ackOn
+                ? Payslip::with('employee:id,name')->whereNull('acknowledged_at')
+                    ->whereHas('payrollRun', fn ($q) => $q->whereNotNull('published_at'))
+                    ->get()->groupBy('payroll_run_id')
+                    ->map(fn ($slips) => $slips->map(fn ($p) => $p->employee?->name)->filter()->values()->all())
+                    ->all()
+                : [],
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
+            // Spec F10: who a final pay run can be created for — a recorded last working
+            // day, a salary structure, and not already paid out.
+            'finalPayCandidates' => Employee::whereNotNull('last_working_day')->whereNull('final_pay_run_id')
+                ->whereHas('salaryStructure')->orderBy('name')->get(['id', 'name', 'last_working_day']),
+            // Spec F12: statutory filings, soonest deadline first, submitted ones last.
+            'payrollSubmissions' => PayrollSubmission::with('payrollRun')->orderByRaw('submitted_at is not null')->orderBy('due_on')->get(),
+            // Spec F11: statutory notices, open ones first.
+            'payrollNotices' => PayrollNotice::with('employee')->orderByRaw('filed_on is not null')->orderBy('due_on')->get(),
+            // Spec F8: Form TP1 declarations for the year, newest first.
+            'tp1Year' => $tp1Year = (int) ($request->integer('tp1_year') ?: now()->year),
+            'tp1Claims' => PayrollTp1Claim::with('employee')->where('year', $tp1Year)->orderByDesc('month')->orderByDesc('id')->get(),
             'openingYear' => (int) now()->year,
             'openingEmployees' => Employee::active()->orderBy('name')->get(),
             'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
@@ -622,7 +667,7 @@ trait BuildsWorkData
      * run, is freely editable; a finalized run locks it (see
      * PayrollController::assertPeriodEditable).
      *
-     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxPeriodHasDraftRun: bool}
+     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxBonusFinalized: bool, itxPeriodHasDraftRun: bool}
      */
     private function individualTransactionTabData(Request $request): array
     {
@@ -630,13 +675,17 @@ trait BuildsWorkData
             ? (string) $request->query('itx_period')
             : now()->format('Y-m');
 
-        $itxRun = PayrollRun::where('period', $period)->first();
+        // Spec F10: the monthly and the bonus run for a month lock their own rows
+        // separately — a finalized monthly run must not stop HR queuing a bonus.
+        $itxRun = PayrollRun::where('period', $period)->where('kind', 'monthly')->first();
+        $bonusFinalized = PayrollRun::where('period', $period)->where('kind', 'bonus')->where('status', 'finalized')->exists();
 
         return [
             'itxPeriod' => $period,
             'itxTransactions' => IndividualTransaction::with(['employee', 'payrollItem'])
                 ->forPeriod($period)->orderBy('employee_id')->get()->groupBy('employee_id'),
             'itxPeriodFinalized' => $itxRun?->status === 'finalized',
+            'itxBonusFinalized' => $bonusFinalized,
             // Surfaced so the UI can tell HR to recalculate the affected payslips — adding,
             // editing or deleting a one-off here does not itself touch an existing draft
             // payslip (see syncIndividualTransactions's doc comment); it becomes visible the

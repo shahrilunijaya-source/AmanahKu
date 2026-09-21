@@ -343,4 +343,93 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(0.0, $withLines->epfEmployee);
         $this->assertSame(0.0, $withLines->socsoEmployee);
     }
+
+    public function test_deduction_cap_trips_above_fifty_percent_of_gross_and_ignores_statutory(): void
+    {
+        // Gross 1,000: fixed deductions of exactly 500.00 (50.00%) do not trip; 500.10 does.
+        $at = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 500.00]);
+        $over = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 500.10]);
+        $this->assertFalse($at->deductionCapExceeded);
+        $this->assertTrue($over->deductionCapExceeded);
+
+        // EPF/SOCSO/EIS/PCB are statutory and never count toward the cap.
+        $statutoryOnly = $this->calc->compute(['basic' => 1000, 'pcb' => 600]);
+        $this->assertFalse($statutoryOnly->deductionCapExceeded);
+    }
+
+    public function test_carry_forward_zeroes_a_negative_net_and_records_the_shortfall(): void
+    {
+        $neg = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 1500]);
+        $this->assertLessThan(0, $neg->netPay);
+
+        $c = $this->calc->compute(['basic' => 1000, 'fixed_deductions_total' => 1500, 'carry_forward' => true]);
+        $this->assertSame(0.0, $c->netPay);
+        $this->assertSame(abs($neg->netPay), $c->carriedForward);
+        $this->assertSame(round($neg->totalDeductions - $c->carriedForward, 2), $c->totalDeductions);
+    }
+
+    public function test_hrdf_levy_is_one_percent_of_liable_wages_after_unpaid_leave_and_is_employer_cost_only(): void
+    {
+        $inputs = [
+            'basic' => 2600, 'allowances_total' => 400, 'bonus' => 1000, 'unpaid_days' => 1, 'hrdf_rate' => 0.01,
+            'lines' => [
+                ['amount' => 2600, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 400, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 1000, 'epf_liable' => true, 'perkeso_liable' => false, 'hrdf_liable' => false],
+            ],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => true, 'hrdf_liable' => false],
+        ];
+        $c = $this->calc->compute($inputs);
+        // Base: 2,600 + 400 minus one unpaid day (2,600 / 26 = 100) = 2,900; 1% = 29.00.
+        $this->assertSame(29.00, $c->hrdfLevy);
+
+        $without = $this->calc->compute(['hrdf_rate' => 0.0] + $inputs);
+        $this->assertSame(0.0, $without->hrdfLevy);
+        $this->assertSame(round($without->employerCost + 29.00, 2), $c->employerCost);
+        $this->assertSame($without->netPay, $c->netPay);
+        $this->assertSame($without->totalDeductions, $c->totalDeductions);
+    }
+
+    /** With no catalogue lines the base falls back to basic plus allowances, less unpaid leave. */
+    public function test_hrdf_levy_without_catalogue_lines_uses_basic_plus_allowances(): void
+    {
+        $c = $this->calc->compute(['basic' => 3000, 'allowances_total' => 200, 'hrdf_rate' => 0.005]);
+        $this->assertSame(16.00, $c->hrdfLevy);
+    }
+
+    /**
+     * Spec F7 worked case: basic 3,000 + a fixed allowance of 300 (both HRD Corp liable),
+     * overtime that is not liable, and 2 unpaid days. Base 3,300 less 2 x (3,000 / 26)
+     * = 230.77 gives 3,069.23; at 1% the levy is 30.69.
+     */
+    public function test_hrdf_levy_spec_case_of_three_thousand_plus_allowance_less_two_unpaid_days(): void
+    {
+        $c = $this->calc->compute([
+            'basic' => 3000, 'allowances_total' => 300, 'unpaid_days' => 2, 'hrdf_rate' => 0.01,
+            // ~RM500 of overtime; the exact figure cannot move the levy because overtime is not liable.
+            'overtime_hours' => 23.11,
+            'lines' => [
+                ['amount' => 3000, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+                ['amount' => 300, 'epf_liable' => true, 'perkeso_liable' => true, 'hrdf_liable' => true],
+            ],
+            'overtime_flags' => ['epf_liable' => false, 'perkeso_liable' => true, 'hrdf_liable' => false],
+        ]);
+
+        $this->assertSame(30.69, $c->hrdfLevy);
+    }
+
+    public function test_socso_exempt_zeroes_socso_eis_and_skbbk_but_not_epf(): void
+    {
+        $base = ['basic' => 3000.0, 'statutory_category' => 1, 'skbbk_opt_in' => true];
+        $normal = $this->calc->compute($base);
+        $exempt = $this->calc->compute($base + ['socso_exempt' => true]);
+
+        $this->assertGreaterThan(0, $normal->socsoEmployee);
+        $this->assertSame(0.0, $exempt->socsoEmployee);
+        $this->assertSame(0.0, $exempt->socsoEmployer);
+        $this->assertSame(0.0, $exempt->eisEmployee);
+        $this->assertSame(0.0, $exempt->eisEmployer);
+        $this->assertSame(0.0, $exempt->skbbkEmployee);
+        $this->assertSame($normal->epfEmployee, $exempt->epfEmployee);
+    }
 }

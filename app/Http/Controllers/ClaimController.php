@@ -26,10 +26,6 @@ class ClaimController extends Controller
     /** The private disk claim receipts live on. */
     private const RECEIPT_DISK = 'local';
 
-    /** Claim types whose reimbursement needs a receipt as proof of spend. Mileage is a
-     *  computed rate (no receipt) and "other" is a catch-all, so both keep it optional. */
-    private const REQUIRES_RECEIPT = ['expense', 'medical', 'travel'];
-
     public function store(Request $request): RedirectResponse
     {
         // Normally the acting user's own record; HR may file for someone else (see
@@ -67,11 +63,10 @@ class ClaimController extends Controller
             }
         }
 
-        // Reimbursement needs proof of spend: expense/medical/travel demand a receipt,
-        // mileage (a computed rate) and "other" accept an optional one.
-        $requiresReceipt = in_array($data['type'], self::REQUIRES_RECEIPT, true);
+        // Every claim needs proof of spend: a receipt or supporting document is required
+        // regardless of type.
         $request->validate([
-            'receipt' => [$requiresReceipt ? 'required' : 'nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:8192'],
+            'receipt' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:8192'],
         ], [
             'receipt.required' => 'A '.$data['type'].' claim needs a receipt or supporting document.',
         ]);

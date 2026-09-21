@@ -28,6 +28,7 @@ class FixedTransaction extends Model
         'last_amount',
         'prorate',
         'remarks',
+        'consent_reference',
         'created_by_id',
     ];
 

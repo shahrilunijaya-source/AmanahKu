@@ -21,6 +21,8 @@ use App\Models\Employee;
 use App\Models\Flower;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
+use App\Models\PayrollNotice;
+use App\Models\PayrollRun;
 use App\Models\PublicHoliday;
 use App\Models\VictoryBell;
 use App\Models\WorkItem;
@@ -257,6 +259,7 @@ trait BuildsDashboardWidgets
             'tasks' => $this->tasksWidget($request, $employee),
             'leave' => $this->leaveWidget($employee),
             'stuck' => ['rows' => $this->stuckRows()->all()],
+            'payroll' => $this->payrollWidget(),
             'calendar' => $this->calendarWidget($request, $employee, $when),
             'attendance' => $this->teamAttendanceWidget($employee, $when),
             'notices' => ['rows' => $this->newsRows($employee)],
@@ -1172,6 +1175,28 @@ trait BuildsDashboardWidgets
             'attendees' => $event->rsvps->map(fn ($r) => (string) $r->employee?->display_name)->filter()->values()->all(),
             'photos' => $isPast ? $event->photos->take(4)->values()->all() : [],
             'lessonLine' => $isPast ? $event->lessons->sortByDesc('id')->first()?->learnt : null,
+        ];
+    }
+
+    /**
+     * Spec F5: the pay-by date of the run that most needs paying (EA s.19) and whether it has been marked paid.
+     * Spec F11 adds the count of statutory notices still waiting to be filed.
+     *
+     * @return array{run: ?PayrollRun, payBy: ?string, late: bool, openNotices: int, overdueNotices: int}
+     */
+    private function payrollWidget(): array
+    {
+        $run = PayrollRun::forPayByCard();
+
+        // Spec F11: statutory notices still to file, so HR sees them without a new card.
+        $openNotices = PayrollNotice::whereNull('filed_on')->get();
+
+        return [
+            'run' => $run,
+            'payBy' => $run?->payByDate()->format('j M Y'),
+            'late' => $run !== null && $run->status === 'finalized' && $run->paid_at === null && now()->gt($run->payByDate()),
+            'openNotices' => $openNotices->count(),
+            'overdueNotices' => $openNotices->filter(fn (PayrollNotice $n) => $n->isOverdue())->count(),
         ];
     }
 }

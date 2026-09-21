@@ -45,7 +45,7 @@ final class Cp8dData
         'Intern' => 5,
     ];
 
-    public function __construct(private readonly EaFormData $eaData) {}
+    public function __construct(private readonly EaFormData $eaData, private readonly PcbYearToDate $pcbYtd) {}
 
     /** @return array<string, mixed> */
     public function forEmployee(Tenant $tenant, Employee $employee, int $year): array
@@ -58,6 +58,7 @@ final class Cp8dData
         $income = $ea['employment_income'];
         $ded = $ea['deductions'];
         $structure = $employee->salaryStructure;
+        $tp1 = $this->pcbYtd->tp1YearTotals($employee, $year);
 
         $retirementOrEndDate = $employee->status === 'resigned' && $employee->archived_at
             && $employee->archived_at->year === $year
@@ -83,8 +84,11 @@ final class Cp8dData
             'living_accommodation' => null,
             'esos_benefit' => null,
             'tax_exempt_allowances' => $income['tax_exempt_total'],
-            'tp1_relief' => null,
-            'tp1_zakat' => null,
+            // Spec F8: what the employee declared on Form TP1 this year, each relief
+            // trimmed to its yearly cap. TP1 zakat is reported here but deliberately
+            // never on the payslip or Form EA (LHDN MTD spec p.35).
+            'tp1_relief' => $tp1['optional'] > 0 ? $tp1['optional'] : null,
+            'tp1_zakat' => $tp1['zakat'] > 0 ? $tp1['zakat'] : null,
             'epf_contribution' => $ded['epf_employee'],
             'zakat_salary_deduction' => $ded['zakat'],
             'mtd' => $ded['pcb_total'],

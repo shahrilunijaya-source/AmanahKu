@@ -27,6 +27,7 @@ class IndividualTransaction extends Model
         'employee_id',
         'payroll_item_id',
         'period',
+        'for_bonus_run',
         'amount',
         'remarks',
         'created_by_id',
@@ -36,6 +37,7 @@ class IndividualTransaction extends Model
     {
         return [
             'amount' => 'float',
+            'for_bonus_run' => 'boolean',
         ];
     }
 
@@ -55,5 +57,15 @@ class IndividualTransaction extends Model
     public function scopeForPeriod(Builder $query, string $period): Builder
     {
         return $query->where('period', $period);
+    }
+
+    /**
+     * Spec F10: the rows one kind of run may pull. A bonus run pays the flagged rows and
+     * nothing else; a monthly run pays everything that is not flagged, so a bonus queued
+     * for the month never lands on the monthly payslip by accident.
+     */
+    public function scopeForBonusRun(Builder $query, bool $forBonus): Builder
+    {
+        return $query->where('for_bonus_run', $forBonus);
     }
 }
