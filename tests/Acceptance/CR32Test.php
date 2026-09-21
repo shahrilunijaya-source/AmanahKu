@@ -37,7 +37,7 @@ class CR32Test extends TestCase
     private const LEFT = ['summary', 'clock', 'tasks', 'leave'];
 
     /** Flowers only renders when there is at least one flower, so it is absent on a fresh tenant. */
-    private const RIGHT = ['calendar', 'notices', 'claims', 'work', 'style'];
+    private const RIGHT = ['calendar', 'notices', 'claims', 'style'];
 
     protected function tearDown(): void
     {

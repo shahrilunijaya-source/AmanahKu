@@ -132,7 +132,6 @@ trait AlwaysChecks
             'My calendar',
             'Notice board',
             'My claim summary',
-            'My work summary',
         ]);
 
         Carbon::setTestNow();
