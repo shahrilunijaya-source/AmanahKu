@@ -85,12 +85,22 @@
                 <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" style="{{ $inp }}" /></div>
             </div>
 
-            <details style="margin-top:14px;">
+            <details style="margin-top:14px;" @if ($errors->has('journal_accounts') || $errors->has('journal_accounts.*')) open @endif>
                 <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Payroll journal account codes' : 'Kod akaun jurnal gaji'">Payroll journal account codes</summary>
                 <div style="font-size:12px;color:var(--muted);margin:6px 0 10px;" x-text="$store.ui.lang==='en' ? 'Codes from your accounting software. Left blank, the journal CSV leaves the code empty.' : 'Kod daripada perisian perakaunan anda. Jika kosong, CSV jurnal membiarkan kod kosong.'">Codes from your accounting software. Left blank, the journal CSV leaves the code empty.</div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
-                    @foreach (\App\Services\Payroll\AccountingJournal::LINES as $key => [$lineName, $side])
-                        <div><label style="{{ $lab }}">{{ $lineName }} ({{ $side }})</label><input name="journal_accounts[{{ $key }}]" value="{{ old('journal_accounts.'.$key, $company->journal_accounts[$key] ?? '') }}" maxlength="40" style="{{ $inp }}" /></div>
+                {{-- Laid out like the journal itself: what is charged on the left, what is owed on the right. --}}
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px 28px;">
+                    @foreach (['debit' => ['Debit', 'Debit'], 'credit' => ['Credit', 'Kredit']] as $journalSide => [$sideEn, $sideMs])
+                        <div>
+                            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px;border-bottom:1px solid var(--hairline);" x-text="$store.ui.lang==='en' ? '{{ $sideEn }}' : '{{ $sideMs }}'">{{ $sideEn }}</div>
+                            @foreach (\App\Services\Payroll\AccountingJournal::LINES as $key => [$lineName, $side])
+                                @continue($side !== $journalSide)
+                                <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px;color:var(--ink);">
+                                    <span>{{ $lineName }}</span>
+                                    <input name="journal_accounts[{{ $key }}]" value="{{ old('journal_accounts.'.$key, $company->journal_accounts[$key] ?? '') }}" maxlength="40" placeholder="—" style="width:112px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;outline:none;flex-shrink:0;" />
+                                </label>
+                            @endforeach
+                        </div>
                     @endforeach
                 </div>
             </details>
