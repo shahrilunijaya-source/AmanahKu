@@ -417,4 +417,19 @@ class PayrollCalculatorTest extends TestCase
 
         $this->assertSame(30.69, $c->hrdfLevy);
     }
+
+    public function test_socso_exempt_zeroes_socso_eis_and_skbbk_but_not_epf(): void
+    {
+        $base = ['basic' => 3000.0, 'statutory_category' => 1, 'skbbk_opt_in' => true];
+        $normal = $this->calc->compute($base);
+        $exempt = $this->calc->compute($base + ['socso_exempt' => true]);
+
+        $this->assertGreaterThan(0, $normal->socsoEmployee);
+        $this->assertSame(0.0, $exempt->socsoEmployee);
+        $this->assertSame(0.0, $exempt->socsoEmployer);
+        $this->assertSame(0.0, $exempt->eisEmployee);
+        $this->assertSame(0.0, $exempt->eisEmployer);
+        $this->assertSame(0.0, $exempt->skbbkEmployee);
+        $this->assertSame($normal->epfEmployee, $exempt->epfEmployee);
+    }
 }

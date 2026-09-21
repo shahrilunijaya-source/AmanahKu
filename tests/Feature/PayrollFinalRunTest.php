@@ -140,6 +140,24 @@ class PayrollFinalRunTest extends TestCase
         $this->assertSame([$stayer->id], $monthly->payslips()->pluck('employee_id')->all());
     }
 
+    public function test_a_socso_exempt_employee_has_no_socso_or_eis_on_the_payslip_or_after_a_recompute(): void
+    {
+        $emp = $this->employee('Exempt');
+        $emp->salaryStructure->forceFill(['socso_exempt' => true, 'socso_no' => null])->save();
+
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'payment_date' => '2026-06-30'])
+            ->assertSessionHasNoErrors();
+        $slip = Payslip::where('employee_id', $emp->id)->firstOrFail();
+        $this->assertSame(0.0, (float) $slip->socso_employee);
+        $this->assertSame(0.0, (float) $slip->eis_employee);
+        $this->assertGreaterThan(0, (float) $slip->epf_employee);
+
+        // Recompute through the payslip form keeps it at zero.
+        $this->post(route('payroll.payslips.update', $slip), ['bonus' => 0])->assertSessionHasNoErrors();
+        $this->assertSame(0.0, (float) $slip->fresh()->socso_employer);
+        $this->assertSame(0.0, (float) $slip->fresh()->eis_employer);
+    }
+
     public function test_an_unfiled_cp22a_holds_the_final_pay_out_of_the_bank_file_until_released(): void
     {
         // Recording the last working day opens the CP22A by itself (spec F11), and it is

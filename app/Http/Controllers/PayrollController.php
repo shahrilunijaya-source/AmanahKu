@@ -1038,6 +1038,7 @@ class PayrollController extends Controller
                 'statutory_category' => $employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
                 'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
+                'socso_exempt' => (bool) $structure->socso_exempt,
                 // Spec F7: citizens only, and not when HR has marked the employee exempt.
                 'hrdf_rate' => (($structure->nationality ?? 'citizen') === 'citizen' && ! $structure->hrdf_exempt) ? $hrdfRate : 0.0,
             ];
@@ -1288,6 +1289,7 @@ class PayrollController extends Controller
                 'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
                 'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
+                'socso_exempt' => (bool) $structure?->socso_exempt,
                 // A payslip HR already carried forward keeps that policy across recomputes.
                 'carry_forward' => $payslip->carried_forward_amount > 0,
                 // Spec F7: citizens only, and not when HR has marked the employee exempt.

@@ -55,6 +55,7 @@ class PayrollCalculator
      *     statutory_category?: int,
      *     epf_part?: string|null,
      *     skbbk_opt_in?: bool,
+     *     socso_exempt?: bool,
      *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}>|null,
      *     overtime_flags?: array{epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}|null,
      *     fixed_deductions_total?: float|int|string,
@@ -202,6 +203,13 @@ class PayrollCalculator
         $eisContribution = $this->eis->contribution($socsoWage, $category);
         $eisEmployee = $eisContribution['employee'];
         $eisEmployer = $eisContribution['employer'];
+
+        // Spec F2: HR has marked this person outside PERKESO coverage (for example a
+        // director who is not an employee under the Act), so none of SOCSO, EIS or SKBBK
+        // applies. EPF, PCB and the HRD Corp levy are separate regimes and stay.
+        if (! empty($inputs['socso_exempt'])) {
+            $socsoEmployee = $socsoEmployer = $eisEmployee = $eisEmployer = $skbbkEmployee = 0.0;
+        }
 
         // HRD Corp levy (spec F7): a third wage base, employer side only. Unpaid leave
         // reduces it exactly as it reduces the EPF base.
