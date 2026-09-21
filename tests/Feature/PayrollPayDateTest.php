@@ -68,4 +68,17 @@ class PayrollPayDateTest extends TestCase
         $this->assertNotNull($this->run->fresh()->paid_at);
         $this->assertDatabaseHas('audit_logs', ['action' => 'Marked payroll paid']);
     }
+
+    public function test_the_dashboard_card_shows_the_unpaid_run_not_a_paid_one_in_the_same_month(): void
+    {
+        $this->run->forceFill(['status' => 'finalized', 'finalized_at' => now(), 'payment_date' => '2026-09-05'])->save();
+        $bonus = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-08', 'kind' => 'bonus',
+            'label' => 'August 2026 bonus', 'status' => 'finalized', 'finalized_at' => now(), 'payment_date' => '2026-08-20', 'paid_at' => now()]);
+
+        $this->assertSame($this->run->id, PayrollRun::forPayByCard()?->id);
+
+        // Once everything is paid, the newest run is shown.
+        $this->run->forceFill(['paid_at' => now()])->save();
+        $this->assertSame($bonus->id, PayrollRun::forPayByCard()?->id);
+    }
 }

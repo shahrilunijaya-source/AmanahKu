@@ -1179,14 +1179,14 @@ trait BuildsDashboardWidgets
     }
 
     /**
-     * Spec F5: the newest run's pay-by date (EA s.19) and whether it has been marked paid.
+     * Spec F5: the pay-by date of the run that most needs paying (EA s.19) and whether it has been marked paid.
      * Spec F11 adds the count of statutory notices still waiting to be filed.
      *
      * @return array{run: ?PayrollRun, payBy: ?string, late: bool, openNotices: int, overdueNotices: int}
      */
     private function payrollWidget(): array
     {
-        $run = PayrollRun::orderByDesc('period')->first();
+        $run = PayrollRun::forPayByCard();
 
         // Spec F11: statutory notices still to file, so HR sees them without a new card.
         $openNotices = PayrollNotice::whereNull('filed_on')->get();

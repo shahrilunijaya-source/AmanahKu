@@ -77,6 +77,18 @@ class PayrollRun extends Model
         return $end->addDays(7);
     }
 
+    /**
+     * The run the HR dashboard card should show (spec F5): the finalized run still waiting
+     * to be paid whose pay-by date comes first, so an unpaid monthly run is never hidden
+     * behind a paid bonus run of the same month. With nothing waiting, the newest run.
+     */
+    public static function forPayByCard(): ?self
+    {
+        return self::where('status', 'finalized')->whereNull('paid_at')->get()
+            ->sortBy(fn (self $run) => $run->payByDate()->getTimestamp())->first()
+            ?? self::orderByDesc('period')->orderByDesc('id')->first();
+    }
+
     /** Whether this run pulls the given source. A run with no stored choice pulls everything. */
     public function pulls(string $source): bool
     {
