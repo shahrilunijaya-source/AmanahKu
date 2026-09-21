@@ -829,6 +829,14 @@ class PayrollController extends Controller
             if ($lastDay === null || ! $lastDay->betweenIncluded($this->periodStart($data['period']), $this->periodStart($data['period'])->endOfMonth())) {
                 return back()->withErrors(['employee_id' => $leaver->name.' has no last working day inside '.$data['period'].'. Record the leaving date first.'])->withInput();
             }
+            // One payout per leaver per month: if the monthly run already carries their
+            // (prorated) payslip, a final run on top would pay the same days twice.
+            $alreadyInMonthly = Payslip::where('employee_id', $leaver->id)
+                ->whereHas('payrollRun', fn ($r) => $r->where('period', $data['period'])->where('kind', 'monthly'))
+                ->exists();
+            if ($alreadyInMonthly) {
+                return back()->withErrors(['employee_id' => $leaver->name.' already has a payslip in the '.$data['period'].' monthly run. Delete that draft run and create it again after this final pay run, or pay them through the monthly run.'])->withInput();
+            }
         }
 
         // Spec F10: still exactly one monthly run per tenant and period — but a bonus run
@@ -847,6 +855,10 @@ class PayrollController extends Controller
             ->whereNotIn('id', $excluded)
             // Anyone already paid out in a final run is done with payroll for good.
             ->whereNull('final_pay_run_id')
+            // A draft final run has not stamped final_pay_run_id yet, but it already holds
+            // this month's payslip for that leaver.
+            ->when($kind === 'monthly', fn ($q) => $q->whereNotIn('id', Payslip::whereHas('payrollRun',
+                fn ($r) => $r->where('period', $data['period'])->where('kind', 'final'))->select('employee_id')))
             ->when($kind === 'bonus', fn ($q) => $q->whereIn('id', IndividualTransaction::where('tenant_id', $tid)
                 ->forPeriod($data['period'])->forBonusRun(true)->select('employee_id')))
             ->orderBy('name')->get();

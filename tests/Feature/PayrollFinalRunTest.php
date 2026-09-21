@@ -114,6 +114,32 @@ class PayrollFinalRunTest extends TestCase
         $this->assertSame([$stayer->id], $monthly->payslips()->pluck('employee_id')->all());
     }
 
+    public function test_a_final_run_is_refused_when_the_monthly_run_already_pays_the_leaver(): void
+    {
+        $leaver = $this->leaver();
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'payment_date' => '2026-06-30'])
+            ->assertSessionHasNoErrors();
+
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'kind' => 'final', 'employee_id' => $leaver->id])
+            ->assertSessionHasErrors('employee_id');
+
+        $this->assertSame(1, Payslip::where('employee_id', $leaver->id)->count());
+        $this->assertSame(0, PayrollRun::where('kind', 'final')->count());
+    }
+
+    public function test_the_monthly_run_skips_a_leaver_whose_final_run_is_still_a_draft(): void
+    {
+        $leaver = $this->leaver();
+        $stayer = $this->employee('Bakar');
+        $this->createFinalRun($leaver);   // deliberately not finalized
+
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'payment_date' => '2026-06-30'])
+            ->assertSessionHasNoErrors();
+
+        $monthly = PayrollRun::where('kind', 'monthly')->firstOrFail();
+        $this->assertSame([$stayer->id], $monthly->payslips()->pluck('employee_id')->all());
+    }
+
     public function test_an_unfiled_cp22a_holds_the_final_pay_out_of_the_bank_file_until_released(): void
     {
         // Recording the last working day opens the CP22A by itself (spec F11), and it is
