@@ -13,6 +13,7 @@ use App\Models\EmploymentType;
 use App\Models\Position;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
+use App\Services\Payroll\BackPay;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -157,6 +158,6 @@ class ProgressionController extends EmploymentRecordController
             return back()->withInput()->withErrors([$errorKey => $ex->getMessage()]);
         }
 
-        return redirect(route('app.screen', 'progression').'?emp='.$employee->id.'&action='.$action)->with('ok', $employee->name.' · '.ucfirst($action).' saved.');
+        return redirect(route('app.screen', 'progression').'?emp='.$employee->id.'&action='.$action)->with('ok', $employee->name.' · '.ucfirst($action).' saved.'.BackPay::noteSuffix());
     }
 }

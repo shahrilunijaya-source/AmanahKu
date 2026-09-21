@@ -8,6 +8,7 @@ use App\Http\Controllers\Concerns\ChecksReportingCycles;
 use App\Models\Employee;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
+use App\Services\Payroll\BackPay;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class EmploymentRecordController extends Controller
             return back()->withInput()->withErrors(['effective_on' => $ex->getMessage()]);
         }
 
-        return redirect(route('app.screen', 'profile').'?emp='.$employee->id.'&tab=employment')->with('ok', $employee->name.' updated.');
+        return redirect(route('app.screen', 'profile').'?emp='.$employee->id.'&tab=employment')->with('ok', $employee->name.' updated.'.BackPay::noteSuffix());
     }
 
     /**
