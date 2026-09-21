@@ -73,6 +73,9 @@ class PayrollItem extends Model
         // EPF wages include bonus/commission; PERKESO's list explicitly EXCLUDES the
         // annual bonus from SOCSO/EIS wages — the two Acts diverge here. Both are B1(b).
         'bonus' => ['Bonus', 'Bonus', 'earning', true, false, true, null, 'B1(b)', 'manual', true],
+        // Spec F15: arrears of basic pay for months already finalized. Wages like the basic
+        // pay it tops up, so liable everywhere, and salary on Form EA.
+        'back-pay' => ['Back Pay', 'Tunggakan Gaji', 'earning', true, true, true, null, 'B1(a)', 'manual', true],
         'commission' => ['Commission', 'Komisen', 'earning', true, true, true, null, 'B1(b)', 'manual', true],
 
         // s.2 EPF Act 1991 excludes overtime from "wages" outright; PERKESO's list

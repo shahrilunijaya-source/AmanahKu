@@ -23,6 +23,7 @@ class Tenant extends Model
             'late_grace_minutes' => 'integer',
             'work_days' => 'array',
             'tot_saturday' => 'boolean',
+            'journal_accounts' => 'array',
         ];
     }
 

@@ -13,6 +13,7 @@ use App\Models\Position;
 use App\Models\User;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
+use App\Services\Payroll\BackPay;
 use App\Services\StaffArchiver;
 use App\Support\CsvImport;
 use App\Tenancy\CurrentTenant;
@@ -177,7 +178,7 @@ class EmployeeController extends Controller
 
         AuditLog::record('Updated employee', $employee->name);
 
-        return back()->with('ok', $employee->name.' updated.');
+        return back()->with('ok', $employee->name.' updated.'.BackPay::noteSuffix());
     }
 
     /**

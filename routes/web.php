@@ -814,6 +814,7 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('employee')->name('timesheet.reports.person');
         Route::get('/app/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
+        Route::get('/app/payroll/runs/{run}/journal', [PayrollExportController::class, 'journal'])->name('payroll.export.journal');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
         Route::get('/app/payroll/runs/{run}/statutory-file/{key}', [PayrollExportController::class, 'statutoryFile'])
             ->where('key', '[a-z0-9\-]+')->name('payroll.export.statutory-file');

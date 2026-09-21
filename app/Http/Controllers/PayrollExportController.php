@@ -9,6 +9,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Services\FeatureManager;
+use App\Services\Payroll\AccountingJournal;
 use App\Services\Payroll\BankFile\BankFileRegistry;
 use App\Services\Payroll\HrdCorpLevy;
 use App\Services\Payroll\Statutory\MergedPayslips;
@@ -144,6 +145,32 @@ class PayrollExportController extends Controller
         return response()->streamDownload(function () use ($body) {
             echo $body;
         }, $file->filename($run, $tenant), ['Content-Type' => $file->contentType()]);
+    }
+
+    /**
+     * Spec F16: double-entry journal CSV for one finalized run, for import into SQL
+     * Account or AutoCount. Refused outright if debits and credits do not match.
+     */
+    public function journal(Request $request, PayrollRun $run): StreamedResponse
+    {
+        $this->authorize($request, $run);
+
+        $totals = AccountingJournal::totals($run->payslips()->get());
+        abort_unless(AccountingJournal::balanced($totals), 422, 'Journal does not balance. Nothing was exported.');
+
+        $codes = app(CurrentTenant::class)->get()->journal_accounts ?? [];
+        $date = ($run->payment_date ?? $run->finalized_at)->toDateString();
+        $rows = AccountingJournal::rows($totals, $codes, $date, 'Payroll '.$run->label);
+
+        AuditLog::record('Exported accounting journal', $run->label.' · '.(count($rows) - 1).' lines');
+
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($out, Csv::safeRow($row));
+            }
+            fclose($out);
+        }, 'journal-'.$run->period.'-'.$run->kind.'-'.$run->id.'.csv', ['Content-Type' => 'text/csv']);
     }
 
     private function authorize(Request $request, PayrollRun $run): void
