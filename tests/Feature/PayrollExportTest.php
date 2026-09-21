@@ -179,4 +179,54 @@ class PayrollExportTest extends TestCase
         $run = $this->finalizedRun();
         $this->actingHr()->get(route('payroll.export.statutory-file', [$run, 'hrdcorp']))->assertStatus(422);
     }
+
+    // ── Accounting journal (spec F16) ─────────────────────────────
+
+    public function test_journal_csv_balances_and_uses_tenant_account_codes(): void
+    {
+        $run = $this->finalizedRun();
+        $run->forceFill(['payment_date' => '2026-06-30'])->save();
+        $this->tenant->update(['journal_accounts' => ['salaries' => '900-100', 'net_pay' => '400-100']]);
+
+        $res = $this->actingHr()->get(route('payroll.export.journal', $run))->assertOk();
+        $lines = array_map('str_getcsv', array_filter(explode("\n", $res->streamedContent())));
+
+        $this->assertSame(['Date', 'Account Code', 'Account Name', 'Description', 'Debit', 'Credit'], $lines[0]);
+        $this->assertContains(['2026-06-30', '900-100', 'Salaries and wages', 'Payroll June 2026', '5000.00', ''], $lines);
+        $this->assertContains(['2026-06-30', '400-100', 'Net pay payable', 'Payroll June 2026', '', '4295.00'], $lines);
+        $this->assertContains(['2026-06-30', '', 'EPF payable', 'Payroll June 2026', '', '1200.00'], $lines);
+        $this->assertEqualsWithDelta(array_sum(array_map('floatval', array_column(array_slice($lines, 1), 4))), array_sum(array_map('floatval', array_column(array_slice($lines, 1), 5))), 0.001);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Exported accounting journal']);
+    }
+
+    public function test_journal_is_refused_when_it_does_not_balance(): void
+    {
+        $run = $this->finalizedRun();
+        $run->payslips()->update(['net_pay' => 4000]);
+
+        $this->actingHr()->get(route('payroll.export.journal', $run))->assertStatus(422);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'Exported accounting journal']);
+    }
+
+    public function test_journal_is_closed_to_employees_other_tenants_and_draft_runs(): void
+    {
+        $this->actingEmployee()->get(route('payroll.export.journal', $this->finalizedRun()))->assertForbidden();
+
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $foreign = PayrollRun::forceCreate(['tenant_id' => $other->id, 'period' => '2026-06', 'label' => 'June 2026', 'status' => 'finalized', 'finalized_at' => now()]);
+        $this->actingHr()->get(route('payroll.export.journal', $foreign))->assertNotFound();
+
+        $draft = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-07', 'label' => 'July 2026', 'status' => 'draft']);
+        $this->actingHr()->get(route('payroll.export.journal', $draft))->assertStatus(422);
+    }
+
+    public function test_hr_saves_journal_account_codes_and_unknown_lines_are_rejected(): void
+    {
+        $this->actingHr()->post(route('admin.settings.update'), ['name' => 'Acme', 'journal_accounts' => ['salaries' => '900-100', 'allowances' => '']])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['salaries' => '900-100'], $this->tenant->fresh()->journal_accounts);
+
+        $this->actingHr()->post(route('admin.settings.update'), ['name' => 'Acme', 'journal_accounts' => ['bogus' => '1']])
+            ->assertSessionHasErrors('journal_accounts');
+    }
 }

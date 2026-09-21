@@ -202,14 +202,14 @@ class DashboardWidgetsTest extends TestCase
         $this->actAs($manager);
 
         $this->postJson(route('dashboard.prefs.update'), [
-            'hidden' => ['tasks', 'work'],
+            'hidden' => ['tasks', 'claims'],
             'order' => ['left' => ['tasks', 'clock'], 'right' => ['calendar']],
         ])->assertOk();
 
         $manager->refresh();
         $prefs = $manager->dashboard_prefs['dash'];
         $this->assertNotContains('tasks', $prefs['hidden']);
-        $this->assertContains('work', $prefs['hidden']);
+        $this->assertContains('claims', $prefs['hidden']);
         $this->assertSame(['tasks', 'clock'], $prefs['order']['left']);
         $this->assertSame(['calendar'], $prefs['order']['right']);
     }
@@ -599,39 +599,6 @@ class DashboardWidgetsTest extends TestCase
         $this->assertSame(['personal', 'company'], $calendar['calTabs']);
     }
 
-    /** The work summary's month arrow moves the rows, not just the label. */
-    public function test_the_month_arrow_rebuilds_the_work_summary_for_that_month(): void
-    {
-        // Mid-month, so neither "last month" nor "next month" lands on a boundary
-        // the way a run on the 1st or the 31st would.
-        Carbon::setTestNow('2026-09-15 10:00:00');
-
-        $user = $this->userWithRole('employee', 'pnav@acme.test');
-        $employee = $this->employeeFor($user);
-        $this->recordOn($employee, '2026-09-10');
-        // The last day of August: the month bound has to include it, and a plain
-        // `<=` against the date would not, because `date` carries a midnight time.
-        $this->recordOn($employee, '2026-08-31');
-        $this->recordOn($employee, '2026-08-12');
-
-        $this->actAs($user);
-
-        $now = $this->get('/app/dash')->assertOk()->viewData('widgets')['work'];
-        $this->assertSame(['10 Sep'], collect($now['rows'])->pluck('date')->all());
-        $this->assertSame('Sep 2026', $now['pnav']['label']);
-        // Nothing happened in October yet, so there is nowhere forward to go.
-        $this->assertNull($now['pnav']['next']);
-        $this->assertSame('2026-08', $now['pnav']['prev']);
-
-        $back = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => '2026-08']))->assertOk();
-        $w = $back->viewData('w');
-
-        $this->assertSame(['31 Aug', '12 Aug'], collect($w['rows'])->pluck('date')->all());
-        $this->assertSame('Aug 2026', $w['pnav']['label']);
-        $this->assertSame('2026-09', $w['pnav']['next']);
-        $back->assertSee('This month');
-    }
-
     /** The clock log's day arrow moves the punch list back with it, rather than
         relabelling this week's punches with an older date. */
     public function test_the_day_arrow_moves_the_clock_log_back_with_it(): void
@@ -718,7 +685,7 @@ class DashboardWidgetsTest extends TestCase
         $this->employeeFor($user);
         $this->actAs($user);
 
-        $w = $this->get(route('dashboard.widget', ['widget' => 'work', 'at' => 'not-a-month']))->assertOk()->viewData('w');
+        $w = $this->get(route('dashboard.widget', ['widget' => 'calendar', 'at' => 'not-a-month']))->assertOk()->viewData('w');
 
         $this->assertSame('Sep 2026', $w['pnav']['label']);
     }

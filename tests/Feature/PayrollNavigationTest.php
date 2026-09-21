@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollCp38Notice;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\SalaryStructure;
@@ -144,7 +145,6 @@ class PayrollNavigationTest extends TestCase
     {
         return [
             'payroll-my' => ['tp1'],
-            'payroll-transaction' => ['cp38', 'rebate', 'tp1'],
             'payroll-process' => ['bonus', 'control'],
             'payroll-review' => ['batch-remove'],
             'payroll-payment' => ['audit'],
@@ -162,6 +162,28 @@ class PayrollNavigationTest extends TestCase
             $this->assertStringContainsString('Not yet available', $html);
             $this->assertMatchesRegularExpression('/Spec F\d+|Follow-up/', $html);
         }
+    }
+
+    public function test_transaction_screen_has_no_stub_tabs_left(): void
+    {
+        $this->acting($this->hr)->get('/app/payroll-transaction')->assertOk()
+            ->assertDontSee('Not yet available')
+            ->assertSee('No CP38 notices recorded.')
+            ->assertSee('No one has a monthly zakat deduction.');
+    }
+
+    public function test_transaction_screen_lists_cp38_notices_and_monthly_zakat(): void
+    {
+        $emp = Employee::where('tenant_id', $this->tenant->id)->firstOrFail();
+        PayrollCp38Notice::forceCreate([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'reference' => 'CP38-REF-77', 'notice_date' => '2026-08-01',
+            'total_amount' => 1200, 'monthly_instalment' => 200, 'first_period' => '2026-09', 'last_period' => '2027-02',
+            'remaining_balance' => 1200, 'status' => 'active',
+        ]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $emp->id, 'basic_salary' => 3000, 'zakat_monthly' => 88.5]);
+
+        $this->acting($this->hr)->get('/app/payroll-transaction')->assertOk()
+            ->assertSee('CP38-REF-77')->assertSee('88.50');
     }
 
     public function test_tab_query_selects_the_opening_tab(): void

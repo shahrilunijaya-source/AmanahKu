@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeProgression;
+use App\Services\Payroll\BackPay;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -63,6 +64,7 @@ final class EmploymentRecordService
             $previous = $this->snapshot($e);
             $e->fill($this->only($fields))->forceFill(['confirmed_at' => $confirmedOn, 'status' => 'active'])->save();
             $row = $this->record($e, 'confirmed', $confirmedOn, $remark, $by, $previous);
+            BackPay::queue($e, (float) $previous['basic_salary'], (float) $e->salary, $confirmedOn);
             AuditLog::record('Confirmed employee', $e->name);
 
             return $row;
@@ -87,6 +89,7 @@ final class EmploymentRecordService
                 return null;
             }
             $row = $this->record($e, 'updated', $effectiveOn, $remark, $by, $previous, $updateType ? ['update_type' => $updateType] : []);
+            BackPay::queue($e, (float) $previous['basic_salary'], (float) $e->salary, $effectiveOn);
             AuditLog::record('Updated employment record', $e->name);
 
             return $row;

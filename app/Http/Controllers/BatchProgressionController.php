@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
+use App\Services\Payroll\BackPay;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -117,6 +118,6 @@ class BatchProgressionController extends EmploymentRecordController
 
         AuditLog::record($summary, $people->count().' staff · effective '.$request->input('effective_on'));
 
-        return redirect(route('app.screen', 'progression').'?batch='.$batch)->with('ok', $summary.' saved for '.$people->count().' staff.');
+        return redirect(route('app.screen', 'progression').'?batch='.$batch)->with('ok', $summary.' saved for '.$people->count().' staff.'.BackPay::noteSuffix());
     }
 }
