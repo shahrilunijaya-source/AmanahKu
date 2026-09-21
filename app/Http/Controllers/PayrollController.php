@@ -871,11 +871,20 @@ class PayrollController extends Controller
         $readiness = app(PayrollReadiness::class);
         $inThisRun = $employees->pluck('id')->all();
         $problems = array_map(fn (string $g) => 'Company: '.$g, $readiness->employerGaps($tenant));
-        foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
-            if ($kind !== 'monthly' && ! in_array($row['employee']->id, $inThisRun, true)) {
-                continue;
+        if ($leaver !== null) {
+            // A leaver may already be marked resigned, which drops them out of the
+            // "currently employed" rows below, so check them directly.
+            $leaverGaps = $readiness->gapsFor($leaver)['blocking'];
+            if ($leaverGaps !== []) {
+                $problems[] = $leaver->name.': '.implode(', ', $leaverGaps);
             }
-            $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
+        } else {
+            foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
+                if ($kind !== 'monthly' && ! in_array($row['employee']->id, $inThisRun, true)) {
+                    continue;
+                }
+                $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
+            }
         }
         if ($problems !== []) {
             return back()->withErrors(['readiness' => 'Not ready to run payroll. '.implode(' · ', $problems)])->withInput();

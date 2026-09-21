@@ -86,7 +86,7 @@ final class PayrollReadiness
     }
 
     /** @return array{blocking: list<string>, warnings: list<string>} */
-    private function gapsFor(Employee $e): array
+    public function gapsFor(Employee $e): array
     {
         $s = $e->salaryStructure;
         if ($s === null) {

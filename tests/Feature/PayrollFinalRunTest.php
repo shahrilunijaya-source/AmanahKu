@@ -158,6 +158,16 @@ class PayrollFinalRunTest extends TestCase
         $this->assertSame(0.0, (float) $slip->fresh()->eis_employer);
     }
 
+    public function test_a_resigned_leaver_with_missing_details_cannot_get_a_final_run(): void
+    {
+        $leaver = $this->employee('Aida', 3000, ['last_working_day' => '2026-06-15', 'status' => 'resigned', 'nric' => null]);
+
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'kind' => 'final', 'employee_id' => $leaver->id])
+            ->assertSessionHasErrors('readiness');
+
+        $this->assertSame(0, PayrollRun::count());
+    }
+
     public function test_an_unfiled_cp22a_holds_the_final_pay_out_of_the_bank_file_until_released(): void
     {
         // Recording the last working day opens the CP22A by itself (spec F11), and it is
