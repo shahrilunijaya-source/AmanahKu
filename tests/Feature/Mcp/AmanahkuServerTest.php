@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Models\WorkItem;
 use App\Models\WorkItemProgressStint;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
@@ -87,6 +88,7 @@ class AmanahkuServerTest extends TestCase
     protected function tearDown(): void
     {
         app(CurrentTenant::class)->set(null);
+        CarbonImmutable::setTestNow();
         parent::tearDown();
     }
 
@@ -279,6 +281,11 @@ class AmanahkuServerTest extends TestCase
 
     public function test_timesheet_week_tool_includes_suggested_for_own_week(): void
     {
+        // BoardSuggestions offers a stint's card up to "today", within a rolling
+        // BACKFILL_WEEKS window measured from the real clock — pin "now" to
+        // self::WEEK itself so this stays true regardless of the run date.
+        CarbonImmutable::setTestNow(self::WEEK);
+
         $card = $this->suggestableCard();
 
         $response = $this->callTool(
@@ -304,6 +311,10 @@ class AmanahkuServerTest extends TestCase
      */
     public function test_timesheet_week_tool_includes_only_the_privileged_callers_own_suggested(): void
     {
+        // See test_timesheet_week_tool_includes_suggested_for_own_week: pin "now"
+        // so self::WEEK stays inside BoardSuggestions' rolling backfill window.
+        CarbonImmutable::setTestNow(self::WEEK);
+
         $ownCard = $this->suggestableCard($this->hrEmpA, 'HR Own Card');
         $othersCard = $this->suggestableCard($this->staffEmpA, 'Staff Card');
         $this->submitWeek($this->staffEmpA, $this->tenantA, $this->projectA, [100]);
