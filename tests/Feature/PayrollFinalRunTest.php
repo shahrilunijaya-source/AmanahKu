@@ -168,6 +168,20 @@ class PayrollFinalRunTest extends TestCase
         $this->assertSame(0, PayrollRun::count());
     }
 
+    public function test_a_final_run_shortfall_cannot_be_carried_to_a_month_that_will_never_be_paid(): void
+    {
+        $leaver = $this->leaver();
+        $this->queueOneOff($leaver, 5000, 'other-deduction');   // larger than the RM1,500 prorated pay
+        $run = $this->createFinalRun($leaver);
+        $slip = $run->payslips()->firstOrFail();
+        $this->assertLessThan(0, (float) $slip->net_pay);
+
+        $this->post(route('payroll.payslips.carry-forward', $slip))->assertStatus(422);
+
+        $this->assertLessThan(0, (float) $slip->fresh()->net_pay);
+        $this->assertSame(0, IndividualTransaction::where('employee_id', $leaver->id)->where('period', '2026-07')->count());
+    }
+
     public function test_an_unfiled_cp22a_holds_the_final_pay_out_of_the_bank_file_until_released(): void
     {
         // Recording the last working day opens the CP22A by itself (spec F11), and it is

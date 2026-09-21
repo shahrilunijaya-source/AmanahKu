@@ -1486,6 +1486,7 @@ class PayrollController extends Controller
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
         abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        abort_if($payslip->payrollRun->isFinal(), 422, 'A final pay run has no next month to carry into. Lower the deductions on this payslip until net pay is zero or more, and recover the rest from the employee directly.');
         abort_unless($payslip->net_pay < 0, 422, 'Net pay is not negative.');
 
         DB::transaction(function () use ($payslip) {
