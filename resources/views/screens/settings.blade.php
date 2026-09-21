@@ -85,6 +85,16 @@
                 <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" style="{{ $inp }}" /></div>
             </div>
 
+            <details style="margin-top:14px;">
+                <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Payroll journal account codes' : 'Kod akaun jurnal gaji'">Payroll journal account codes</summary>
+                <div style="font-size:12px;color:var(--muted);margin:6px 0 10px;" x-text="$store.ui.lang==='en' ? 'Codes from your accounting software. Left blank, the journal CSV leaves the code empty.' : 'Kod daripada perisian perakaunan anda. Jika kosong, CSV jurnal membiarkan kod kosong.'">Codes from your accounting software. Left blank, the journal CSV leaves the code empty.</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+                    @foreach (\App\Services\Payroll\AccountingJournal::LINES as $key => [$lineName, $side])
+                        <div><label style="{{ $lab }}">{{ $lineName }} ({{ $side }})</label><input name="journal_accounts[{{ $key }}]" value="{{ old('journal_accounts.'.$key, $company->journal_accounts[$key] ?? '') }}" maxlength="40" style="{{ $inp }}" /></div>
+                    @endforeach
+                </div>
+            </details>
+
             <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Website' : 'Laman web'">Website</label>
             <input name="website" value="{{ old('website', $company->website) }}" placeholder="https://" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
 

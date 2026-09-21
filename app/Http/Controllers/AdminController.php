@@ -15,6 +15,7 @@ use App\Models\StaffLevel;
 use App\Models\User;
 use App\Models\UserPermission;
 use App\Services\FeatureManager;
+use App\Services\Payroll\AccountingJournal;
 use App\Support\Features;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
@@ -62,6 +63,9 @@ class AdminController extends Controller
             'employer_status' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_STATUSES))],
             'paying_bank_code' => ['nullable', Rule::in(array_values(StatutoryOptions::BANK_CODES))],
             'paying_bank_account_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
+            // Spec F16: account codes only. The journal's amounts are never editable.
+            'journal_accounts' => ['nullable', 'array:'.implode(',', array_keys(AccountingJournal::LINES))],
+            'journal_accounts.*' => ['nullable', 'string', 'max:40'],
             'payroll_contact_name' => ['nullable', 'string', 'max:120'],
             'payroll_contact_phone' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:160'],
@@ -87,6 +91,7 @@ class AdminController extends Controller
             'employer_status' => $data['employer_status'] ?? null,
             'paying_bank_code' => $data['paying_bank_code'] ?? null,
             'paying_bank_account_no' => $data['paying_bank_account_no'] ?? null,
+            'journal_accounts' => array_filter($data['journal_accounts'] ?? [], fn ($code) => filled($code)) ?: null,
             'payroll_contact_name' => $data['payroll_contact_name'] ?? null,
             'payroll_contact_phone' => $data['payroll_contact_phone'] ?? null,
             'email' => $data['email'] ?? null,
