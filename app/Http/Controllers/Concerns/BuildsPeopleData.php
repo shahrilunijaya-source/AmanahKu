@@ -16,6 +16,7 @@ use App\Models\HandbookSection;
 use App\Models\LeaveRequest;
 use App\Models\LoanRequest;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollCp38Notice;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PolicyAcknowledgement;
 use App\Models\Position;
@@ -299,6 +300,7 @@ trait BuildsPeopleData
             'canEditWork' => $canEditWork,
             'attachmentGate' => $attachmentGate,
             'workSites' => $workGate && $canEditWork ? WorkSite::orderBy('name')->get(['id', 'name']) : collect(),
+            'cp38Notices' => ($e !== null && $canEditSalaryStructure) ? PayrollCp38Notice::where('employee_id', $e->id)->orderByDesc('id')->get() : collect(),
             'openingFigures' => ($experienceGate && $canEditSalaryStructure) ? PayrollOpeningFigure::where('employee_id', $e->id)->orderByDesc('year')->get() : collect(),
             'documents' => $experienceGate ? $e->documents : collect(),
             'canAssign' => $this->hasTenantRole($request, ['manager', 'management', 'hr']),

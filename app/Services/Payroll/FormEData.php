@@ -16,10 +16,12 @@ use App\Models\Tenant;
  * agent particulars) and Part C (declaration) are for hand completion — this class does
  * not touch them; the PDF renders them blank.
  *
- * Fields this app has NO STORAGE for at all are always null: category of employer (item
- * 3 — government/statutory/local authority/private/special class; NOT the same thing as
- * Tenant::companyCategory, which is a subscription-plan tier, not a legal classification
- * — never conflate the two), status of employer (4), TIN type code (5), passport no. (7,
+ * Category of employer (item 3) and status of employer (4) come from the company settings
+ * (Tenant::employer_category / employer_status, spec F1) — NOT from Tenant::companyCategory,
+ * which is a subscription-plan tier, not a legal classification; never conflate the two.
+ *
+ * Fields this app has NO STORAGE for at all are always null: TIN type code (5 — the form's
+ * own list is 01=IG to 13=LE and nothing we hold identifies which applies), passport no. (7,
  * mirrors Form EA's own gap), SSM/other registration no. (8 — Tenant::registration_number
  * is close but unverified as the same number LHDN wants here), postcode/city/state/
  * country (9 — Tenant::address is one free-text line, never split into these), and
@@ -36,8 +38,8 @@ final class FormEData
             'basic_particulars' => [
                 'name' => $tenant->name,
                 'employer_tin' => $tenant->employer_tin,
-                'category_of_employer' => null,
-                'status_of_employer' => null,
+                'category_of_employer' => $tenant->employer_category,
+                'status_of_employer' => $tenant->employer_status,
                 'tin_type_code' => null,
                 'identification_no' => null,
                 'passport_no' => null,
@@ -107,8 +109,6 @@ final class FormEData
     private function incompleteFields(Tenant $tenant): array
     {
         $gaps = [
-            ['box' => 'Item 3', 'label' => 'Category of employer'],
-            ['box' => 'Item 4', 'label' => 'Status of employer'],
             ['box' => 'Item 5', 'label' => 'Tax Identification No. (TIN) type code'],
             ['box' => 'Item 7', 'label' => 'Passport no.'],
             ['box' => 'Item 9', 'label' => 'Postcode / city / state / country'],
@@ -119,6 +119,12 @@ final class FormEData
             ],
         ];
 
+        if (blank($tenant->employer_status)) {
+            array_unshift($gaps, ['box' => 'Item 4', 'label' => 'Status of employer']);
+        }
+        if (blank($tenant->employer_category)) {
+            array_unshift($gaps, ['box' => 'Item 3', 'label' => 'Category of employer']);
+        }
         if (blank($tenant->employer_tin)) {
             array_unshift($gaps, ['box' => 'Item 2', 'label' => "Employer's TIN"]);
         }

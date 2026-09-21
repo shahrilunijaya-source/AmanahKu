@@ -255,6 +255,9 @@ class AmanahkuServerTest extends TestCase
      */
     private function suggestableCard(?Employee $employee = null, string $title = 'Suggested Card'): WorkItem
     {
+        // Suggestions only look back WeekWriter::BACKFILL_WEEKS from today, so pin the
+        // clock inside self::WEEK or these tests go red once the real date moves on.
+        $this->travelTo('2026-08-07 09:00');
         app(CurrentTenant::class)->set($this->tenantA);
         // Category name is unique per tenant (timesheet_categories.tenant_id+name), so a
         // test calling this helper more than once needs a distinct name each time — tied

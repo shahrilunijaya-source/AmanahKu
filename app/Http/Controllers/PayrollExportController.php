@@ -6,7 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\PayrollRun;
+use App\Models\PayrollSubmission;
+use App\Models\Payslip;
+use App\Services\FeatureManager;
 use App\Services\Payroll\BankFile\BankFileRegistry;
+use App\Services\Payroll\HrdCorpLevy;
+use App\Services\Payroll\Statutory\MergedPayslips;
+use App\Services\Payroll\Statutory\StatutoryFileRegistry;
 use App\Support\Csv;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
@@ -27,11 +33,16 @@ class PayrollExportController extends Controller
 
         $format = BankFileRegistry::find($request->query('format'));
 
-        $payslips = $run->payslips()->with('employee.salaryStructure')->get()
+        $all = $run->payslips()->with('employee.salaryStructure')->get()
             ->sortBy(fn ($p) => $p->employee?->name)->values();
+        // Spec F10: a final pay held for an unsettled CP22A is not paid out yet, so it
+        // must not reach the bank. It appears here again once HR releases the hold.
+        $payslips = $all->reject(fn (Payslip $p) => (bool) $p->held_for_cp22a)->values();
+        $withheld = $all->count() - $payslips->count();
 
         AuditLog::record('Exported bank file', $run->label.' · '.$payslips->count().' employees · '
-            .$format->label().($format->verified() ? '' : ' (unverified layout)'));
+            .$format->label().($format->verified() ? '' : ' (unverified layout)')
+            .($withheld > 0 ? ' · '.$withheld.' withheld pending CP22A' : ''));
 
         $rows = $format->rows($payslips, $run);
 
@@ -95,6 +106,46 @@ class PayrollExportController extends Controller
     }
 
     /** management/hr only, own tenant, finalized runs only (drafts aren't submittable). */
+    /**
+     * Agency upload file (spec F6/F7) for a finalized run: KWSP Form A, PERKESO Borang 8A,
+     * LHDN CP39 or the HRD Corp levy file. Every one carries NRICs, so every download is
+     * audited; an unverified layout is named as such in the trail.
+     */
+    public function statutoryFile(Request $request, PayrollRun $run, string $key): StreamedResponse
+    {
+        $this->authorize($request, $run);
+        $file = StatutoryFileRegistry::find($key) ?? abort(404);
+        $tenant = app(CurrentTenant::class)->get();
+        if ($key === 'hrdcorp') {
+            abort_if(HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf')) <= 0, 422, 'HRD Corp levy is switched off for this company.');
+        }
+
+        // Spec F10: one file per employer per month, whatever the month was paid in —
+        // the monthly run, a bonus run and a leaver's final pay are folded into one row
+        // per employee before the exporter sees them.
+        $payslips = $tenant === null
+            ? collect()
+            : MergedPayslips::forPeriod($tenant, $run->period, $key !== 'perkeso-8a');
+        $body = $file->build($run, $tenant, $payslips);
+
+        // Spec F12: the first download of a statutory file marks that filing "file ready".
+        $agency = ['kwsp-form-a' => 'epf', 'perkeso-8a' => 'socso_eis', 'cp39' => 'pcb', 'hrdcorp' => 'hrdcorp'][$key] ?? null;
+        if ($agency !== null) {
+            // One filing per agency per month (StatutoryCalendar::open matches on the
+            // period), so the row may hang off the monthly run while the download is
+            // started from the bonus or final run of the same month.
+            PayrollSubmission::whereHas('payrollRun', fn ($q) => $q->where('period', $run->period))
+                ->where('agency', $agency)
+                ->whereNull('downloaded_at')->update(['downloaded_at' => now()]);
+        }
+
+        AuditLog::record('Exported statutory file', $run->label.' · '.$file->label().' · '.$payslips->count().' employees · includes NRIC'.($file->verified() ? '' : ' (unverified layout)'));
+
+        return response()->streamDownload(function () use ($body) {
+            echo $body;
+        }, $file->filename($run, $tenant), ['Content-Type' => $file->contentType()]);
+    }
+
     private function authorize(Request $request, PayrollRun $run): void
     {
         $this->authorizeTenantRole($request, self::ADMIN_ROLES);

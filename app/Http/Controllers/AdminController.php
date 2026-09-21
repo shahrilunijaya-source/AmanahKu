@@ -17,6 +17,7 @@ use App\Models\UserPermission;
 use App\Services\FeatureManager;
 use App\Support\Features;
 use App\Support\Permissions;
+use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,6 +42,10 @@ class AdminController extends Controller
     {
         $this->authorizeAdmin($request);
 
+        // Trim the numeric-ish registration fields so the format rules below see clean input.
+        $request->merge(collect(['epf_employer_no', 'socso_employer_code', 'hrdf_registration_no', 'paying_bank_account_no'])
+            ->mapWithKeys(fn (string $k) => [$k => trim((string) $request->input($k)) ?: null])->all());
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'industry' => ['nullable', 'string', 'max:120'],
@@ -48,6 +53,17 @@ class AdminController extends Controller
             'contact_number' => ['nullable', 'string', 'max:40'],
             // LHDN's Employer's TIN, stored without the "E" prefix (see EaFormPdfData).
             'employer_tin' => ['nullable', 'string', 'max:20'],
+            // Statutory registration numbers (spec F1). Loose format on purpose: agencies
+            // change formats, a hard regex would block real numbers.
+            'epf_employer_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
+            'socso_employer_code' => ['nullable', 'regex:/^[A-Za-z0-9\-]+$/', 'max:40'],
+            'hrdf_registration_no' => ['nullable', 'regex:/^[A-Za-z0-9\-]+$/', 'max:40'],
+            'employer_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_CATEGORIES))],
+            'employer_status' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_STATUSES))],
+            'paying_bank_code' => ['nullable', Rule::in(array_values(StatutoryOptions::BANK_CODES))],
+            'paying_bank_account_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
+            'payroll_contact_name' => ['nullable', 'string', 'max:120'],
+            'payroll_contact_phone' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:160'],
             'website' => ['nullable', 'url', 'max:160'],
             'welcome_message' => ['nullable', 'string', 'max:240'],
@@ -64,6 +80,15 @@ class AdminController extends Controller
             'address' => $data['address'] ?? null,
             'contact_number' => $data['contact_number'] ?? null,
             'employer_tin' => $data['employer_tin'] ?? null,
+            'epf_employer_no' => $data['epf_employer_no'] ?? null,
+            'socso_employer_code' => $data['socso_employer_code'] ?? null,
+            'hrdf_registration_no' => $data['hrdf_registration_no'] ?? null,
+            'employer_category' => $data['employer_category'] ?? null,
+            'employer_status' => $data['employer_status'] ?? null,
+            'paying_bank_code' => $data['paying_bank_code'] ?? null,
+            'paying_bank_account_no' => $data['paying_bank_account_no'] ?? null,
+            'payroll_contact_name' => $data['payroll_contact_name'] ?? null,
+            'payroll_contact_phone' => $data['payroll_contact_phone'] ?? null,
             'email' => $data['email'] ?? null,
             'website' => $data['website'] ?? null,
             'welcome_message' => $data['welcome_message'] ?? null,

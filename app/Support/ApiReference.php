@@ -68,7 +68,7 @@ class ApiReference
             'blurb' => 'One week of effort per project, aggregated per position band.',
             'fields' => 'week_start, projects[].project_id, projects[].positions[] { position_id, position_title, headcount, person_days, days_present, alloc_pct }',
             'query' => 'week_start=YYYY-MM-DD (required, must be a Monday)',
-            'note' => 'Aggregated server-side: no employee name, id or salary ever crosses the wire.',
+            'note' => 'Counted a day at a time: a day appears once it is submitted or approved, so a part-submitted week returns only the days that are in. Cost from person_days — mid-week alloc_pct reads low when a band submits different days. Aggregated server-side: no employee name, id or salary ever crosses the wire.',
         ],
         [
             'path' => '/board-week',

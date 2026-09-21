@@ -78,6 +78,15 @@ final class DashboardWidgets
             'blurb_ms' => 'Permohonan tanpa sesiapa yang boleh meluluskannya.',
             'category' => 'Team', 'roles' => Permissions::FINAL_APPROVAL_ROLES, 'screen' => null, 'column' => 'left',
         ],
+        'payroll' => [
+            'title' => 'Payroll this month', 'title_ms' => 'Gaji bulan ini',
+            'blurb' => 'Latest run: finalized, pay-by date and whether it is marked paid.',
+            'blurb_ms' => 'Run terkini: dimuktamadkan, tarikh bayar dan sama ada sudah ditanda dibayar.',
+            // Whoever runs payroll: HR and management. Right column after 'pulse', the
+            // other management-only card there, because tests/Acceptance/CR32 pins the
+            // management left column exactly.
+            'category' => 'Team', 'roles' => ['management', 'hr'], 'screen' => 'payroll-process', 'column' => 'right', 'after' => 'pulse',
+        ],
         'calendar' => [
             'title' => 'My calendar', 'title_ms' => 'Kalendar saya',
             'blurb' => 'Who is on leave, what events are coming.',

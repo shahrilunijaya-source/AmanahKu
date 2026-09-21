@@ -230,8 +230,21 @@ date, returns `422` with Laravel's standard validation body
 (`{"message": ..., "errors": {"week_start": [...]}}`), not this API's
 `{data, error}` envelope.
 
-A week is counted once it is `submitted` or `approved`; draft and rejected
-weeks contribute nothing. Figures are aggregated **server-side on
+Effort is counted **a day at a time**: a day's entries appear once that day
+is `submitted` or `approved`, so a part-submitted week returns the days that
+are in and nothing else. A day a manager sends back for correction stops
+counting, which makes a project's figure go **down** on the next pull — that
+is the rule working, not a fault. Weeks recorded before per-day submission
+existed have no day rows at all and are still counted whole, once the week
+itself is `submitted` or `approved`; draft and rejected ones of those
+contribute nothing.
+
+Cost from `person_days`. Mid-week `alloc_pct` can read lower than the band
+really is: `days_present` counts the distinct dates the whole band submitted,
+not each person's own days, so two people covering different halves of the
+week report as half-dedicated. `person_days` stays exact throughout.
+
+Figures are aggregated **server-side on
 purpose**: no employee name, no employee id, and no salary figure ever
 leaves AmanahKu through this endpoint. `person_days` is the sum of each
 person's daily percentage divided by 100; `alloc_pct` is average dedication

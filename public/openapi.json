@@ -315,7 +315,7 @@
     "/timesheet-effort": {
       "get": {
         "summary": "Weekly timesheet effort per project and position band",
-        "description": "Requires the effort:read scope. Aggregated server-side so no employee name, id, or salary ever leaves AmanahKu. A week counts once it is submitted or approved; draft and rejected weeks contribute nothing. Only grant this scope to an app that costs work against the figures it returns.",
+        "description": "Requires the effort:read scope. Aggregated server-side so no employee name, id, or salary ever leaves AmanahKu. Effort is counted a day at a time: a day's entries appear once that day is submitted or approved, so a part-submitted week returns only the days that are in, and a day sent back for correction stops counting. Weeks recorded before per-day submission have no day rows and are still counted whole, by the week's own submitted or approved status. Cost from person_days: mid-week alloc_pct reads low when the people in a band submit different days, because days_present counts dates across the band rather than per person. Only grant this scope to an app that costs work against the figures it returns.",
         "parameters": [
           {
             "name": "week_start",

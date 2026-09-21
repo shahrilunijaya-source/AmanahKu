@@ -40,13 +40,16 @@ class PayrollTransactionsPullTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $this->tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC',
+            'employer_tin' => '1234567890', 'epf_employer_no' => '12345678', 'socso_employer_code' => 'A123']);
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
 
-        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green']);
+        $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',
+            'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
         // basic 5200 / 26 / 8 = 25.00/hr exactly, so overtime figures land on round numbers.
-        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5200]);
+        SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5200,
+            'epf_no' => '1', 'socso_no' => '1', 'bank_name' => 'Maybank', 'bank_code' => 'MBBEMYKL', 'bank_account_no' => '1', 'tax_no' => 'SG1']);
         Employee::whereKey($this->emp1->id)->update(['salary' => 5200]);
     }
 
@@ -59,7 +62,10 @@ class PayrollTransactionsPullTest extends TestCase
 
     private function createRun(string $period = '2026-06'): PayrollRun
     {
-        $this->actingHr()->post('/app/payroll/runs', ['period' => $period])->assertRedirect();
+        // Spec F5: finalize needs a pay date within seven days of the period end (EA s.19),
+        // so every run this helper creates carries the last day of its own period.
+        $payDate = Carbon::createFromFormat('Y-m-d', $period.'-01')->endOfMonth()->toDateString();
+        $this->actingHr()->post('/app/payroll/runs', ['period' => $period, 'payment_date' => $payDate])->assertRedirect();
 
         return PayrollRun::where('period', $period)->firstOrFail();
     }

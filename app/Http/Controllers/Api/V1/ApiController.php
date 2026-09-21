@@ -12,6 +12,7 @@ use App\Models\Payslip;
 use App\Models\Position;
 use App\Models\Project;
 use App\Models\Timesheet;
+use App\Models\TimesheetDay;
 use App\Models\TimesheetEntry;
 use App\Models\User;
 use App\Models\WorkItem;
@@ -36,8 +37,11 @@ use Illuminate\Support\Collection;
  */
 class ApiController extends Controller
 {
-    /** Timesheet states whose effort is final enough to bill against. See timesheetEffort(). */
+    /** Week states that count for a legacy timesheet with no per-day rows. See timesheetEffort(). */
     private const COUNTED_TIMESHEET_STATUSES = ['submitted', 'approved'];
+
+    /** Day states whose effort is final enough to bill against. See timesheetEffort(). */
+    private const COUNTED_DAY_STATUSES = [TimesheetDay::STATUS_SUBMITTED, TimesheetDay::STATUS_APPROVED];
 
     /** GET /api/v1/employees — privileged only; the tenant's employee directory. */
     public function employees(Request $request): JsonResponse
@@ -282,11 +286,19 @@ class ApiController extends Controller
      * replace its hand-typed staff dedication rows. One call covers all projects: a
      * nightly run over 24 projects and 4 weeks costs 4 requests, not 96.
      *
-     * A week counts once its owner has finished with it: 'submitted', or 'approved'
-     * for the decided figures WeekReconciler refuses to mutate. Nothing in the app
-     * sets 'approved' today, but seeded and historical rows carry it, and it is the
-     * more final of the two — filtering on 'submitted' alone would silently withhold
-     * real effort. A draft is still being edited and a rejected week was thrown out.
+     * An entry counts once its own day is finished with: the `timesheet_days` row for
+     * that date is 'submitted', or 'approved' for the decided figures WeekReconciler
+     * refuses to mutate. A draft day is still being edited and a returned day was sent
+     * back for correction, so both contribute nothing and a day sent back makes a
+     * project's figure go down on the next pull.
+     *
+     * A timesheet with no day rows at all is a pre-CR-03 week and is judged by its
+     * week-level status instead. Every historical week in the data is one of these. A
+     * 'rejected' week counts for nothing either way.
+     *
+     * Mid-week, `alloc_pct` can read low: `days_present` is the distinct dates across
+     * the whole band, so two people submitting different halves of the week look
+     * half-dedicated. `person_days` is the figure to cost from.
      *
      * Entries with no project (non-project categories, and the generated leave/holiday
      * rows) carry no project_id and drop out on their own.
@@ -306,19 +318,15 @@ class ApiController extends Controller
 
         $weekStart = $request->validate(['week_start' => ['required', 'date']])['week_start'];
 
-        // The counted weeks are selected on their own builder rather than inside a
-        // whereHas() closure: a closure argument is typed Builder<Model>, which cannot
-        // see Timesheet's forWeek() scope. Same rows, one indexed subquery on the FK.
-        $countedWeeks = Timesheet::query()
-            ->whereIn('status', self::COUNTED_TIMESHEET_STATUSES)
-            ->forWeek($weekStart)
-            ->select('id');
-
+        // Every entry in the week, no status filter here: the decision is per day and
+        // per timesheet, made in entryIsCounted(). `timesheet.days` is eager loaded so
+        // that decision costs no query per entry.
         $entries = TimesheetEntry::query()
             ->whereNotNull('project_id')
-            ->whereIn('timesheet_id', $countedWeeks)
-            ->with('timesheet.employee')
-            ->get();
+            ->whereIn('timesheet_id', Timesheet::query()->forWeek($weekStart)->select('id'))
+            ->with(['timesheet.employee', 'timesheet.days'])
+            ->get()
+            ->filter(fn (TimesheetEntry $entry) => $this->entryIsCounted($entry));
 
         $projects = $entries
             ->groupBy('project_id')
@@ -333,6 +341,42 @@ class ApiController extends Controller
             'week_start' => CarbonImmutable::parse($weekStart)->toDateString(),
             'projects' => $projects,
         ]);
+    }
+
+    /**
+     * Does one entry's effort count?
+     *
+     * Per day (CR-03): the entry counts once the `timesheet_days` row for its own
+     * `entry_date` is submitted or approved. Timesheets are submitted a day at a time,
+     * so waiting for the week-level status held Monday's effort back until Friday.
+     *
+     * The fallback is per timesheet, never per date: a timesheet with no day rows at
+     * all predates CR-03 and is judged by its week status, exactly as before. Once a
+     * timesheet has any day rows, a missing row means not submitted — a per-date
+     * fallback would let a dateless day inherit a submitted week status, which is the
+     * leak this guard exists to close.
+     */
+    private function entryIsCounted(TimesheetEntry $entry): bool
+    {
+        // A week-level veto ahead of the day branch. A rejected week is dead (see
+        // WeekReconciler, which refuses to touch one) and must not leak effort because a
+        // day row outlived it. Nothing writes 'rejected' today and refreshStatusFromDays()
+        // would overwrite it, so this is a guard, not a live path.
+        if ($entry->timesheet->status === 'rejected') {
+            return false;
+        }
+
+        $days = $entry->timesheet->days;
+
+        if ($days->isEmpty()) {
+            return in_array($entry->timesheet->status, self::COUNTED_TIMESHEET_STATUSES, true);
+        }
+
+        $day = $days->first(
+            fn (TimesheetDay $day) => $day->entry_date->toDateString() === $entry->entry_date->toDateString()
+        );
+
+        return $day !== null && in_array($day->status, self::COUNTED_DAY_STATUSES, true);
     }
 
     /**

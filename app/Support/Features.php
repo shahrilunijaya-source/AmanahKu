@@ -134,6 +134,22 @@ class Features
             'help' => 'Only used when payroll is on: a pay run cannot be finalized until someone approves it.',
             'help_ms' => 'Hanya digunakan jika modul gaji dihidupkan: larian gaji tidak boleh dimuktamadkan sehingga diluluskan.',
         ],
+        'payroll.payslip_acknowledgement' => [
+            'label' => 'Ask staff to acknowledge payslips',
+            'label_ms' => 'Minta staf mengaku terima payslip',
+            'type' => 'bool', 'scope' => 'tenant', 'default' => false,
+            'help' => 'Shows an Acknowledge button on a published payslip and lists who has not pressed it yet.',
+            'help_ms' => 'Menunjukkan butang Akui pada payslip yang diterbitkan dan menyenaraikan siapa yang belum menekannya.',
+        ],
+        'payroll.hrdf' => [
+            'label' => 'HRD Corp levy',
+            'label_ms' => 'Levi HRD Corp',
+            'type' => 'enum', 'scope' => 'tenant', 'default' => 'off',
+            'options' => ['off' => 'Not registered', '1' => '1% (10 or more Malaysian employees)', '0.5' => '0.5% (5 to 9, voluntary)'],
+            'options_ms' => ['off' => 'Tidak berdaftar', '1' => '1% (10 atau lebih pekerja warganegara)', '0.5' => '0.5% (5 hingga 9, sukarela)'],
+            'help' => 'Employer-side levy on basic pay plus fixed allowances for Malaysian employees. Nothing is deducted from staff. Needs the HRD Corp registration number in Settings.',
+            'help_ms' => 'Levi majikan atas gaji pokok dan elaun tetap pekerja warganegara. Tiada potongan daripada staf. Perlukan nombor pendaftaran HRD Corp di Tetapan.',
+        ],
         'claims.medical_cap' => [
             'label' => 'Medical claim annual cap (RM)',
             'label_ms' => 'Had tahunan tuntutan perubatan (RM)',

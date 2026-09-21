@@ -17,8 +17,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property list<array{name?: string, amount?: float|int|string}>|null $additions
  * @property list<array{name?: string, amount?: float|int|string}>|null $other_deductions
  * @property list<int>|null $claim_ids
+ * @property array<string, float>|null $cp38_applied
  * @property list<int>|null $overtime_request_ids
  * @property list<int>|null $unpaid_leave_request_ids
+ *
+ * pcb_exempt_amount is declared here because its migration adds the column from an arrow
+ * function (2026_10_02_100002), which the schema reader does not follow — the column and
+ * its float cast are real, this only tells static analysis about them.
+ * @property float $pcb_exempt_amount
  */
 class Payslip extends Model
 {
@@ -42,7 +48,12 @@ class Payslip extends Model
             'additions' => 'array',
             'other_deductions' => 'array',
             'claim_ids' => 'array',
+            // Spec F9: {notice_id: amount} of CP38 actually taken, set at finalize.
+            'cp38_applied' => 'array',
             'basic' => 'float',
+            'days_employed' => 'integer',
+            'days_in_month' => 'integer',
+            'basic_overridden' => 'boolean',
             'allowances_total' => 'float',
             'overtime_hours' => 'float',
             'overtime_amount' => 'float',
@@ -57,6 +68,12 @@ class Payslip extends Model
             'pulled_unpaid_days' => 'float',
             'unpaid_days_overridden' => 'boolean',
             'fixed_deductions_total' => 'float',
+            'hrdf_levy' => 'float',
+            'deduction_cap_exceeded' => 'boolean',
+            'held_for_cp22a' => 'boolean',
+            'hold_released_at' => 'datetime',
+            'deduction_consent_confirmed' => 'boolean',
+            'carried_forward_amount' => 'float',
             'gross' => 'float',
             'epf_employee' => 'float',
             'epf_employer' => 'float',
@@ -69,6 +86,7 @@ class Payslip extends Model
             'pcb_additional' => 'float',
             'zakat' => 'float',
             'cp38' => 'float',
+            'pcb_exempt_amount' => 'float',
             'pcb_override' => 'float',
             'claims_reimbursement' => 'float',
             'total_deductions' => 'float',

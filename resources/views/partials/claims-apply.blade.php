@@ -10,14 +10,14 @@
 
      Params: $typeMeta, $medicalCap, $medicalRemaining, $approvalChain. --}}
 @php
-    // Per-type facts the form reasons about client-side. `doc` mirrors the
-    // server's receipt requirement; `capped` is medical, which spends the cap.
+    // Per-type facts the form reasons about client-side. Every type needs a
+    // receipt now, so only `capped` (medical, which spends the cap) varies.
     $applyMeta = [
-        'expense' => ['doc' => true,  'capped' => false, 'mileage' => false],
-        'mileage' => ['doc' => false, 'capped' => false, 'mileage' => true],
-        'medical' => ['doc' => true,  'capped' => true,  'mileage' => false],
-        'travel'  => ['doc' => true,  'capped' => false, 'mileage' => false],
-        'other'   => ['doc' => false, 'capped' => false, 'mileage' => false],
+        'expense' => ['capped' => false, 'mileage' => false],
+        'mileage' => ['capped' => false, 'mileage' => true],
+        'medical' => ['capped' => true,  'mileage' => false],
+        'travel'  => ['capped' => false, 'mileage' => false],
+        'other'   => ['capped' => false, 'mileage' => false],
     ];
     $typeLabels = [
         'expense' => ['Expense', 'Perbelanjaan', 'A receipted work expense — supplies, meals, parking.', 'Perbelanjaan kerja yang ada resit — bekalan, makan, letak kereta.'],
@@ -72,7 +72,7 @@
             if (!(this.amt > 0)) return 'amount';
             if (this.overCap() > 0) return 'over';
             if (!this.title.trim()) return 'title';
-            if (m.doc && !this.fileName) return 'doc';
+            if (!this.fileName) return 'doc';
             return '';
         },
     }">
@@ -200,7 +200,7 @@
                 <span style="flex:1;min-width:0;">
                     <span class="uj-lv-step-q" x-text="$store.ui.lang==='en' ? 'The details' : 'Butiran'">The details</span>
                     <span class="uj-lv-step-a" x-show="step !== 3" x-cloak
-                          x-text="title.trim() ? title : (t() && t().doc ? ($store.ui.lang==='en' ? 'Receipt still needed' : 'Resit masih diperlukan') : '—')"></span>
+                          x-text="title.trim() ? title : ($store.ui.lang==='en' ? 'Receipt still needed' : 'Resit masih diperlukan')"></span>
                 </span>
             </button>
             <div class="uj-lv-fold"><div><div class="uj-lv-fold-in">
@@ -226,19 +226,21 @@
                 <div style="margin-top:16px;">
                     <label class="uj-lv-field">
                         <span x-text="$store.ui.lang==='en' ? 'Receipt' : 'Resit'">Receipt</span>
-                        <span class="uj-lv-req" x-show="t() && t().doc" x-cloak x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'"></span>
-                        <span class="uj-lv-opt" x-show="t() && !t().doc" x-cloak x-text="$store.ui.lang==='en' ? '— optional' : '— pilihan'"></span>
+                        <span class="uj-lv-req" x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'">Required</span>
                     </label>
                     <div class="uj-lv-file">
-                        <input type="file" name="receipt" accept=".pdf,.jpg,.jpeg,.png" :required="t() && t().doc"
+                        <input type="file" name="receipt" accept=".pdf,.jpg,.jpeg,.png" required
                                @change="fileName = $event.target.files.length ? $event.target.files[0].name : ''">
                     </div>
-                    <div class="uj-lv-note" data-tone="info" x-show="t() && t().doc" x-cloak
+                    <div class="uj-lv-note" data-tone="bad" x-show="!fileName" x-cloak
                          x-text="$store.ui.lang==='en'
-                            ? 'This type needs the receipt attached. Only you, your manager and finance can open it.'
-                            : 'Jenis ini perlu resit dilampirkan. Hanya anda, pengurus anda dan finance boleh membukanya.'"></div>
+                            ? 'A receipt is required — you cannot submit this claim without one.'
+                            : 'Resit diperlukan — tuntutan ini tidak boleh dihantar tanpanya.'"></div>
+                    <div class="uj-lv-note" data-tone="info" x-show="fileName" x-cloak
+                         x-text="$store.ui.lang==='en'
+                            ? 'Only you, your manager and finance can open it.'
+                            : 'Hanya anda, pengurus anda dan finance boleh membukanya.'"></div>
                     <p style="font-size:var(--t-sm);color:var(--muted);margin:8px 0 0;line-height:1.5;"
-                       x-show="!t() || !t().doc" x-cloak
                        x-text="$store.ui.lang==='en' ? 'PDF or photo, up to 8 MB.' : 'PDF atau gambar, sehingga 8 MB.'"></p>
                 </div>
             </div></div></div>

@@ -98,6 +98,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // MailPort intent per tenant. Idempotent per tenant per day, so a retry is safe.
         $schedule->command('management:digest')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('management:digest'));
+        // Spec F12: statutory filing reminders on the 10th and 14th (monthly 15th) and on
+        // 20 Feb / 20 Mar (Form EA, Form E). Runs daily; the command picks the days.
+        $schedule->command('payroll:deadline-digest')->dailyAt('08:00')
+            ->withoutOverlapping()->onFailure($onFailure('payroll:deadline-digest'));
         // CR-34: Friday morning T.A.A. task, one per manager/attendee, moved to Thursday on
         // a holiday Friday. Runs daily; the command itself decides whether today is the day.
         $schedule->command('management:meeting-tasks')->dailyAt('08:00')
