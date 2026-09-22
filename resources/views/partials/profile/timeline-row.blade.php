@@ -47,6 +47,9 @@
                         <form method="post" action="{{ route('progression.record.update', $row) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
                             @csrf
                             <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ $row->effective_on->toDateString() }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            @if ($row->type === 'resigned')
+                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Last Working Day', 'Hari Terakhir Bekerja') !!}</label><input type="date" name="last_working_day" value="{{ $snap['last_working_day'] ?? '' }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            @endif
                             <div style="flex:1;min-width:200px;"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ $row->remark }}" style="width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
                             <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;padding:0 16px;">{!! $L('Save', 'Simpan') !!}</button>
                             <button type="button" @click="editing = false" style="height:34px;background:transparent;border:0;cursor:pointer;font-size:12.5px;color:var(--muted);">{!! $L('Cancel', 'Batal') !!}</button>

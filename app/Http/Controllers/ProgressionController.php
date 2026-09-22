@@ -108,14 +108,19 @@ class ProgressionController extends EmploymentRecordController
     }
 
     /**
-     * Corrects a saved row: remark and effective date only. The snapshot stays as it was
+     * Corrects a saved row: remark, effective date, and — for a resigned row — the last
+     * working day held in its snapshot. Everything else in the snapshot stays as it was
      * recorded, so the timeline still shows what the record actually held at the time.
      */
     public function updateRecord(Request $request, EmployeeProgression $progression): RedirectResponse
     {
         $this->authorizeTenantRole($request, ['management', 'hr']);
         abort_unless($progression->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $data = $request->validate(['effective_on' => ['required', 'date'], 'remark' => ['nullable', 'string', 'max:2000']]);
+        $data = $request->validate([
+            'effective_on' => ['required', 'date'],
+            'remark' => ['nullable', 'string', 'max:2000'],
+            'last_working_day' => ['nullable', 'date'],
+        ]);
         $employee = $progression->employee;
         $on = CarbonImmutable::parse($data['effective_on']);
 
@@ -123,8 +128,24 @@ class ProgressionController extends EmploymentRecordController
             return back()->withInput()->withErrors(['effective_on' => 'Date cannot be before the hire date ('.$employee->joined_at->format('d M Y').').']);
         }
 
-        $progression->forceFill(['effective_on' => $on->toDateString(), 'remark' => $data['remark'] ?: null])->save();
+        $lastWorkingDay = null;
+        if ($progression->type === 'resigned' && $data['last_working_day']) {
+            $lastWorkingDay = CarbonImmutable::parse($data['last_working_day']);
+            if ($lastWorkingDay->lt($on)) {
+                return back()->withInput()->withErrors(['last_working_day' => 'Last working day cannot be before the resignation date.']);
+            }
+        }
+
+        $snapshot = $progression->snapshot ?? [];
+        if ($lastWorkingDay) {
+            $snapshot['last_working_day'] = $lastWorkingDay->toDateString();
+        }
+
+        $progression->forceFill(['effective_on' => $on->toDateString(), 'remark' => $data['remark'] ?: null, 'snapshot' => $snapshot])->save();
         $this->syncEmployeeDate($progression, $employee, $on->toDateString());
+        if ($lastWorkingDay) {
+            $this->syncEmployeeLastWorkingDay($progression, $employee, $lastWorkingDay->toDateString());
+        }
         AuditLog::record('Edited progression record', $employee->name.' · '.$progression->type);
 
         return redirect(route('app.screen', 'progression').'?emp='.$employee->id.'&action='.self::ACTION_FOR_TYPE[$progression->type])
@@ -141,6 +162,15 @@ class ProgressionController extends EmploymentRecordController
         $latest = EmployeeProgression::where('employee_id', $employee->id)->where('type', $row->type)->orderByDesc('id')->first();
         if ($latest?->id === $row->id) {
             $employee->forceFill([$column => $on])->save();
+        }
+    }
+
+    /** Mirrors a corrected resigned row's last working day onto the employee, only when this is their latest resignation. */
+    private function syncEmployeeLastWorkingDay(EmployeeProgression $row, Employee $employee, string $on): void
+    {
+        $latest = EmployeeProgression::where('employee_id', $employee->id)->where('type', 'resigned')->orderByDesc('id')->first();
+        if ($latest?->id === $row->id) {
+            $employee->forceFill(['last_working_day' => $on])->save();
         }
     }
 

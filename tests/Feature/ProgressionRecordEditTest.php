@@ -51,6 +51,16 @@ class ProgressionRecordEditTest extends TestCase
         return app(EmploymentRecordService::class)->confirm($staff, '2026-09-18', [], 'Confirmd after probaton', null);
     }
 
+    private function resignedRow(): EmployeeProgression
+    {
+        $staff = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Halim', 'status' => 'active',
+            'workload' => 'green', 'joined_at' => '2025-06-02',
+        ]);
+
+        return app(EmploymentRecordService::class)->resign($staff, '2026-08-20', '2026-08-24', 'resigned', null, null);
+    }
+
     public function test_hr_corrects_the_remark_and_date_and_the_employee_date_follows(): void
     {
         $this->login('hr');
@@ -70,7 +80,7 @@ class ProgressionRecordEditTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'Edited progression record']);
     }
 
-    public function test_the_edit_form_shows_on_the_progression_screen_but_not_on_the_profile_timeline(): void
+    public function test_the_edit_form_shows_on_both_the_progression_screen_and_the_profile_timeline_for_hr(): void
     {
         $this->login('hr');
         $row = $this->confirmedRow();
@@ -78,7 +88,44 @@ class ProgressionRecordEditTest extends TestCase
         $this->get('/app/progression?emp='.$row->employee_id.'&action=confirmation')
             ->assertOk()->assertSee(route('progression.record.update', $row), false);
         $this->get('/app/profile?emp='.$row->employee_id.'&tab=timeline')
+            ->assertOk()->assertSee(route('progression.record.update', $row), false);
+    }
+
+    public function test_the_edit_form_does_not_show_on_the_profile_timeline_for_a_manager(): void
+    {
+        $row = $this->confirmedRow();
+        $this->login('manager');
+
+        $this->get('/app/profile?emp='.$row->employee_id.'&tab=timeline')
             ->assertOk()->assertDontSee(route('progression.record.update', $row), false);
+    }
+
+    public function test_hr_corrects_the_last_working_day_on_a_resigned_row(): void
+    {
+        $this->login('hr');
+        $row = $this->resignedRow();
+
+        $this->post('/app/progression/record/'.$row->id, [
+            'effective_on' => '2026-08-20',
+            'last_working_day' => '2026-08-31',
+            'remark' => null,
+        ])->assertRedirect();
+
+        $row->refresh();
+        $this->assertSame('2026-08-31', $row->snapshot['last_working_day']);
+        $this->assertSame('2026-08-31', $row->employee->refresh()->last_working_day->toDateString());
+    }
+
+    public function test_the_last_working_day_cannot_move_before_the_resignation_date(): void
+    {
+        $this->login('hr');
+        $row = $this->resignedRow();
+
+        $this->post('/app/progression/record/'.$row->id, [
+            'effective_on' => '2026-08-20',
+            'last_working_day' => '2026-08-10',
+        ])->assertSessionHasErrors('last_working_day');
+        $this->assertSame('2026-08-24', $row->refresh()->snapshot['last_working_day']);
     }
 
     public function test_a_manager_cannot_edit_a_record(): void
