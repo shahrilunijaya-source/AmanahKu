@@ -21,10 +21,12 @@
         unset($snap['basic_salary']);
     }
     $changed = array_flip($row->changed_fields ?? []);
+    // Errors from a rejected correction come back for the whole page, so scope them to the row that was submitted.
+    $failed = $errors->any() && (int) old('row') === $row->id;
     $updateType = \App\Services\EmploymentRecordService::UPDATE_TYPES[$snap['update_type'] ?? ''] ?? null;
     unset($snap['update_type']);
 @endphp
-<div x-data="{ open: {{ ($open ?? false) ? 'true' : 'false' }} }" style="border-left:2px solid var(--info);padding-left:16px;margin-left:6px;position:relative;">
+<div x-data="{ open: {{ (($open ?? false) || $failed) ? 'true' : 'false' }} }" style="border-left:2px solid var(--info);padding-left:16px;margin-left:6px;position:relative;">
     <span style="position:absolute;left:-7px;top:8px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--info);"></span>
     <span style="display:inline-block;background:var(--info);color:#fff;font-size:11.5px;font-weight:600;border-radius:6px;padding:4px 10px;">{{ $row->effective_on->format('D, jS F Y') }}</span>
     <div class="uj-card" style="margin-top:8px;padding:16px;">
@@ -41,16 +43,18 @@
             @endforeach
             @if ($row->remark)<div style="grid-column:1/-1;font-size:12.5px;color:var(--body);">{{ $row->remark }}</div>@endif
             @if ($editable ?? false)
-                <div style="grid-column:1/-1;" x-data="{ editing: false }">
+                <div style="grid-column:1/-1;" x-data="{ editing: {{ $failed ? 'true' : 'false' }} }">
                     <div x-show="!editing"><button type="button" @click="editing = true" style="background:transparent;border:0;padding:0;cursor:pointer;font-size:12px;color:var(--info);">{!! $L('Correct note or date', 'Betulkan catatan atau tarikh') !!}</button></div>
                     <div x-show="editing" x-cloak>
+                        @if ($failed)<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;margin-bottom:8px;">{{ $errors->first() }}</div>@endif
                         <form method="post" action="{{ route('progression.record.update', $row) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
                             @csrf
-                            <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ $row->effective_on->toDateString() }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            <input type="hidden" name="row" value="{{ $row->id }}" />
+                            <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ $failed ? old('effective_on') : $row->effective_on->toDateString() }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
                             @if ($row->type === 'resigned')
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Last Working Day', 'Hari Terakhir Bekerja') !!}</label><input type="date" name="last_working_day" value="{{ $snap['last_working_day'] ?? '' }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Last Working Day', 'Hari Terakhir Bekerja') !!}</label><input type="date" name="last_working_day" value="{{ $failed ? old('last_working_day') : ($snap['last_working_day'] ?? '') }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
                             @endif
-                            <div style="flex:1;min-width:200px;"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ $row->remark }}" style="width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
+                            <div style="flex:1;min-width:200px;"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ $failed ? old('remark') : $row->remark }}" style="width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
                             <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;padding:0 16px;">{!! $L('Save', 'Simpan') !!}</button>
                             <button type="button" @click="editing = false" style="height:34px;background:transparent;border:0;cursor:pointer;font-size:12.5px;color:var(--muted);">{!! $L('Cancel', 'Batal') !!}</button>
                         </form>
