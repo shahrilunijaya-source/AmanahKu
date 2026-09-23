@@ -2570,8 +2570,9 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-at-sheet h2 { font-size: var(--t-lg); font-weight: 600; color: var(--ink); margin: 0; letter-spacing: -.01em; }
 .uj-at-sheet-why { font-size: var(--t-sm); color: var(--body); line-height: 1.55; margin: 6px 0 0; }
 .uj-at-sheet-cam { margin-top: 14px; border-radius: 12px; overflow: hidden; background: #1f1e1a; aspect-ratio: 4 / 3; }
+.uj-at-sheet-cam-slot { height: 100%; }
 /* Mirrored, because an unmirrored preview of your own face reads as somebody else's. */
-.uj-at-sheet-cam video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1) translateZ(0); }
+.uj-at-sheet-cam video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
 .uj-at-sheet-cam img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .uj-at-sheet-err { margin-top: 10px; font-size: var(--t-sm); color: var(--red-active); line-height: 1.5; }
 .uj-at-sheet-reason { margin-top: 14px; }
