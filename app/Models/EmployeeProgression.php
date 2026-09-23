@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * One employment event (hired, confirmed, updated, resigned, rehired). Append-only: the
  * Timeline tab is built from these rows, so a row is never edited or deleted.
+ *
+ * @property array<string, mixed>|null $snapshot
  */
 class EmployeeProgression extends Model
 {

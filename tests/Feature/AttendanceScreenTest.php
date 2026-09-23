@@ -211,7 +211,8 @@ class AttendanceScreenTest extends TestCase
         $response->assertOk();
         $response->assertSee('@change="attachFile($event.target.files[0])"', false);
         $response->assertSee('this.drawScaled(img, img.width, img.height)', false);
-        $response->assertSee('this.drawScaled(v, v.videoWidth, v.videoHeight)', false);
+        // The camera shot is saved mirrored, to match the preview the person framed themselves in.
+        $response->assertSee('this.drawScaled(v, v.videoWidth, v.videoHeight, true)', false);
         $response->assertSee('Math.min(1, 1600 / Math.max(width, height))', false);
     }
 
