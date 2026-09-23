@@ -1,7 +1,7 @@
 {{-- One timeline card for an EmployeeProgression $row. Expects $row, $canSeeSalary, $open (bool). --}}
 @php
     $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
-    $titles = ['hired' => ['Hired', 'Diambil Bekerja'], 'confirmed' => ['Confirmed', 'Disahkan'], 'updated' => ['Updated', 'Dikemas kini'], 'resigned' => ['Resigned', 'Berhenti'], 'rehired' => ['Rehired', 'Diambil Semula']];
+    $titles = ['hired' => ['Hired', 'Diambil Bekerja'], 'confirmed' => ['Confirmed', 'Disahkan'], 'updated' => ['Updated', 'Dikemas kini'], 'resigned' => ['Resigned', 'Berhenti'], 'withdrawn' => ['Resignation Withdrawn', 'Perletakan Jawatan Ditarik Balik'], 'rehired' => ['Rehired', 'Diambil Semula']];
     $labels = ['status' => 'Status', 'department' => 'Department', 'division' => 'Division', 'section' => 'Section', 'position' => 'Position', 'job_grade' => 'Job Grade', 'category' => 'Category', 'line' => 'Line', 'branch' => 'Branch', 'reports_to' => 'Reporting To', 'employment_type' => 'Employment Type', 'probation_months' => 'Probation (months)', 'probation_days' => 'Probation (days)', 'basic_salary' => 'Basic Salary', 'pay_mode' => 'Pay Mode', 'payment_term' => 'Payment Term', 'payment_method' => 'Payment Method', 'reason' => 'Reason', 'last_working_day' => 'Last Working Day'];
     $fmt = function (string $k, $v) {
         if ($v === null || $v === '') {

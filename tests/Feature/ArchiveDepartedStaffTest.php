@@ -67,6 +67,17 @@ class ArchiveDepartedStaffTest extends TestCase
         $this->assertSame('rejected', $pendingLeave->fresh()->status);    // cascade: pending request closed
     }
 
+    public function test_it_marks_staff_resigned_only_after_their_last_working_day(): void
+    {
+        $left = $this->emp('Left', ['resigned_at' => now()->subMonth()->toDateString(), 'last_working_day' => now()->subDay()->toDateString()]);
+        $lastDayToday = $this->emp('Last Day Today', ['resigned_at' => now()->subMonth()->toDateString(), 'last_working_day' => now()->toDateString()]);
+
+        $this->artisan('staff:archive-departed')->assertExitCode(0);
+
+        $this->assertSame('resigned', $left->fresh()->status);
+        $this->assertSame('active', $lastDayToday->fresh()->status);
+    }
+
     public function test_it_does_not_archive_before_the_last_working_day(): void
     {
         $servingToday = $this->emp('Serving Notice Today');

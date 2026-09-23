@@ -96,9 +96,17 @@ final class EmploymentRecordService
         });
     }
 
+    /**
+     * Status stays as it is while the person serves notice; it only turns 'resigned' here when
+     * the last working day is already behind us. Otherwise staff:archive-departed flips it the
+     * day after the last working day.
+     */
     public function resign(Employee $e, string $resignedOn, string $lastWorkingDay, string $reason, ?string $remark, ?Employee $by): EmployeeProgression
     {
         $this->assertStatus($e, ['active', 'probation', 'on_leave'], 'This person has already left.');
+        if ($e->resigned_at !== null) {
+            throw new EmploymentTransitionException('A resignation is already recorded for this person.');
+        }
         $this->assertOnOrAfterHire($e, $resignedOn);
         if (CarbonImmutable::parse($lastWorkingDay)->lt(CarbonImmutable::parse($resignedOn))) {
             throw new EmploymentTransitionException('Last working day cannot be before the resignation date.');
@@ -106,9 +114,31 @@ final class EmploymentRecordService
 
         return DB::transaction(function () use ($e, $resignedOn, $lastWorkingDay, $reason, $remark, $by) {
             $previous = $this->snapshot($e);
-            $e->forceFill(['resigned_at' => $resignedOn, 'last_working_day' => $lastWorkingDay, 'status' => 'resigned'])->save();
+            $hasLeft = CarbonImmutable::parse($lastWorkingDay)->lt(CarbonImmutable::today());
+            $e->forceFill(['resigned_at' => $resignedOn, 'last_working_day' => $lastWorkingDay, 'status' => $hasLeft ? 'resigned' : $e->status])->save();
             $row = $this->record($e, 'resigned', $resignedOn, $remark, $by, $previous, ['reason' => $reason, 'last_working_day' => $lastWorkingDay]);
             AuditLog::record('Recorded resignation', $e->name);
+
+            return $row;
+        });
+    }
+
+    /**
+     * Undoes a resignation while the person is still serving notice. Their status never
+     * changed, so only the leaving dates are cleared; the resigned row stays in the timeline
+     * and a 'withdrawn' row follows it.
+     */
+    public function withdrawResignation(Employee $e, ?string $remark, ?Employee $by): EmployeeProgression
+    {
+        if ($e->resigned_at === null || $e->status === 'resigned' || $e->last_working_day?->lt(CarbonImmutable::today())) {
+            throw new EmploymentTransitionException('Only a resignation still in its notice period can be withdrawn.');
+        }
+
+        return DB::transaction(function () use ($e, $remark, $by) {
+            $previous = $this->snapshot($e);
+            $e->forceFill(['resigned_at' => null, 'last_working_day' => null])->save();
+            $row = $this->record($e, 'withdrawn', now()->toDateString(), $remark, $by, $previous);
+            AuditLog::record('Withdrew resignation', $e->name);
 
             return $row;
         });

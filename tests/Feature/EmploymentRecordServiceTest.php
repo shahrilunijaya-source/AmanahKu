@@ -120,6 +120,56 @@ class EmploymentRecordServiceTest extends TestCase
         $this->assertSame(['resigned', 'rehired'], EmployeeProgression::orderBy('id')->pluck('type')->all());
     }
 
+    public function test_resign_keeps_status_while_serving_notice(): void
+    {
+        $e = $this->emp('Adibah', ['status' => 'active']);
+        $svc = app(EmploymentRecordService::class);
+
+        $svc->resign($e, now()->toDateString(), now()->addMonth()->toDateString(), 'resigned', null, null);
+        $e->refresh();
+        $this->assertSame('active', $e->status);
+        $this->assertNotNull($e->resigned_at);
+
+        $this->expectException(EmploymentTransitionException::class);
+        $svc->resign($e, now()->toDateString(), now()->addMonth()->toDateString(), 'resigned', null, null);
+    }
+
+    public function test_withdrawing_a_resignation_during_notice_clears_the_leaving_dates(): void
+    {
+        $e = $this->emp('Adibah');
+        $svc = app(EmploymentRecordService::class);
+        $svc->resign($e, now()->toDateString(), now()->addMonth()->toDateString(), 'resigned', null, null);
+
+        $svc->withdrawResignation($e->refresh(), 'Changed her mind', null);
+        $e->refresh();
+
+        $this->assertSame('probation', $e->status);
+        $this->assertNull($e->resigned_at);
+        $this->assertNull($e->last_working_day);
+        $this->assertSame(['resigned', 'withdrawn'], EmployeeProgression::orderBy('id')->pluck('type')->all());
+    }
+
+    public function test_a_resignation_whose_last_day_has_passed_cannot_be_withdrawn(): void
+    {
+        $e = $this->emp('Adibah', ['status' => 'active']);
+        app(EmploymentRecordService::class)->resign($e, '2026-08-01', '2026-08-31', 'resigned', null, null);
+
+        $this->expectException(EmploymentTransitionException::class);
+        app(EmploymentRecordService::class)->withdrawResignation($e->refresh(), null, null);
+    }
+
+    public function test_hr_withdraws_a_resignation_from_the_progression_screen(): void
+    {
+        $this->login('hr');
+        $e = $this->emp('Adibah', ['status' => 'active']);
+        app(EmploymentRecordService::class)->resign($e, now()->toDateString(), now()->addWeek()->toDateString(), 'resigned', null, null);
+
+        $this->post(route('progression.withdraw', $e), ['remark' => 'Stays on'])->assertRedirect();
+
+        $this->assertNull($e->refresh()->resigned_at);
+        $this->assertSame('Stays on', EmployeeProgression::where('type', 'withdrawn')->value('remark'));
+    }
+
     public function test_rehire_refuses_a_non_resigned_employee(): void
     {
         $e = $this->emp('Adibah', ['status' => 'active']);

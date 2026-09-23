@@ -1,5 +1,13 @@
-@if ($selected->status === 'resigned')
-    <p style="font-size:12.5px;color:var(--muted);margin:0;">{!! $L('Left on', 'Berhenti pada') !!} {{ $selected->last_working_day?->format('d/m/Y') ?? $selected->resigned_at?->format('d/m/Y') ?? '—' }}</p>
+@if ($selected->status === 'resigned' || $selected->resigned_at)
+    <p style="font-size:12.5px;color:var(--muted);margin:0;">{!! $selected->status === 'resigned' ? $L('Left on', 'Berhenti pada') : $L('Serving notice, last working day', 'Dalam tempoh notis, hari terakhir bekerja') !!} {{ $selected->last_working_day?->format('d/m/Y') ?? $selected->resigned_at?->format('d/m/Y') ?? '—' }}</p>
+    @if ($selected->status !== 'resigned' && $selected->last_working_day?->gte(today()))
+    <form method="post" action="{{ route('progression.withdraw', $selected) }}" onsubmit="return confirm('Withdraw this resignation? They stay on as staff.')" style="display:flex;flex-direction:column;gap:10px;max-width:760px;">
+        @csrf
+        @if ($errors->has('withdraw'))<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;">{{ $errors->first('withdraw') }}</div>@endif
+        <div><label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><textarea name="remark" rows="2" maxlength="2000" style="{{ $fs }}height:auto;padding:8px 11px;">{{ old('remark') }}</textarea></div>
+        <button type="submit" class="uj-btn-ghost" style="height:40px;font-size:13px;align-self:flex-start;padding:0 24px;">{!! $L('Withdraw resignation', 'Tarik balik perletakan jawatan') !!}</button>
+    </form>
+    @endif
 @else
 <form method="post" action="{{ route('progression.resign', $selected) }}" style="display:flex;flex-direction:column;gap:16px;"
       x-data="{
@@ -31,4 +39,4 @@
     <button type="submit" class="uj-btn-primary" style="height:40px;font-size:13px;align-self:flex-start;padding:0 24px;">{!! $L('Record resignation', 'Rekod perletakan jawatan') !!}</button>
 </form>
 @endif
-@include('partials.progression.history', ['type' => 'resigned'])
+@include('partials.progression.history', ['type' => ['resigned', 'withdrawn']])

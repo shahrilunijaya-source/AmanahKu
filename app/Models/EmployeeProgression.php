@@ -18,7 +18,7 @@ class EmployeeProgression extends Model
 {
     use BelongsToTenant;
 
-    public const TYPES = ['hired', 'confirmed', 'updated', 'resigned', 'rehired'];
+    public const TYPES = ['hired', 'confirmed', 'updated', 'resigned', 'withdrawn', 'rehired'];
 
     protected $guarded = [];
 
