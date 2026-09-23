@@ -698,15 +698,13 @@
                   }
                   try {
                       this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-                      const v = this.$refs.cam;
+                      const v = this.camVideo();
                       v.srcObject = this.stream;
                       // autoplay alone is not reliable on a element that was display:none a tick
                       // ago; without this the preview sits at readyState 0 and capture() draws a
                       // zero-sized frame that fails validation on the server with no explanation.
-                      // iOS is stricter still: a play() issued before the first frame's metadata
-                      // arrives leaves a black rectangle that never recovers, so play again once
-                      // metadata lands, and again when the tab comes back from the permission
-                      // sheet or the lock screen, which is where Safari drops the layer.
+                      // Play again once metadata lands, and when the tab comes back from the
+                      // permission sheet or the lock screen, where Safari pauses the stream.
                       v.onloadedmetadata = () => v.play().catch(() => {});
                       await v.play().catch(() => {});
                   } catch (e) {
@@ -721,6 +719,27 @@
                           this.camError = 'Could not open camera (' + n + ').';
                       }
                   }
+              },
+              /**
+               * The preview video element, created by script the first time it is needed. It cannot
+               * be written in the markup: this sheet sits in an x-teleport <template>, so any
+               * element in it is created in the template's inert document and then moved into
+               * the page, and iOS/iPadOS Safari plays a camera stream into a video made that way
+               * without ever drawing it: black box, live camera, capture() still works. One
+               * made by this document, in the same box with the same stream, draws normally.
+               */
+              camVideo() {
+                  const slot = this.$refs.camSlot;
+                  let v = slot.querySelector('video');
+                  if (!v) {
+                      v = document.createElement('video');
+                      v.muted = true;
+                      v.autoplay = true;
+                      v.playsInline = true;
+                      v.setAttribute('playsinline', '');
+                      slot.appendChild(v);
+                  }
+                  return v;
               },
               /** True once the sheet has everything the server will demand of this punch. */
               get sheetReady() {
@@ -756,7 +775,7 @@
                   this.proceed(fix.lat, fix.lng);
               },
               capture(after = null) {
-                  const v = this.$refs.cam, c = this.$refs.canvas;
+                  const v = this.camVideo(), c = this.$refs.canvas;
                   // A stream that has not delivered a frame yet reports 0×0, and drawing it
                   // produces an empty file the server rejects for reasons no one can see here.
                   if (!v.videoWidth || !v.videoHeight) {
@@ -766,7 +785,7 @@
                       this.submitting = false;
                       return;
                   }
-                  this.drawScaled(v, v.videoWidth, v.videoHeight);
+                  this.drawScaled(v, v.videoWidth, v.videoHeight, true);
                   c.toBlob((blob) => {
                       if (!blob) { this.camError = 'Capture failed, try again.'; return; }
                       this.setPhoto(new File([blob], 'selfie.jpg', { type: 'image/jpeg' }));
@@ -785,12 +804,17 @@
                * 1600px stays legible as proof of who was standing there and lands in the
                * hundreds of kilobytes; an uncapped 4K front camera does not.
                */
-              drawScaled(source, width, height) {
+              drawScaled(source, width, height, mirror = false) {
                   const c = this.$refs.canvas;
                   const scale = Math.min(1, 1600 / Math.max(width, height));
                   c.width = Math.round(width * scale);
                   c.height = Math.round(height * scale);
-                  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+                  const ctx = c.getContext('2d');
+                  // A camera frame is saved flipped, to match the mirrored preview the staff
+                  // member just framed themselves in. A picked photo is left as it was taken.
+                  ctx.setTransform(mirror ? -1 : 1, 0, 0, 1, mirror ? c.width : 0, 0);
+                  ctx.drawImage(source, 0, 0, c.width, c.height);
+                  ctx.setTransform(1, 0, 0, 1, 0, 0);
               },
               /** Put a file on the hidden form input and mirror it into the preview. */
               setPhoto(file) {
@@ -1030,8 +1054,9 @@
                     <p x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-why" x-text="sheetWhy($store.ui.lang)"></p>
 
                     <div class="uj-at-sheet-cam">
-                        <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"
-                               @visibilitychange.document="if (!document.hidden && stream && !photoUrl) { $el.play().catch(() => {}); }"></video>
+                        {{-- The <video> is added by camVideo(), never written here; see there for why. --}}
+                        <div x-ref="camSlot" x-show="!photoUrl" class="uj-at-sheet-cam-slot"
+                             @visibilitychange.document="if (!document.hidden && stream && !photoUrl) { $el.querySelector('video')?.play().catch(() => {}); }"></div>
                         <img x-show="photoUrl" x-cloak :src="photoUrl" alt="" />
                     </div>
 

@@ -53,15 +53,6 @@
     $approveCount = $isApprover ? ($claimsToApprove?->count() ?? 0) : 0;
     $reviewCount = $verifyCount + $approveCount;
 
-    // Decisions this viewer made themselves this year. Kept off the pending count on
-    // purpose: these are history, not work. Empty for everyone until the 2026_09_02
-    // decision trail has some claims to record.
-    // A plain manager never gives final approval, so their first history chip is what
-    // they verified instead — an approved list would sit at 0 for them forever.
-    $decKind = ($givesFinalApproval ?? false) ? 'approved' : 'verified';
-    $decApproved = $decKind === 'approved' ? ($claimsApprovedByMe ?? collect()) : ($claimsVerifiedByMe ?? collect());
-    $decRejected = $claimsRejectedByMe ?? collect();
-
     $sc = ['cancelled' => 'muted', 'submitted' => 'amber', 'verified' => 'info', 'approved' => 'success', 'paid' => 'muted', 'rejected' => 'error'];
     $statusEn = ['cancelled' => 'Cancelled', 'submitted' => 'With your manager', 'verified' => 'With management', 'approved' => 'Approved' . ($payrollAllowed ? ' · pays next run' : ''), 'paid' => 'Paid', 'rejected' => 'Declined'];
     $statusMs = ['cancelled' => 'Dibatalkan', 'submitted' => 'Dengan pengurus', 'verified' => 'Dengan pengurusan', 'approved' => 'Diluluskan' . ($payrollAllowed ? ' · gaji berikutnya' : ''), 'paid' => 'Dibayar', 'rejected' => 'Ditolak'];
@@ -262,25 +253,22 @@
 
     {{-- ── Approvals ── --}}
     @if ($isApprover)
+        {{-- `st` is the status pill, `queue` the verify/approve split inside Pending. Opens
+             on the pill in the URL (the filter bar keeps it), else Pending when anything
+             waits, else Approved, so an idle approver lands on something. --}}
+        @php
+            $stInitial = in_array(request()->query('st'), ['pending', 'approved', 'rejected', 'cancelled'], true)
+                ? request()->query('st') : ($reviewCount > 0 ? 'pending' : 'approved');
+        @endphp
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
-             x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'), queue: @js($verifyCount > 0 ? 'verify' : 'approve') }"
+             x-data="{ st: @js($stInitial), queue: @js($verifyCount > 0 ? 'verify' : 'approve') }"
              class="uj-lv-panel">
-            {{-- Status counts. Approved covers the whole year, so it keeps its number even
-                 on a day when nothing is pending — the reason this tab no longer hides. --}}
-            <div class="uj-lv-stbar">
-                <button type="button" class="uj-lv-stchip" :data-on="st === 'pending' ? '' : null" @click="st = 'pending'">
-                    <span x-text="$store.ui.lang==='en' ? 'Pending' : 'Menunggu'">Pending</span>
-                    <b>{{ $reviewCount }}</b>
-                </button>
-                <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
-                    <span x-text="$store.ui.lang==='en' ? @js($decKind === 'approved' ? 'Approved' : 'Verified') : @js($decKind === 'approved' ? 'Diluluskan' : 'Disahkan')">{{ $decKind === 'approved' ? 'Approved' : 'Verified' }}</span>
-                    <b>{{ $decApproved->count() }}</b>
-                </button>
-                <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
-                    <span x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'">Rejected</span>
-                    <b>{{ $decRejected->count() }}</b>
-                </button>
-            </div>
+            @include('partials.approval-toolbar', [
+                'counts' => ['pending' => $reviewCount, 'approved' => $claimsApproved->count(), 'rejected' => $claimsRejected->count(), 'cancelled' => $claimsCancelled->count()],
+                'filters' => $approvalFilters,
+                'periodEn' => 'Trans. date',
+                'periodMs' => 'Tarikh urus niaga',
+            ])
 
             {{-- ── Pending ── --}}
             <div x-show="st === 'pending'" class="uj-tab-stack">
@@ -298,13 +286,13 @@
                 @endif
 
                 @if ($verifyCount > 0)
-                    <div x-show="queue === 'verify'">
-                        @include('partials.claims-review-queue', ['items' => $claimsToVerify, 'mode' => 'verify'])
+                    <div x-show="queue === 'verify'" class="uj-tab-stack">
+                        @include('partials.claims-review-queue', ['items' => $claimsToVerify, 'mode' => 'verify', 'title' => ['Yours to verify', 'Untuk anda sahkan']])
                     </div>
                 @endif
                 @if ($approveCount > 0)
-                    <div x-show="queue === 'approve'">
-                        @include('partials.claims-review-queue', ['items' => $claimsToApprove, 'mode' => 'approve'])
+                    <div x-show="queue === 'approve'" class="uj-tab-stack">
+                        @include('partials.claims-review-queue', ['items' => $claimsToApprove, 'mode' => 'approve', 'title' => ['Waiting for final approval', 'Menunggu kelulusan akhir']])
                     </div>
                 @endif
 
@@ -315,13 +303,18 @@
                 @endif
             </div>
 
-            {{-- ── Decided this year ── --}}
-            <div x-show="st === 'approved'" class="uj-tab-stack">
-                @include('partials.claims-decided-list', ['items' => $decApproved, 'kind' => $decKind])
-            </div>
-            <div x-show="st === 'rejected'" class="uj-tab-stack">
-                @include('partials.claims-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])
-            </div>
+            {{-- ── Settled: every claim in that state from the people this viewer can act on ── --}}
+            @foreach (['approved' => $claimsApproved, 'rejected' => $claimsRejected, 'cancelled' => $claimsCancelled] as $state => $list)
+                <div x-show="st === @js($state)" x-cloak class="uj-tab-stack">
+                    @if ($list->isEmpty())
+                        <div class="uj-card uj-lv-empty">
+                            <span x-text="$store.ui.lang==='en' ? 'No claims here for this filter.' : 'Tiada tuntutan di sini untuk penapis ini.'">No claims here for this filter.</span>
+                        </div>
+                    @else
+                        @include('partials.claims-review-queue', ['items' => $list, 'mode' => null])
+                    @endif
+                </div>
+            @endforeach
         </div>
     @endif
 

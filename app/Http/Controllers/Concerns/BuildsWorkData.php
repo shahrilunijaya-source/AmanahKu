@@ -29,7 +29,9 @@ use App\Services\Payroll\PayrollReadiness;
 use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -401,6 +403,65 @@ trait BuildsWorkData
         return ['applyFor' => $target ?? $employee, 'onBehalfStaff' => $staff];
     }
 
+    /**
+     * The Approvals tab's filter bar, read off the query string: `period` is `all` (no
+     * date filter, the default so nothing pending is ever hidden) or `range`, between
+     * `from` and `to` (Y-m-d, this month when missing or unreadable). `q` is free text.
+     *
+     * @return array{period: string, from: string, to: string, q: string}
+     */
+    private function approvalFilters(Request $request): array
+    {
+        $date = fn (string $key, Carbon $fallback) => rescue(
+            fn () => Carbon::createFromFormat('!Y-m-d', (string) $request->query($key)),
+            $fallback,
+            false,
+        )->toDateString();
+
+        $from = $date('from', now()->startOfMonth());
+        $to = $date('to', now()->endOfMonth());
+
+        return [
+            'period' => $request->query('period') === 'range' ? 'range' : 'all',
+            'from' => min($from, $to),
+            'to' => max($from, $to),
+            'q' => trim((string) $request->query('q')),
+        ];
+    }
+
+    /**
+     * Narrow an approvals query by the filter bar. A request is in the date range when
+     * its own span overlaps it (a claim's span is its one transaction date), and the
+     * search matches the requester's name or staff id, or any of $textColumns
+     * (`relation.column` searches a related model).
+     *
+     * @param  array{period: string, from: string, to: string, q: string}  $filters
+     * @param  list<string>  $textColumns
+     */
+    private function applyApprovalFilters(Builder $query, array $filters, string $startColumn, string $endColumn, array $textColumns): Builder
+    {
+        $like = '%'.addcslashes($filters['q'], '%_\\').'%';
+
+        return $query
+            ->when($filters['period'] === 'range', fn (Builder $q) => $q
+                ->whereDate($startColumn, '<=', $filters['to'])
+                ->whereDate($endColumn, '>=', $filters['from']))
+            ->when($filters['q'] !== '', fn (Builder $q) => $q->where(function (Builder $w) use ($like, $textColumns) {
+                $w->whereHas('employee', fn (Builder $e) => $e
+                    ->where('name', 'like', $like)
+                    ->orWhere('nickname', 'like', $like)
+                    ->orWhere('staff_id', 'like', $like));
+                foreach ($textColumns as $column) {
+                    if (str_contains($column, '.')) {
+                        [$relation, $relatedColumn] = explode('.', $column, 2);
+                        $w->orWhereRelation($relation, $relatedColumn, 'like', $like);
+                    } else {
+                        $w->orWhere($column, 'like', $like);
+                    }
+                }
+            }));
+    }
+
     private function claimsData(Request $request, ?Employee $employee): array
     {
         ['applyFor' => $applyFor, 'onBehalfStaff' => $onBehalfStaff] = $this->onBehalfData($request, $employee);
@@ -442,16 +503,19 @@ trait BuildsWorkData
         ];
 
         if ($isApprover) {
-            $data['claimsToVerify'] = $this->scopeToVerify(Claim::with('employee'), $request)->latest('date')->get();
-            $data['claimsToApprove'] = $this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request)->latest('date')->get();
-            // What this person decided themselves this year. Claims settled before the
-            // 2026_09_02 decision trail recorded no approver, so they stay out for good.
-            $data['claimsApprovedByMe'] = $this->scopeApprovedByViewer(Claim::with('employee'), $request, ['approved', 'cancelled', 'paid'])->latest('approved_at')->get();
-            $data['claimsRejectedByMe'] = $this->scopeRejectedByViewer(Claim::with('employee'), $request)->latest('rejected_at')->get();
-            // A plain manager never approves, so their history is what they verified.
-            $data['claimsVerifiedByMe'] = $givesFinalApproval
-                ? collect()
-                : $this->scopeVerifiedByViewer(Claim::with('employee'), $request)->latest('verified_at')->get();
+            // Every list on the Approvals tab reads the same filter bar (period, dates, search).
+            $filters = $this->approvalFilters($request);
+            $filter = fn (Builder $q) => $this->applyApprovalFilters($q, $filters, 'date', 'date', ['title', 'reason', 'type']);
+            $data['approvalFilters'] = $filters;
+            $data['claimsToVerify'] = $filter($this->scopeToVerify(Claim::with('employee'), $request))->latest('date')->get();
+            $data['claimsToApprove'] = $filter($this->scopeToApprove(Claim::with(['employee', 'verifiedBy']), $request))->latest('date')->get();
+            // Every settled claim from the people this viewer can act on, whoever decided it.
+            // Paid counts as approved: payroll reimbursing it does not un-approve it.
+            $settled = fn (array $statuses) => $filter($this->scopeReviewable(Claim::with(['employee', 'verifiedBy']), $request))
+                ->whereIn('status', $statuses)->latest('date')->get();
+            $data['claimsApproved'] = $settled(['approved', 'paid']);
+            $data['claimsRejected'] = $settled(['rejected']);
+            $data['claimsCancelled'] = $settled(['cancelled']);
         }
 
         if ($privileged) {
@@ -476,6 +540,13 @@ trait BuildsWorkData
         ['applyFor' => $applyFor, 'onBehalfStaff' => $onBehalfStaff] = $this->onBehalfData($request, $employee);
         $chain = $this->approvalChain($applyFor);
 
+        // Every list on the Approvals tab reads the same filter bar (period, dates, search).
+        $filters = $this->approvalFilters($request);
+        $filter = fn (Builder $q) => $this->applyApprovalFilters($q, $filters, 'date_from', 'date_to', ['reason', 'leaveType.name']);
+        $actors = ['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'];
+        $settledLeave = fn (array $statuses) => $filter($this->scopeReviewable(LeaveRequest::with(['employee', ...$actors]), $request))
+            ->whereIn('status', $statuses)->latest('date_from')->get();
+
         return [
             'balances' => $employee?->leaveBalances()->with('leaveType')->get() ?? collect(),
             // The Apply tab's own copy of the balances: the viewer's, unless HR is filing for
@@ -496,23 +567,13 @@ trait BuildsWorkData
             // Names the Approvals tab for what this viewer can actually do — see the note
             // on $givesFinalApproval in the claims builder.
             'givesFinalApproval' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES),
-            'leaveToVerify' => $this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
-            'leaveToApprove' => $this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', 'leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id']), $request)->latest()->get(),
-            // Decision history for the Approvals tab's Approved / Rejected filters. A
-            // withdrawn request the viewer had already approved stays in the approved set,
-            // tagged rather than hidden: for a while they believed that person was away.
-            'leaveApprovedByMe' => $this->scopeApprovedByViewer(
-                LeaveRequest::with(['employee', 'leaveType']), $request,
-            )->latest('approved_at')->get(),
-            'leaveRejectedByMe' => $this->scopeRejectedByViewer(
-                LeaveRequest::with(['employee', 'leaveType']), $request,
-            )->latest('rejected_at')->get(),
-            // A plain manager never approves, so their history is what they verified.
-            'leaveVerifiedByMe' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES)
-                ? collect()
-                : $this->scopeVerifiedByViewer(
-                    LeaveRequest::with(['employee', 'leaveType']), $request,
-                )->latest('verified_at')->get(),
+            'leaveToVerify' => $filter($this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get(),
+            'leaveToApprove' => $filter($this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get(),
+            // Every settled request from the people this viewer can act on, whoever decided it.
+            'leaveApproved' => $settledLeave(['approved']),
+            'leaveRejected' => $settledLeave(['rejected']),
+            'leaveCancelled' => $settledLeave(['cancelled']),
+            'approvalFilters' => $filters,
             // Gates the tab itself. Deliberately not "is anything pending" — see
             // canReviewAnything: a cleared queue must not take the history with it.
             'leaveCanReview' => $this->canReviewAnything($request),
