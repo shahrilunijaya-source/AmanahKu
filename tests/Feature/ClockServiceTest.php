@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Attendance\ClockService;
 use App\Attendance\ScheduleResolver;
 use App\Attendance\SiteSpec;
+use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Tenant;
@@ -85,6 +86,20 @@ class ClockServiceTest extends TestCase
         $this->assertSame('on_time', $record->status);
         $this->assertTrue($record->in_radius);
         $this->assertSame([], $record->flags ?? []);
+    }
+
+    public function test_clock_in_is_closed_after_the_last_working_day(): void
+    {
+        $this->employee->forceFill(['resigned_at' => '2026-06-01', 'last_working_day' => '2026-07-01'])->save();
+        $svc = $this->service($this->office());
+
+        $onLastDay = $svc->clockIn($this->employee, 3.1001, 101.6001, null, 'attendance-photos/a.jpg', Carbon::parse('2026-07-01 08:55:00'));
+        $this->assertSame('ok', $onLastDay['status']);
+
+        $dayAfter = $svc->clockIn($this->employee, 3.1001, 101.6001, null, 'attendance-photos/a.jpg', Carbon::parse('2026-07-02 08:55:00'));
+        $this->assertSame('noop', $dayAfter['status']);
+        $this->assertStringContainsString('Clocking in is closed', $dayAfter['message']);
+        $this->assertSame(1, AttendanceRecord::count());
     }
 
     public function test_out_of_radius_clock_in_requires_justification(): void

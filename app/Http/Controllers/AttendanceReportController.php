@@ -82,12 +82,14 @@ class AttendanceReportController extends Controller
         $self = $request->attributes->get('employee');
         $visibleIds = app(DataScope::class)->visibleEmployeeIds($scope, $self);
 
-        // active() only clears the archive, so 'resigned' still needs excluding by hand.
+        // active() only clears the archive, so leavers still need excluding by hand: a leaver
+        // shows for any period that includes their last working day or earlier, never after.
         $employees = Employee::active()
             ->when($visibleIds !== null, fn ($b) => $b->whereIn('id', $visibleIds))
             ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
             ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))
-            ->where('status', '!=', 'resigned')
+            ->where(fn ($b) => $b->whereDate('last_working_day', '>=', $period->from->toDateString())
+                ->orWhere(fn ($b) => $b->whereNull('last_working_day')->where('status', '!=', 'resigned')))
             ->with(['department:id,name'])
             ->get();
 

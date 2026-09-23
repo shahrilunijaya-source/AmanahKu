@@ -26,6 +26,11 @@ class ClockService
      */
     public function clockIn(Employee $employee, ?float $lat, ?float $lng, ?string $justification, ?string $photoPath, Carbon $now, string $workMode = 'office_home'): array
     {
+        // A leaver cannot start a new day after their last one, even before the nightly job marks them resigned.
+        if ($employee->last_working_day !== null && $now->toDateString() > $employee->last_working_day->toDateString()) {
+            return ['status' => 'noop', 'message' => 'Your last working day was '.$employee->last_working_day->format('j M Y').'. Clocking in is closed.'];
+        }
+
         $existing = $employee->attendanceRecords()->onDate($now)->first();
         if ($existing && $existing->clock_in) {
             return ['status' => 'noop', 'message' => 'Already clocked in today.'];

@@ -386,6 +386,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/progression/{employee}/update', [ProgressionController::class, 'update'])->whereNumber('employee')->name('progression.update');
         Route::post('/app/progression/{employee}/resign', [ProgressionController::class, 'resign'])->whereNumber('employee')->name('progression.resign');
         Route::post('/app/progression/record/{progression}', [ProgressionController::class, 'updateRecord'])->whereNumber('progression')->name('progression.record.update');
+        Route::post('/app/progression/{employee}/withdraw-resignation', [ProgressionController::class, 'withdrawResignation'])->whereNumber('employee')->name('progression.withdraw');
         Route::post('/app/progression/{employee}/rehire', [ProgressionController::class, 'rehire'])->whereNumber('employee')->name('progression.rehire');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
