@@ -64,6 +64,7 @@ class PayrollCalculator
      *     individual_deductions_total?: float|int|string,
      *     carry_forward?: bool,
      *     hrdf_rate?: float|int|string,
+     *     mid_month_advance?: float|int|string,
      *  }  $inputs
      */
     public function compute(array $inputs): PayslipComputation
@@ -87,6 +88,9 @@ class PayrollCalculator
         // concepts; see the flag-derived $epfBase/$perkesoBase below, which this
         // deliberately does not feed into).
         $fixedDeductionsTotal = $this->money($inputs['fixed_deductions_total'] ?? 0);
+        // Pay already handed over in this period's mid-month run. It comes off net pay
+        // only: it is part of this month's wages, so gross and every statutory base keep it.
+        $midMonthAdvance = $this->money($inputs['mid_month_advance'] ?? 0);
 
         // Individual Transactions: one-off earning/deduction lines HR picks a Payroll Item
         // for (PayrollController::validateIndividualTransaction). Earnings raise gross and
@@ -221,7 +225,7 @@ class PayrollCalculator
         // didn't, in whatever the override represents).
         $pcbEffective = $pcbOverride ?? $pcb;
 
-        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal, 2);
+        $totalDeductions = round($epfEmployee + $socsoEmployee + $eisEmployee + $skbbkEmployee + $pcbEffective + $pcbAdditional + $zakat + $cp38 + $otherDeductionsTotal + $fixedDeductionsTotal + $individualDeductionsTotal + $midMonthAdvance, 2);
 
         // EA s.24 cap (spec F4): only non-statutory deductions count — zakat, CP38, loans,
         // advances, one-offs. EPF/SOCSO/EIS/SKBBK/PCB are the law's own deductions.
@@ -274,6 +278,7 @@ class PayrollCalculator
             deductionCapExceeded: $deductionCapExceeded,
             carriedForward: $carriedForward,
             hrdfLevy: $hrdfLevy,
+            midMonthAdvance: $midMonthAdvance,
         );
     }
 

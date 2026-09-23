@@ -30,6 +30,7 @@ use App\Support\Calendar\CalendarSyncStatus;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -639,6 +640,8 @@ trait BuildsWorkData
                 'payslipAckOutstanding' => [],
                 'readinessRows' => [],
                 'readinessBlockingCount' => 0,
+                'payrollWizard' => null,
+                'wizardResultRun' => null,
             ];
         }
 
@@ -683,8 +686,14 @@ trait BuildsWorkData
             'salaryEmployees' => Employee::active()->with('salaryStructure')->orderBy('name')->get(),
             // Spec F10: who a final pay run can be created for — a recorded last working
             // day, a salary structure, and not already paid out.
-            'finalPayCandidates' => Employee::whereNotNull('last_working_day')->whereNull('final_pay_run_id')
-                ->whereHas('salaryStructure')->orderBy('name')->get(['id', 'name', 'last_working_day']),
+            'finalPayCandidates' => $finalPayCandidates = Employee::whereNotNull('last_working_day')->whereNull('final_pay_run_id')
+                ->whereHas('salaryStructure')->orderBy('name')->get(),
+            // Process Payroll wizard (spec 2026-09-24): only the process screen needs it.
+            'payrollWizard' => $request->route('screen') === 'payroll-process'
+                ? $this->payrollWizardData($readinessRows, $finalPayCandidates, $readiness, $readinessTenant?->name)
+                : null,
+            // Step 4 Results: the run createRun just made, already loaded as $activeRun.
+            'wizardResultRun' => $request->query('step') === 'results' && $request->filled('run') ? $activeRun : null,
             // Spec F12: statutory filings, soonest deadline first, submitted ones last.
             'payrollSubmissions' => PayrollSubmission::with('payrollRun')->orderByRaw('submitted_at is not null')->orderBy('due_on')->get(),
             // Spec F11: statutory notices, open ones first.
@@ -718,6 +727,75 @@ trait BuildsWorkData
                 ? IndividualTransaction::with('payrollItem')->forPeriod($activeRun->period)->get()->groupBy('employee_id')
                 : collect(),
             ...$this->individualTransactionTabData($request),
+        ];
+    }
+
+    /**
+     * Everything the Process Payroll wizard filters and shows, as plain arrays for Alpine.
+     * The people are the readiness rows already built for this request (same "currently
+     * employed" allowlist createRun uses) narrowed to those createRun would actually pay:
+     * a salary structure and no final pay yet. Ids are resolved to names for the filters.
+     *
+     * @param  list<array{employee: Employee, blocking: list<string>, warnings: list<string>}>  $readinessRows
+     * @param  EloquentCollection<int, Employee>  $finalPayCandidates
+     * @return array{company: ?string, people: list<array<string, mixed>>, outside: list<array{name: string, blocking: list<string>}>, bonusByPeriod: array<string, list<int>>, leavers: list<array<string, mixed>>}
+     */
+    private function payrollWizardData(array $readinessRows, EloquentCollection $finalPayCandidates, PayrollReadiness $readiness, ?string $company): array
+    {
+        $payable = fn (array $r) => $r['employee']->salaryStructure !== null && $r['employee']->final_pay_run_id === null;
+        $rows = array_values(array_filter($readinessRows, $payable));
+        $relations = ['department:id,name', 'employmentType:id,name', 'positionBand:id,title', 'reportsTo:id,name', 'workSite:id,name', 'branch:id,name'];
+        (new EloquentCollection(array_column($rows, 'employee')))->load($relations);
+        $finalPayCandidates->load([...$relations, 'salaryStructure']);
+
+        $person = fn (Employee $e, array $gaps): array => [
+            'id' => $e->id,
+            'name' => $e->name,
+            // Same rule as OrgController: only an app-relative path is a usable photo.
+            'photo' => $e->photo && str_starts_with($e->photo, '/') ? $e->photo : null,
+            'position' => $e->position,
+            'staff_id' => $e->staff_id,
+            'department' => $e->department?->name,
+            'gender' => $e->gender,
+            'marital_status' => $e->marital_status,
+            'joined_at' => $e->joined_at?->toDateString(),
+            'date_of_birth' => $e->date_of_birth?->toDateString(),
+            'confirmed_at' => $e->confirmed_at?->toDateString(),
+            'resigned_at' => $e->resigned_at?->toDateString(),
+            'salary' => (float) $e->salary,
+            'pay_mode' => $e->pay_mode,
+            'payment_method' => $e->payment_method,
+            'employment_type' => $e->employmentType?->name,
+            'status' => $e->status,
+            'job_grade' => $e->job_grade,
+            'direct_report' => $e->reportsTo?->name,
+            'location' => $e->workSite?->name,
+            'branch' => $e->branch?->name,
+            'category' => $e->category,
+            'division' => $e->division,
+            'nationality' => $e->nationality,
+            'race' => $e->race,
+            'religion' => $e->religion,
+            'line' => $e->line,
+            'section' => $e->section,
+            'blocking' => $gaps['blocking'],
+            'warnings' => $gaps['warnings'],
+        ];
+
+        return [
+            'company' => $company,
+            'people' => array_map(fn (array $r) => $person($r['employee'], $r), $rows),
+            // Currently employed but not payable (no salary structure): they never appear in
+            // the selection, but their gaps can still trip the server's readiness gate.
+            'outside' => array_values(array_map(
+                fn (array $r) => ['name' => $r['employee']->name, 'blocking' => $r['blocking']],
+                array_filter($readinessRows, fn (array $r) => ! $payable($r) && $r['blocking'] !== [] && $r['employee']->final_pay_run_id === null),
+            )),
+            // Bonus cycle: who has a bonus queued, per period (same rows createRun pays).
+            'bonusByPeriod' => IndividualTransaction::forBonusRun(true)->select('period', 'employee_id')->distinct()->get()
+                ->groupBy('period')->map(fn ($g) => $g->pluck('employee_id')->unique()->values()->all())->all(),
+            'leavers' => $finalPayCandidates->map(fn (Employee $e): array => $person($e, $readiness->gapsFor($e))
+                + ['last_working_day' => $e->last_working_day?->toDateString()])->values()->all(),
         ];
     }
 

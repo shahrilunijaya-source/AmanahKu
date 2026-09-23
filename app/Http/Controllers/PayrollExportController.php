@@ -155,7 +155,7 @@ class PayrollExportController extends Controller
     {
         $this->authorize($request, $run);
 
-        $totals = AccountingJournal::totals($run->payslips()->get());
+        $totals = AccountingJournal::totals($run->payslips()->get(), $run->isMidMonth());
         abort_unless(AccountingJournal::balanced($totals), 422, 'Journal does not balance. Nothing was exported.');
 
         $codes = app(CurrentTenant::class)->get()->journal_accounts ?? [];

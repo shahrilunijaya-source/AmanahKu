@@ -809,6 +809,12 @@ class PayrollController extends Controller
             'pull_unpaid' => ['nullable', 'boolean'],
             'exclude_employee_ids' => ['nullable', 'array'],
             'exclude_employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            // Process Payroll wizard: when sent, the run covers only these people.
+            'include_employee_ids' => ['nullable', 'array'],
+            'include_employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'mid_month_basis' => [Rule::requiredIf(fn () => $request->input('kind') === 'mid_month'), 'nullable', Rule::in(['cutoff', 'percentage'])],
+            'mid_month_value' => ['nullable', 'integer', 'min:1', $request->input('mid_month_basis') === 'cutoff' ? 'max:28' : 'max:100'],
         ]);
         // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
         $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
@@ -846,22 +852,45 @@ class PayrollController extends Controller
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
         }
 
+        // Mid month is an advance the month-end run takes back, so it has to come first,
+        // there is one per period, and month end waits until it is no longer a draft.
+        $periodRuns = PayrollRun::where('tenant_id', $tid)->where('period', $data['period']);
+        if ($kind === 'mid_month') {
+            if ((clone $periodRuns)->where('kind', 'monthly')->exists()) {
+                return back()->withErrors(['period' => 'The '.$data['period'].' month-end run already exists. A mid-month run has to come before it.'])->withInput();
+            }
+            if ((clone $periodRuns)->where('kind', 'mid_month')->exists()) {
+                return back()->withErrors(['period' => 'A mid-month run already exists for '.$data['period'].'.'])->withInput();
+            }
+        }
+        if ($kind === 'monthly' && (clone $periodRuns)->where('kind', 'mid_month')->where('status', 'draft')->exists()) {
+            return back()->withErrors(['period' => 'The '.$data['period'].' mid-month run is still a draft. Approve or delete the mid-month run first.'])->withInput();
+        }
+
         $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
         // A final run is that one leaver and nobody else — they may already be marked
         // resigned, so the "currently employed" allowlist below would miss them.
         $employees = $leaver !== null ? collect([$leaver]) : Employee::active()->with('salaryStructure')
             ->whereHas('salaryStructure')
             ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
-            ->whereNotIn('id', $excluded)
             // Anyone already paid out in a final run is done with payroll for good.
             ->whereNull('final_pay_run_id')
             // A draft final run has not stamped final_pay_run_id yet, but it already holds
             // this month's payslip for that leaver.
-            ->when($kind === 'monthly', fn ($q) => $q->whereNotIn('id', Payslip::whereHas('payrollRun',
+            ->when(in_array($kind, ['monthly', 'mid_month'], true), fn ($q) => $q->whereNotIn('id', Payslip::whereHas('payrollRun',
                 fn ($r) => $r->where('period', $data['period'])->where('kind', 'final'))->select('employee_id')))
             ->when($kind === 'bonus', fn ($q) => $q->whereIn('id', IndividualTransaction::where('tenant_id', $tid)
                 ->forPeriod($data['period'])->forBonusRun(true)->select('employee_id')))
             ->orderBy('name')->get();
+        if ($leaver === null) {
+            // Everyone eligible but not picked in the wizard counts as excluded, so the
+            // readiness gate below and the stored exclusions treat them exactly alike.
+            if (($data['include_employee_ids'] ?? null) !== null) {
+                $notIncluded = $employees->pluck('id')->diff(array_map('intval', $data['include_employee_ids']))->all();
+                $excluded = array_values(array_unique([...$excluded, ...$notIncluded]));
+            }
+            $employees = $employees->whereNotIn('id', $excluded)->values();
+        }
 
         // Spec F2 readiness gate: refuse while the employer or any included employee is
         // missing an identifier an agency upload needs. Exclusions are HR's explicit call
@@ -879,8 +908,11 @@ class PayrollController extends Controller
                 $problems[] = $leaver->name.': '.implode(', ', $leaverGaps);
             }
         } else {
+            // With the wizard's explicit pick list, only the people actually in the run can
+            // block it; the list page already shows HR who is left out (e.g. no salary structure).
+            $onlyThisRun = $kind !== 'monthly' || ($data['include_employee_ids'] ?? null) !== null;
             foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
-                if ($kind !== 'monthly' && ! in_array($row['employee']->id, $inThisRun, true)) {
+                if ($onlyThisRun && ! in_array($row['employee']->id, $inThisRun, true)) {
                     continue;
                 }
                 $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
@@ -909,16 +941,19 @@ class PayrollController extends Controller
         // pay date unless HR typed one in.
         $finalPayDate = $leaver === null ? null : $this->lastWorkingDayFor($leaver, $data['period'])?->toDateString();
 
-        DB::transaction(function () use ($data, $kind, $leaver, $finalPayDate, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
+        $run = DB::transaction(function () use ($data, $kind, $leaver, $finalPayDate, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'kind' => $kind,
                 'employee_id' => $leaver?->id,
-                'label' => $this->periodStart($data['period'])->format('F Y').['monthly' => '', 'bonus' => ' bonus', 'final' => ' final pay'][$kind],
+                'label' => $this->periodStart($data['period'])->format('F Y').['monthly' => '', 'mid_month' => ' mid month', 'bonus' => ' bonus', 'final' => ' final pay'][$kind],
                 'run_by_id' => Auth::id(),
                 'payment_date' => $data['payment_date'] ?? $finalPayDate,
                 'pull_options' => $pulls,
                 'excluded_employee_ids' => $excluded ?: null,
+                'remarks' => $data['remarks'] ?? null,
+                'mid_month_basis' => $kind === 'mid_month' ? $data['mid_month_basis'] : null,
+                'mid_month_value' => $kind === 'mid_month' ? ($data['mid_month_value'] ?? ($data['mid_month_basis'] === 'cutoff' ? 15 : 50)) : null,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';
@@ -926,6 +961,13 @@ class PayrollController extends Controller
 
             if ($kind === 'bonus') {
                 $this->buildBonusPayslips($run, $employees, $periodEnd, $catalog);
+            } elseif ($kind === 'mid_month') {
+                $this->buildMidMonthPayslips($run, $employees, $catalog);
+                // Everyone chosen joined after the cutoff (or left before the 1st). Throwing
+                // rolls the empty run back and sends HR back to the form with their input.
+                if (! $run->payslips()->exists()) {
+                    throw ValidationException::withMessages(['period' => 'Nobody is due a mid-month advance for '.$this->periodStart($run->period)->format('F Y').'. Everyone chosen joined after the cutoff day or had left before the month began.']);
+                }
             } else {
                 $this->buildMonthlyPayslips($run, $employees, $periodEnd, $catalog, $pulls, $hrdfRate, $overtimeWarnings);
             }
@@ -934,6 +976,8 @@ class PayrollController extends Controller
             $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
             $note = $kind !== 'monthly' ? '' : ($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : '');
             AuditLog::record('Created payroll run', $run->label.' · '.$run->payslips()->count().' payslips'.$note);
+
+            return $run;
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
@@ -944,7 +988,8 @@ class PayrollController extends Controller
             $msg .= ' Warning: overtime above the 104-hour monthly limit for '.implode(', ', $overtimeWarnings).'.';
         }
 
-        return back()->with('ok', $msg);
+        return redirect()->route('app.screen', ['screen' => 'payroll-process', 'tab' => 'monthly', 'step' => 'results', 'run' => $run->id])
+            ->with('ok', $msg);
     }
 
     /**
@@ -1066,6 +1111,7 @@ class PayrollController extends Controller
             $inputs['pcb_additional'] = $result->additionalMtd;
             $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
             $inputs['cp38'] = $this->cp38->instalmentFor($employee, $period);
+            $inputs['mid_month_advance'] = $this->midMonthAdvanceFor($employee, $period);
             $comp = $this->calculator->compute($inputs);
 
             // Computed amount columns are excluded from $fillable — forceFill them.
@@ -1154,6 +1200,55 @@ class PayrollController extends Controller
     }
 
     /**
+     * A mid-month run pays an advance on basic salary and nothing else: no allowances,
+     * claims, overtime or unpaid leave, and no EPF, SOCSO, EIS, PCB, HRDF, zakat or CP38.
+     * Statutory is worked out once, on the whole month, by the month-end run, which then
+     * takes this advance back out of net pay (midMonthAdvanceFor()).
+     *
+     * Cutoff basis: salary × calendar days employed from the 1st to the cutoff day ÷ days
+     * in the month. Percentage basis: salary × percent. Either way someone with no days
+     * employed by the cutoff (day 15 for the percentage basis) gets no advance.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @param  Collection<string, PayrollItem>  $catalog
+     */
+    private function buildMidMonthPayslips(PayrollRun $run, Collection $employees, Collection $catalog): void
+    {
+        $byCutoff = $run->mid_month_basis === 'cutoff';
+        $cutoffDate = $this->periodStart($run->period)->day($byCutoff ? (int) $run->mid_month_value : 15);
+
+        foreach ($employees as $employee) {
+            $lastDay = $this->lastWorkingDayFor($employee, $run->period);
+            $days = Proration::days($run->period, $employee->joined_at, $lastDay !== null && $lastDay->lt($cutoffDate) ? $lastDay : $cutoffDate);
+            if ($days['employed'] === 0) {
+                continue;
+            }
+            $salary = (float) ($employee->salary ?? 0);
+            $advance = $byCutoff
+                ? Proration::prorate($salary, $days['employed'], $days['in_month'])
+                : round($salary * (int) $run->mid_month_value / 100, 2);
+
+            // Empty wage-base lines put every statutory base at zero, so gross = net = advance.
+            $comp = $this->calculator->compute(['basic' => $advance, 'lines' => [], 'overtime_flags' => []]);
+
+            $payslip = $run->payslips()->make(['employee_id' => $employee->id]);
+            $payslip->forceFill($comp->toPayslipAttributes() + [
+                'days_employed' => $days['employed'],
+                'days_in_month' => $days['in_month'],
+            ])->save();
+            $payslip->lines()->create($this->lineAttrs($catalog, 'basic-salary', 'Basic Salary', 'earning', $advance, null, 'salary', 0));
+        }
+    }
+
+    /** Net pay already handed to this employee in the period's mid-month run, which the month-end or final payslip takes back. */
+    private function midMonthAdvanceFor(Employee $employee, string $period): float
+    {
+        return round((float) Payslip::where('employee_id', $employee->id)
+            ->whereHas('payrollRun', fn ($q) => $q->where('period', $period)->where('kind', 'mid_month'))
+            ->sum('net_pay'), 2);
+    }
+
+    /**
      * The normal remuneration (Y1) and its EPF (K1) that a bonus run's PCB has to sit on
      * top of: the same month's monthly payslip when one exists — draft or finalized, the
      * figures are the same money either way — otherwise a projection from the employee's
@@ -1209,6 +1304,8 @@ class PayrollController extends Controller
         // the levy back on it and tax the bonus as normal pay. Change the transaction and
         // regenerate the run instead.
         abort_if($payslip->payrollRun->isBonus(), 422, 'A bonus payslip is edited through its individual transaction — change that and create the bonus run again.');
+        // A mid-month payslip is basic salary only, worked out from the run's basis.
+        abort_if($payslip->payrollRun->isMidMonth(), 422, 'A mid-month payslip cannot be edited. Delete the mid-month run and create it again.');
 
         $data = $request->validate([
             // Blank/absent = use the auto-pulled figure (approved overtime for this
@@ -1392,6 +1489,7 @@ class PayrollController extends Controller
                 'pcb_additional' => $result->additionalMtd,
                 'zakat' => (float) ($structure->zakat_monthly ?? 0),
                 'cp38' => $this->cp38->instalmentFor($payslip->employee, $payslip->payrollRun->period),
+                'mid_month_advance' => $this->midMonthAdvanceFor($payslip->employee, $payslip->payrollRun->period),
                 'pcb_override' => $data['pcb_override'] ?? null,
             ]);
 
@@ -1639,8 +1737,9 @@ class PayrollController extends Controller
 
             // Spec F12: open this month's agency filings so the Deadlines tab and the
             // reminder digest have something to track from the moment the run is closed.
+            // A mid-month advance carries no statutory, so it owes no filing of its own.
             $tenant = app(CurrentTenant::class)->get();
-            if ($tenant !== null) {
+            if ($tenant !== null && ! $run->isMidMonth()) {
                 $this->calendar->openFor($run, $tenant);
             }
 
@@ -1738,6 +1837,9 @@ class PayrollController extends Controller
         // Spec F12: once a filing has gone to an agency the run behind it is history.
         $filed = PayrollSubmission::where('payroll_run_id', $run->id)->whereNotNull('submitted_at')->exists();
         abort_if($filed, 422, 'This run has already been filed with an agency; it cannot be deleted.');
+        // The month-end run has already taken this advance back out of net pay.
+        abort_if($run->isMidMonth() && PayrollRun::where('tenant_id', $run->tenant_id)->where('period', $run->period)->where('kind', 'monthly')->exists(),
+            422, 'The '.$run->period.' month-end run already deducts this mid-month advance. Delete the month-end run first.');
 
         $label = $run->label;
         $period = $run->period;
@@ -2050,6 +2152,9 @@ class PayrollController extends Controller
         }
         foreach ($comp->otherDeductions as $deduction) {
             $lines[] = $this->lineAttrs($catalog, 'other-deduction', $deduction['name'], 'deduction', $deduction['amount'], null, 'manual', $sort++);
+        }
+        if ($comp->midMonthAdvance > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'mid-month-advance', 'Mid-month advance', 'deduction', $comp->midMonthAdvance, null, 'manual', $sort++);
         }
 
         return $lines;
