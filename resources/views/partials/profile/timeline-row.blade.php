@@ -44,20 +44,13 @@
             @if ($row->remark)<div style="grid-column:1/-1;font-size:12.5px;color:var(--body);">{{ $row->remark }}</div>@endif
             @if ($editable ?? false)
                 <div style="grid-column:1/-1;" x-data="{ editing: {{ $failed ? 'true' : 'false' }} }">
-                    <div x-show="!editing"><button type="button" @click="editing = true" style="background:transparent;border:0;padding:0;cursor:pointer;font-size:12px;color:var(--info);">{!! $L('Correct note or date', 'Betulkan catatan atau tarikh') !!}</button></div>
+                    <div x-show="!editing"><button type="button" @click="editing = true" title="Correct this record" aria-label="Correct this record" style="display:inline-flex;align-items:center;gap:6px;background:transparent;border:0;padding:0;cursor:pointer;font-size:12px;color:var(--info);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        {!! $L('Correct this record', 'Betulkan rekod ini') !!}
+                    </button></div>
                     <div x-show="editing" x-cloak>
                         @if ($failed)<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12px;border-radius:8px;padding:8px 11px;margin-bottom:8px;">{{ $errors->first() }}</div>@endif
-                        <form method="post" action="{{ route('progression.record.update', $row) }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
-                            @csrf
-                            <input type="hidden" name="row" value="{{ $row->id }}" />
-                            <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Effective date', 'Tarikh berkuat kuasa') !!}</label><input type="date" name="effective_on" required value="{{ $failed ? old('effective_on') : $row->effective_on->toDateString() }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
-                            @if ($row->type === 'resigned')
-                                <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Last Working Day', 'Hari Terakhir Bekerja') !!}</label><input type="date" name="last_working_day" value="{{ $failed ? old('last_working_day') : ($snap['last_working_day'] ?? '') }}" style="height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
-                            @endif
-                            <div style="flex:1;min-width:200px;"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">{!! $L('Remark', 'Catatan') !!}</label><input name="remark" maxlength="2000" value="{{ $failed ? old('remark') : $row->remark }}" style="width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12.5px;" /></div>
-                            <button type="submit" class="uj-btn-primary" style="height:34px;font-size:12.5px;padding:0 16px;">{!! $L('Save', 'Simpan') !!}</button>
-                            <button type="button" @click="editing = false" style="height:34px;background:transparent;border:0;cursor:pointer;font-size:12.5px;color:var(--muted);">{!! $L('Cancel', 'Batal') !!}</button>
-                        </form>
+                        @include('partials.profile.timeline-row-edit', ['row' => $row, 'snap' => $snap, 'canSeeSalary' => $canSeeSalary ?? false, 'failed' => $failed, 'L' => $L])
                     </div>
                 </div>
             @endif

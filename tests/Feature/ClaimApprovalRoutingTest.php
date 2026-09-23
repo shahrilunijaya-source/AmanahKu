@@ -652,46 +652,45 @@ class ClaimApprovalRoutingTest extends TestCase
         $this->assertNotNull($fresh->rejected_at);
     }
 
-    public function test_the_approvals_tab_counts_what_this_person_decided_this_year(): void
+    /**
+     * The pills show every settled claim from the people the viewer can act on, whoever
+     * decided it. Decided by another director still counts.
+     */
+    public function test_the_approvals_tab_counts_every_settled_claim_in_reach(): void
     {
         $mgmt = $this->member('management', 'Director');
+        $other = $this->member('management', 'Other Director');
         $manager = $this->member('manager', 'Manager');
 
-        foreach (['approved', 'approved', 'rejected'] as $i => $status) {
-            $this->claim($manager, 'verified', $manager->id, "Claim {$i}")->update([
-                'status' => $status,
-                'approved_by_id' => $status === 'approved' ? $mgmt->id : null,
-                'approved_at' => $status === 'approved' ? now() : null,
-                'rejected_by_id' => $status === 'rejected' ? $mgmt->id : null,
-                'rejected_at' => $status === 'rejected' ? now() : null,
-            ]);
-        }
+        $this->claim($manager, 'approved', $manager->id, 'A')->update(['approved_by_id' => $other->id, 'approved_at' => now()]);
+        $this->claim($manager, 'approved', $manager->id, 'B')->update(['approved_by_id' => $mgmt->id, 'approved_at' => now()]);
+        $this->claim($manager, 'rejected', $manager->id, 'C')->update(['rejected_by_id' => $other->id, 'rejected_at' => now()]);
+        $this->claim($manager, 'cancelled', null, 'D');
 
         $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
-            ->assertViewHas('claimsApprovedByMe', fn ($c) => $c->count() === 2)
-            ->assertViewHas('claimsRejectedByMe', fn ($c) => $c->count() === 1);
+            ->assertViewHas('claimsApproved', fn ($c) => $c->count() === 2)
+            ->assertViewHas('claimsRejected', fn ($c) => $c->count() === 1)
+            ->assertViewHas('claimsCancelled', fn ($c) => $c->count() === 1);
     }
 
     /**
      * Payroll flips an approved claim to 'paid' when it reimburses it. Being paid is the
-     * approval reaching its end, so it must not drop out of the approver's history.
+     * approval reaching its end, so it stays on the Approved pill, tagged.
      */
-    public function test_a_paid_claim_stays_in_the_approvers_approved_history(): void
+    public function test_a_paid_claim_stays_on_the_approved_pill(): void
     {
         $mgmt = $this->member('management', 'Director');
         $manager = $this->member('manager', 'Manager');
 
-        $this->claim($manager, 'verified', $manager->id)->update([
-            'status' => 'paid', 'approved_by_id' => $mgmt->id, 'approved_at' => now(),
-        ]);
+        $this->claim($manager, 'paid', $manager->id)->update(['approved_by_id' => $mgmt->id, 'approved_at' => now()]);
 
         $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
-            ->assertViewHas('claimsApprovedByMe', fn ($c) => $c->count() === 1)
+            ->assertViewHas('claimsApproved', fn ($c) => $c->count() === 1)
             ->assertSee('paid', false);
     }
 
     /**
-     * The tab used to vanish when the queue emptied, taking the history with it. An
+     * The tab used to vanish when the queue emptied, taking the settled lists with it. An
      * approver keeps it whether or not anything is pending.
      */
     public function test_an_approver_with_an_empty_queue_still_gets_the_approvals_tab(): void
@@ -700,45 +699,67 @@ class ClaimApprovalRoutingTest extends TestCase
 
         $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
             ->assertSee('Nothing is waiting on you.', false)
-            ->assertSee('You have not approved anything this year.', false);
+            ->assertSee('No claims here for this filter.', false);
     }
 
-    /** A verifier did not decide it; somebody else did. It is not their history. */
-    public function test_a_verifier_does_not_own_the_decision_someone_else_made(): void
+    /**
+     * A plain manager sees their own reports' settled claims, whoever decided them, and
+     * nobody else's. The viewer's own claims never appear on their review screen.
+     */
+    public function test_a_plain_manager_sees_their_reports_but_not_other_teams_or_themselves(): void
     {
         $mgmt = $this->member('management', 'Director');
         $manager = $this->member('manager', 'Manager');
         $report = $this->member('employee', 'Reportee', $manager->id);
+        $otherManager = $this->member('manager', 'Other Manager');
+        $stranger = $this->member('employee', 'Stranger', $otherManager->id);
 
-        $this->claim($report, 'verified', $manager->id)->update([
-            'status' => 'rejected', 'rejected_by_id' => $mgmt->id, 'rejected_at' => now(),
-        ]);
-
-        $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
-            ->assertSee('You have not rejected anything this year.', false);
-    }
-
-    /** A plain manager never approves; their history chip is what they verified. */
-    public function test_a_plain_manager_sees_the_claims_they_verified(): void
-    {
-        $mgmt = $this->member('management', 'Director');
-        $manager = $this->member('manager', 'Manager');
-        $report = $this->member('employee', 'Reportee', $manager->id);
-
-        $this->claim($report, 'verified', $manager->id, 'Waiting')->update(['verified_at' => now()]);
-        $this->claim($report, 'paid', $manager->id, 'Reimbursed')->update([
-            'verified_at' => now(), 'approved_by_id' => $mgmt->id, 'approved_at' => now(),
-        ]);
+        foreach ([$report, $stranger, $manager] as $who) {
+            $this->claim($who, 'approved', null)->update(['approved_by_id' => $mgmt->id, 'approved_at' => now()]);
+        }
 
         $this->actingAsEmployee($manager)->get('/app/claims')->assertOk()
-            ->assertViewHas('claimsVerifiedByMe', fn ($c) => $c->count() === 2)
-            ->assertSee('Verified this year', false)
-            ->assertSee('with management', false)
-            ->assertDontSee('Approved this year', false);
+            ->assertViewHas('claimsApproved', fn ($c) => $c->pluck('employee_id')->all() === [$report->id]);
 
         $this->actingAsEmployee($mgmt)->get('/app/claims')->assertOk()
-            ->assertViewHas('claimsVerifiedByMe', fn ($c) => $c->isEmpty())
-            ->assertSee('Approved this year', false);
+            ->assertViewHas('claimsApproved', fn ($c) => $c->count() === 3);
+    }
+
+    /** "Trans. date" filters on the claim's own date; the search matches title and name. */
+    public function test_the_filter_bar_narrows_by_transaction_date_and_search(): void
+    {
+        $mgmt = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager');
+
+        $this->claim($manager, 'approved', null, 'Parking at Kastam');
+        $this->claim($manager, 'approved', null, 'Toll')->update(['date' => '2026-07-15']);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims?tab=approvals&period=range&from=2026-07-01&to=2026-07-31')->assertOk()
+            ->assertViewHas('claimsApproved', fn ($c) => $c->pluck('title')->all() === ['Toll']);
+
+        // Dates sent the wrong way round are swapped, not an empty result.
+        $this->actingAsEmployee($mgmt)->get('/app/claims?tab=approvals&period=range&from=2026-06-30&to=2026-06-01')->assertOk()
+            ->assertViewHas('claimsApproved', fn ($c) => $c->pluck('title')->all() === ['Parking at Kastam']);
+
+        $this->actingAsEmployee($mgmt)->get('/app/claims?tab=approvals&q=kastam')->assertOk()
+            ->assertViewHas('claimsApproved', fn ($c) => $c->pluck('title')->all() === ['Parking at Kastam']);
+
+        // A garbage date falls back to this month instead of erroring.
+        $this->actingAsEmployee($mgmt)->get('/app/claims?tab=approvals&period=range&from=nope')->assertOk();
+    }
+
+    /** Pending queues use the same filter: a search hides a claim from the verify queue too. */
+    public function test_the_filter_bar_also_narrows_the_pending_queues(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Reportee', $manager->id);
+
+        $this->claim($report, 'submitted', null, 'Parking');
+
+        $this->actingAsEmployee($manager)->get('/app/claims?tab=approvals&q=parking')->assertOk()
+            ->assertViewHas('claimsToVerify', fn ($c) => $c->count() === 1);
+        $this->actingAsEmployee($manager)->get('/app/claims?tab=approvals&q=hotel')->assertOk()
+            ->assertViewHas('claimsToVerify', fn ($c) => $c->isEmpty());
     }
 
     // --- HR files on someone's behalf ------------------------------------------

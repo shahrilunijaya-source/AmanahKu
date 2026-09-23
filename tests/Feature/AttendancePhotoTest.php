@@ -101,4 +101,22 @@ class AttendancePhotoTest extends TestCase
             ->get($this->photoUri('out'))
             ->assertNotFound();
     }
+
+    /**
+     * The selfie sheet lives in an x-teleport <template>. A <video> written into it is
+     * created in the template's inert document, and iOS/iPadOS Safari plays the camera
+     * into that element without drawing it, so the preview is a black box. The video
+     * must be created by script (camVideo()) into the empty slot instead.
+     */
+    public function test_selfie_preview_video_is_not_written_into_the_teleported_sheet(): void
+    {
+        $html = $this->actingAs($this->ownerUser)
+            ->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/attendance')
+            ->assertOk()
+            ->assertSee('x-ref="camSlot"', false)
+            ->getContent();
+
+        $this->assertStringNotContainsString('<video', $html);
+    }
 }

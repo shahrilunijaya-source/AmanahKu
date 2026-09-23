@@ -1,145 +1,53 @@
-{{-- One review queue, with per-row detail, chronology and bulk actions.
+{{-- One list of leave requests on the Approvals tab, grouped by requester.
 
-     Params: $items (LeaveRequest collection, balances eager-loaded on employee),
-             $mode ('verify' | 'approve'). Also reads $leaveMeta from the leave screen
-             (per-type icon accent + tint) so a reviewer sees the leave type at a glance.
+     Params: $items (LeaveRequest collection; balances eager-loaded on employee for a
+             pending queue), $mode ('verify' | 'approve' for a pending queue, null for a
+             settled list), $title ([en, ms], optional heading).
 
-     Lives on the Approvals tab now. Each row states the balance the requester is
-     left with if you say yes — the number an approver actually needs, which the
-     queue never carried before. --}}
+     A pending queue carries the bulk actions: tick rows (or all of them) and verify or
+     approve them in one go. --}}
 @php
+    $mode ??= null;
     $isVerify = $mode === 'verify';
-    $actionRoute = $isVerify ? 'leave.verify' : 'leave.approve';
     $bulkRoute = $isVerify ? 'leave.bulk-verify' : 'leave.bulk-approve';
-    $titleEn = $isVerify ? 'Yours to verify' : 'Waiting for final approval';
-    $titleMs = $isVerify ? 'Untuk anda sahkan' : 'Menunggu kelulusan akhir';
-    $btnEn = $isVerify ? 'Verify' : 'Approve';
-    $btnMs = $isVerify ? 'Sahkan' : 'Luluskan';
     $bulkEn = $isVerify ? 'Verify selected' : 'Approve selected';
     $bulkMs = $isVerify ? 'Sahkan dipilih' : 'Luluskan dipilih';
     $num = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
 @endphp
-<div class="uj-card" x-data="{ sel: [], allIds: @js($items->pluck('id')->map(fn ($i) => (string) $i)->values()) }">
-    <div class="uj-card-head">
-        <div style="display:flex;align-items:center;gap:10px;">
-            <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? @js($titleEn) : @js($titleMs)">{{ $titleEn }}</span></h3>
-            <span class="uj-pill" style="background:var(--red-tint);color:var(--red-active);">{{ $items->count() }}</span>
-        </div>
-        <div class="uj-lv-bulk" x-show="sel.length" x-cloak>
-            <span><span x-text="sel.length"></span> <span x-text="$store.ui.lang==='en' ? 'selected' : 'dipilih'">selected</span></span>
-            <button type="button" class="uj-lv-more" style="margin:0;" @click="sel = []"
-                    x-text="$store.ui.lang==='en' ? 'Clear' : 'Kosongkan'">Clear</button>
-            <form method="post" action="{{ route($bulkRoute) }}">
-                @csrf
-                <template x-for="id in sel" :key="id"><input type="hidden" name="ids[]" :value="id"></template>
-                <button type="submit" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:var(--t-sm);">
-                    <span x-text="$store.ui.lang==='en' ? @js($bulkEn) : @js($bulkMs)">{{ $bulkEn }}</span>
-                    (<span x-text="sel.length"></span>)
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <label class="uj-lv-selall">
-        <input type="checkbox" class="uj-lv-ck" @change="sel = $event.target.checked ? [...allIds] : []"
-               :checked="allIds.length && sel.length === allIds.length">
-        <span x-text="$store.ui.lang==='en' ? 'Select all {{ $items->count() }}' : 'Pilih semua {{ $items->count() }}'">Select all</span>
-    </label>
-
-    @foreach ($items as $a)
-        @php
-            // Which balance these days actually come off, and what is left after.
-            $balTypeId = $a->leaveType?->effectiveBalanceTypeId() ?? $a->leave_type_id;
-            $bal = $a->employee?->leaveBalances->firstWhere('leave_type_id', $balTypeId);
-            $after = $bal ? max(0, (float) $bal->balance - (float) $a->days) : null;
-            // Same icon + tint the employee saw when choosing the type, so "Medical" is
-            // read as medical here rather than hunted for in the grey sub-line.
-            $slug = strtolower($a->leaveType?->name ?? '');
-            $m = ($leaveMeta ?? [])[$slug] ?? [null, '#8a8f98', '#eef0f2', '', ''];
-        @endphp
-        <div class="uj-lv-rw" x-data="{ open: false }" :data-open="open ? '' : null">
-            <div class="uj-lv-ar">
-                <input type="checkbox" class="uj-lv-ck" value="{{ $a->id }}" x-model="sel">
-                <span style="flex:0 0 32px;height:32px;border-radius:50%;background:{{ $a->employee?->avatar_color ?? '#3a6ea5' }};color:#fff;display:grid;place-items:center;font-size:var(--t-micro);font-weight:600;">{{ $a->employee?->initials }}</span>
-                <span class="uj-lv-rw-ico" style="background:{{ $m[2] }};flex:0 0 auto;">
-                    @include('partials.leave-type-icon', ['slug' => $slug, 'accent' => $m[1]])
-                </span>
-                <button type="button" class="uj-lv-ar-t" @click="open = !open">
-                    <span class="uj-lv-rw-1">
-                        <b style="color:{{ $m[1] }};">{{ $a->leaveType?->name }} <span x-text="$store.ui.lang==='en' ? 'leave' : 'cuti'">leave</span></b>
-                        · {{ $a->employee?->display_name }}
-                    </span>
-                    <span class="uj-lv-rw-2">
-                        {{ $a->date_from->format('j M') }}@if (! $a->date_from->isSameDay($a->date_to)) – {{ $a->date_to->format('j M') }}@endif
-                        (<span x-text="$store.ui.lang==='en' ? '{{ $num($a->days) }} {{ (float) $a->days == 1 ? 'day' : 'days' }}' : '{{ $num($a->days) }} hari'">{{ $num($a->days) }}</span>)
-                        <svg class="uj-lv-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-                    </span>
-                    <span class="uj-lv-after">
-                        @if ($after !== null)
-                            <span x-text="$store.ui.lang==='en' ? 'Leaves them' : 'Baki mereka'">Leaves them</span>
-                            <b>{{ $num($after) }}</b>
-                            <span x-text="$store.ui.lang==='en' ? '{{ $bal->leaveType?->name ?? '' }} days' : 'hari {{ $bal->leaveType?->name ?? '' }}'">days</span>
-                        @elseif ($a->leaveType?->deducts_from_leave_type_id)
-                            {{-- Spends a quota this person holds no row for (probation staff, interns):
-                                 approving converts the whole absence to unpaid leave. --}}
-                            <span x-text="$store.ui.lang==='en' ? 'No paid balance — approving makes this unpaid leave' : 'Tiada baki berbayar — kelulusan menjadikannya cuti tanpa gaji'"></span>
-                        @else
-                            <span x-text="$store.ui.lang==='en' ? 'No balance recorded for this type' : 'Tiada baki direkodkan untuk jenis ini'"></span>
-                        @endif
-                        @if (! $isVerify && $a->verifiedBy)
-                            · <span x-text="$store.ui.lang==='en' ? 'verified by {{ $a->verifiedBy->name }}' : 'disahkan oleh {{ $a->verifiedBy->name }}'">verified by {{ $a->verifiedBy->name }}</span>
-                        @endif
-                    </span>
-                </button>
-                <span class="uj-lv-acts">
-                    <form method="post" action="{{ route($actionRoute, $a) }}" id="lv-act-{{ $a->id }}">
+<div class="uj-tab-stack" @if ($mode) x-data="{ sel: [], allIds: @js($items->pluck('id')->map(fn ($i) => (string) $i)->values()) }" @endif>
+    @if (! empty($title) || $mode)
+        <div class="uj-ap-qhead">
+            @if (! empty($title))
+                <h3 class="uj-card-title"><span x-text="$store.ui.lang==='en' ? @js($title[0]) : @js($title[1])">{{ $title[0] }}</span></h3>
+                <span class="uj-pill">{{ $items->count() }}</span>
+            @endif
+            @if ($mode)
+                <label class="uj-ap-selall">
+                    <input type="checkbox" class="uj-lv-ck" @change="sel = $event.target.checked ? [...allIds] : []"
+                           :checked="allIds.length && sel.length === allIds.length">
+                    <span x-text="$store.ui.lang==='en' ? 'Select all {{ $items->count() }}' : 'Pilih semua {{ $items->count() }}'">Select all</span>
+                </label>
+                <div class="uj-lv-bulk" x-show="sel.length" x-cloak>
+                    <button type="button" class="uj-lv-more" style="margin:0;" @click="sel = []"
+                            x-text="$store.ui.lang==='en' ? 'Clear' : 'Kosongkan'">Clear</button>
+                    <form method="post" action="{{ route($bulkRoute) }}">
                         @csrf
-                        <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
-                            <span x-text="$store.ui.lang==='en' ? @js($btnEn) : @js($btnMs)">{{ $btnEn }}</span>
+                        <template x-for="id in sel" :key="id"><input type="hidden" name="ids[]" :value="id"></template>
+                        <button type="submit" class="uj-btn-primary" style="height:32px;padding:0 14px;font-size:var(--t-sm);">
+                            <span x-text="$store.ui.lang==='en' ? @js($bulkEn) : @js($bulkMs)">{{ $bulkEn }}</span>
+                            (<span x-text="sel.length"></span>)
                         </button>
                     </form>
-                    <form method="post" action="{{ route('leave.reject', $a) }}">
-                        @csrf
-                        <button type="submit" class="uj-btn-ghost" style="height:34px;padding:0 14px;font-size:var(--t-sm);">
-                            <span x-text="$store.ui.lang==='en' ? 'Decline' : 'Tolak'">Decline</span>
-                        </button>
-                    </form>
-                </span>
-            </div>
-            <div class="uj-lv-fold" :style="open ? 'grid-template-rows:1fr' : 'grid-template-rows:0fr'">
-                <div><div class="uj-lv-rw-in">
-                    @if ($a->reason)<div class="uj-lv-quote">“{{ $a->reason }}”</div>@endif
-                    @if ($a->attachment_path)
-                        <div style="margin-bottom:11px;">
-                            {{-- Opens in a tab and renders there (the route streams inline), so an MC
-                                 is read before the decision instead of landing in Downloads. --}}
-                            <a href="{{ route('leave.attachment', $a) }}" target="_blank" rel="noopener"
-                               style="font-size:var(--t-sm);color:var(--red);text-decoration:none;">
-                                <span x-text="$store.ui.lang==='en' ? 'Preview supporting document' : 'Pratonton dokumen sokongan'">Preview supporting document</span>
-                                — {{ $a->attachment_name }}
-                            </a>
-                        </div>
-                    @endif
-                    @if (! $isVerify && $a->verify_note)
-                        <div class="uj-lv-quote" style="margin-bottom:11px;">
-                            “{{ $a->verify_note }}”
-                            <span style="display:block;color:var(--muted);font-size:var(--t-sm);">— {{ $a->verifiedBy?->name }}</span>
-                        </div>
-                    @endif
-                    @if ($isVerify)
-                        {{-- Posts with the Verify button above: the action form is a sibling of this
-                             fold, so the field joins it by `form=` rather than restructuring the row. --}}
-                        <label class="uj-lv-field" for="lv-note-{{ $a->id }}">
-                            <span x-text="$store.ui.lang==='en' ? 'Your comment' : 'Komen anda'">Your comment</span>
-                            <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional, seen by the approver' : '— pilihan, dilihat oleh pelulus'"></span>
-                        </label>
-                        <textarea class="uj-lv-in" id="lv-note-{{ $a->id }}" form="lv-act-{{ $a->id }}"
-                                  name="verify_note" rows="2" maxlength="500" style="margin-bottom:11px;"
-                                  :placeholder="$store.ui.lang==='en' ? 'Anything management should know before approving.' : 'Apa-apa yang pengurusan patut tahu sebelum meluluskan.'"></textarea>
-                    @endif
-                    @include('partials.leave-timeline', ['r' => $a])
-                </div></div>
-            </div>
+                </div>
+            @endif
         </div>
-    @endforeach
+    @endif
+    @include('partials.approval-groups', [
+        'items' => $items,
+        'row' => 'partials.leave-approval-row',
+        'rowWith' => ['mode' => $mode],
+        'cols' => [['Apply period', 'Tempoh cuti'], ['Leave type', 'Jenis cuti'], ['Days', 'Hari'], ['Reason', 'Sebab']],
+        'grid' => 'minmax(150px, 1.3fr) minmax(110px, 1fr) 56px minmax(140px, 2fr) '.($mode ? '244px' : '72px'),
+        'total' => fn ($group) => $num($group->sum('days')).' '.((float) $group->sum('days') == 1 ? 'day' : 'days'),
+    ])
 </div>

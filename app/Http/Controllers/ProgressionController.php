@@ -108,24 +108,42 @@ class ProgressionController extends EmploymentRecordController
     }
 
     /**
-     * Corrects a saved row: remark, effective date, and — for a resigned row — the last
-     * working day held in its snapshot. Everything else in the snapshot stays as it was
-     * recorded, so the timeline still shows what the record actually held at the time.
+     * Snapshot key each posted correction field writes to. Lookups come in as ids and are
+     * stored back as the names the snapshot holds, so history never carries a foreign key
+     * that a later rename or delete could change under it.
      */
-    public function updateRecord(Request $request, EmployeeProgression $progression): RedirectResponse
+    private const CORRECTION_KEYS = [
+        'status' => 'status', 'department_id' => 'department', 'division' => 'division', 'section' => 'section',
+        'position_id' => 'position', 'job_grade' => 'job_grade', 'category' => 'category', 'line' => 'line',
+        'branch_id' => 'branch', 'reports_to_id' => 'reports_to', 'employment_type_id' => 'employment_type',
+        'probation_months' => 'probation_months', 'probation_days' => 'probation_days',
+        'salary' => 'basic_salary', 'pay_mode' => 'pay_mode', 'payment_term' => 'payment_term', 'payment_method' => 'payment_method',
+    ];
+
+    /**
+     * Corrects a saved row. A correction fixes what the record should have said; it is not a
+     * new employment event, so it rewrites this row's snapshot only and never replays a field
+     * onto the person's live record. The exceptions are the dates that already drive an
+     * employee column — effective date and a resigned row's last working day — which stay in
+     * step when this is still the row that set them. To actually change someone's current
+     * department, salary or manager, record an Update instead.
+     */
+    public function updateRecord(Request $request, EmployeeProgression $progression, EmploymentRecordService $service): RedirectResponse
     {
         $this->authorizeTenantRole($request, ['management', 'hr']);
         abort_unless($progression->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $data = $request->validate([
+        $data = $request->validate($this->rules($progression->tenant_id, $progression->employee) + [
             'effective_on' => ['required', 'date'],
             'remark' => ['nullable', 'string', 'max:2000'],
             'last_working_day' => ['nullable', 'date'],
+            'status' => ['nullable', 'in:active,probation,on_leave,resigned'],
         ]);
         $employee = $progression->employee;
         $on = CarbonImmutable::parse($data['effective_on']);
 
-        if (! in_array($progression->type, ['hired', 'rehired'], true) && $employee->joined_at && $on->lt($employee->joined_at)) {
-            return back()->withInput()->withErrors(['effective_on' => 'Date cannot be before the hire date ('.$employee->joined_at->format('d M Y').').']);
+        $floor = in_array($progression->type, ['hired', 'rehired'], true) ? null : $this->hireFloor($progression, $employee);
+        if ($floor && $on->lt($floor)) {
+            return back()->withInput()->withErrors(['effective_on' => 'Date cannot be before the hire date ('.$floor->format('d M Y').').']);
         }
 
         // has(), not the validated value: a submitted-but-blank field clears the date, an absent one leaves it alone.
@@ -138,7 +156,8 @@ class ProgressionController extends EmploymentRecordController
             return back()->withInput()->withErrors(['last_working_day' => 'Last working day cannot be before the resignation date.']);
         }
 
-        $snapshot = $progression->snapshot ?? [];
+        $before = $progression->snapshot ?? [];
+        $snapshot = $this->applyCorrections($before, $request, $data, $this->hasTenantRole($request, ['director', 'hr']));
         if ($editsLastWorkingDay) {
             $snapshot['last_working_day'] = $lastWorkingDay?->toDateString();
         }
@@ -148,10 +167,68 @@ class ProgressionController extends EmploymentRecordController
         if ($editsLastWorkingDay) {
             $this->syncEmployeeLastWorkingDay($progression, $employee, $lastWorkingDay?->toDateString());
         }
+        foreach ($service->diff($before, $snapshot) as $field) {
+            AuditLog::change($progression, $field, self::auditValue($before[$field] ?? null), self::auditValue($snapshot[$field] ?? null));
+        }
         AuditLog::record('Edited progression record', $employee->name.' · '.$progression->type);
 
         return redirect(route('app.screen', 'progression').'?emp='.$employee->id.'&action='.self::ACTION_FOR_TYPE[$progression->type])
             ->with('ok', $employee->name.' · Record corrected.');
+    }
+
+    /**
+     * Overwrites the snapshot keys the form actually submitted. has(), not the validated
+     * array: a field the form never rendered — salary for a manager, anything on a screen
+     * that posts only the date — is left exactly as it was recorded.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function applyCorrections(array $snapshot, Request $request, array $data, bool $canSetSalary): array
+    {
+        foreach (self::CORRECTION_KEYS as $field => $key) {
+            if (! $request->has($field) || ($field === 'salary' && ! $canSetSalary)) {
+                continue;
+            }
+            $value = ($data[$field] ?? null) === '' ? null : ($data[$field] ?? null);
+            $snapshot[$key] = match ($field) {
+                'department_id' => Department::find($value)?->name,
+                'branch_id' => Branch::find($value)?->name,
+                'position_id' => Position::find($value)?->title,
+                'employment_type_id' => EmploymentType::find($value)?->name,
+                'reports_to_id' => ($manager = Employee::find($value)) ? ['id' => $manager->id, 'name' => $manager->name] : null,
+                'probation_months', 'probation_days' => $value === null ? null : (int) $value,
+                'salary' => $value === null ? null : (float) $value,
+                default => $value,
+            };
+        }
+
+        return $snapshot;
+    }
+
+    /** reports_to is stored as an id/name pair; the audit log reads better with just the name. */
+    private static function auditValue(mixed $value): mixed
+    {
+        return is_array($value) ? ($value['name'] ?? null) : $value;
+    }
+
+    /**
+     * The earliest date a row may be moved to: the hire it belonged to, which is the nearest
+     * hired/rehired row before it. The employee's own joined_at only stands in when no such row
+     * exists, and not once a later rehire has moved joined_at past this row's own employment.
+     */
+    private function hireFloor(EmployeeProgression $row, Employee $employee): ?CarbonImmutable
+    {
+        $hire = EmployeeProgression::where('employee_id', $row->employee_id)
+            ->whereIn('type', ['hired', 'rehired'])->where('id', '<', $row->id)
+            ->orderByDesc('id')->first();
+
+        if ($hire) {
+            return CarbonImmutable::parse($hire->effective_on);
+        }
+
+        return $employee->joined_at && ! $this->undoneByRehire($row) ? CarbonImmutable::parse($employee->joined_at) : null;
     }
 
     /** The employee column the row drives, kept in step only when this is their latest row of that type. */
