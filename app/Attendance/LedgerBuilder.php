@@ -84,7 +84,12 @@ final class LedgerBuilder
         $rows = [];
 
         foreach ($employees as $emp) {
+            $lastDay = $emp->last_working_day?->toDateString();
             foreach ($workingDays as $date) {
+                // A leaver has no attendance days after their last working day, not even 'absent' ones.
+                if ($lastDay !== null && $date > $lastDay) {
+                    continue;
+                }
                 $rows[] = $this->row(
                     $emp,
                     $byEmployeeDate[$emp->id][$date] ?? null,

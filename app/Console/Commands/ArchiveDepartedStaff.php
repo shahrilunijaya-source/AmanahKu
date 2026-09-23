@@ -70,6 +70,19 @@ class ArchiveDepartedStaff extends Command
                     }
                 }
 
+                // Staff who served out their notice: status turns 'resigned' the day after their
+                // last working day (EmploymentRecordService::resign leaves it as-is until then).
+                $noticeServed = Employee::query()
+                    ->whereIn('status', ['active', 'probation', 'on_leave'])
+                    ->whereNotNull('resigned_at')
+                    ->whereDate('last_working_day', '<', $today)
+                    ->get();
+
+                foreach ($noticeServed as $employee) {
+                    $employee->forceFill(['status' => 'resigned'])->save();
+                    AuditLog::record('Status set to resigned after last working day', $employee->name);
+                }
+
                 // Primary sweep: every in-progress case whose last day has passed — all reasons.
                 $due = OffboardingCase::query()
                     ->where('status', 'in_progress')

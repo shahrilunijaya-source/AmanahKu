@@ -30,7 +30,7 @@ class ProgressionController extends EmploymentRecordController
     public const ACTIONS = ['confirmation', 'update', 'resignation', 'rehire'];
 
     /** Which tab a saved row belongs to, for the redirect after a correction. */
-    public const ACTION_FOR_TYPE = ['hired' => 'confirmation', 'confirmed' => 'confirmation', 'updated' => 'update', 'resigned' => 'resignation', 'rehired' => 'rehire'];
+    public const ACTION_FOR_TYPE = ['hired' => 'confirmation', 'confirmed' => 'confirmation', 'updated' => 'update', 'resigned' => 'resignation', 'withdrawn' => 'resignation', 'rehired' => 'rehire'];
 
     /** @return array<string, mixed> */
     public function screenData(Request $request): array
@@ -94,6 +94,16 @@ class ProgressionController extends EmploymentRecordController
 
         return $this->run('resigned_on', 'resignation', $employee, fn () => $service->resign(
             $employee, $data['resigned_on'], $data['last_working_day'], $data['reason'], $data['remark'] ?? null, $request->attributes->get('employee')
+        ));
+    }
+
+    public function withdrawResignation(Request $request, Employee $employee, EmploymentRecordService $service): RedirectResponse
+    {
+        $this->guard($request, $employee);
+        $data = $request->validate(['remark' => ['nullable', 'string', 'max:2000']]);
+
+        return $this->run('withdraw', 'resignation', $employee, fn () => $service->withdrawResignation(
+            $employee, $data['remark'] ?? null, $request->attributes->get('employee')
         ));
     }
 
@@ -254,13 +264,13 @@ class ProgressionController extends EmploymentRecordController
     }
 
     /**
-     * True when a rehire came after this resignation. That person is back on the payroll, so
-     * correcting the old resigned row must not write leaving dates onto their live record.
+     * True when a rehire or a withdrawal came after this resignation. That person is still on
+     * the payroll, so correcting the old resigned row must not write leaving dates onto their live record.
      */
     private function undoneByRehire(EmployeeProgression $row): bool
     {
         return $row->type === 'resigned' && EmployeeProgression::where('employee_id', $row->employee_id)
-            ->where('type', 'rehired')->where('id', '>', $row->id)->exists();
+            ->whereIn('type', ['rehired', 'withdrawn'])->where('id', '>', $row->id)->exists();
     }
 
     private function guard(Request $request, Employee $employee): void

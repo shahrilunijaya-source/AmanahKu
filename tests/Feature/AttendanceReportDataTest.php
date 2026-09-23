@@ -170,6 +170,23 @@ class AttendanceReportDataTest extends TestCase
         );
     }
 
+    public function test_a_leaver_shows_up_to_their_last_working_day_and_never_after(): void
+    {
+        Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Serving Notice',
+            'status' => 'active', 'workload' => 'green', 'resigned_at' => '2026-06-15', 'last_working_day' => '2026-07-13',
+        ]);
+
+        $rows = $this->screenData(['gran' => 'custom', 'from' => '2026-07-10', 'to' => '2026-07-15'])['rows']
+            ->where('name', 'Serving Notice');
+        $this->assertEqualsCanonicalizing(['2026-07-10', '2026-07-13'], $rows->pluck('date')->all());
+
+        $this->assertNotContains(
+            'Serving Notice',
+            $this->screenData(['gran' => 'custom', 'from' => '2026-07-14', 'to' => '2026-07-15'])['rows']->pluck('name')->all()
+        );
+    }
+
     public function test_a_weekend_record_is_added_to_the_working_days(): void
     {
         AttendanceRecord::create([
