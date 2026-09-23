@@ -5112,29 +5112,67 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 .uj-lv-bulk span { font-size: var(--t-sm); color: var(--muted); }
 .uj-lv-ck { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; flex-shrink: 0; }
 
-/* Approvals status filter — same chip as .uj-lv-qchip, with a tone for the two
-   settled states so approved/rejected read apart at a glance. Bigger than the
-   verify/approve chips because these are the top-level split on the tab. */
-.uj-lv-stbar { display: flex; gap: 8px; flex-wrap: wrap; }
-.uj-lv-stchip { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 15px; border-radius: 10px; border: 1px solid var(--hairline); background: #fff; color: var(--body); font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1); }
-.uj-lv-stchip:hover { border-color: #d5d2c8; background: #fbfbf9; }
-.uj-lv-stchip b { font: 600 var(--t-base) var(--font-mono); font-variant-numeric: tabular-nums; }
-.uj-lv-stchip[data-on] { background: var(--ink); border-color: var(--ink); color: #fff; }
-.uj-lv-stchip[data-tone="ok"][data-on] { background: var(--success); border-color: var(--success); }
-.uj-lv-stchip[data-tone="no"][data-on] { background: var(--red-active); border-color: var(--red-active); }
+/* Approvals status pills: four equal cards, label over count, each state in its own
+   colour and filled when chosen. */
+.uj-lv-stbar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.uj-lv-stchip { --tone: var(--info); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 76px; padding: 12px; border-radius: 14px; border: 1px solid var(--hairline); background: #fff; color: var(--tone); font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: background .14s cubic-bezier(.23, 1, .32, 1), border-color .14s cubic-bezier(.23, 1, .32, 1), color .14s cubic-bezier(.23, 1, .32, 1), box-shadow .14s cubic-bezier(.23, 1, .32, 1); }
+.uj-lv-stchip[data-tone="ok"] { --tone: var(--success); }
+.uj-lv-stchip[data-tone="no"] { --tone: var(--red-active); }
+.uj-lv-stchip[data-tone="warn"] { --tone: var(--amber); }
+.uj-lv-stchip:hover { border-color: var(--tone); }
+.uj-lv-stchip b { font: 700 20px var(--font-mono); font-variant-numeric: tabular-nums; }
+.uj-lv-stchip[data-on] { background: var(--tone); border-color: var(--tone); color: #fff; box-shadow: 0 6px 16px -8px var(--tone); }
+@media (max-width: 640px) { .uj-lv-stbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* One settled decision. Read-only, so no hover affordance and no chevron. */
-.uj-lv-drw { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 20px; border-top: 1px solid var(--hairline); flex-wrap: wrap; }
-.uj-lv-drw:first-of-type { border-top: 0; }
-.uj-lv-drw-main { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
-.uj-lv-drw-main b { font-size: var(--t-sm); font-weight: 600; color: var(--ink); }
-.uj-lv-drw-type { font-size: var(--t-sm); color: var(--muted); }
-.uj-lv-drw-meta { display: flex; align-items: center; gap: 14px; font-size: var(--t-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
-.uj-lv-drw-when { font-size: var(--t-micro); }
-/* Withdrawn after the fact: dimmed, because the absence never happened, but never
-   hidden — the viewer had already acted on it. */
-.uj-lv-drw[data-withdrawn] .uj-lv-drw-main b,
-.uj-lv-drw[data-withdrawn] .uj-lv-drw-meta { opacity: .6; }
+/* Approvals filter bar: All / date-range switch, the range, then a full-width search. */
+.uj-ap-bar { display: flex; flex-direction: column; gap: 10px; }
+.uj-ap-row1 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.uj-ap-seg { display: inline-flex; border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; background: #fff; }
+.uj-ap-seg label { cursor: pointer; }
+.uj-ap-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.uj-ap-seg span { display: block; padding: 9px 16px; font-size: var(--t-sm); font-weight: 500; color: var(--body); }
+.uj-ap-seg label + label span { border-left: 1px solid var(--hairline); }
+.uj-ap-seg input:checked + span { background: var(--ink); color: #fff; }
+.uj-ap-seg input:focus-visible + span { outline: 2px solid var(--info); outline-offset: -2px; }
+.uj-ap-dates { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.uj-ap-dates input, .uj-ap-q { height: 38px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px; background: #fff; font-size: var(--t-sm); color: var(--ink); outline: none; }
+.uj-ap-dates input:focus, .uj-ap-q:focus { border-color: var(--info); box-shadow: 0 0 0 3px rgba(58, 110, 165, .13); }
+.uj-ap-q { width: 100%; }
+
+/* A queue's heading line, with the bulk select for leave. */
+.uj-ap-qhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.uj-ap-selall { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: var(--t-sm); color: var(--muted); cursor: pointer; }
+
+/* Requests grouped under a requester: a band that folds, then table rows. */
+.uj-ap-grp { overflow: hidden; }
+.uj-ap-band { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 20px; background: var(--shelf); border: 0; border-bottom: 1px solid var(--hairline); text-align: left; cursor: pointer; }
+.uj-ap-av { flex: 0 0 38px; height: 38px; border-radius: 50%; color: #fff; display: grid; place-items: center; font-size: var(--t-micro); font-weight: 600; }
+.uj-ap-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.uj-ap-who b { font-size: var(--t-base); font-weight: 600; color: var(--ink); }
+.uj-ap-who span { font-size: var(--t-micro); color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.uj-ap-total { font-size: var(--t-sm); color: var(--muted); white-space: nowrap; }
+.uj-ap-total b { font-family: var(--font-mono); font-weight: 700; color: var(--ink); }
+.uj-ap-bchev { flex: 0 0 14px; color: var(--muted); transition: transform .26s cubic-bezier(.23, 1, .32, 1); }
+.uj-ap-bchev[data-open] { transform: rotate(180deg); }
+.uj-ap-row { display: grid; grid-template-columns: var(--ap-cols); align-items: center; gap: 14px; padding: 11px 20px; font-size: var(--t-sm); color: var(--body); }
+.uj-ap-row > * { min-width: 0; }
+.uj-ap-head { padding-block: 9px; font-size: var(--t-micro); color: var(--muted); border-bottom: 1px solid var(--hairline-soft); }
+.uj-ap-name { font-weight: 600; color: var(--ink); }
+.uj-ap-name small, .uj-ap-sub { display: block; font-size: var(--t-micro); font-weight: 400; color: var(--muted); }
+.uj-ap-sub b { font-family: var(--font-mono); color: var(--ink); }
+.uj-ap-rem { overflow-wrap: anywhere; }
+.uj-ap-rem .uj-stamp { margin-left: 6px; }
+.uj-ap-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.uj-ap-acts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.uj-ap-btn { height: 30px; padding: 0 12px; font-size: var(--t-micro); }
+.uj-ap-ic { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--info); cursor: pointer; }
+.uj-ap-ic:hover { background: var(--shelf); }
+.uj-ap-in { padding-left: 20px; }
+@media (max-width: 720px) {
+    .uj-ap-head { display: none; }
+    .uj-ap-row { grid-template-columns: 1fr 1fr; }
+    .uj-ap-acts { grid-column: 1 / -1; justify-content: flex-start; }
+}
 
 /* Plain tooltip: put the text in data-tip. Shows on hover and on keyboard focus,
    sits above the element, never on touch (no hover there, the label has to carry it). */

@@ -95,36 +95,40 @@ class LeaveScreenTabsTest extends TestCase
     }
 
     /**
-     * The counts row is the point of the tab: a manager must be able to see what they
-     * decided this year, not only what is still waiting.
+     * The pills show every settled request from the people the viewer can act on, not
+     * only the ones they decided themselves.
      */
-    public function test_the_approvals_tab_counts_what_the_viewer_decided_this_year(): void
+    public function test_the_approvals_tab_counts_every_settled_request_in_reach(): void
     {
         $management = $this->member('management', 'Director');
+        $other = $this->member('management', 'Other Director');
         $manager = $this->member('manager', 'Manager', $management->id);
         $staff = $this->member('employee', 'Staff', $manager->id);
 
-        // One approved by this director, one rejected by them, one still pending.
+        // Approved by somebody else still counts: the viewer sees every approval.
         $this->submittedRequestFor($staff)->update([
-            'status' => 'approved', 'approved_by_id' => $management->id, 'approved_at' => now(),
+            'status' => 'approved', 'approved_by_id' => $other->id, 'approved_at' => now(),
         ]);
         $this->submittedRequestFor($staff)->update([
             'status' => 'rejected', 'rejected_by_id' => $management->id, 'rejected_at' => now(),
         ]);
+        // Withdrawn before anyone acted still lands on the Cancelled pill.
+        $this->submittedRequestFor($staff)->update(['status' => 'cancelled']);
         $this->submittedRequestFor($staff)->update([
             'status' => 'verified', 'verified_by_id' => $manager->id, 'verified_at' => now(),
         ]);
 
-        $res = $this->screenAs($management);
-
-        $res->assertOk()
-            ->assertSee('Approved this year')
-            ->assertSee('Rejected this year');
+        $this->screenAs($management)->assertOk()
+            ->assertViewHas('leaveApproved', fn ($c) => $c->count() === 1)
+            ->assertViewHas('leaveRejected', fn ($c) => $c->count() === 1)
+            ->assertViewHas('leaveCancelled', fn ($c) => $c->count() === 1)
+            ->assertViewHas('leaveToApprove', fn ($c) => $c->count() === 1)
+            ->assertSee('Cancelled');
     }
 
     /**
      * The tab used to exist only while something was pending, which would have taken the
-     * whole decision history off the screen the moment a manager cleared their queue.
+     * settled lists off the screen the moment a manager cleared their queue.
      */
     public function test_an_approver_with_an_empty_queue_still_gets_the_approvals_tab(): void
     {
@@ -136,11 +140,8 @@ class LeaveScreenTabsTest extends TestCase
             'status' => 'approved', 'approved_by_id' => $management->id, 'approved_at' => now(),
         ]);
 
-        $res = $this->screenAs($management);
-
-        // Nothing pending, but the tab and the history are both there.
-        $res->assertOk()
-            ->assertSee('Approved this year')
+        $this->screenAs($management)->assertOk()
+            ->assertViewHas('leaveApproved', fn ($c) => $c->count() === 1)
             ->assertSee('Nothing is waiting on you.');
     }
 
@@ -165,147 +166,77 @@ class LeaveScreenTabsTest extends TestCase
     }
 
     /**
-     * A leave the viewer approved and the applicant later withdrew stays in the approved
-     * list, marked — for a while the approver believed that person was away.
+     * A plain manager sees their own reports' settled requests, whoever decided them, and
+     * nobody else's. The viewer's own requests never appear on their review screen.
      */
-    public function test_a_withdrawn_leave_stays_in_the_approved_list_and_is_tagged(): void
+    public function test_a_plain_manager_sees_their_reports_but_not_other_teams_or_themselves(): void
     {
         $management = $this->member('management', 'Director');
         $manager = $this->member('manager', 'Manager', $management->id);
         $staff = $this->member('employee', 'Staff', $manager->id);
+        $otherManager = $this->member('manager', 'Other Manager', $management->id);
+        $stranger = $this->member('employee', 'Stranger', $otherManager->id);
 
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'cancelled', 'approved_by_id' => $management->id, 'approved_at' => now(),
-        ]);
-
-        $this->screenAs($management)
-            ->assertOk()
-            ->assertSee('withdrawn by applicant');
-    }
-
-    /**
-     * A withdrawal nobody had acted on is the applicant changing their mind before the
-     * queue ever saw it — noise on an approver's screen, and deliberately absent.
-     */
-    public function test_a_leave_withdrawn_before_anyone_acted_never_reaches_the_approver(): void
-    {
-        $management = $this->member('management', 'Director');
-        $manager = $this->member('manager', 'Manager', $management->id);
-        $staff = $this->member('employee', 'Staff', $manager->id);
-
-        $this->submittedRequestFor($staff)->update(['status' => 'cancelled']);
-
-        $this->screenAs($management)
-            ->assertOk()
-            ->assertDontSee('withdrawn by applicant');
-    }
-
-    /**
-     * Someone else's decision is not the viewer's history — two managers must not see
-     * each other's totals.
-     */
-    public function test_a_decision_made_by_someone_else_is_not_counted_as_yours(): void
-    {
-        $management = $this->member('management', 'Director');
-        $other = $this->member('management', 'Other Director');
-        $manager = $this->member('manager', 'Manager', $management->id);
-        $staff = $this->member('employee', 'Staff', $manager->id);
-
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'approved', 'approved_by_id' => $other->id, 'approved_at' => now(),
-        ]);
-
-        $this->screenAs($management)
-            ->assertOk()
-            ->assertSee('You have not approved anything this year.');
-    }
-
-    /**
-     * The verifier passed it up; somebody else said no. That rejection belongs to the
-     * person who made it, not to whoever moved it along the chain.
-     */
-    public function test_a_verifier_does_not_own_the_decision_someone_else_made(): void
-    {
-        $management = $this->member('management', 'Director');
-        $manager = $this->member('manager', 'Manager', $management->id);
-        $staff = $this->member('employee', 'Staff', $manager->id);
-
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'rejected',
-            'verified_by_id' => $manager->id, 'verified_at' => now(),
-            'rejected_by_id' => $management->id, 'rejected_at' => now(),
-        ]);
-
-        // The manager verified it. The director rejected it. The manager rejected nothing.
-        $this->screenAs($manager)
-            ->assertOk()
-            ->assertSee('You have not rejected anything this year.');
-    }
-
-    /**
-     * Same trap on the withdrawal path: a request the manager verified and the applicant
-     * then pulled was never approved by anyone. It is the manager's verified history,
-     * tagged as withdrawn, never an approval.
-     */
-    public function test_a_withdrawal_before_approval_stays_in_the_verifiers_verified_history(): void
-    {
-        $manager = $this->member('manager', 'Manager');
-        $staff = $this->member('employee', 'Staff', $manager->id);
-
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'cancelled',
-            'verified_by_id' => $manager->id, 'verified_at' => now(),
-        ]);
-
-        $this->screenAs($manager)
-            ->assertOk()
-            ->assertSee('Verified this year')
-            ->assertSee('withdrawn by applicant')
-            ->assertDontSee('Approved this year');
-    }
-
-    /**
-     * A plain manager never gives final approval, so an "Approved" list would read 0 for
-     * them forever. Their history is what they verified, whatever management did next.
-     */
-    public function test_a_plain_manager_sees_what_they_verified_not_what_was_approved(): void
-    {
-        $management = $this->member('management', 'Director');
-        $manager = $this->member('manager', 'Manager', $management->id);
-        $staff = $this->member('employee', 'Staff', $manager->id);
-        $other = $this->member('manager', 'Other Manager', $management->id);
-
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'verified', 'verified_by_id' => $manager->id, 'verified_at' => now(),
-        ]);
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'approved', 'verified_by_id' => $manager->id, 'verified_at' => now(),
-            'approved_by_id' => $management->id, 'approved_at' => now(),
-        ]);
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'rejected', 'verified_by_id' => $manager->id, 'verified_at' => now(),
-            'rejected_by_id' => $management->id, 'rejected_at' => now(),
-        ]);
-        // Verified by somebody else, and one verified last year: neither is this year's history.
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'verified', 'verified_by_id' => $other->id, 'verified_at' => now(),
-        ]);
-        $this->submittedRequestFor($staff)->update([
-            'status' => 'approved', 'verified_by_id' => $manager->id, 'verified_at' => now()->subYear(),
-        ]);
+        foreach ([$staff, $stranger, $manager] as $who) {
+            $this->submittedRequestFor($who)->update([
+                'status' => 'approved', 'approved_by_id' => $management->id, 'approved_at' => now(),
+            ]);
+        }
 
         $this->screenAs($manager)->assertOk()
-            ->assertViewHas('leaveVerifiedByMe', fn ($c) => $c->count() === 3)
-            ->assertSee('Verified this year')
-            ->assertSee('with management')
-            ->assertSee('declined by management')
-            ->assertDontSee('Approved this year');
+            ->assertViewHas('leaveApproved', fn ($c) => $c->pluck('employee_id')->all() === [$staff->id]);
 
-        // The director keeps the approved list; verifying is not their history.
+        // The director reaches the whole tenant.
         $this->screenAs($management)->assertOk()
-            ->assertViewHas('leaveVerifiedByMe', fn ($c) => $c->isEmpty())
-            ->assertSee('Approved this year')
-            ->assertDontSee('Verified this year');
+            ->assertViewHas('leaveApproved', fn ($c) => $c->count() === 3);
+    }
+
+    /**
+     * "Apply period" keeps a leave whose days overlap the range at all, "All" drops the
+     * date filter, and the search matches the requester's name.
+     */
+    public function test_the_filter_bar_narrows_by_apply_period_and_search(): void
+    {
+        $management = $this->member('management', 'Director');
+        $staff = $this->member('employee', 'Aminah', $management->id);
+        $other = $this->member('employee', 'Badrul', $management->id);
+
+        $staff->leaveRequests()->create([
+            'tenant_id' => $this->tenant->id, 'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-06-29', 'date_to' => '2026-07-02', 'days' => 4, 'status' => 'approved',
+        ]);
+        $other->leaveRequests()->create([
+            'tenant_id' => $this->tenant->id, 'leave_type_id' => $this->annual->id,
+            'date_from' => '2026-08-10', 'date_to' => '2026-08-10', 'days' => 1, 'status' => 'approved',
+        ]);
+
+        $this->screenAs($management, '?tab=approvals&period=range&from=2026-07-01&to=2026-07-31')->assertOk()
+            ->assertViewHas('leaveApproved', fn ($c) => $c->pluck('employee_id')->all() === [$staff->id]);
+
+        // "All" ignores the dates it was sent.
+        $this->screenAs($management, '?tab=approvals&period=all&from=2026-07-01&to=2026-07-31')->assertOk()
+            ->assertViewHas('leaveApproved', fn ($c) => $c->count() === 2);
+
+        $this->screenAs($management, '?tab=approvals&q=badr')->assertOk()
+            ->assertViewHas('leaveApproved', fn ($c) => $c->pluck('employee_id')->all() === [$other->id]);
+    }
+
+    /** Someone with two or more requests gets a header band with a total; a one-off does not. */
+    public function test_repeat_requesters_are_grouped_under_a_band(): void
+    {
+        $management = $this->member('management', 'Director');
+        $repeat = $this->member('employee', 'Repeat Person', $management->id);
+        $once = $this->member('employee', 'Once Person', $management->id);
+
+        $this->submittedRequestFor($repeat)->update(['status' => 'approved']);
+        $this->submittedRequestFor($repeat)->update(['status' => 'approved']);
+        $this->submittedRequestFor($once)->update(['status' => 'approved']);
+
+        $html = $this->screenAs($management)->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'class="uj-ap-band"'));
+        $this->assertStringContainsString('6 days', $html);
+        $this->assertStringContainsString('Requester', $html);
     }
 
     public function test_the_immediate_superior_gets_the_verify_queue(): void

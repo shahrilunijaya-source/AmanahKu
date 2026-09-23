@@ -65,13 +65,6 @@
     $statusEn = ['cancelled' => 'Cancelled', 'approved' => 'Approved', 'verified' => 'With management', 'submitted' => 'With your manager', 'rejected' => 'Declined', 'draft' => 'Draft'];
     $statusMs = ['cancelled' => 'Dibatalkan', 'approved' => 'Diluluskan', 'verified' => 'Dengan pengurusan', 'submitted' => 'Dengan pengurus', 'rejected' => 'Ditolak', 'draft' => 'Draf'];
 
-    // Approved keeps the withdrawn ones: a leave the viewer approved and the applicant
-    // later pulled is still something they decided, and worth seeing marked.
-    // A plain manager never gives final approval, so their first history chip is what
-    // they verified instead — an approved list would sit at 0 for them forever.
-    $decKind = ($givesFinalApproval ?? false) ? 'approved' : 'verified';
-    $decApproved = $decKind === 'approved' ? ($leaveApprovedByMe ?? collect()) : ($leaveVerifiedByMe ?? collect());
-    $decRejected = $leaveRejectedByMe ?? collect();
     // A plain manager only recommends — scopeToApprove() closes for them — so the tab is
     // named for what they can actually do.
     $givesFinalApproval = $givesFinalApproval ?? false;
@@ -368,30 +361,23 @@
 
     {{-- ── Approvals ── --}}
     @if ($showApprovals)
-        {{-- `st` is the status filter (pending | approved | rejected), `queue` the
-             verify/approve split inside pending. Opens on pending when anything waits,
-             otherwise on the approved history — an idle approver lands on something
-             rather than an empty panel. --}}
+        {{-- `st` is the status pill, `queue` the verify/approve split inside Pending. Opens
+             on the pill in the URL (the filter bar keeps it), else Pending when anything
+             waits, else Approved, so an idle approver lands on something. --}}
+        @php
+            $stInitial = in_array(request()->query('st'), ['pending', 'approved', 'rejected', 'cancelled'], true)
+                ? request()->query('st') : ($reviewCount > 0 ? 'pending' : 'approved');
+        @endphp
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
-             x-data="{ st: @js($reviewCount > 0 ? 'pending' : 'approved'),
+             x-data="{ st: @js($stInitial),
                        queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
              class="uj-lv-panel">
-            {{-- Status counts. Approved covers the whole year, so it keeps its number even
-                 on a day when nothing is pending — the reason this tab no longer hides. --}}
-            <div class="uj-lv-stbar">
-                <button type="button" class="uj-lv-stchip" :data-on="st === 'pending' ? '' : null" @click="st = 'pending'">
-                    <span x-text="$store.ui.lang==='en' ? 'Pending' : 'Menunggu'">Pending</span>
-                    <b>{{ $reviewCount }}</b>
-                </button>
-                <button type="button" class="uj-lv-stchip" data-tone="ok" :data-on="st === 'approved' ? '' : null" @click="st = 'approved'">
-                    <span x-text="$store.ui.lang==='en' ? @js($decKind === 'approved' ? 'Approved' : 'Verified') : @js($decKind === 'approved' ? 'Diluluskan' : 'Disahkan')">{{ $decKind === 'approved' ? 'Approved' : 'Verified' }}</span>
-                    <b>{{ $decApproved->count() }}</b>
-                </button>
-                <button type="button" class="uj-lv-stchip" data-tone="no" :data-on="st === 'rejected' ? '' : null" @click="st = 'rejected'">
-                    <span x-text="$store.ui.lang==='en' ? 'Rejected' : 'Ditolak'">Rejected</span>
-                    <b>{{ $decRejected->count() }}</b>
-                </button>
-            </div>
+            @include('partials.approval-toolbar', [
+                'counts' => ['pending' => $reviewCount, 'approved' => $leaveApproved->count(), 'rejected' => $leaveRejected->count(), 'cancelled' => $leaveCancelled->count()],
+                'filters' => $approvalFilters,
+                'periodEn' => 'Apply period',
+                'periodMs' => 'Tempoh cuti',
+            ])
 
             {{-- ── Pending ── --}}
             <div x-show="st === 'pending'" class="uj-tab-stack">
@@ -410,12 +396,12 @@
 
                 @if ($leaveToVerify->isNotEmpty())
                     <div x-show="queue === 'verify'">
-                        @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify'])
+                        @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify', 'title' => ['Yours to verify', 'Untuk anda sahkan']])
                     </div>
                 @endif
                 @if ($leaveToApprove->isNotEmpty())
                     <div x-show="queue === 'approve'">
-                        @include('partials.leave-review-queue', ['items' => $leaveToApprove, 'mode' => 'approve'])
+                        @include('partials.leave-review-queue', ['items' => $leaveToApprove, 'mode' => 'approve', 'title' => ['Waiting for final approval', 'Menunggu kelulusan akhir']])
                     </div>
                 @endif
 
@@ -426,13 +412,18 @@
                 @endif
             </div>
 
-            {{-- ── Decided this year ── --}}
-            <div x-show="st === 'approved'" class="uj-tab-stack">
-                @include('partials.leave-decided-list', ['items' => $decApproved, 'kind' => $decKind])
-            </div>
-            <div x-show="st === 'rejected'" class="uj-tab-stack">
-                @include('partials.leave-decided-list', ['items' => $decRejected, 'kind' => 'rejected'])
-            </div>
+            {{-- ── Settled: every request in that state from the people this viewer can act on ── --}}
+            @foreach (['approved' => $leaveApproved, 'rejected' => $leaveRejected, 'cancelled' => $leaveCancelled] as $state => $list)
+                <div x-show="st === @js($state)" x-cloak>
+                    @if ($list->isEmpty())
+                        <div class="uj-card uj-lv-empty">
+                            <span x-text="$store.ui.lang==='en' ? 'No leave here for this filter.' : 'Tiada cuti di sini untuk penapis ini.'">No leave here for this filter.</span>
+                        </div>
+                    @else
+                        @include('partials.leave-review-queue', ['items' => $list, 'mode' => null])
+                    @endif
+                </div>
+            @endforeach
         </div>
     @endif
 </div>

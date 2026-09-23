@@ -284,52 +284,25 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
-     * The viewer's APPROVED history: requests they personally signed off this year, plus
-     * any the applicant later withdrew (still their approval — it happened, then it was
-     * pulled). Matched on approved_by_id, never on verified_by_id: a verifier recommends,
-     * the approver decides, and the two must not be conflated or a manager who passed a
-     * request up would see somebody else's decision listed as their own.
-     *
-     * Scoped by the date of the DECISION, not of the submission, so the "this year" label
-     * and the column agree — a request filed in December and approved in January belongs
-     * to January's figures.
-     *
-     * Claims decided before the 2026_09_02 decision trail carry no approver and cannot
-     * appear here — there is nothing recorded to match against (see that migration).
-     *
-     * @param  list<string>  $statuses  the states that still count as approved. Claims pass
-     *                                  'paid' as well: payroll flips an approved claim to
-     *                                  paid when it reimburses it, and being reimbursed is
-     *                                  not the approver un-approving it.
+     * Every request, in any state, from the people this viewer can act on: the whole
+     * tenant for the final-approval tier, their own reports (direct or dotted-line) for a
+     * plain manager. Feeds the Approvals tab's Approved / Rejected / Cancelled lists, which
+     * show every such record, not only the ones the viewer decided themselves. The viewer's
+     * own requests stay out, as nobody reviews their own.
      */
-    protected function scopeApprovedByViewer(Builder $query, Request $request, array $statuses = ['approved', 'cancelled']): Builder
+    protected function scopeReviewable(Builder $query, Request $request): Builder
     {
-        return $query
-            ->whereIn('status', $statuses)
-            ->where('approved_by_id', $this->actingEmployeeId($request))
-            ->whereYear('approved_at', now()->year);
-    }
+        $actorId = $this->actingEmployeeId($request);
+        $query->where('employee_id', '!=', $actorId);
 
-    /**
-     * The viewer's VERIFIED history: requests they passed up the chain this year, whatever
-     * became of them after — still with management, approved, declined there, or withdrawn.
-     * This is the history a plain manager shows in place of the approved one: they never
-     * give final approval, so their approved list would stay empty forever.
-     */
-    protected function scopeVerifiedByViewer(Builder $query, Request $request): Builder
-    {
-        return $query
-            ->where('verified_by_id', $this->actingEmployeeId($request))
-            ->whereYear('verified_at', now()->year);
-    }
+        if ($this->hasTenantRole($request, $this->approvalManagerRoles())) {
+            return $query;
+        }
 
-    /** The same for refusals, matched on the rejecter alone. See scopeApprovedByViewer(). */
-    protected function scopeRejectedByViewer(Builder $query, Request $request): Builder
-    {
-        return $query
-            ->where('status', 'rejected')
-            ->where('rejected_by_id', $this->actingEmployeeId($request))
-            ->whereYear('rejected_at', now()->year);
+        return $query->whereHas('employee', fn (Builder $q) => $q
+            ->where(fn (Builder $w) => $w
+                ->where('reports_to_id', $actorId)
+                ->orWhereHas('additionalManagers', fn (Builder $m) => $m->whereKey($actorId))));
     }
 
     /**
