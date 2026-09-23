@@ -703,6 +703,11 @@
                       // autoplay alone is not reliable on a element that was display:none a tick
                       // ago; without this the preview sits at readyState 0 and capture() draws a
                       // zero-sized frame that fails validation on the server with no explanation.
+                      // iOS is stricter still: a play() issued before the first frame's metadata
+                      // arrives leaves a black rectangle that never recovers, so play again once
+                      // metadata lands, and again when the tab comes back from the permission
+                      // sheet or the lock screen, which is where Safari drops the layer.
+                      v.onloadedmetadata = () => v.play().catch(() => {});
                       await v.play().catch(() => {});
                   } catch (e) {
                       const n = e.name || 'error';
@@ -1025,7 +1030,8 @@
                     <p x-show="sheetReasonNeed" x-cloak class="uj-at-sheet-why" x-text="sheetWhy($store.ui.lang)"></p>
 
                     <div class="uj-at-sheet-cam">
-                        <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"></video>
+                        <video x-ref="cam" autoplay playsinline muted x-show="!photoUrl"
+                               @visibilitychange.document="if (!document.hidden && stream && !photoUrl) { $el.play().catch(() => {}); }"></video>
                         <img x-show="photoUrl" x-cloak :src="photoUrl" alt="" />
                     </div>
 
