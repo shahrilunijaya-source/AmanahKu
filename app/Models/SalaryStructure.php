@@ -41,6 +41,7 @@ class SalaryStructure extends Model
         'disabled_self',
         'disabled_spouse',
         'zakat_monthly',
+        'zakat_authority',
         'cp38_monthly',
         'skbbk_opt_in',
         // Worksy Bank & Statutory tab (2026-09-28). Read by no calculation; reference data only.

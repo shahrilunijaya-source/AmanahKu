@@ -14,7 +14,9 @@ use App\Services\Payroll\BankFile\BankFileRegistry;
 use App\Services\Payroll\HrdCorpLevy;
 use App\Services\Payroll\Statutory\MergedPayslips;
 use App\Services\Payroll\Statutory\StatutoryFileRegistry;
+use App\Services\Payroll\Statutory\ZakatMonth;
 use App\Support\Csv;
+use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -120,13 +122,15 @@ class PayrollExportController extends Controller
         if ($key === 'hrdcorp') {
             abort_if(HrdCorpLevy::rate((string) app(FeatureManager::class)->value($tenant, 'payroll.hrdf')) <= 0, 422, 'HRD Corp levy is switched off for this company.');
         }
+        $gap = $file->missingEmployerNumber($tenant);
+        abort_if($gap !== null, 422, (string) $gap);
 
         // Spec F10: one file per employer per month, whatever the month was paid in —
         // the monthly run, a bonus run and a leaver's final pay are folded into one row
         // per employee before the exporter sees them.
         $payslips = $tenant === null
             ? collect()
-            : MergedPayslips::forPeriod($tenant, $run->period, $key !== 'perkeso-8a');
+            : MergedPayslips::forPeriod($tenant, $run->period, $file->includesBonusRuns());
         $body = $file->build($run, $tenant, $payslips);
 
         // Spec F12: the first download of a statutory file marks that filing "file ready".
@@ -171,6 +175,27 @@ class PayrollExportController extends Controller
             }
             fclose($out);
         }, 'journal-'.$run->period.'-'.$run->kind.'-'.$run->id.'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /** Payroll → Form → Zakat as CSV, for whichever authority is filtered. Carries NRICs, so audited. */
+    public function zakat(Request $request, string $period): StreamedResponse
+    {
+        $this->authorizeTenantRole($request, self::ADMIN_ROLES);
+        $authority = $request->query('authority');
+        abort_unless($authority === null || $authority === ZakatMonth::NONE || array_key_exists($authority, StatutoryOptions::ZAKAT_AUTHORITIES), 404);
+
+        $data = ZakatMonth::for(app(CurrentTenant::class)->get(), $period, $authority);
+        AuditLog::record('Exported zakat listing', $period.' · '.($authority ?? 'all').' · '.count($data['rows']).' staff');
+
+        return response()->streamDownload(function () use ($data) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Name', 'Staff ID', 'IC no.', 'Zakat authority', 'Amount (RM)']);
+            foreach ($data['rows'] as $r) {
+                fputcsv($out, Csv::safeRow([$r['name'], $r['staff_id'], $r['ic'], $r['authority'] ?? 'Not set', number_format($r['amount'], 2, '.', '')]));
+            }
+            fputcsv($out, ['Total', '', '', '', number_format($data['total'], 2, '.', '')]);
+            fclose($out);
+        }, 'zakat-'.$period.($authority !== null ? '-'.$authority : '').'.csv', ['Content-Type' => 'text/csv']);
     }
 
     private function authorize(Request $request, PayrollRun $run): void

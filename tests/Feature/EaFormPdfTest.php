@@ -298,9 +298,10 @@ class EaFormPdfTest extends TestCase
 
     public function test_hr_can_set_employer_tin_and_telephone_via_the_company_settings_screen(): void
     {
+        // The E number lives on the Statutory & tax card, the phone on Workspace profile.
+        $this->actingHr()->post(route('admin.settings.statutory'), ['employer_tin' => '9988776655'])->assertRedirect();
         $this->actingHr()->post(route('admin.settings.update'), [
             'name' => $this->tenant->name,
-            'employer_tin' => '9988776655',
             'contact_number' => '03-9999 8888',
         ])->assertRedirect();
 

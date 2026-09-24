@@ -112,6 +112,7 @@ class PayrollController extends Controller
             'disabled_self' => ['boolean'],
             'disabled_spouse' => ['boolean'],
             'zakat_monthly' => ['nullable', 'numeric', 'min:0'],
+            'zakat_authority' => ['nullable', Rule::in(array_keys(StatutoryOptions::ZAKAT_AUTHORITIES))],
             'skbbk_opt_in' => ['boolean'],
         ]);
         if ($validator->fails()) {
@@ -147,6 +148,7 @@ class PayrollController extends Controller
                 'disabled_self' => $request->boolean('disabled_self'),
                 'disabled_spouse' => $request->boolean('disabled_spouse'),
                 'zakat_monthly' => $data['zakat_monthly'] ?? 0,
+                'zakat_authority' => $data['zakat_authority'] ?? null,
                 'skbbk_opt_in' => $request->boolean('skbbk_opt_in'),
                 'bank_holder_name' => $data['bank_holder_name'] ?? null,
                 'tax_resident' => $request->has('tax_resident') ? $request->boolean('tax_resident') : true,

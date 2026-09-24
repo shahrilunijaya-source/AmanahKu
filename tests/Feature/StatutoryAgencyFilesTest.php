@@ -59,15 +59,31 @@ class StatutoryAgencyFilesTest extends TestCase
         $this->assertStringContainsString('EPF33334444,900202105511,TAN WEI MING,7500.00,960.00,880.00', $out);   // wages exclude overtime
     }
 
-    public function test_perkeso_8a_matches_golden_caps_wage_and_has_fixed_width(): void
+    public function test_perkeso_file_matches_v2_1_golden_with_skbbk_and_uncapped_wage(): void
     {
+        $this->slips()->first()->forceFill(['skbbk_employee' => 37.50])->save();   // Aminah
+
         $out = (new PerkesoBorang8A)->build($this->run, $this->tenant, $this->slips());
         $this->assertSame(file_get_contents(base_path('tests/Fixtures/statutory/perkeso-8a-2026-06.txt')), $out);
         foreach (explode("\r\n", $out) as $line) {
-            $this->assertSame(119, strlen($line));
+            $this->assertSame(278, strlen($line));
         }
-        $tan = explode("\r\n", $out)[1];
-        $this->assertSame('00600000', substr($tan, 87, 8));   // 8,000 capped at 6,000.00
+        [$aminah, $tan] = explode("\r\n", $out);
+        $this->assertSame('062026', substr($aminah, 194, 6));              // the wage month, not the month after
+        $this->assertSame('  3750', substr($aminah, 238, 6));              // SKBBK in its own field 11
+        $this->assertSame('        800000', substr($tan, 200, 14));        // actual wage, not capped at RM6,000
+        $this->assertSame('  0000', substr($tan, 238, 6));                 // no SKBBK written as 0000
+        $this->assertSame('PERKESO-8A-B3200012345Z-062026.txt', (new PerkesoBorang8A)->filename($this->run, $this->tenant));
+    }
+
+    public function test_perkeso_file_uses_socso_number_for_a_worker_without_nric(): void
+    {
+        $slip = $this->slips()->first();
+        $slip->employee->update(['nric' => null]);
+        $slip->employee->salaryStructure->update(['socso_no' => 'SSFW-1234 5678']);
+
+        $out = (new PerkesoBorang8A)->build($this->run, $this->tenant, $this->slips());
+        $this->assertSame('SSFW12345678', substr(explode("\r\n", $out)[0], 32, 12));
     }
 
     public function test_hrd_corp_file_matches_golden_with_total(): void
@@ -82,6 +98,7 @@ class StatutoryAgencyFilesTest extends TestCase
         $all = StatutoryFileRegistry::all();
         $this->assertSame(['kwsp-form-a', 'perkeso-8a', 'cp39', 'hrdcorp'], array_keys($all));
         $this->assertTrue($all['cp39']->verified());
+        $this->assertTrue($all['perkeso-8a']->verified());
         $this->assertFalse($all['kwsp-form-a']->verified());
         $this->assertNull(StatutoryFileRegistry::find('nope'));
     }

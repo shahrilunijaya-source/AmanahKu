@@ -158,6 +158,25 @@ class PayrollExportTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'Exported statutory file']);
     }
 
+    public function test_statutory_file_is_refused_while_its_employer_number_is_blank(): void
+    {
+        $run = $this->finalizedRun();
+        foreach (['kwsp-form-a' => 'KWSP employer number', 'perkeso-8a' => 'PERKESO employer code', 'cp39' => 'LHDN E number'] as $key => $name) {
+            $res = $this->actingHr()->get(route('payroll.export.statutory-file', [$run, $key]));
+            $res->assertStatus(422);
+            $this->assertStringContainsString("Set your {$name} in Company Settings.", $res->getContent());
+        }
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'Exported statutory file']);
+
+        // Payment → Submission sends HR to the card that fixes it instead of a download.
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'submission', 'run' => $run->id]))
+            ->assertOk()->assertSee('data-testid="missing-perkeso-8a"', false)
+            ->assertDontSee(route('payroll.export.statutory-file', [$run, 'perkeso-8a']), false);
+
+        $this->tenant->update(['socso_employer_code' => 'B3200012345Z']);
+        $this->actingHr()->get(route('payroll.export.statutory-file', [$run, 'perkeso-8a']))->assertOk();
+    }
+
     public function test_statutory_file_refuses_a_draft_run_an_unknown_key_an_employee_and_another_tenant(): void
     {
         $draft = $this->finalizedRun('draft');

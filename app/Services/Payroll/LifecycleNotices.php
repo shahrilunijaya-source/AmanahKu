@@ -6,6 +6,7 @@ namespace App\Services\Payroll;
 
 use App\Models\Employee;
 use App\Models\PayrollNotice;
+use App\Models\Payslip;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -51,7 +52,9 @@ final class LifecycleNotices
         $open = $this->query($employee, 'cp22a')->whereNull('filed_on')->first();
 
         $lastDay = $employee->last_working_day;
-        if ($lastDay === null) {
+        // LHDN only wants a CP22A for a leaver who isn't on PCB: one who had tax deducted
+        // in their final year already has it covered, and their pay isn't held.
+        if ($lastDay === null || self::onPcb($employee, CarbonImmutable::parse($lastDay)->year)) {
             if ($open !== null) {
                 $open->delete();
             }
@@ -70,6 +73,15 @@ final class LifecycleNotices
         }
 
         $this->open($employee, 'cp22a', $dueOn);
+    }
+
+    /** True when the employee had PCB deducted in a finalized pay run of that year. */
+    public static function onPcb(Employee $employee, int $year): bool
+    {
+        return Payslip::withoutGlobalScopes()->where('employee_id', $employee->id)
+            ->where(fn (Builder $q) => $q->where('pcb', '>', 0)->orWhere('pcb_additional', '>', 0))
+            ->whereHas('payrollRun', fn (Builder $q) => $q->withoutGlobalScopes()->where('status', 'finalized')->where('period', 'like', $year.'-%'))
+            ->exists();
     }
 
     /**
