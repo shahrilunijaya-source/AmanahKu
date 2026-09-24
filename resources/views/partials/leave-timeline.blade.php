@@ -33,8 +33,11 @@
             ? ['state' => 'done', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => $r->approvedBy?->name, 'whoRole' => $r->approvedBy?->position, 'at' => $r->approved_at]
             : ['state' => 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'whoRole' => null, 'whoI18n' => ['en' => 'Management', 'ms' => 'Pengurusan'], 'at' => null];
     }
-    $nextEn = ['submitted' => 'Waiting for the immediate superior to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — days deducted from balance.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$r->status] ?? '';
-    $nextMs = ['submitted' => 'Menunggu penyelia terdekat mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — hari ditolak daripada baki.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$r->status] ?? '';
+    // Only the applicant can cancel, so "You cancelled this" is true for them alone. Anyone
+    // else reading the trail (superior, HR, a super-admin) is told who did it.
+    $cancelledBy = request()->attributes->get('employee')?->id === $r->employee_id ? null : $r->employee?->display_name;
+    $nextEn = ['submitted' => 'Waiting for the immediate superior to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved — days deducted from balance.', 'rejected' => 'Declined.', 'cancelled' => $cancelledBy ? "Cancelled by {$cancelledBy}." : 'You cancelled this.'][$r->status] ?? '';
+    $nextMs = ['submitted' => 'Menunggu penyelia terdekat mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan — hari ditolak daripada baki.', 'rejected' => 'Ditolak.', 'cancelled' => $cancelledBy ? "Dibatalkan oleh {$cancelledBy}." : 'Anda batalkan ini.'][$r->status] ?? '';
     $dotCol = ['done' => 'var(--success)', 'pending' => 'var(--muted-soft)', 'rejected' => 'var(--error)'];
 @endphp
 <div style="padding:2px 0;">
@@ -62,6 +65,6 @@
         </div>
     @endforeach
     <div style="font-size:11.5px;color:{{ in_array($r->status, ['rejected', 'cancelled'], true) ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
-        <span x-text="$store.ui.lang==='en' ? '{{ $nextEn }}' : '{{ $nextMs }}'">{{ $nextEn }}</span>
+        <span x-text="$store.ui.lang==='en' ? @js($nextEn) : @js($nextMs)">{{ $nextEn }}</span>
     </div>
 </div>

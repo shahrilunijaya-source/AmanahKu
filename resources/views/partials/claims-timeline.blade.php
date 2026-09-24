@@ -36,8 +36,11 @@
                 : ['state' => 'pending', 'en' => 'Pays next payroll run', 'ms' => 'Dibayar dalam gaji berikutnya', 'who' => null, 'at' => null];
         }
     }
-    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved.' . ($payrollAllowed ? ' Pays in the next payroll run.' : ''), 'paid' => 'Paid.', 'rejected' => 'Declined.', 'cancelled' => 'You cancelled this.'][$c->status] ?? '';
-    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan.' . ($payrollAllowed ? ' Dibayar dalam gaji berikutnya.' : ''), 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.', 'cancelled' => 'Anda batalkan ini.'][$c->status] ?? '';
+    // Only the claimant can cancel, so "You cancelled this" is true for them alone. Anyone
+    // else reading the trail (manager, HR, a super-admin) is told who did it.
+    $cancelledBy = request()->attributes->get('employee')?->id === $c->employee_id ? null : $c->employee?->display_name;
+    $nextEn = ['submitted' => 'Waiting for your manager to verify.', 'verified' => 'Waiting for management’s final approval.', 'approved' => 'Approved.' . ($payrollAllowed ? ' Pays in the next payroll run.' : ''), 'paid' => 'Paid.', 'rejected' => 'Declined.', 'cancelled' => $cancelledBy ? "Cancelled by {$cancelledBy}." : 'You cancelled this.'][$c->status] ?? '';
+    $nextMs = ['submitted' => 'Menunggu pengurus anda mengesahkan.', 'verified' => 'Menunggu kelulusan akhir pengurusan.', 'approved' => 'Diluluskan.' . ($payrollAllowed ? ' Dibayar dalam gaji berikutnya.' : ''), 'paid' => 'Dibayar.', 'rejected' => 'Ditolak.', 'cancelled' => $cancelledBy ? "Dibatalkan oleh {$cancelledBy}." : 'Anda batalkan ini.'][$c->status] ?? '';
     $dotCol = ['done' => 'var(--success)', 'pending' => 'var(--muted-soft)', 'rejected' => 'var(--error)'];
 @endphp
 <div style="padding:2px 0;">
@@ -63,6 +66,6 @@
         </div>
     @endforeach
     <div style="font-size:11.5px;color:{{ in_array($c->status, ['rejected', 'cancelled'], true) ? 'var(--error)' : 'var(--info)' }};padding-left:21px;">
-        <span x-text="$store.ui.lang==='en' ? '{{ $nextEn }}' : '{{ $nextMs }}'">{{ $nextEn }}</span>
+        <span x-text="$store.ui.lang==='en' ? @js($nextEn) : @js($nextMs)">{{ $nextEn }}</span>
     </div>
 </div>
