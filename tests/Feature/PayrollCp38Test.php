@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Payroll\PayslipPdfData;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /** CP38 the Worksy way: a 12-month grid per employee, one amount per month. */
@@ -55,7 +56,7 @@ class PayrollCp38Test extends TestCase
     }
 
     /** @param array<int, float|string|null> $byMonth month number => amount; other months blank */
-    private function saveGrid(int $year, array $byMonth): \Illuminate\Testing\TestResponse
+    private function saveGrid(int $year, array $byMonth): TestResponse
     {
         $amounts = [];
         foreach (range(1, 12) as $m) {
