@@ -66,6 +66,9 @@ class PayrollController extends Controller
      */
     private const FT_FORBIDDEN_ITEM_CODES = ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'];
 
+    /** Which run pays a Fixed or Individual Transaction, as in Worksy: Month End (default) or Mid Month. */
+    private const TRANSACTION_CYCLES = ['month_end', 'mid_month'];
+
     public function __construct(
         private readonly PayrollCalculator $calculator,
         private readonly PcbCalculator $pcb,
@@ -307,7 +310,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string, consent_reference: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string, consent_reference: ?string, payroll_cycle: string, last_payroll_cycle: ?string}
      */
     private function validateFixedTransaction(Request $request, int $tid, ?int $lockEmployeeId = null): array
     {
@@ -331,6 +334,8 @@ class PayrollController extends Controller
             // EA s.24: a non-statutory deduction needs the employee's written consent —
             // this records where that consent is filed, not the consent itself.
             'consent_reference' => ['nullable', 'string', 'max:160'],
+            'payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
+            'last_payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
         ]);
 
         return [
@@ -343,6 +348,9 @@ class PayrollController extends Controller
             'prorate' => $request->boolean('prorate'),
             'remarks' => $data['remarks'] ?? null,
             'consent_reference' => $data['consent_reference'] ?? null,
+            'payroll_cycle' => $data['payroll_cycle'] ?? 'month_end',
+            // Only means something alongside a last-month amount.
+            'last_payroll_cycle' => isset($data['last_amount']) ? ($data['last_payroll_cycle'] ?? null) : null,
         ];
     }
 
@@ -354,7 +362,7 @@ class PayrollController extends Controller
         $tid = app(CurrentTenant::class)->id();
 
         $data = $this->validateIndividualTransaction($request, $tid);
-        $this->assertPeriodEditable($tid, $data['period'], $data['for_bonus_run']);
+        $this->assertPeriodEditable($tid, $data['period'], $data['for_bonus_run'], $data['payroll_cycle']);
 
         $tx = IndividualTransaction::create($data + ['created_by_id' => Auth::id()]);
 
@@ -368,12 +376,17 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run, $individualTransaction->payroll_cycle);
 
         $data = $this->validateIndividualTransaction($request, $individualTransaction->tenant_id, $individualTransaction->employee_id, $individualTransaction->period);
         // Editing never moves a one-off between the monthly and the bonus run — the same
         // rule the employee and the period follow.
         unset($data['for_bonus_run']);
+        if ($individualTransaction->for_bonus_run || ! $request->filled('payroll_cycle')) {
+            unset($data['payroll_cycle']);
+        } else {
+            $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, false, $data['payroll_cycle']);
+        }
         $individualTransaction->update($data);
 
         AuditLog::record('Updated individual transaction', $individualTransaction->employee?->name.' · '.$individualTransaction->payrollItem?->name);
@@ -385,7 +398,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run, $individualTransaction->payroll_cycle);
 
         $name = $individualTransaction->employee?->name;
         $itemName = $individualTransaction->payrollItem?->name;
@@ -397,7 +410,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, period: string, for_bonus_run: bool, amount: float, remarks: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, period: string, for_bonus_run: bool, payroll_cycle: string, amount: float, remarks: ?string}
      */
     private function validateIndividualTransaction(Request $request, int $tid, ?int $lockEmployeeId = null, ?string $lockPeriod = null): array
     {
@@ -418,6 +431,7 @@ class PayrollController extends Controller
             // Spec F10: ticked means "pay this in the bonus run for the month", so the
             // monthly run leaves it alone.
             'for_bonus_run' => ['nullable', 'boolean'],
+            'payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:10000000'],
             'remarks' => ['nullable', 'string', 'max:255'],
         ]);
@@ -427,6 +441,8 @@ class PayrollController extends Controller
             'payroll_item_id' => $data['payroll_item_id'],
             'period' => $lockPeriod ?? $data['period'],
             'for_bonus_run' => $request->boolean('for_bonus_run'),
+            // A bonus-run one-off has no cycle of its own; it is paid in the bonus run.
+            'payroll_cycle' => $request->boolean('for_bonus_run') ? 'month_end' : ($data['payroll_cycle'] ?? 'month_end'),
             'amount' => $data['amount'],
             'remarks' => $data['remarks'] ?? null,
         ];
@@ -437,12 +453,14 @@ class PayrollController extends Controller
      * an Individual Transaction must not add, edit or delete anything against it. A
      * period with a draft run, or no run at all yet, is freely editable.
      */
-    private function assertPeriodEditable(int $tid, string $period, bool $forBonus = false): void
+    private function assertPeriodEditable(int $tid, string $period, bool $forBonus = false, string $cycle = 'month_end'): void
     {
         // Spec F10: the kinds are locked separately — a finalized monthly run must not
-        // stop HR queuing a bonus for the same month, and vice versa.
+        // stop HR queuing a bonus for the same month, and vice versa. A mid-month one-off
+        // is also locked once the mid-month run that paid it is finalized.
+        $kinds = $forBonus ? ['bonus'] : ($cycle === 'mid_month' ? ['monthly', 'mid_month'] : ['monthly']);
         $finalized = PayrollRun::where('tenant_id', $tid)->where('period', $period)
-            ->where('kind', $forBonus ? 'bonus' : 'monthly')
+            ->whereIn('kind', $kinds)
             ->where('status', 'finalized')->exists();
         abort_if($finalized, 422, 'Payroll for '.$period.' has already been finalized and can no longer be changed.');
     }
@@ -464,12 +482,13 @@ class PayrollController extends Controller
      * fix short of a baseline entry/ignore comment, which CLAUDE.md rules out for this
      * pass — see individualLineAttrs()/refreshVariableLines() below for the real shape.
      */
-    private function individualTransactionLinesForPeriod(Employee $employee, string $period, bool $forBonus = false): Collection
+    private function individualTransactionLinesForPeriod(Employee $employee, string $period, bool $forBonus = false, ?string $cycle = null): Collection
     {
         $rows = IndividualTransaction::with('payrollItem')
             ->where('employee_id', $employee->id)
             ->forPeriod($period)
             ->forBonusRun($forBonus)
+            ->when($cycle !== null, fn ($q) => $q->where('payroll_cycle', $cycle))
             ->get();
 
         $lines = [];
@@ -579,9 +598,12 @@ class PayrollController extends Controller
      * calendar-day proration factor. That factor is 1.0 for a full-month employee, so
      * applying it unconditionally is always safe.
      *
-     * @return Collection<int, array{item: PayrollItem, amount: float, fixed_transaction_id: int}>
+     * $cycle keeps only the lines paid in that cycle this month: the last-month amount
+     * follows last_payroll_cycle when HR set one, every other month payroll_cycle.
+     *
+     * @return Collection<int, array{item: PayrollItem, amount: float, fixed_transaction_id: int, cycle: string}>
      */
-    private function fixedTransactionLines(Employee $employee, string $period): Collection
+    private function fixedTransactionLines(Employee $employee, string $period, ?string $cycle = null): Collection
     {
         return FixedTransaction::with('payrollItem')
             ->where('employee_id', $employee->id)
@@ -589,16 +611,21 @@ class PayrollController extends Controller
             ->get()
             ->filter(fn (FixedTransaction $ft) => $ft->payrollItem !== null)
             ->map(function (FixedTransaction $ft) use ($employee, $period) {
-                $amount = ($ft->end_period === $period && $ft->last_amount !== null)
-                    ? $ft->last_amount
-                    : $ft->amount;
+                $isLastMonth = $ft->end_period === $period && $ft->last_amount !== null;
+                $amount = $isLastMonth ? $ft->last_amount : $ft->amount;
 
                 if ($ft->prorate) {
                     $amount = round($amount * $this->prorationFactor($employee, $period), 2);
                 }
 
-                return ['item' => $ft->payrollItem, 'amount' => $amount, 'fixed_transaction_id' => $ft->id];
+                return [
+                    'item' => $ft->payrollItem,
+                    'amount' => $amount,
+                    'fixed_transaction_id' => $ft->id,
+                    'cycle' => $isLastMonth ? ($ft->last_payroll_cycle ?? $ft->payroll_cycle) : $ft->payroll_cycle,
+                ];
             })
+            ->filter(fn (array $line) => $cycle === null || $line['cycle'] === $cycle)
             ->values();
     }
 
@@ -1038,7 +1065,15 @@ class PayrollController extends Controller
             // Fixed Transactions replace salary_structures.allowances as the source of
             // recurring earnings/deductions (see migration 2026_08_25_200200) — split
             // by the transaction's own Payroll Item type.
-            $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $period) : collect();
+            // Mid-month Fixed Transactions the mid-month run already paid are part of this
+            // month's pay (statutory is worked out here on the whole month), so they come
+            // in even with the pull unticked; the advance deduction then takes them back.
+            $midMonthAdvance = $this->midMonthAdvanceFor($employee, $period);
+            $ftLines = match (true) {
+                $pulls['fixed'] => $this->fixedTransactionLines($employee, $period),
+                $midMonthAdvance > 0 => $this->fixedTransactionLines($employee, $period, 'mid_month'),
+                default => collect(),
+            };
             $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
             $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
@@ -1111,7 +1146,7 @@ class PayrollController extends Controller
             $inputs['pcb_additional'] = $result->additionalMtd;
             $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
             $inputs['cp38'] = $this->cp38->instalmentFor($employee, $period);
-            $inputs['mid_month_advance'] = $this->midMonthAdvanceFor($employee, $period);
+            $inputs['mid_month_advance'] = $midMonthAdvance;
             $comp = $this->calculator->compute($inputs);
 
             // Computed amount columns are excluded from $fillable — forceFill them.
@@ -1209,6 +1244,10 @@ class PayrollController extends Controller
      * in the month. Percentage basis: salary × percent. Either way someone with no days
      * employed by the cutoff (day 15 for the percentage basis) gets no advance.
      *
+     * Fixed and Individual Transactions HR set to the Mid Month cycle are paid here too,
+     * still with no statutory. The month-end run counts them again in the full month's
+     * gross and statutory, and its advance deduction (this payslip's net) evens it out.
+     *
      * @param  Collection<int, Employee>  $employees
      * @param  Collection<string, PayrollItem>  $catalog
      */
@@ -1228,15 +1267,28 @@ class PayrollController extends Controller
                 ? Proration::prorate($salary, $days['employed'], $days['in_month'])
                 : round($salary * (int) $run->mid_month_value / 100, 2);
 
-            // Empty wage-base lines put every statutory base at zero, so gross = net = advance.
-            $comp = $this->calculator->compute(['basic' => $advance, 'lines' => [], 'overtime_flags' => []]);
+            $ftLines = $this->fixedTransactionLines($employee, $run->period, 'mid_month');
+            $itLines = $this->individualTransactionLinesForPeriod($employee, $run->period, false, 'mid_month');
+            $sum = fn (Collection $lines, string $type) => round($lines->filter(fn (array $l) => $l['item']->type === $type)->sum('amount'), 2);
+
+            // Empty wage-base lines put every statutory base at zero, so no EPF, SOCSO,
+            // EIS or HRDF; PCB is never passed in.
+            $comp = $this->calculator->compute([
+                'basic' => $advance,
+                'allowances_total' => $sum($ftLines, 'earning'),
+                'fixed_deductions_total' => $sum($ftLines, 'deduction'),
+                'individual_earnings_total' => $sum($itLines, 'earning'),
+                'individual_deductions_total' => $sum($itLines, 'deduction'),
+                'lines' => [],
+                'overtime_flags' => [],
+            ]);
 
             $payslip = $run->payslips()->make(['employee_id' => $employee->id]);
             $payslip->forceFill($comp->toPayslipAttributes() + [
                 'days_employed' => $days['employed'],
                 'days_in_month' => $days['in_month'],
             ])->save();
-            $payslip->lines()->create($this->lineAttrs($catalog, 'basic-salary', 'Basic Salary', 'earning', $advance, null, 'salary', 0));
+            $this->writePayslipLines($payslip, $comp, $ftLines, $itLines, $catalog);
         }
     }
 

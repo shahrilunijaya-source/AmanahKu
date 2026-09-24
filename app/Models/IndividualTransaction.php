@@ -28,6 +28,7 @@ class IndividualTransaction extends Model
         'payroll_item_id',
         'period',
         'for_bonus_run',
+        'payroll_cycle',
         'amount',
         'remarks',
         'created_by_id',

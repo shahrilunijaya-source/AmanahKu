@@ -629,6 +629,8 @@ trait BuildsWorkData
                 'fixedTransactionItems' => collect(),
                 'individualTransactionsForActiveRun' => collect(),
                 'itxPeriod' => now()->format('Y-m'),
+                'itxCycle' => 'month_end',
+                'itxCycleLocked' => false,
                 'itxTransactions' => collect(),
                 'itxPeriodFinalized' => false,
                 'itxPeriodHasDraftRun' => false,
@@ -806,25 +808,41 @@ trait BuildsWorkData
      * run, is freely editable; a finalized run locks it (see
      * PayrollController::assertPeriodEditable).
      *
-     * @return array{itxPeriod: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxBonusFinalized: bool, itxPeriodHasDraftRun: bool}
+     * The Pay Cycle picker (itx_cycle: month_end, mid_month or bonus, as in Worksy)
+     * narrows the list to the one-offs paid in that cycle's run, and itxCycleLocked says
+     * whether that run is already finalized.
+     *
+     * @return array{itxPeriod: string, itxCycle: string, itxTransactions: Collection, itxPeriodFinalized: bool, itxBonusFinalized: bool, itxCycleLocked: bool, itxPeriodHasDraftRun: bool}
      */
     private function individualTransactionTabData(Request $request): array
     {
         $period = $request->filled('itx_period') && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->query('itx_period'))
             ? (string) $request->query('itx_period')
             : now()->format('Y-m');
+        $cycle = in_array($request->query('itx_cycle'), ['month_end', 'mid_month', 'bonus'], true) ? (string) $request->query('itx_cycle') : 'month_end';
 
         // Spec F10: the monthly and the bonus run for a month lock their own rows
         // separately — a finalized monthly run must not stop HR queuing a bonus.
         $itxRun = PayrollRun::where('period', $period)->where('kind', 'monthly')->first();
-        $bonusFinalized = PayrollRun::where('period', $period)->where('kind', 'bonus')->where('status', 'finalized')->exists();
+        $finalizedKinds = PayrollRun::where('period', $period)->where('status', 'finalized')->pluck('kind');
+        $bonusFinalized = $finalizedKinds->contains('bonus');
 
         return [
             'itxPeriod' => $period,
+            'itxCycle' => $cycle,
             'itxTransactions' => IndividualTransaction::with(['employee', 'payrollItem'])
-                ->forPeriod($period)->orderBy('employee_id')->get()->groupBy('employee_id'),
+                ->forPeriod($period)
+                ->forBonusRun($cycle === 'bonus')
+                ->when($cycle !== 'bonus', fn ($q) => $q->where('payroll_cycle', $cycle))
+                ->orderBy('id')->get()->groupBy('employee_id'),
             'itxPeriodFinalized' => $itxRun?->status === 'finalized',
             'itxBonusFinalized' => $bonusFinalized,
+            // Same rule as PayrollController::assertPeriodEditable().
+            'itxCycleLocked' => match ($cycle) {
+                'bonus' => $bonusFinalized,
+                'mid_month' => $finalizedKinds->contains('monthly') || $finalizedKinds->contains('mid_month'),
+                default => $finalizedKinds->contains('monthly'),
+            },
             // Surfaced so the UI can tell HR to recalculate the affected payslips — adding,
             // editing or deleting a one-off here does not itself touch an existing draft
             // payslip (see syncIndividualTransactions's doc comment); it becomes visible the

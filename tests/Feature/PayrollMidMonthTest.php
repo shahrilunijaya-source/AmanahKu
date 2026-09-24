@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\SalaryStructure;
@@ -252,5 +253,93 @@ class PayrollMidMonthTest extends TestCase
 
         $ea = app(EaFormData::class)->forEmployee($this->tenant, $this->emp1->fresh(), 2026);
         $this->assertEqualsWithDelta($meGross, $ea['employment_income']['taxable_total'], 0.001);
+    }
+
+    /**
+     * Queues, for emp1 in June: a Mid Month fixed allowance of 300, a Mid Month one-off
+     * travel allowance of 100 and a Mid Month staff-loan deduction of 50, plus a Month End
+     * one-off meal allowance of 80 the mid-month run must leave alone.
+     */
+    private function queueMidMonthTransactions(): void
+    {
+        PayrollItem::seedFor($this->tenant);
+        $item = fn (string $code) => PayrollItem::where('tenant_id', $this->tenant->id)->where('code', $code)->firstOrFail()->id;
+
+        $this->post(route('payroll.fixed-transactions.store'), ['employee_id' => $this->emp1->id, 'payroll_item_id' => $item('fixed-allowance'),
+            'amount' => 300, 'start_period' => '2026-01', 'payroll_cycle' => 'mid_month'])->assertSessionHasNoErrors();
+        foreach ([['travel-allowance', 100, 'mid_month'], ['staff-loan', 50, 'mid_month'], ['meal-allowance', 80, 'month_end']] as [$code, $amount, $cycle]) {
+            $this->post(route('payroll.individual-transactions.store'), ['employee_id' => $this->emp1->id, 'payroll_item_id' => $item($code),
+                'period' => '2026-06', 'amount' => $amount, 'payroll_cycle' => $cycle])->assertSessionHasNoErrors();
+        }
+    }
+
+    public function test_mid_month_transactions_are_paid_in_the_mid_month_run_without_statutory(): void
+    {
+        $this->queueMidMonthTransactions();
+
+        $slip = $this->slip($this->midMonth('cutoff', 15), $this->emp1);
+
+        // 2500 advance + 300 fixed + 100 one-off, less the 50 loan. No meal allowance.
+        $this->assertEqualsWithDelta(2900.0, (float) $slip->gross, 0.001);
+        $this->assertEqualsWithDelta(2850.0, (float) $slip->net_pay, 0.001);
+        foreach (['epf_employee', 'socso_employee', 'eis_employee', 'pcb', 'hrdf_levy'] as $column) {
+            $this->assertSame(0.0, (float) $slip->{$column}, $column);
+        }
+        $this->assertEqualsCanonicalizing(['Basic Salary', 'Fixed Allowance', 'Travelling / Petrol / Toll Allowance', 'Staff Loan'], $slip->lines()->pluck('name')->all());
+    }
+
+    public function test_month_end_counts_mid_month_transactions_once_across_both_runs(): void
+    {
+        $this->queueMidMonthTransactions();
+        $baseline = $this->slip($this->monthEnd(), $this->emp1);
+        $this->post(route('payroll.runs.delete', PayrollRun::firstOrFail()))->assertRedirect();
+
+        $mm = $this->midMonth('cutoff', 15);
+        $this->post(route('payroll.runs.approve', $mm))->assertRedirect();
+        $mmNet = (float) $this->slip($mm, $this->emp1)->net_pay;
+        // Fixed pull unticked: the mid-month fixed allowance still comes in, because it was already paid.
+        $this->post(route('payroll.runs.create'), ['period' => '2026-06', 'payment_date' => '2026-06-30', 'pull_fixed' => '0'])->assertSessionHasNoErrors();
+        $slip = $this->slip(PayrollRun::where('kind', 'monthly')->firstOrFail(), $this->emp1);
+
+        foreach (['gross', 'epf_employee', 'socso_employee', 'eis_employee', 'pcb'] as $column) {
+            $this->assertEqualsWithDelta((float) $baseline->{$column}, (float) $slip->{$column}, 0.001, $column);
+        }
+        $this->assertEqualsWithDelta($mmNet, (float) $slip->mid_month_advance, 0.001);
+        $this->assertEqualsWithDelta((float) $baseline->net_pay, $mmNet + (float) $slip->net_pay, 0.001);
+    }
+
+    public function test_mid_month_one_off_locks_once_the_mid_month_run_is_finalized(): void
+    {
+        $this->queueMidMonthTransactions();
+        $this->post(route('payroll.runs.finalize', $this->midMonth()))->assertSessionHasNoErrors();
+
+        $item = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'travel-allowance')->firstOrFail()->id;
+        $this->post(route('payroll.individual-transactions.store'), ['employee_id' => $this->emp1->id, 'payroll_item_id' => $item,
+            'period' => '2026-06', 'amount' => 10, 'payroll_cycle' => 'mid_month'])->assertStatus(422);
+        $this->post(route('payroll.individual-transactions.store'), ['employee_id' => $this->emp1->id, 'payroll_item_id' => $item,
+            'period' => '2026-06', 'amount' => 10, 'payroll_cycle' => 'month_end'])->assertSessionHasNoErrors();
+    }
+
+    public function test_a_last_amount_can_be_paid_in_a_different_cycle(): void
+    {
+        PayrollItem::seedFor($this->tenant);
+        $allowance = PayrollItem::where('tenant_id', $this->tenant->id)->where('code', 'fixed-allowance')->firstOrFail()->id;
+        // Regular 300 at month end; the last month (June) pays 120 in the mid-month run instead.
+        $this->post(route('payroll.fixed-transactions.store'), ['employee_id' => $this->emp1->id, 'payroll_item_id' => $allowance,
+            'amount' => 300, 'start_period' => '2026-01', 'end_period' => '2026-06', 'last_amount' => 120,
+            'payroll_cycle' => 'month_end', 'last_payroll_cycle' => 'mid_month'])->assertSessionHasNoErrors();
+
+        $this->assertEqualsWithDelta(2620.0, (float) $this->slip($this->midMonth('cutoff', 15), $this->emp1)->gross, 0.001);
+    }
+
+    public function test_individual_tab_lists_only_the_chosen_pay_cycle(): void
+    {
+        $this->queueMidMonthTransactions();
+        $this->emp1->update(['staff_id' => 'UR1']);
+
+        $this->get('/app/payroll-transaction?tab=individual&itx_period=2026-06&itx_cycle=mid_month')->assertOk()
+            ->assertSee('Travelling / Petrol / Toll Allowance')->assertDontSee('Meal Allowance</td>', false);
+        $this->get('/app/payroll-transaction?tab=individual&itx_period=2026-06&itx_cycle=month_end')->assertOk()
+            ->assertSee('Meal Allowance</td>', false);
     }
 }
