@@ -37,6 +37,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $resigned_at
  * @property Carbon|null $last_working_day
  * @property Carbon|null $archived_at
+ * @property string $name
  * @property-read string $display_name
  * @property-read User|null $user
  * @property-read string|null $position
@@ -86,10 +87,10 @@ class Employee extends Model
     public static function nextStaffId(int $tenantId): string
     {
         $existing = self::withoutGlobalScopes()->where('tenant_id', $tenantId)->whereNotNull('staff_id')->pluck('staff_id')
-            ->map(fn (string $id) => preg_match('/^([A-Z]+)(\d+)$/', $id, $m) ? [$m[1], (int) $m[2]] : null)->filter();
-        $prefix = $existing->countBy(0)->sortDesc()->keys()->first()
+            ->map(fn (string $id) => preg_match('/^([A-Z]+)(\d+)$/', $id, $m) ? ['prefix' => $m[1], 'number' => (int) $m[2]] : null)->filter();
+        $prefix = $existing->countBy('prefix')->sortDesc()->keys()->first()
             ?? strtoupper((string) Tenant::whereKey($tenantId)->value('initials'));
-        $used = $existing->where(0, $prefix)->pluck(1)->flip();
+        $used = $existing->where('prefix', $prefix)->pluck('number')->flip();
 
         // ponytail: two people adding staff in the same instant can both get the same number
         // (uniqueness is only checked on the form, before this runs). Lock the tenant row if it bites.
