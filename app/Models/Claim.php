@@ -17,9 +17,12 @@ class Claim extends Model
 
     protected $guarded = [];
 
+    /** Unijaya's mileage rate per km, by vehicle. The form and the server both read this. */
+    public const MILEAGE_RATES = ['car' => 0.60, 'motorcycle' => 0.30];
+
     protected function casts(): array
     {
-        return ['date' => 'date', 'amount' => 'float', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
+        return ['date' => 'date', 'amount' => 'float', 'paid_at' => 'datetime', 'verified_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime', 'distance_km' => 'float', 'toll' => 'float', 'parking' => 'float'];
     }
 
     /** @return BelongsTo<Employee, $this> */

@@ -64,6 +64,16 @@ class ClaimReceiptTest extends TestCase
         return Claim::where('title', 'Lunch')->firstOrFail();
     }
 
+    public function test_a_director_can_open_any_receipt(): void
+    {
+        $manager = $this->member('manager', 'Manager');
+        $report = $this->member('employee', 'Azman', $manager->id);
+        $claim = $this->claimWithReceipt($report);
+
+        $this->actingAsEmployee($this->member('director', 'Shahril'))->get("/app/claims/{$claim->id}/receipt")->assertOk();
+        $this->actingAsEmployee($this->member('employee', 'Siti'))->get("/app/claims/{$claim->id}/receipt")->assertForbidden();
+    }
+
     public function test_download_filename_uses_the_readable_format(): void
     {
         $manager = $this->member('manager', 'Manager');
