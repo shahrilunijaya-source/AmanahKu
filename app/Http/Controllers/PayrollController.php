@@ -20,8 +20,6 @@ use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
-use App\Models\User;
-use App\Notifications\PayslipPublished;
 use App\Services\FeatureManager;
 use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
@@ -47,7 +45,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -1675,9 +1672,9 @@ class PayrollController extends Controller
     }
 
     /**
-     * Stamps published_at and tells every employee once: the in-app notice for anyone
-     * with a login, plus a queued email to the same people (an employee with no user
-     * account has no inbox here, so they get neither and HR hands over the PDF).
+     * Stamps published_at and sends the in-app notice to every employee with a login
+     * (an employee with no user account gets nothing and HR hands over the PDF). The
+     * email waits for the 5th of the month, see the payroll:payslip-ready command.
      */
     private function publish(PayrollRun $run): void
     {
@@ -1701,14 +1698,6 @@ class PayrollController extends Controller
 
             AuditLog::record('Published payroll run', $run->label.' · '.$payslips->count().' payslips released to staff');
         });
-
-        foreach ($payslips as $payslip) {
-            $userId = $payslip->employee?->user_id;
-            $user = $userId !== null ? User::find($userId) : null;
-            if ($user !== null) {
-                Notification::send($user, new PayslipPublished($payslip));
-            }
-        }
     }
 
     /**

@@ -102,6 +102,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // 20 Feb / 20 Mar (Form EA, Form E). Runs daily; the command picks the days.
         $schedule->command('payroll:deadline-digest')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('payroll:deadline-digest'));
+        // Tells staff on the 5th that last month's published payslip is ready to download.
+        $schedule->command('payroll:payslip-ready')->monthlyOn(5, '08:00')
+            ->withoutOverlapping()->onFailure($onFailure('payroll:payslip-ready'));
         // CR-34: Friday morning T.A.A. task, one per manager/attendee, moved to Thursday on
         // a holiday Friday. Runs daily; the command itself decides whether today is the day.
         $schedule->command('management:meeting-tasks')->dailyAt('08:00')

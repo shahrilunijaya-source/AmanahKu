@@ -12,7 +12,6 @@ use App\Models\Payslip;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Notifications\PayslipPublished;
 use App\Services\FeatureManager;
 use App\Services\Payroll\PayslipPdfData;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -130,9 +129,8 @@ class PayrollPublishTest extends TestCase
         $this->actingStaff()->get(route('payroll.payslips.pdf', $slip))->assertOk();
         $this->actingStaff()->get('/app/payroll-my')->assertOk()->assertSee('?payslip='.$slip->id, false);
 
-        // One mail and one in-app notice for the employee with a login; none for the one without.
-        Notification::assertSentToTimes($this->staffUser, PayslipPublished::class, 1);
-        Notification::assertCount(1);
+        // One in-app notice for the employee with a login, none for the one without. The email waits for the 5th.
+        Notification::assertNothingSent();
         $this->assertSame(1, AppNotification::where('title', 'Payslip ready')->count());
         $this->assertSame($this->staffUser->id, AppNotification::where('title', 'Payslip ready')->value('user_id'));
         $this->assertDatabaseHas('audit_logs', ['action' => 'Published payroll run']);
@@ -144,7 +142,7 @@ class PayrollPublishTest extends TestCase
         $this->actingHr()->post(route('payroll.runs.publish', $run))->assertSessionHasNoErrors();
 
         $this->actingHr()->post(route('payroll.runs.publish', $run->fresh()))->assertStatus(422);
-        Notification::assertCount(1);
+        $this->assertSame(1, AppNotification::where('title', 'Payslip ready')->count());
     }
 
     public function test_a_draft_run_cannot_be_published(): void
@@ -161,7 +159,7 @@ class PayrollPublishTest extends TestCase
 
         $this->assertNotNull($run->published_at);
         $this->actingStaff()->get(route('payroll.payslips.pdf', $this->slipFor($this->staff)))->assertOk();
-        Notification::assertSentToTimes($this->staffUser, PayslipPublished::class, 1);
+        Notification::assertNothingSent();
     }
 
     public function test_a_backfilled_run_stays_visible_to_staff(): void
