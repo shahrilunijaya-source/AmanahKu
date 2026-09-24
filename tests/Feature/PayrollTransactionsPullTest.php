@@ -393,12 +393,12 @@ class PayrollTransactionsPullTest extends TestCase
     }
     // ── Pull ticks on the new-run form ───────────────────────────
 
-    public function test_the_new_run_form_offers_the_four_pull_ticks_all_on(): void
+    public function test_the_new_run_form_offers_the_four_pull_ticks_unticked_like_worksy(): void
     {
         $html = $this->actingHr()->get('/app/payroll-process')->assertOk()->getContent();
 
         foreach (['pull_fixed', 'pull_claims', 'pull_overtime', 'pull_unpaid'] as $name) {
-            $this->assertMatchesRegularExpression('/<input type="checkbox" name="'.$name.'" value="1" checked/', $html);
+            $this->assertMatchesRegularExpression('/<input type="checkbox" name="'.$name.'" value="1"\s+style=/', $html);
         }
     }
 

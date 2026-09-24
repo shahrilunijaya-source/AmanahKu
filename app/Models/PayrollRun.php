@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,14 +37,18 @@ class PayrollRun extends Model
         'payment_date',
         'pull_options',
         'excluded_employee_ids',
+        'remarks',
+        'mid_month_basis',
+        'mid_month_value',
     ];
 
     /**
      * Spec F10: monthly is the ordinary company-wide run (one per tenant and period);
      * bonus pays flagged Individual Transactions as additional remuneration alongside it;
      * final is one leaver's last pay. Only a final run carries an employee_id.
+     * mid_month pays an advance on basic salary that the month-end run takes back.
      */
-    public const KINDS = ['monthly', 'bonus', 'final'];
+    public const KINDS = ['monthly', 'mid_month', 'bonus', 'final'];
 
     /** Sources a run can pull in; the new-run form shows one tick per key. */
     public const PULL_SOURCES = ['fixed', 'claims', 'overtime', 'unpaid'];
@@ -58,6 +63,7 @@ class PayrollRun extends Model
             'payment_date' => 'date',
             'pull_options' => 'array',
             'excluded_employee_ids' => 'array',
+            'mid_month_value' => 'integer',
         ];
     }
 
@@ -120,6 +126,24 @@ class PayrollRun extends Model
     public function isBonus(): bool
     {
         return $this->kind === 'bonus';
+    }
+
+    public function isMidMonth(): bool
+    {
+        return $this->kind === 'mid_month';
+    }
+
+    /**
+     * Runs whose pay counts as remuneration in year-to-date, EA and statutory totals.
+     * A mid-month advance is already inside the month-end payslip's gross, so counting
+     * its run too would count that money twice.
+     *
+     * @param  Builder<PayrollRun>  $query
+     * @return Builder<PayrollRun>
+     */
+    public function scopeCountsAsRemuneration(Builder $query): Builder
+    {
+        return $query->where('kind', '!=', 'mid_month');
     }
 
     public function isFinal(): bool

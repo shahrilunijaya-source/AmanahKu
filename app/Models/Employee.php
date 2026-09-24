@@ -33,6 +33,8 @@ use Illuminate\Support\Str;
  *
  * @property Carbon|null $date_of_birth
  * @property Carbon|null $joined_at
+ * @property Carbon|null $confirmed_at
+ * @property Carbon|null $resigned_at
  * @property Carbon|null $last_working_day
  * @property Carbon|null $archived_at
  * @property-read string $display_name

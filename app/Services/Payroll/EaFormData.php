@@ -47,7 +47,7 @@ final class EaFormData
 
         $payslips = Payslip::where('tenant_id', $tenant->id)
             ->where('employee_id', $employee->id)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')
+            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->countsAsRemuneration()
                 ->where('period', 'like', $year.'-%'))
             ->with('lines.payrollItem')
             ->get();

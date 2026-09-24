@@ -41,7 +41,7 @@ final class PayslipYearToDate
 
         $priorPaid = Payslip::where('tenant_id', $employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')
+            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->countsAsRemuneration()
                 ->where('period', '>=', $year.'-01')
                 ->where('period', '<', $run->period))
             ->get();

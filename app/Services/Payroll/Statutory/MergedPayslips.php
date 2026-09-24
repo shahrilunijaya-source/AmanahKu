@@ -38,7 +38,7 @@ final class MergedPayslips
             ->where('tenant_id', $tenant->id)
             ->with('employee.salaryStructure')
             ->whereHas('payrollRun', fn ($q) => $q->where('tenant_id', $tenant->id)
-                ->where('period', $period)->where('status', 'finalized')
+                ->where('period', $period)->where('status', 'finalized')->countsAsRemuneration()
                 // PERKESO wages exclude the annual bonus, so Borang 8A leaves bonus runs out.
                 ->when(! $withBonusRuns, fn ($q) => $q->where('kind', '!=', 'bonus')))
             ->get();

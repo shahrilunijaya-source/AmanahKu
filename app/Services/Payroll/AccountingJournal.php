@@ -23,6 +23,7 @@ class AccountingJournal
         'eis_employer' => ['Employer EIS', 'debit'],
         'hrdf_levy' => ['HRD Corp levy', 'debit'],
         'claims' => ['Staff claims reimbursed', 'debit'],
+        'salary_advance' => ['Salary advance paid', 'debit'],
         'net_pay' => ['Net pay payable', 'credit'],
         'epf_payable' => ['EPF payable', 'credit'],
         'socso_payable' => ['SOCSO payable', 'credit'],
@@ -31,15 +32,21 @@ class AccountingJournal
         'zakat_payable' => ['Zakat payable', 'credit'],
         'hrdf_payable' => ['HRD Corp payable', 'credit'],
         'other_deductions' => ['Loan recoveries and other deductions', 'credit'],
+        'salary_advance_recovered' => ['Salary advance recovered', 'credit'],
     ];
 
     /**
      * Amount per line key, in sen so the sums stay exact.
      *
+     * A mid-month run's pay is an advance, not wages yet: it is debited to the salary
+     * advance asset instead of salaries. The month-end run books the full month's wages
+     * and credits the advance back out of that asset, so across both runs wages expense
+     * is the month-end gross and the advance account nets to zero.
+     *
      * @param  Collection<int, Payslip>  $payslips
      * @return array<string, int>
      */
-    public static function totals(Collection $payslips): array
+    public static function totals(Collection $payslips, bool $midMonth = false): array
     {
         $sen = fn (string ...$columns): int => (int) $payslips->sum(
             fn (Payslip $p) => array_sum(array_map(fn (string $c) => (int) round((float) $p->{$c} * 100), $columns))
@@ -47,14 +54,17 @@ class AccountingJournal
 
         $statutoryEmployee = $sen('epf_employee', 'socso_employee', 'eis_employee', 'skbbk_employee', 'pcb', 'pcb_additional', 'zakat', 'cp38');
 
+        $wages = $sen('gross') - $sen('allowances_total');
+
         return [
-            'salaries' => $sen('gross') - $sen('allowances_total'),
+            'salaries' => $midMonth ? 0 : $wages,
             'allowances' => $sen('allowances_total'),
             'epf_employer' => $sen('epf_employer'),
             'socso_employer' => $sen('socso_employer'),
             'eis_employer' => $sen('eis_employer'),
             'hrdf_levy' => $sen('hrdf_levy'),
             'claims' => $sen('claims_reimbursement'),
+            'salary_advance' => $midMonth ? $wages : 0,
             'net_pay' => $sen('net_pay'),
             'epf_payable' => $sen('epf_employee', 'epf_employer'),
             'socso_payable' => $sen('socso_employee', 'skbbk_employee', 'socso_employer'),
@@ -64,7 +74,8 @@ class AccountingJournal
             'hrdf_payable' => $sen('hrdf_levy'),
             // Whatever was deducted beyond the statutory lines: loans, advances, one-offs.
             // Taken from total_deductions so a carried-forward shortfall is already out.
-            'other_deductions' => $sen('total_deductions') - $statutoryEmployee,
+            'other_deductions' => $sen('total_deductions') - $statutoryEmployee - $sen('mid_month_advance'),
+            'salary_advance_recovered' => $sen('mid_month_advance'),
         ];
     }
 

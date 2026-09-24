@@ -29,6 +29,8 @@ class FixedTransaction extends Model
         'prorate',
         'remarks',
         'consent_reference',
+        'payroll_cycle',
+        'last_payroll_cycle',
         'created_by_id',
     ];
 
