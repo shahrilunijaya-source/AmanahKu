@@ -39,80 +39,32 @@ lerd service start mysql      # start a stopped service
 
 Each worktree gets its own vhost at `worktree-<branch>.amanahku.localhost` (branch name slugified), with `vendor/` seeded and `.env` synced automatically — takes a few seconds after the worktree is created. Reachable directly, no numeric port needed (`.localhost` resolves natively). Check `~/.local/share/lerd/nginx/conf.d/` if a worktree isn't resolving yet.
 
-`database/seeders/DevLoginSeeder.php` doesn't carry over automatically and needs a manual copy from the main checkout before dev-login accounts exist in a worktree:
-```fish
-set wt .claude/worktrees/<name>
-cp database/seeders/DevLoginSeeder.php $wt/database/seeders/DevLoginSeeder.php
-```
-It's gitignored (never committed, see above), so `git worktree add` — by lerd or anyone — never brings it along. The worktree shares the parent's database by default, so the seeded dev accounts already exist; no need to re-run `DevLoginSeeder`.
+Worktrees share the main dev database, so the quick-login accounts work there too.
 
-## Deploy to staging
+## Deploy and git remotes
 
-Staging: `https://amanahku-staging.myappsonline.net` (Hostinger shared). SSH alias `amanahku` → `~/domains/amanahku-staging.myappsonline.net/public_html`, tracking **`staging`**. Still the test target — deploy here first.
+Release steps (MR order, pipeline, fallback commands) are in the Release flow section of `docs/RULES.md`, with staging and SupportOS detail in the `release` skill where it exists (it's gitignored, so only on some machines). These rules apply to every push:
 
-**Production is live at `https://amanahku.unijaya.com`, and it is not yours to deploy.** The devops team owns the host (DigitalOcean, not Hostinger — the shared-hosting limits below are staging's, not prod's) and releases from GitLab (`https://gitlab.com/developer-unijaya/claudecode/amanahku.git`, the `gitlab` remote). You have no shell, no database and no cron visibility on prod — only an app-level super-admin login. Anything operational on prod goes through devops. Prod carries one seeded super-admin account; its password is not in this repo.
+- **GitLab is where you push. GitHub is a copy.** A GitLab mirror sends `main`, `dev` and `staging` to GitHub. Pushing to GitHub, or merging `main` on GitHub, makes the branch diverge and the mirror stops updating.
+- Direct pushes to `main` and `staging` are blocked by a devops security policy. `staging` is reached by MR from `dev`, and `main` by MR from `staging` on GitLab.
+- **Production (`https://amanahku.unijaya.com`) is not yours to deploy.** Devops owns the host. You have no shell, database or cron access there, only an app-level super-admin login. Anything operational on prod goes through devops.
+- The 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away. Changes to `.gitlab-ci.yml` go through devops.
+- The five that lose data: never run `key:generate` on a host that already has data; never run `git clean` on the server; take a `mysqldump` before a deploy that migrates; keep `public/build` committed (don't "clean up" that gitignore exception); run `view:cache` before `bun run build`. The reasoning, the security gate, cron, mail and rollback are in **[docs/RULES.md](docs/RULES.md#part-2--operational-rules)**. Read it before any release.
+- Staging and production login credentials are **not** in this repo (it is public), and never go into a tracked file. The prod super-admin password is held by devops.
 
-**GitLab is where you push. GitHub is a copy.** Since 2026-08-22 a GitLab push mirror sends `main`, `dev` and `staging` to GitHub within a few minutes of every change (Settings → Repository → Mirroring repositories). Push to GitHub directly and that branch diverges: the mirror keeps divergent refs rather than forcing over them, so it just stops updating and reports an error on the mirror row. `git config remote.pushDefault gitlab` makes the safe thing the default. Unprotected branches — feature branches, `supportos/*` — are not mirrored and live only where you push them.
+## Amanahku autonomous build
 
-Release order: commit on `dev` → `git push gitlab dev` → `glab mr create --source-branch dev --target-branch staging`, merge it → the pipeline deploys staging by itself → **test** → MR `staging` into `main` **on GitLab**, merge there, and the mirror carries `main` to GitHub. Since 2026-09-02 a group security policy (devops-owned, `developer-unijaya/claudecode/security-policy`) blocks direct pushes to `main` and `staging` — `git push gitlab dev:staging` is refused with `Push is blocked by settings overridden by a security policy`, so staging is reached by MR. `dev` itself is pushable again as of 2026-09-04 (it was blocked for two days, which is why `release/<version>` branches exist in the history); no release branch needed. It's `staging` (not `dev`) that gets MR'd into `main`, so `main` only ever holds the exact commit that was actually tested, not whatever `dev` has moved on to since. Merging `main` on GitHub instead is what diverges the two repos now that the mirror runs GitLab → GitHub. The two repos have shared one history since 2026-07-31; the 29 devops-owned files at the repo root (`STATE.md`, `PROJECT.md`, `CODEOWNERS`, `.gitlab-ci.yml`, `.planning/`, `DECISIONS/`, …) belong to them, do not tidy them away. `.gitlab-ci.yml` carries our staging and SupportOS jobs as of 2026-08-22, added on top of the devops skeleton — still their file, still CODEOWNERS'd to them, so changes there go through them rather than being assumed.
-
-Staging deploys itself. A merge into `staging` runs the GitLab pipeline in `.gitlab-ci.yml`: lint, phpstan, the suite with an 80% coverage floor, committed-asset freshness, then `deploy-staging` — which waits for the mirror to reach GitHub (the server's `origin` is GitHub), SSHes in, pulls, runs `deploy.sh`, and loads the login page. A failed deploy or a staging that stops answering is rolled back to the previous commit on the server automatically. The manual SSH commands below are the fallback for when the pipeline itself is broken.
-
-SupportOS (the Unijaya OS helpdesk agent) uses that same path unattended. It pushes a fix as `supportos/<severity>/<ticket>-<slug>` with GitLab push options that open the MR and merge it when the pipeline succeeds; the `supportos-severity` job fails anything above `low`, so those stop at a green MR for a human. Verified end to end on 2026-08-22. Nothing in that loop can reach `main` or production.
-
-Assets built locally, `public/build` committed; host builds nothing.
-
-```fish
-lerd artisan view:cache                          # REQUIRED: makes the Tailwind scan complete
-bun run build                                    # rebuild assets if JS/CSS/Blade changed
-git add public/build && git commit ...           # commit assets alongside the change
-git push gitlab dev
-glab mr create --source-branch dev --target-branch staging --yes   # direct push to staging is policy-blocked
-glab mr merge <iid> --auto-merge --yes           # merges when the MR pipeline is green; staging deploys itself
-
-# Fallback only, when the pipeline itself is broken:
-ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git status -sb'   # LOOK FIRST (read-only)
-ssh amanahku 'cd ~/domains/amanahku-staging.myappsonline.net/public_html && git pull origin staging && bash deploy.sh'
-# staging passed? merge the staging → main MR on GitLab; the mirror carries it to GitHub.
-```
-
-The four that lose data: never run `key:generate` on a host that already has data; never run `git clean` on the server; take a `mysqldump` before a deploy that migrates; run `view:cache` before `bun run build`. The reasoning behind each, the security gate, the mandatory hPanel cron jobs, the mail configuration and the rollback path are all in **[docs/RULES.md](docs/RULES.md#part-2--operational-rules)**. Read it before any release; do not restate it here, a second copy is how the last one rotted.
-
-Staging and production login credentials are **not** in this repo (it is public), and never go into a tracked file. The prod super-admin password is held by devops.
-
-## Legacy: PM2 (unused)
-
-`ecosystem.config.cjs` is a leftover from the previous maintainer's Windows/Laragon setup (hardcoded `C:/laragon/...` PHP path) and does not run on this machine. Unused, kept for reference.
-
-## Amanahku autonomous build, standing rules
-
-This repository is being built by an unattended multi-session agent run. Shazwan is not available. Read `docs/build/RULES.md` in full before any work.
-
-**Every session, without exception:**
-
-- Read `docs/build/RULES.md`, all of `docs/build/contracts/`, the CR spec file, `docs/specs/global-clause.md`, `docs/specs/date-calendar-rules.md`, `docs/build/OPEN.md`, and the previous session's handoff.
-- Never block on a question. Safest reversible option, log to `docs/build/OPEN.md`, continue.
-- Never call an external service. Google, Track and mail go through ports in `docs/build/contracts/ports.md`.
-- One CR per session. No adjacent work, no refactoring outside the CR's files.
-- Never edit `CLAUDE.md`, `docs/build/RULES.md`, `docs/build/contracts/*` or `tests/Acceptance/*`. Those are input.
-- Work-item due dates are immutable after first save, in UI and API. Event dates are not.
-- Roles come from `docs/build/contracts/roles.md`. One role model only.
-- Dashboard changes go into the slots in `docs/build/contracts/dashboard-slots.md`. Never build a new dashboard. Never move or rename an existing card.
-- Every state change listed in `docs/specs/global-clause.md` writes an audit entry.
-- End with `docs/build/sessions/<id>/handoff.md`, then stop.
+Build sessions run through `/session` and `/qa`. Read `docs/build/RULES.md` in full before any build work. Never edit `docs/build/contracts/*` or `tests/Acceptance/*`, those are input.
 
 **Hard stops:** no migrations outside dev, the CR-19 scheduler ships flagged off, nothing writes to attendance/timesheet/claim tables before S01, no real email or calendar or Track write, no audit-log row is ever deleted or rewritten.
 
-**This repo, for the run:**
+**Dev commands:**
 
 - Tests: `php artisan test --compact tests/Acceptance/<CRID>Test.php` on the host (PHP 8.5, sqlite test DB, separate from the dev DB). Whole suite: `php artisan test --compact`. Full-suite red blocks the staging pipeline (80% coverage floor).
 - Dev DB migrate: `lerd artisan migrate` (runs inside the lerd container against the dev MySQL). That is the only database a session may migrate.
 - Browser checks: app at `http://localhost:9100`, quick-login buttons on the login page, password `password`. Use the integrated browser MCP.
 - Format PHP before finishing: `vendor/bin/pint --dirty --format agent`.
 - Assets: only if Blade/CSS/JS changed, `lerd artisan view:clear && lerd artisan view:cache && bun run build`, commit `public/build` with the change.
-- Session files: `docs/build/sessions/<id>/contract.md` before code, `docs/build/sessions/<id>/handoff.md` after. Specs live in `docs/specs/`, contracts in `docs/build/contracts/`.
-
-===
 
 <laravel-boost-guidelines>
 === foundation rules ===
@@ -128,11 +80,11 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - php - 8.5
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v13
+- laravel/mcp (MCP) - v0
 - laravel/prompts (PROMPTS) - v0
 - laravel/sanctum (SANCTUM) - v4
 - larastan/larastan (LARASTAN) - v3
 - laravel/boost (BOOST) - v2
-- laravel/mcp (MCP) - v0
 - laravel/pail (PAIL) - v1
 - laravel/pint (PINT) - v1
 - phpunit/phpunit (PHPUNIT) - v12
@@ -160,7 +112,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Frontend Bundling
 
-- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
+- If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `bun run build`, `bun run dev`, or `composer run dev`. Ask them.
 
 ## Documentation Files
 
@@ -223,7 +175,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 # Deployment
 
-- Laravel can be deployed using [Laravel Cloud](https://cloud.laravel.com/), which is the fastest way to deploy and scale production Laravel applications.
+- This app is not deployed with Laravel Cloud. Push to GitLab; `staging` deploys itself through the GitLab pipeline, and production is released by devops. The steps are in the Release flow section of `docs/RULES.md`.
 
 === tests rules ===
 
@@ -260,7 +212,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Vite Error
 
-- If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `npm run build` or ask the user to run `npm run dev` or `composer run dev`.
+- If you receive an "Illuminate\Foundation\ViteException: Unable to locate file in Vite manifest" error, you can run `bun run build` or ask the user to run `bun run dev` or `composer run dev`.
 
 === pint/core rules ===
 
