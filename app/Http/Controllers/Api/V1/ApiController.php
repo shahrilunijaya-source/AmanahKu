@@ -161,6 +161,7 @@ class ApiController extends Controller
 
         // Eager-loaded: without it the map below fires one query per project.
         $projects = Project::where('is_active', true)
+            ->where('is_other', false)
             ->with([
                 'categories:id,name',
                 'pm:id,name,nickname',

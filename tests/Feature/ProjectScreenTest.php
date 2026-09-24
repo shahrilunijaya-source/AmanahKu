@@ -169,6 +169,29 @@ class ProjectScreenTest extends TestCase
         $this->assertMatchesRegularExpression('/name="contractor"[^>]*disabled/', $html);
     }
 
+    /**
+     * "Other" is for adhoc board work with no named project yet: the board card offers
+     * it, the Projects register does not list it.
+     */
+    public function test_the_other_project_is_offered_on_cards_but_hidden_from_the_register(): void
+    {
+        $dev = TimesheetCategory::create(['tenant_id' => $this->tenant->id, 'name' => 'Development', 'requires_project' => true]);
+        $other = Project::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'is_other' => true, 'is_active' => true]);
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+
+        $employee = Employee::where('user_id', $this->actorWithRole('manager')->id)->sole();
+        $card = $employee->workItems()->create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Adhoc job', 'type' => 'adhoc',
+            'priority' => 'low', 'status' => 'prog', 'progress' => 0, 'timesheet_category_id' => $dev->id,
+        ]);
+
+        $this->assertContains($other->id, $card->projectOptions()->pluck('id')->all());
+
+        $html = $this->actingAsRole('manager')->get('/app/projects')->assertOk()->getContent();
+        $this->assertStringContainsString('KPT: RMS', $html);
+        $this->assertStringNotContainsString(route('projects.update', $other), $html);
+    }
+
     public function test_an_employee_cannot_create_a_project(): void
     {
         $this->actingAsRole('employee')
