@@ -118,15 +118,17 @@ and do not assume a staging constraint protects prod.
 Local access is `http://localhost:9100`, **not** `amanahku.test`. `.test` resolution is
 unreliable on the dev machine: systemd-resolved picks the router as wlan0's DNS server,
 which NXDOMAINs `.test` and never fails over to lerd-dns. `lerd dns:repair` cannot win that
-race and nsswitch blocks an `/etc/hosts` workaround. `APP_URL` is still `http://amanahku.test`,
-so APP_URL-derived links (Mailpit mail) keep emitting the `.test` host.
+race and nsswitch blocks an `/etc/hosts` workaround. `lerd dns:disable` has since been run,
+so lerd uses the `.localhost` TLD and `APP_URL` is `http://amanahku.localhost`. It follows
+whatever domain lerd assigns the site, so check it if links in Mailpit mail look wrong.
 
-`github.com/shahrilunijaya-source/AmanahKu` is public and canonical for development since
-2026-07-17. The old private `amanahku-app` repo is retired — do not push to it.
-
-A second repo carries production: `gitlab.com/developer-unijaya/claudecode/amanahku` (the
-`gitlab` remote), which the devops team releases from. Since 2026-07-31 the two repos share
-one history — `git push gitlab main` is an ordinary fast-forward, and a prod release can be
+GitLab (`gitlab.com/developer-unijaya/claudecode/amanahku`, the `gitlab` remote) is where you
+push. Since 2026-08-22 a GitLab push mirror copies `main`, `dev` and `staging` to
+`github.com/shahrilunijaya-source/AmanahKu` within a few minutes of each change. GitHub is a
+copy: push or merge there and that branch diverges, and the mirror stops updating it and shows
+an error. `git config remote.pushDefault gitlab` makes the safe choice the default. Feature and
+`supportos/*` branches are not mirrored. The old private `amanahku-app` repo is retired, do not
+push to it. The two repos have shared one history since 2026-07-31, so a prod release can be
 traced back to a commit.
 
 That took a one-time merge, because GitLab `main` began as a URSB governance template plus
@@ -160,20 +162,27 @@ away.** The merge is done and does not need repeating.
 ## Release flow
 
 ```
-1. commit on dev                       (GitHub)
-2. git push origin dev:staging         (GitHub, no PR)
-3. ssh amanahku → git pull origin staging && bash deploy.sh   → staging
+1. commit on dev, git push gitlab dev
+2. glab mr create --source-branch dev --target-branch staging, merge it
+3. the GitLab pipeline deploys staging by itself
 4. test on staging
-5. PR dev → main                       (GitHub, only after step 4 passes)
-6. git push gitlab main                          → devops release prod
+5. MR staging → main on GitLab, merge there (only after step 4 passes)
+6. the mirror carries main to GitHub; devops releases prod from GitLab main
 ```
 
-**Step 4 is the gate.** It sits *before* the PR on purpose: reaching staging must not cost a
-merge into `main`, and `main` must never hold code that has not run in a real environment. GitLab only ever receives code that already passed staging, which is
-why `main` is not pushed to both remotes at once. Do not configure a dual push-URL; it would
-send untested commits to the repo production is built from.
+**Step 4 is the gate.** `main` must never hold code that has not run in a real environment,
+so it is `staging` (not `dev`) that gets merged into `main`. That way `main` only ever holds the
+exact commit that was tested. Since 2026-09-02 a devops security policy blocks direct pushes to
+`main` and `staging` (`Push is blocked by settings overridden by a security policy`), so both
+are reached by MR. Never merge `main` on GitHub; with the mirror running GitLab to GitHub, that
+is what splits the two repos.
 
-Staging deploy is a manual pull over SSH. No webhook, no deploy key. `deploy.sh` auto-detects the
+A merge into `staging` runs `.gitlab-ci.yml`: lint, phpstan, the suite with an 80% coverage
+floor, committed-asset freshness, then `deploy-staging`. That job waits for the mirror to reach
+GitHub (the server's `origin` is GitHub), SSHes in, pulls, runs `deploy.sh` and loads the login
+page. A failed deploy, or a staging that stops answering, is rolled back to the previous commit
+automatically. The manual SSH pull (`ssh amanahku`, `git pull origin staging && bash deploy.sh`)
+is only the fallback for when the pipeline itself is broken. `deploy.sh` auto-detects the
 tier from `APP_ENV` and refuses to run against `APP_ENV=local`. It runs: maintenance mode →
 `composer install` → `migrate --force` → storage symlink (via `ln`, because `exec()` is
 disabled on the host) → skip asset build → config/route/view caches → queue restart →
