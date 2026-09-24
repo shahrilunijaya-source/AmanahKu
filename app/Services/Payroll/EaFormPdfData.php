@@ -13,9 +13,9 @@ use App\Models\Tenant;
  * and wording this class and ea-form.blade.php follow exactly. EaFormData itself must
  * never know the box numbering (its own docblock says so); this class is that renderer.
  *
- * A box with nothing behind it prints BLANK, never "0.00" — real forms do the same, and
- * a printed zero would wrongly claim "nothing was paid" rather than "we don't track this
- * yet". STATIC_INCOMPLETE_BOXES lists every box this app has NO STORAGE for at all, for
+ * A box with nothing behind it is null here. The printed form shows it as 0.00, the way
+ * Worksy prints it, so HR checks the preview screen's incomplete list (not the PDF) for
+ * boxes still to fill by hand. STATIC_INCOMPLETE_BOXES lists every box this app has NO STORAGE for at all, for
  * any tenant or employee. Employer's TIN and Employer's Telephone No. are NOT in that
  * list — both live on `tenants` (employer_tin, contact_number) — they are appended to
  * the incomplete list in build() only when that particular tenant hasn't filled them in
@@ -55,6 +55,7 @@ final class EaFormPdfData
         $data = $this->eaData->forEmployee($tenant, $employee, $year);
         $income = $data['employment_income']['by_category'];
         $ded = $data['deductions'];
+        $takeOn = $data['take_on'];
         $structure = $employee->salaryStructure;
 
         $yearStart = "{$year}-01-01";
@@ -65,7 +66,7 @@ final class EaFormPdfData
             && $employee->archived_at->format('Y-m-d') <= $yearEnd && $employee->archived_at->year === $year
             ? $employee->archived_at : null;
 
-        return [
+        $result = [
             'year' => $year,
             'header' => [
                 'serial_no' => null,
@@ -95,34 +96,35 @@ final class EaFormPdfData
                 'b1a' => $income['B1(a)'] ?? null,
                 'b1b' => $income['B1(b)'] ?? null,
                 'b1c' => $income['B1(c)'] ?? null,
-                'b1d' => null,
-                'b1e' => null,
-                'b1f' => null,
-                'b2' => null,
-                'b3' => null,
-                'b4' => null,
-                'b5' => null,
-                'b6' => null,
+                // Only a take-on row (this company's pay before the app) fills these.
+                'b1d' => $income['B1(d)'] ?? null,
+                'b1e' => $income['B1(e)'] ?? null,
+                'b1f' => $income['B1(f)'] ?? null,
+                'b2' => $income['B2'] ?? null,
+                'b3' => $income['B3'] ?? null,
+                'b4' => $income['B4'] ?? null,
+                'b5' => $income['B5'] ?? null,
+                'b6' => $income['B6'] ?? null,
             ],
             'c' => [
-                'c1' => null,
-                'c2' => null,
-                'total' => null,
+                'c1' => $income['C1'] ?? null,
+                'c2' => $income['C2'] ?? null,
+                'total' => isset($income['C1']) || isset($income['C2']) ? round(($income['C1'] ?? 0) + ($income['C2'] ?? 0), 2) : null,
             ],
             'd' => [
                 'd1' => $ded['pcb_total'] > 0 ? $ded['pcb_total'] : null,
                 'd2' => $ded['cp38'] > 0 ? $ded['cp38'] : null,
                 'd3' => $ded['zakat'] > 0 ? $ded['zakat'] : null,
-                'd4' => null,
-                'd5a' => null,
-                'd5b' => null,
+                'd4' => ($takeOn['d4'] ?? 0) > 0 ? $takeOn['d4'] : null,
+                'd5a' => ($takeOn['d5a'] ?? 0) > 0 ? $takeOn['d5a'] : null,
+                'd5b' => ($takeOn['d5b'] ?? 0) > 0 ? $takeOn['d5b'] : null,
                 // Computable: children_relief_count holds RELIEF UNITS (RM2,000 each — a
                 // child over 18 in higher education counts as multiple units), not a
                 // headcount, so this is the only place that number is usable. It must
                 // NEVER be printed as box A8's "number of children" — see 'employee.children'
                 // above, deliberately left null instead of reusing this figure.
-                'd6' => $structure && $structure->children_relief_count > 0
-                    ? round($structure->children_relief_count * 2000.0, 2) : null,
+                'd6' => ($takeOn['d6'] ?? 0) > 0 ? $takeOn['d6'] : ($structure && $structure->children_relief_count > 0
+                    ? round($structure->children_relief_count * 2000.0, 2) : null),
             ],
             'e' => [
                 'fund_name' => $ded['epf_employee'] > 0 ? 'KWSP / EPF' : null,
@@ -136,8 +138,20 @@ final class EaFormPdfData
             'f' => $data['employment_income']['tax_exempt_total'] > 0
                 ? $data['employment_income']['tax_exempt_total'] : null,
             'previous_employment' => $data['previous_employment'],
-            'incomplete' => $this->incompleteBoxes($tenant),
+            'take_on_notes' => $takeOn === null ? [] : array_diff_key($takeOn, array_flip(['d4', 'd5a', 'd5b', 'd6'])),
         ];
+
+        // A box the take-on row filled is no longer one HR has to write in by hand.
+        $filled = fn (string $box) => match ($box) {
+            'B1(d)' => $result['b']['b1d'], 'B1(e)' => $result['b']['b1e'], 'B1(f)' => $result['b']['b1f'],
+            'B2' => $result['b']['b2'], 'B3' => $result['b']['b3'], 'B4' => $result['b']['b4'],
+            'B5' => $result['b']['b5'], 'B6' => $result['b']['b6'], 'C1' => $result['c']['c1'], 'C2' => $result['c']['c2'],
+            'D4' => $result['d']['d4'], 'D5(a)' => $result['d']['d5a'], 'D5(b)' => $result['d']['d5b'],
+            default => null,
+        } !== null;
+        $result['incomplete'] = array_values(array_filter($this->incompleteBoxes($tenant), fn (array $b) => ! $filled($b['box'])));
+
+        return $result;
     }
 
     /** @return list<array{box: string, label: string}> */

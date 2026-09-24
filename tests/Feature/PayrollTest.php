@@ -7,12 +7,13 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Claim;
 use App\Models\Employee;
-use App\Models\PayrollCp38Notice;
+use App\Models\PayrollCp38Month;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Payroll\PcbYearToDate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
@@ -335,7 +336,7 @@ class PayrollTest extends TestCase
         $this->assertTrue($structure->disabled_self);
         $this->assertTrue($structure->disabled_spouse);
         $this->assertEqualsWithDelta(150.50, (float) $structure->zakat_monthly, 0.001);
-        // Spec F9: CP38 is a notice now (PayrollCp38Notice), not a field on this form.
+        // CP38 is set on the Transaction CP38 grid (PayrollCp38Month), not on this form.
         $this->assertEqualsWithDelta(0.0, (float) $structure->cp38_monthly, 0.001);
     }
 
@@ -399,6 +400,39 @@ class PayrollTest extends TestCase
         $this->assertEqualsWithDelta(600.0, (float) $row->exempt_allowances, 0.001);
         $this->assertSame('Acme Prior Sdn Bhd', $row->previous_employer);
         $this->assertSame('C1234567890', $row->previous_employer_tin);
+    }
+
+    /** The Take On tab saves EA lines without wiping what the profile's TP3 form set, and the other way round. */
+    public function test_take_on_tab_saves_ea_lines_and_keeps_fields_it_did_not_send(): void
+    {
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $this->emp1->id, 'year' => 2026, 'previous_employer' => 'Acme Prior Sdn Bhd', 'additional_epf' => 220,
+        ])->assertRedirect();
+        $this->actingHr()->post('/app/payroll/opening', [
+            'employee_id' => $this->emp1->id, 'year' => 2026, 'gross' => 24000,
+            'ea' => ['b1c' => '1600', 'b3' => '0', 'b3_details' => '', 'b1c_details' => 'Phone allowance', 'employer_epf' => '3120'],
+        ])->assertSessionHasNoErrors();
+
+        $row = PayrollOpeningFigure::where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertSame(24000.0, $row->gross);
+        $this->assertSame(220.0, $row->additional_epf);
+        $this->assertSame('Acme Prior Sdn Bhd', $row->previous_employer);
+        $this->assertSame(['b1c' => '1600', 'b1c_details' => 'Phone allowance', 'employer_epf' => '3120'], $row->ea_lines);
+
+        $this->actingHr()->post('/app/payroll/opening', ['employee_id' => $this->emp1->id, 'year' => 2026, 'ea' => ['nope' => 1]])
+            ->assertSessionHasErrors('ea');
+    }
+
+    /** Take-on B1(c) allowances are taxable pay this year, so they raise ∑Y like gross does. */
+    public function test_take_on_allowances_count_toward_pcb_year_to_date(): void
+    {
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'year' => 2026,
+            'gross' => 20000, 'ea_lines' => ['b1c' => 1500, 'd5b' => 90]]);
+
+        $ytd = app(PcbYearToDate::class)->forPeriod($this->emp1, '2026-09');
+
+        $this->assertSame(21500.0, $ytd['grossY']);
+        $this->assertSame(90.0, $ytd['zakatZ']);
     }
 
     public function test_employee_cannot_save_opening_figures(): void
@@ -669,9 +703,8 @@ class PayrollTest extends TestCase
     public function test_zakat_nets_off_pcb_and_cp38_is_a_separate_deduction(): void
     {
         SalaryStructure::where('employee_id', $this->emp1->id)->update(['zakat_monthly' => 50]);
-        // Spec F9: CP38 comes from an open-ended LHDN notice, not a flat monthly field.
-        PayrollCp38Notice::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id,
-            'monthly_instalment' => 30, 'first_period' => '2026-01', 'status' => 'active']);
+        // CP38 comes from the month's figure on the Transaction CP38 grid.
+        PayrollCp38Month::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'period' => '2026-01', 'amount' => 30]);
         $run = $this->createRun('2026-01');
         $slip = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
 
@@ -688,7 +721,7 @@ class PayrollTest extends TestCase
      * Same haystack shape as leave-setup's grid (display name + legal name + position,
      * lower-cased) — present once per Alpine-filtered employee list on the screen:
      * the Transaction screen's fixed-transaction picker, Individual transactions
-     * picker and Payroll Figures Take On list, and Payroll Review's payslip picker.
+     * picker, CP38 picker and Payroll Figures Take On list, and Payroll Review's payslip picker.
      */
     public function test_payroll_employee_lists_are_searchable_by_nickname(): void
     {
@@ -698,8 +731,8 @@ class PayrollTest extends TestCase
         $transaction = $this->actingHr()->get('/app/payroll-transaction')->assertOk()->getContent();
         $review = $this->actingHr()->get('/app/payroll-review')->assertOk()->getContent();
 
-        // Transaction: fixed-transaction staff picker, individual transactions picker, take on list.
-        $this->assertSame(3, substr_count($transaction, 'wory worker'));
+        // Transaction: fixed-transaction staff picker, individual transactions picker, CP38 picker, take on list.
+        $this->assertSame(4, substr_count($transaction, 'wory worker'));
         // Payroll Review: the run's payslip picker.
         $this->assertSame(1, substr_count($review, 'wory worker'));
     }

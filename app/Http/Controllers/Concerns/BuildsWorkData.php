@@ -692,9 +692,8 @@ trait BuildsWorkData
             // Spec F8: Form TP1 declarations for the year, newest first.
             'tp1Year' => $tp1Year = (int) ($request->integer('tp1_year') ?: now()->year),
             'tp1Claims' => PayrollTp1Claim::with('employee')->where('year', $tp1Year)->orderByDesc('month')->orderByDesc('id')->get(),
-            'openingYear' => (int) now()->year,
             'openingEmployees' => Employee::active()->orderBy('name')->get(),
-            'openingFigures' => PayrollOpeningFigure::where('year', (int) now()->year)->get()->keyBy('employee_id'),
+            'openingFigures' => PayrollOpeningFigure::get()->groupBy('employee_id'),
             'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
             // Fixed Transactions: every non-ended (or ended-in-the-future) one, grouped by
             // employee, for the Salary structures tab. currentPeriod is the default

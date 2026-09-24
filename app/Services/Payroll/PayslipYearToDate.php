@@ -20,10 +20,8 @@ use App\Models\Payslip;
  * payslip being viewed — a draft/approved run can still change, so it must never leak
  * into another month's YTD.
  *
- * ponytail: PayrollOpeningFigure has no employer-side EPF/SOCSO/EIS column (only the
- * employee side a previous system reported), so employer YTD before this app took over
- * is simply unknown and starts at 0. Add employer opening columns if a client needs an
- * exact employer YTD from day one of the calendar year.
+ * Employer-side and SKBBK openings come from the take-on row's `ea_lines`
+ * (employer_epf, employer_socso, employer_eis, skbbk); a row without them starts at 0.
  */
 final class PayslipYearToDate
 {
@@ -62,6 +60,7 @@ final class PayslipYearToDate
         $openingSocso = ($opening !== null ? $opening->socso : null) ?? 0;
         $openingEis = ($opening !== null ? $opening->eis : null) ?? 0;
         $openingPcbPaid = ($opening !== null ? $opening->pcb_paid : null) ?? 0;
+        $line = fn (string $box) => $opening !== null ? $opening->line($box) : 0.0;
 
         return [
             'epf' => [
@@ -70,15 +69,15 @@ final class PayslipYearToDate
                     (float) $openingEpf + (float) $openingAdditionalEpf,
                     (float) $priorPaid->sum('epf_employee'),
                 ),
-                'employer' => $row((float) $payslip->epf_employer, 0.0, (float) $priorPaid->sum('epf_employer')),
+                'employer' => $row((float) $payslip->epf_employer, $line('employer_epf'), (float) $priorPaid->sum('epf_employer')),
             ],
             'socso' => [
                 'employee' => $row((float) $payslip->socso_employee, (float) $openingSocso, (float) $priorPaid->sum('socso_employee')),
-                'employer' => $row((float) $payslip->socso_employer, 0.0, (float) $priorPaid->sum('socso_employer')),
+                'employer' => $row((float) $payslip->socso_employer, $line('employer_socso'), (float) $priorPaid->sum('socso_employer')),
             ],
             'eis' => [
                 'employee' => $row((float) $payslip->eis_employee, (float) $openingEis, (float) $priorPaid->sum('eis_employee')),
-                'employer' => $row((float) $payslip->eis_employer, 0.0, (float) $priorPaid->sum('eis_employer')),
+                'employer' => $row((float) $payslip->eis_employer, $line('employer_eis'), (float) $priorPaid->sum('eis_employer')),
             ],
             'pcb' => [
                 'employee' => $row(
@@ -87,9 +86,8 @@ final class PayslipYearToDate
                     (float) $priorPaid->sum(fn (Payslip $p) => $p->pcb + $p->pcb_additional),
                 ),
             ],
-            // No opening column for SKBBK — it did not exist before this feature.
             'skbbk' => [
-                'employee' => $row((float) $payslip->skbbk_employee, 0.0, (float) $priorPaid->sum('skbbk_employee')),
+                'employee' => $row((float) $payslip->skbbk_employee, $line('skbbk'), (float) $priorPaid->sum('skbbk_employee')),
             ],
         ];
     }

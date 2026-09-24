@@ -13,6 +13,7 @@ use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\OffboardingCase;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollCp38Month;
 use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
@@ -21,7 +22,6 @@ use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Services\FeatureManager;
-use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\ExemptionCap;
 use App\Services\Payroll\HrdCorpLevy;
@@ -68,7 +68,6 @@ class PayrollController extends Controller
         private readonly PcbCalculator $pcb,
         private readonly EpfCalculator $epf,
         private readonly PcbYearToDate $pcbYtd,
-        private readonly Cp38Notices $cp38,
         private readonly StatutoryCalendar $calendar,
         private readonly LifecycleNotices $notices,
     ) {}
@@ -221,25 +220,29 @@ class PayrollController extends Controller
             'exempt_allowances' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'previous_employer' => ['nullable', 'string', 'max:120'],
             'previous_employer_tin' => ['nullable', 'string', 'max:40'],
+            'ea' => ['nullable', 'array:'.implode(',', [...PayrollOpeningFigure::EA_AMOUNTS, ...PayrollOpeningFigure::EA_TEXT])],
+            ...array_fill_keys(array_map(fn ($k) => 'ea.'.$k, PayrollOpeningFigure::EA_AMOUNTS), ['nullable', 'numeric', 'min:0', 'max:100000000']),
+            ...array_fill_keys(array_map(fn ($k) => 'ea.'.$k, PayrollOpeningFigure::EA_TEXT), ['nullable', 'string', 'max:200']),
         ]);
 
-        PayrollOpeningFigure::updateOrCreate(
-            ['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']],
-            [
-                'gross' => $data['gross'] ?? 0,
-                'epf' => $data['epf'] ?? 0,
-                'pcb_paid' => $data['pcb_paid'] ?? 0,
-                'zakat_paid' => $data['zakat_paid'] ?? 0,
-                'additional_gross' => $data['additional_gross'] ?? 0,
-                'additional_epf' => $data['additional_epf'] ?? 0,
-                'socso' => $data['socso'] ?? 0,
-                'eis' => $data['eis'] ?? 0,
-                'optional_deductions' => $data['optional_deductions'] ?? 0,
-                'exempt_allowances' => $data['exempt_allowances'] ?? 0,
-                'previous_employer' => $data['previous_employer'] ?? null,
-                'previous_employer_tin' => $data['previous_employer_tin'] ?? null,
-            ],
-        );
+        // Only the fields the form sent are written: the profile's TP3 form and the
+        // Take On tab each hold a different part of the same row.
+        $row = PayrollOpeningFigure::firstOrNew(['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']]);
+        foreach (['gross', 'epf', 'pcb_paid', 'zakat_paid', 'additional_gross', 'additional_epf', 'socso', 'eis', 'optional_deductions', 'exempt_allowances'] as $f) {
+            if (array_key_exists($f, $data)) {
+                $row->{$f} = $data[$f] ?? 0;
+            }
+        }
+        foreach (['previous_employer', 'previous_employer_tin'] as $f) {
+            if (array_key_exists($f, $data)) {
+                $row->{$f} = $data[$f];
+            }
+        }
+        if (array_key_exists('ea', $data)) {
+            $lines = array_merge($row->ea_lines ?? [], $data['ea'] ?? []);
+            $row->ea_lines = array_filter($lines, fn ($v) => $v !== null && $v !== '' && (! is_numeric($v) || (float) $v != 0));
+        }
+        $row->save();
 
         $name = Employee::find($data['employee_id'])?->name;
         AuditLog::record('Updated payroll opening figures', $name.' · '.$data['year']);
@@ -1062,7 +1065,7 @@ class PayrollController extends Controller
             $inputs['pcb'] = $result->netNormalMtd;
             $inputs['pcb_additional'] = $result->additionalMtd;
             $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
-            $inputs['cp38'] = $this->cp38->instalmentFor($employee, $period);
+            $inputs['cp38'] = PayrollCp38Month::amountFor($employee, $period);
             $comp = $this->calculator->compute($inputs);
 
             // Computed amount columns are excluded from $fillable — forceFill them.
@@ -1388,7 +1391,7 @@ class PayrollController extends Controller
                 'pcb' => $result->netNormalMtd,
                 'pcb_additional' => $result->additionalMtd,
                 'zakat' => (float) ($structure->zakat_monthly ?? 0),
-                'cp38' => $this->cp38->instalmentFor($payslip->employee, $payslip->payrollRun->period),
+                'cp38' => PayrollCp38Month::amountFor($payslip->employee, $payslip->payrollRun->period),
                 'pcb_override' => $data['pcb_override'] ?? null,
             ]);
 
@@ -1613,11 +1616,6 @@ class PayrollController extends Controller
                 LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => now()]);
             }
 
-            // Spec F9: the CP38 balances move only now, never while the run is a draft.
-            foreach ($payslips as $payslip) {
-                $this->cp38->applyFinalized($payslip);
-            }
-
             // Spec F10/F11: a leaver is paid out for good here — no later monthly run
             // picks them up — and the money itself waits while the CP22A is unsettled.
             if ($run->isFinal()) {
@@ -1750,10 +1748,6 @@ class PayrollController extends Controller
                 $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
                 if ($unpaidLeaveIds->isNotEmpty()) {
                     LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
-                }
-                // Spec F9: hand each notice back exactly what this run took from it.
-                foreach ($payslips as $payslip) {
-                    $this->cp38->reverseFinalized($payslip);
                 }
             }
 

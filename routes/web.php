@@ -776,8 +776,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/payslips/{payslip}/consent', [PayrollController::class, 'confirmDeductionConsent'])->name('payroll.payslips.consent');
             Route::post('/app/payroll/payslips/{payslip}/release-hold', [PayrollController::class, 'releaseHold'])->name('payroll.payslips.release-hold');
             Route::post('/app/payroll/payslips/{payslip}/carry-forward', [PayrollController::class, 'carryForward'])->name('payroll.payslips.carry-forward');
-            Route::post('/app/payroll/cp38-notices', [PayrollCp38Controller::class, 'store'])->name('payroll.cp38.store');
-            Route::post('/app/payroll/cp38-notices/{notice}/cancel', [PayrollCp38Controller::class, 'cancel'])->name('payroll.cp38.cancel');
+            Route::post('/app/payroll/cp38', [PayrollCp38Controller::class, 'update'])->name('payroll.cp38.update');
             Route::post('/app/payroll/tp1-claims', [PayrollTp1Controller::class, 'store'])->name('payroll.tp1.store');
             Route::post('/app/payroll/tp1-claims/{claim}/delete', [PayrollTp1Controller::class, 'destroy'])->name('payroll.tp1.delete');
             Route::post('/app/payroll/notices/{notice}/file', [PayrollNoticeController::class, 'file'])->name('payroll.notices.file');

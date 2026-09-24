@@ -65,7 +65,7 @@ class EaFormController extends Controller
         // EA forms carry NRIC and tax reference numbers — log every generation.
         AuditLog::record('Downloaded EA form PDF', $employee->name.' · '.$year);
 
-        $pdf = Pdf::loadView('pdf.ea-form', ['forms' => collect([$data])]);
+        $pdf = Pdf::loadView('pdf.ea-form', ['forms' => collect([$data]), 'officer' => $this->officer($request)]);
 
         return $pdf->download($this->filename($employee, $year));
     }
@@ -89,12 +89,28 @@ class EaFormController extends Controller
 
         $forms = $employees->map(fn (Employee $e) => $this->pdfData->build($tenant, $e, $year));
 
-        return Pdf::loadView('pdf.ea-form', ['forms' => $forms])->download("ea-forms-{$year}.pdf");
+        return Pdf::loadView('pdf.ea-form', ['forms' => $forms, 'officer' => $this->officer($request)])->download("ea-forms-{$year}.pdf");
     }
 
     private function filename(Employee $employee, int $year): string
     {
         return 'ea-form-'.($employee->staff_id ?? $employee->id)."-{$year}.pdf";
+    }
+
+    /**
+     * The HR/management person generating the form signs it as "Name of Officer", the way
+     * Worksy prints it. An employee fetching their own form gets those lines left blank.
+     *
+     * @return array{name: string, designation: ?string}|null
+     */
+    private function officer(Request $request): ?array
+    {
+        if (! $this->hasTenantRole($request, self::ADMIN_ROLES)) {
+            return null;
+        }
+        $employee = $this->requestingEmployee($request);
+
+        return ['name' => $employee->name ?? $request->user()->name, 'designation' => $employee?->position];
     }
 
     /** The acting user's own Employee record in the current tenant, or null. */

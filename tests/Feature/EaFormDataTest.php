@@ -242,12 +242,34 @@ class EaFormDataTest extends TestCase
     {
         PayrollOpeningFigure::forceCreate([
             'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'year' => 2026,
-            'gross' => 12000, 'exempt_allowances' => 500,
+            'gross' => 12000, 'exempt_allowances' => 500, 'previous_employer' => 'Old Co Sdn Bhd',
         ]);
 
         $data = $this->service->forEmployee($this->tenant, $this->employee, 2026);
 
         $this->assertSame(500.0, $data['previous_employment']['exempt_allowances']);
+    }
+
+    /** Worksy take-on (no previous employer named) is this company's own pay, so it adds into every box. */
+    public function test_take_on_figures_count_as_this_employers_own_pay(): void
+    {
+        PayrollOpeningFigure::forceCreate([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'year' => 2026,
+            'gross' => 24000, 'additional_gross' => 3000, 'epf' => 2640, 'pcb_paid' => 800, 'zakat_paid' => 100,
+            'socso' => 120, 'eis' => 40, 'exempt_allowances' => 600,
+            'ea_lines' => ['b1c' => 1600, 'b3' => 900, 'd2' => 250, 'f4' => 200, 'skbbk' => 10, 'd4' => 50, 'b3_details' => 'Car'],
+        ]);
+
+        $data = $this->service->forEmployee($this->tenant, $this->employee, 2026);
+
+        $this->assertNull($data['previous_employment']);
+        $this->assertSame(['B1(a)' => 24000.0, 'B1(b)' => 3000.0, 'B1(c)' => 1600.0, 'B3' => 900.0], $data['employment_income']['by_category']);
+        $this->assertSame(29500.0, $data['employment_income']['taxable_total']);
+        $this->assertSame(800.0, $data['employment_income']['tax_exempt_total']);
+        $this->assertSame(['epf_employee' => 2640.0, 'socso_employee' => 120.0, 'eis_employee' => 40.0, 'skbbk_employee' => 10.0,
+            'zakat' => 100.0, 'pcb_total' => 800.0, 'cp38' => 250.0], $data['deductions']);
+        $this->assertSame(50.0, $data['take_on']['d4']);
+        $this->assertSame('Car', $data['take_on']['b3_details']);
     }
 
     public function test_a_payslip_issued_before_payslip_lines_existed_falls_back_to_lumped_columns(): void
