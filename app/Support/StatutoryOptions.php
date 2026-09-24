@@ -42,6 +42,11 @@ final class StatutoryOptions
 
     public const EPF_SCHEMES = ['statutory' => 'Statutory rate', 'voluntary_higher' => 'Voluntary higher rate', 'exempt' => 'Exempt'];
 
+    /** State zakat bodies, as Worksy's Zakat Form lists them. */
+    public const ZAKAT_AUTHORITIES = ['johor' => 'Johor', 'kedah' => 'Kedah', 'kelantan' => 'Kelantan', 'kuala_lumpur' => 'Kuala Lumpur', 'labuan' => 'Labuan', 'melaka' => 'Malacca',
+        'negeri_sembilan' => 'Negeri Sembilan', 'pahang' => 'Pahang', 'penang' => 'Penang', 'perak' => 'Perak', 'perlis' => 'Perlis', 'putrajaya' => 'Putrajaya',
+        'sabah' => 'Sabah', 'sarawak' => 'Sarawak', 'selangor' => 'Selangor', 'terengganu' => 'Terengganu'];
+
     public const SOCSO_CATEGORIES = ['category_1' => 'Category 1 · Employment injury + invalidity', 'category_2' => 'Category 2 · Employment injury only', 'exempt' => 'Exempt'];
 
     /** LHDN child relief categories; each holds a count at 100% and a count at 50% (shared custody). */

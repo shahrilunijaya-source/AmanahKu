@@ -56,6 +56,13 @@
                         @endif
                     </td>
                     <td style="padding:9px 22px;text-align:right;white-space:nowrap;">
+                        @if (in_array($n->type, ['cp21', 'cp22', 'cp22a'], true) && $n->employee)
+                            @php $formYear = ($n->type === 'cp22' ? $n->employee->joined_at : $n->employee->last_working_day)?->year ?? now()->year; @endphp
+                            <a class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;margin-right:6px;" href="{{ route('app.screen', ['screen' => 'payroll-form', 'tab' => $n->type, 'year' => $formYear, 'employee' => $n->employee_id]) }}">{!! $L('View form', 'Lihat borang') !!}</a>
+                        @endif
+                        @if ($n->type === 'socso_form2' && $n->employee?->joined_at)
+                            <a class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;margin-right:6px;" href="{{ route('app.screen', ['screen' => 'payroll-form', 'tab' => 'sip2', 'from' => $n->employee->joined_at->toDateString(), 'to' => $n->employee->joined_at->toDateString()]) }}">{!! $L('View form', 'Lihat borang') !!}</a>
+                        @endif
                         @if ($n->type === 'cp22a')
                             <a class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:12px;display:inline-flex;align-items:center;" href="{{ route('payroll.notices.pcb2ii', $n) }}">PCB 2(II)</a>
                             @if ($n->filed_on && ! $n->cleared_on)

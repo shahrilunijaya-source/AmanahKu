@@ -18,6 +18,32 @@
     ],
 ])
 
+{{-- Company Settings has no sidebar row of its own, so this card is the way back to it,
+     before and after setup is finished. Each link opens just that card. --}}
+@php
+    $settingsAreas = [
+        ['profile', 'Workspace profile', 'Profil workspace'],
+        ['statutory', 'Statutory & tax', 'Berkanun & cukai'],
+        ['work_week', 'Work week', 'Minggu bekerja'],
+        ['branches', 'Branches', 'Cawangan'],
+        ['departments', 'Departments', 'Jabatan'],
+        ['staff-levels', 'Staff levels', 'Tahap staf'],
+        ['employment-types', 'Employment types', 'Jenis pekerjaan'],
+        ['features', 'Features', 'Ciri'],
+        ['greetings', 'Dashboard touches', 'Sentuhan papan pemuka'],
+    ];
+@endphp
+<div class="uj-card" data-testid="company-settings-card" style="padding:18px 24px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <h3 class="uj-card-title" style="margin:0;" x-text="$store.ui.lang==='en' ? 'Company Settings' : 'Tetapan Syarikat'">Company Settings</h3>
+        <a href="{{ route('app.screen', ['screen' => 'settings']) }}" style="font-size:12.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Open all settings' : 'Buka semua tetapan'">Open all settings</a>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        @foreach ($settingsAreas as [$section, $en, $ms])
+            <a href="{{ route('app.screen', ['screen' => 'settings', 'section' => $section]) }}" class="uj-btn-ghost" style="height:31px;padding:0 13px;font-size:12px;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? @js($en) : @js($ms)">{{ $en }}</a>
+        @endforeach
+    </div>
+</div>
 {{-- Overall progress + launch status --}}
 <div class="uj-card" style="padding:24px;margin-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">

@@ -27,7 +27,7 @@
             ['SOCSO exempt', 'Dikecualikan PERKESO', $s ? $yn($s->socso_exempt) : '—'], ['HRD Corp exempt', 'Dikecualikan HRD Corp', $s ? $yn($s->hrdf_exempt) : '—'],
         ]],
         ['Zakat / SKBBK', 'Zakat / SKBBK', [
-            ['Zakat (monthly)', 'Zakat (bulanan)', $s ? 'RM '.number_format($s->zakat_monthly, 2) : '—'], ['SKBBK', 'SKBBK', $s ? $yn($s->skbbk_opt_in) : '—'],
+            ['Zakat (monthly)', 'Zakat (bulanan)', $s ? 'RM '.number_format($s->zakat_monthly, 2) : '—'], ['Zakat authority', 'Pihak berkuasa zakat', StatutoryOptions::ZAKAT_AUTHORITIES[$s?->zakat_authority] ?? '—'], ['SKBBK', 'SKBBK', $s ? $yn($s->skbbk_opt_in) : '—'],
         ]],
     ];
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
@@ -130,6 +130,7 @@
             <div class="uj-section-head">Zakat · SKBBK</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Zakat (RM / month)', 'Zakat (RM / bulan)') !!}</label><input name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $old('zakat_monthly', 0) }}" style="{{ $fs }}" /></div>
+                <div><label style="{{ $lbl }}">{!! $L('Zakat authority', 'Pihak berkuasa zakat') !!}</label>{!! $sel('zakat_authority', StatutoryOptions::ZAKAT_AUTHORITIES, $old('zakat_authority'), true) !!}</div>
                 <label style="{{ $chkRow }}">{!! $chk('skbbk_opt_in', (bool) $s?->skbbk_opt_in) !!} SKBBK</label>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;">

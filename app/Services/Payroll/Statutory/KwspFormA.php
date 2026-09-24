@@ -42,32 +42,38 @@ final class KwspFormA extends StatutoryFile
         return 'KWSP-FormA-'.($tenant->epf_employer_no ?? 'employer').'-'.$this->contributionMonth($run).'.csv';
     }
 
+    public function columns(): array
+    {
+        return ['wages' => ['Wages', 'Upah'], 'employer' => ['Employer share', 'Caruman majikan'], 'employee' => ['Employee share', 'Caruman pekerja']];
+    }
+
+    public function rows(Collection $payslips): array
+    {
+        return $payslips->filter(fn (Payslip $p) => ((float) $p->epf_employee + (float) $p->epf_employer) > 0)
+            ->map(fn (Payslip $p) => $this->row($p, $p->employee?->salaryStructure?->epf_no, [
+                // No stored EPF wage column: the calculator's rule is gross less overtime.
+                'wages' => (float) $p->gross - (float) $p->overtime_amount,
+                'employer' => $p->epf_employer,
+                'employee' => $p->epf_employee,
+            ]))->values()->all();
+    }
+
     public function build(PayrollRun $run, Tenant $tenant, Collection $payslips): string
     {
-        $rows = $payslips->filter(fn (Payslip $p) => ((float) $p->epf_employee + (float) $p->epf_employer) > 0)->values();
+        $rows = collect($this->rows($payslips));
 
-        $detail = [];
-        foreach ($rows as $p) {
-            $emp = $p->employee;
-            $s = $emp?->salaryStructure;
-            $detail[] = [
-                $s?->epf_no,
-                $this->digits($emp?->nric),
-                $this->ascii((string) $emp?->name),
-                // No stored EPF wage column: the calculator's rule is gross less overtime.
-                $this->amount(round((float) $p->gross - (float) $p->overtime_amount, 2)),
-                $this->amount($p->epf_employer),
-                $this->amount($p->epf_employee),
-            ];
-        }
+        $detail = $rows->map(fn (array $r) => [
+            $r['ref'], $r['ic'], $this->ascii($r['name']),
+            $this->amount($r['amounts']['wages']), $this->amount($r['amounts']['employer']), $this->amount($r['amounts']['employee']),
+        ])->all();
 
         return $this->csv([
             ['EMPLOYER NO', 'CONTRIBUTION MONTH', 'TOTAL EMPLOYER', 'TOTAL EMPLOYEE', 'RECORDS'],
             [
                 $tenant->epf_employer_no,
                 $this->contributionMonth($run),
-                $this->amount($rows->sum(fn (Payslip $p) => (float) $p->epf_employer)),
-                $this->amount($rows->sum(fn (Payslip $p) => (float) $p->epf_employee)),
+                $this->amount($rows->sum(fn (array $r) => $r['amounts']['employer'])),
+                $this->amount($rows->sum(fn (array $r) => $r['amounts']['employee'])),
                 $rows->count(),
             ],
             ['EPF NO', 'NRIC', 'NAME', 'WAGES', 'EMPLOYER SHARE', 'EMPLOYEE SHARE'],

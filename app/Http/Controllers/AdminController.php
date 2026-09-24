@@ -43,31 +43,14 @@ class AdminController extends Controller
     {
         $this->authorizeAdmin($request);
 
-        // Trim the numeric-ish registration fields so the format rules below see clean input.
-        $request->merge(collect(['epf_employer_no', 'socso_employer_code', 'hrdf_registration_no', 'paying_bank_account_no'])
-            ->mapWithKeys(fn (string $k) => [$k => trim((string) $request->input($k)) ?: null])->all());
-
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'industry' => ['nullable', 'string', 'max:120'],
             'address' => ['nullable', 'string', 'max:240'],
             'contact_number' => ['nullable', 'string', 'max:40'],
-            // LHDN's Employer's TIN, stored without the "E" prefix (see EaFormPdfData).
-            'employer_tin' => ['nullable', 'string', 'max:20'],
-            // Statutory registration numbers (spec F1). Loose format on purpose: agencies
-            // change formats, a hard regex would block real numbers.
-            'epf_employer_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
-            'socso_employer_code' => ['nullable', 'regex:/^[A-Za-z0-9\-]+$/', 'max:40'],
-            'hrdf_registration_no' => ['nullable', 'regex:/^[A-Za-z0-9\-]+$/', 'max:40'],
-            'employer_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_CATEGORIES))],
-            'employer_status' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_STATUSES))],
-            'paying_bank_code' => ['nullable', Rule::in(array_values(StatutoryOptions::BANK_CODES))],
-            'paying_bank_account_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
             // Spec F16: account codes only. The journal's amounts are never editable.
             'journal_accounts' => ['nullable', 'array:'.implode(',', array_keys(AccountingJournal::LINES))],
             'journal_accounts.*' => ['nullable', 'string', 'max:40'],
-            'payroll_contact_name' => ['nullable', 'string', 'max:120'],
-            'payroll_contact_phone' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:160'],
             'website' => ['nullable', 'url', 'max:160'],
             'welcome_message' => ['nullable', 'string', 'max:240'],
@@ -83,17 +66,7 @@ class AdminController extends Controller
             'industry' => $data['industry'] ?? null,
             'address' => $data['address'] ?? null,
             'contact_number' => $data['contact_number'] ?? null,
-            'employer_tin' => $data['employer_tin'] ?? null,
-            'epf_employer_no' => $data['epf_employer_no'] ?? null,
-            'socso_employer_code' => $data['socso_employer_code'] ?? null,
-            'hrdf_registration_no' => $data['hrdf_registration_no'] ?? null,
-            'employer_category' => $data['employer_category'] ?? null,
-            'employer_status' => $data['employer_status'] ?? null,
-            'paying_bank_code' => $data['paying_bank_code'] ?? null,
-            'paying_bank_account_no' => $data['paying_bank_account_no'] ?? null,
             'journal_accounts' => array_filter($data['journal_accounts'] ?? [], fn ($code) => filled($code)) ?: null,
-            'payroll_contact_name' => $data['payroll_contact_name'] ?? null,
-            'payroll_contact_phone' => $data['payroll_contact_phone'] ?? null,
             'email' => $data['email'] ?? null,
             'website' => $data['website'] ?? null,
             'welcome_message' => $data['welcome_message'] ?? null,
@@ -110,6 +83,66 @@ class AdminController extends Controller
         AuditLog::record('Updated company settings', $data['name']);
 
         return back()->with('ok', 'Company settings saved.');
+    }
+
+    /** Labels for the statutory audit line, keyed by tenants column. */
+    private const STATUTORY_FIELDS = [
+        'employer_tin' => 'LHDN E number',
+        'employer_category' => 'Employer category',
+        'employer_status' => 'Employer status',
+        'epf_employer_no' => 'KWSP employer number',
+        'socso_employer_code' => 'PERKESO employer code',
+        'hrdf_registration_no' => 'HRD Corp number',
+        'zakat_employer_no' => 'Zakat employer number',
+        'statutory_signatory_employee_id' => 'Form signatory',
+        'paying_bank_code' => 'Paying bank',
+        'paying_bank_account_no' => 'Paying account',
+        'payroll_contact_name' => 'Payroll contact name',
+        'payroll_contact_phone' => 'Payroll contact phone',
+    ];
+
+    /**
+     * Company Settings → Statutory & tax. Saved apart from the workspace profile so
+     * neither form can blank the other's fields. Every agency file is keyed on these
+     * numbers, so the audit line names each one that changed.
+     */
+    public function updateStatutory(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $tenant = app(CurrentTenant::class)->get();
+
+        // Registration numbers: no spaces, upper case. The E number is stored without
+        // its "E" prefix (see EaFormPdfData); the form shows the prefix fixed.
+        $request->merge(collect(['employer_tin', 'epf_employer_no', 'socso_employer_code', 'hrdf_registration_no', 'zakat_employer_no', 'paying_bank_account_no'])
+            ->mapWithKeys(fn (string $k) => [$k => strtoupper(preg_replace('/\s+/', '', (string) $request->input($k)) ?? '') ?: null])->all());
+        $request->merge(['employer_tin' => preg_replace('/^E(?=\d)/', '', (string) $request->input('employer_tin')) ?: null]);
+
+        $data = $request->validateWithBag('statutory', [
+            // Loose format on purpose (spec F1): agencies change formats, a hard regex
+            // would block real numbers. The screen warns on an unusual shape instead.
+            'employer_tin' => ['nullable', 'regex:/^[A-Z0-9\-]+$/', 'max:20'],
+            'epf_employer_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
+            'socso_employer_code' => ['nullable', 'regex:/^[A-Z0-9\-]+$/', 'max:40'],
+            'hrdf_registration_no' => ['nullable', 'regex:/^[A-Z0-9\-]+$/', 'max:40'],
+            'zakat_employer_no' => ['nullable', 'regex:/^[A-Z0-9\-\/]+$/', 'max:40'],
+            'employer_category' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_CATEGORIES))],
+            'employer_status' => ['nullable', Rule::in(array_keys(StatutoryOptions::EMPLOYER_STATUSES))],
+            'statutory_signatory_employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenant->id)],
+            'paying_bank_code' => ['nullable', Rule::in(array_values(StatutoryOptions::BANK_CODES))],
+            'paying_bank_account_no' => ['nullable', 'regex:/^[0-9\-]+$/', 'max:40'],
+            'payroll_contact_name' => ['nullable', 'string', 'max:120'],
+            'payroll_contact_phone' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $update = array_merge(array_fill_keys(array_keys(self::STATUTORY_FIELDS), null), $data);
+        $changed = array_keys(array_filter($update, fn ($v, $k) => (string) $v !== (string) $tenant->{$k}, ARRAY_FILTER_USE_BOTH));
+
+        $tenant->update($update);
+        if ($changed !== []) {
+            AuditLog::record('Updated statutory details', implode(', ', array_map(fn (string $k) => self::STATUTORY_FIELDS[$k], $changed)));
+        }
+
+        return back()->with('ok', 'Statutory details saved.');
     }
 
     /** Short day names in ISO order, for the audit line. */

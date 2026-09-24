@@ -60,31 +60,6 @@
                 </div>
             </div>
 
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Employer’s TIN (LHDN)' : 'TIN Majikan (LHDN)'">Employer’s TIN (LHDN)</label>
-            <input name="employer_tin" value="{{ old('employer_tin', $company->employer_tin) }}" placeholder="C1234567890" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-            @include('partials.hint', ['en' => 'Required on Form EA and Form E. Enter without the "E" prefix — it is added automatically on printed forms.', 'ms' => 'Diperlukan pada Borang EA dan Borang E. Masukkan tanpa awalan "E" — ia ditambah secara automatik pada borang yang dicetak.'])
-
-            @php
-                $inp = 'width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;';
-                $lab = 'display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;';
-            @endphp
-            <div class="uj-section-head" style="margin-top:22px;" x-text="$store.ui.lang==='en' ? 'Statutory registration' : 'Pendaftaran berkanun'">Statutory registration</div>
-            @include('partials.hint', ['en' => 'Every KWSP, PERKESO, LHDN and HRD Corp file is keyed on these numbers. A payroll run cannot be created while the EPF number, SOCSO code or TIN is blank.', 'ms' => 'Setiap fail KWSP, PERKESO, LHDN dan HRD Corp berkunci pada nombor ini. Run gaji tidak boleh dibuat selagi nombor KWSP, kod PERKESO atau TIN kosong.'])
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 20px;">
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'EPF employer number' : 'No. majikan KWSP'">EPF employer number</label><input name="epf_employer_no" value="{{ old('epf_employer_no', $company->epf_employer_no) }}" style="{{ $inp }}" />@error('epf_employer_no')<div style="font-size:12px;color:var(--error);">{{ $message }}</div>@enderror</div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'SOCSO employer code' : 'Kod majikan PERKESO'">SOCSO employer code</label><input name="socso_employer_code" value="{{ old('socso_employer_code', $company->socso_employer_code) }}" style="{{ $inp }}" />@error('socso_employer_code')<div style="font-size:12px;color:var(--error);">{{ $message }}</div>@enderror</div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'HRD Corp registration number' : 'No. pendaftaran HRD Corp'">HRD Corp registration number</label><input name="hrdf_registration_no" value="{{ old('hrdf_registration_no', $company->hrdf_registration_no) }}" style="{{ $inp }}" />@error('hrdf_registration_no')<div style="font-size:12px;color:var(--error);">{{ $message }}</div>@enderror</div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Category of employer (Form E item 3)' : 'Kategori majikan (Borang E item 3)'">Category of employer (Form E item 3)</label>
-                    <select name="employer_category" style="{{ $inp }}"><option value="">—</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_CATEGORIES as $k => $v)<option value="{{ $k }}" @selected(old('employer_category', $company->employer_category) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Status of employer (Form E item 4)' : 'Status majikan (Borang E item 4)'">Status of employer (Form E item 4)</label>
-                    <select name="employer_status" style="{{ $inp }}"><option value="">—</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_STATUSES as $k => $v)<option value="{{ $k }}" @selected(old('employer_status', $company->employer_status) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying bank' : 'Bank pembayar'">Paying bank</label>
-                    <select name="paying_bank_code" style="{{ $inp }}"><option value="">—</option>@foreach (\App\Support\StatutoryOptions::BANK_CODES as $name => $code)<option value="{{ $code }}" @selected(old('paying_bank_code', $company->paying_bank_code) === $code)>{{ $name }}</option>@endforeach</select></div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying account number' : 'No. akaun pembayar'">Paying account number</label><input name="paying_bank_account_no" value="{{ old('paying_bank_account_no', $company->paying_bank_account_no) }}" style="{{ $inp }}" />@error('paying_bank_account_no')<div style="font-size:12px;color:var(--error);">{{ $message }}</div>@enderror</div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact name' : 'Nama pegawai gaji'">Payroll contact name</label><input name="payroll_contact_name" value="{{ old('payroll_contact_name', $company->payroll_contact_name) }}" style="{{ $inp }}" /></div>
-                <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" style="{{ $inp }}" /></div>
-            </div>
-
             <details style="margin-top:14px;" @if ($errors->has('journal_accounts') || $errors->has('journal_accounts.*')) open @endif>
                 <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Payroll journal account codes' : 'Kod akaun jurnal gaji'">Payroll journal account codes</summary>
                 <div style="font-size:12px;color:var(--muted);margin:6px 0 10px;" x-text="$store.ui.lang==='en' ? 'Codes from your accounting software. Left blank, the journal CSV leaves the code empty.' : 'Kod daripada perisian perakaunan anda. Jika kosong, CSV jurnal membiarkan kod kosong.'">Codes from your accounting software. Left blank, the journal CSV leaves the code empty.</div>
@@ -126,6 +101,97 @@
     @endif
 
     <div style="{{ $only ? '' : 'flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;' }}">
+
+        @if (! $only || $only === 'statutory')
+        {{-- Statutory & tax: every KWSP, PERKESO, LHDN, HRD Corp and zakat file is keyed on
+             these numbers. Saved on its own so a profile save can't blank them. Shapes are
+             only warned about: older registrations don't all follow today's format. --}}
+        @php
+            $inp = 'width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;';
+            $lab = 'display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;';
+            $blockHead = 'font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--hairline);';
+            $warn = 'font-size:12px;color:#9a6700;margin-top:4px;';
+            $sb = $errors->statutory;
+        @endphp
+        <div id="statutory" class="uj-card" style="padding:20px;"
+             x-data="{
+                tin: @js(old('employer_tin', $company->employer_tin) ?? ''),
+                epf: @js(old('epf_employer_no', $company->epf_employer_no) ?? ''),
+                socso: @js(old('socso_employer_code', $company->socso_employer_code) ?? ''),
+                clean(v) { return (v || '').replace(/\s+/g, '').toUpperCase(); },
+             }">
+            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Statutory & tax' : 'Berkanun & cukai'">Statutory &amp; tax</h3>
+            <p style="font-size:12.5px;color:var(--muted);margin:0 0 6px;" x-text="$store.ui.lang==='en' ? 'Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers. A payroll run can\'t be created while the KWSP number, PERKESO code or E number is blank.' : 'Setiap fail KWSP, PERKESO, LHDN, HRD Corp dan zakat membawa nombor ini. Run gaji tidak boleh dibuat selagi nombor KWSP, kod PERKESO atau nombor E kosong.'">Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers.</p>
+            <form method="post" action="{{ route('admin.settings.statutory') }}">
+                @csrf
+                @if ($sb->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin:10px 0;">{{ $sb->first() }}</div>@endif
+
+                <div style="{{ $blockHead }}">LHDN</div>
+                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number (E)' : 'Nombor majikan (E)'">Employer number (E)</label>
+                <div style="display:flex;align-items:stretch;">
+                    <span style="display:flex;align-items:center;padding:0 12px;border:1px solid var(--hairline);border-right:0;border-radius:8px 0 0 8px;background:var(--canvas);font-family:var(--font-mono);font-size:14px;color:var(--muted);">E</span>
+                    <input name="employer_tin" x-model="tin" maxlength="20" style="{{ $inp }}border-radius:0 8px 8px 0;font-family:var(--font-mono);" />
+                </div>
+                <div x-show="clean(tin) && !/^E?\d{10}$/.test(clean(tin))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'An E number is usually 10 digits. Check it against your LHDN letter.' : 'Nombor E biasanya 10 digit. Semak dengan surat LHDN anda.'"></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer category (Form E item 3)' : 'Kategori majikan (Borang E item 3)'">Employer category (Form E item 3)</label>
+                        <select name="employer_category" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_CATEGORIES as $k => $v)<option value="{{ $k }}" @selected(old('employer_category', $company->employer_category) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer status (Form E item 4)' : 'Status majikan (Borang E item 4)'">Employer status (Form E item 4)</label>
+                        <select name="employer_status" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_STATUSES as $k => $v)<option value="{{ $k }}" @selected(old('employer_status', $company->employer_status) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
+                </div>
+
+                <div style="{{ $blockHead }}">KWSP</div>
+                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</label>
+                <input name="epf_employer_no" x-model="epf" style="{{ $inp }}font-family:var(--font-mono);" />
+                <div x-show="clean(epf) && !/^\d{9}$/.test(clean(epf).replace(/-/g, ''))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'A KWSP employer number is usually 9 digits.' : 'Nombor majikan KWSP biasanya 9 digit.'"></div>
+
+                <div style="{{ $blockHead }}">PERKESO</div>
+                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer code (SOCSO & EIS)' : 'Kod majikan (PERKESO & SIP)'">Employer code (SOCSO &amp; EIS)</label>
+                <input name="socso_employer_code" x-model="socso" placeholder="A3100000000Z" style="{{ $inp }}font-family:var(--font-mono);" />
+                <div x-show="clean(socso) && !/^[A-Z][A-Z0-9]{11}$/.test(clean(socso))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'A PERKESO employer code is usually 12 characters starting with a letter.' : 'Kod majikan PERKESO biasanya 12 aksara bermula dengan huruf.'"></div>
+
+                @if ($hrdfOn)
+                    <div style="{{ $blockHead }}">HRD Corp</div>
+                    <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Registration number / MyCoID' : 'Nombor pendaftaran / MyCoID'">Registration number / MyCoID</label>
+                    <input name="hrdf_registration_no" value="{{ old('hrdf_registration_no', $company->hrdf_registration_no) }}" style="{{ $inp }}font-family:var(--font-mono);" />
+                @else
+                    {{-- Kept so a save while the levy is off doesn't wipe a number entered earlier. --}}
+                    <input type="hidden" name="hrdf_registration_no" value="{{ $company->hrdf_registration_no }}" />
+                @endif
+
+                <div style="{{ $blockHead }}">Zakat</div>
+                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</label>
+                <input name="zakat_employer_no" value="{{ old('zakat_employer_no', $company->zakat_employer_no) }}" style="{{ $inp }}font-family:var(--font-mono);" />
+
+                <div style="{{ $blockHead }}" x-text="$store.ui.lang==='en' ? 'Forms' : 'Borang'">Forms</div>
+                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Signatory' : 'Penandatangan'">Signatory</label>
+                <select name="statutory_signatory_employee_id" style="{{ $inp }}">
+                    <option value="">-</option>
+                    @foreach ($signatoryOptions as $person)
+                        <option value="{{ $person->id }}" @selected((string) old('statutory_signatory_employee_id', $company->statutory_signatory_employee_id) === (string) $person->id)>{{ $person->name }}{{ $person->position ? ' · '.$person->position : '' }}</option>
+                    @endforeach
+                </select>
+                @include('partials.hint', ['en' => 'Name and designation printed on CP21, CP22, CP22A and PCB II.', 'ms' => 'Nama dan jawatan yang dicetak pada CP21, CP22, CP22A dan PCB II.'])
+                <div style="margin-top:12px;padding:12px 14px;background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;font-size:13px;color:var(--ink);">
+                    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;" x-text="$store.ui.lang==='en' ? 'Employer address and phone on the forms' : 'Alamat dan telefon majikan pada borang'">Employer address and phone on the forms</div>
+                    <div style="margin-top:4px;">{{ $company->address ?: '-' }}</div>
+                    <div>{{ $company->contact_number ?: '-' }}</div>
+                    <a href="{{ route('app.screen', ['screen' => 'settings', 'section' => 'profile']) }}" style="display:inline-block;margin-top:6px;font-size:12.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Edit in Workspace profile' : 'Sunting di Profil workspace'">Edit in Workspace profile</a>
+                </div>
+
+                <div style="{{ $blockHead }}" x-text="$store.ui.lang==='en' ? 'Payment' : 'Pembayaran'">Payment</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying bank' : 'Bank pembayar'">Paying bank</label>
+                        <select name="paying_bank_code" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::BANK_CODES as $name => $code)<option value="{{ $code }}" @selected(old('paying_bank_code', $company->paying_bank_code) === $code)>{{ $name }}</option>@endforeach</select></div>
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying account number' : 'No. akaun pembayar'">Paying account number</label><input name="paying_bank_account_no" value="{{ old('paying_bank_account_no', $company->paying_bank_account_no) }}" style="{{ $inp }}" /></div>
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact name' : 'Nama pegawai gaji'">Payroll contact name</label><input name="payroll_contact_name" value="{{ old('payroll_contact_name', $company->payroll_contact_name) }}" style="{{ $inp }}" /></div>
+                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" style="{{ $inp }}" /></div>
+                </div>
+
+                <button type="submit" class="uj-btn-primary" style="margin-top:18px;height:42px;padding:0 20px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Save statutory details' : 'Simpan butiran berkanun'">Save statutory details</span></button>
+            </form>
+        </div>
+        @endif
 
         @if (!empty($canManageFeatures) && (! $only || $only === 'work_week'))
         {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days. Read by

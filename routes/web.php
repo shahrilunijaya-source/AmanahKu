@@ -68,6 +68,7 @@ use App\Http\Controllers\PayrollCp38Controller;
 use App\Http\Controllers\PayrollExportController;
 use App\Http\Controllers\PayrollNoticeController;
 use App\Http\Controllers\PayrollPdfController;
+use App\Http\Controllers\PayrollStaffFormController;
 use App\Http\Controllers\PayrollSubmissionController;
 use App\Http\Controllers\PayrollTp1Controller;
 use App\Http\Controllers\PersonalRecordController;
@@ -415,6 +416,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/welcome/certificate', [WelcomeWizardController::class, 'uploadCertificate'])->middleware('throttle:20,1,welcome-cert')->name('welcome.certificate');
         Route::post('/app/welcome/finish', [WelcomeWizardController::class, 'finish'])->name('welcome.finish');
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
+        Route::post('/app/admin/settings/statutory', [AdminController::class, 'updateStatutory'])->name('admin.settings.statutory');
         Route::post('/app/admin/work-week', [AdminController::class, 'updateWorkWeek'])->name('admin.workweek.update');
         // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
         Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
@@ -783,6 +785,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/notices/{notice}/clear', [PayrollNoticeController::class, 'clear'])->name('payroll.notices.clear');
             Route::post('/app/payroll/submissions/{submission}/submit', [PayrollSubmissionController::class, 'submit'])->name('payroll.submissions.submit');
             Route::post('/app/payroll/employees/{employee}/cp21', [PayrollNoticeController::class, 'cp21'])->name('payroll.notices.cp21');
+            Route::post('/app/payroll/employees/{employee}/forms/{form}/{year}', [PayrollStaffFormController::class, 'update'])
+                ->whereIn('form', ['cp21', 'cp22', 'cp22a', 'pcb2'])->whereNumber('year')->name('payroll.staff-forms.update');
             Route::post('/app/payroll/items/{item}', [PayrollController::class, 'updateItem'])->name('payroll.items.update');
             Route::post('/app/payroll/items/{item}/delete', [PayrollController::class, 'destroyItem'])->name('payroll.items.delete');
         });
@@ -818,8 +822,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
         Route::get('/app/payroll/runs/{run}/statutory-file/{key}', [PayrollExportController::class, 'statutoryFile'])
             ->where('key', '[a-z0-9\-]+')->name('payroll.export.statutory-file');
+        Route::get('/app/payroll/zakat/{period}', [PayrollExportController::class, 'zakat'])
+            ->where('period', '\d{4}-(0[1-9]|1[0-2])')->name('payroll.export.zakat');
         // PCB 2(II) statement for a CP22A — HR/management only, audited (carries NRIC).
         Route::get('/app/payroll/notices/{notice}/pcb2ii', [PayrollNoticeController::class, 'pcb2ii'])->name('payroll.notices.pcb2ii');
+        // Payroll → Form: one LHDN staff form for everyone it lists that year, one per page.
+        Route::get('/app/payroll/forms/{form}/{year}/pdf', [PayrollStaffFormController::class, 'batchPdf'])
+            ->whereIn('form', ['cp21', 'cp22', 'cp22a', 'pcb2'])->whereNumber('year')->name('payroll.staff-forms.pdf');
+        Route::get('/app/payroll/forms/sip2/pdf', [PayrollStaffFormController::class, 'sip2Pdf'])->name('payroll.sip2.pdf');
         // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
         Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
         // Bulk payslip PDF for a finalized run — HR/management only.
