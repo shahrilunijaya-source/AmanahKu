@@ -55,6 +55,16 @@ class Tenant extends Model
         });
     }
 
+    /**
+     * The person whose name and designation are printed on the LHDN staff forms.
+     *
+     * @return BelongsTo<Employee, $this>
+     */
+    public function statutorySignatory(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'statutory_signatory_employee_id');
+    }
+
     public function companyCategory(): BelongsTo
     {
         return $this->belongsTo(CompanyCategory::class);

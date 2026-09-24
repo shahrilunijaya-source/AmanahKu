@@ -148,7 +148,7 @@ class PayrollNavigationTest extends TestCase
             'payroll-process' => ['bonus', 'control'],
             'payroll-review' => ['batch-remove'],
             'payroll-payment' => ['audit'],
-            'payroll-form' => ['borang-a', 'borang-8a', 'cp39', 'cp21', 'cp22', 'cp22a', 'sip2', 'pcb2', 'zakat', 'hrdf'],
+            'payroll-form' => ['bbcd'],
         ];
     }
 

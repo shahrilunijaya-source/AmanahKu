@@ -28,6 +28,62 @@ abstract class StatutoryFile
 
     abstract public function contentType(): string;
 
+    /**
+     * What to tell HR when the employer number this file is keyed on is blank, or null
+     * when it's set. A file with a blank employer column is rejected by the agency.
+     */
+    public function missingEmployerNumber(Tenant $tenant): ?string
+    {
+        [$column, $name] = match ($this->key()) {
+            'kwsp-form-a' => ['epf_employer_no', 'KWSP employer number'],
+            'perkeso-8a' => ['socso_employer_code', 'PERKESO employer code'],
+            'cp39' => ['employer_tin', 'LHDN E number'],
+            'hrdcorp' => ['hrdf_registration_no', 'HRD Corp registration number'],
+            default => [null, null],
+        };
+
+        return $column !== null && blank($tenant->{$column}) ? "Set your {$name} in Company Settings." : null;
+    }
+
+    /** PERKESO wages exclude the annual bonus, so its file leaves bonus runs out (spec F10). */
+    public function includesBonusRuns(): bool
+    {
+        return $this->key() !== 'perkeso-8a';
+    }
+
+    /**
+     * Labels for the amounts in rows(), in column order: [key => [English, Malay]].
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    abstract public function columns(): array;
+
+    /**
+     * One entry per line the file will carry. The Form screen's table and build() both
+     * read this, so what HR checks on screen is what goes to the agency.
+     *
+     * @param  Collection<int, Payslip>  $payslips
+     * @return list<array{payslip: Payslip, name: string, ic: string, ref: ?string, amounts: array<string, float>}>
+     */
+    abstract public function rows(Collection $payslips): array;
+
+    /**
+     * The row shape shared by every file: who, their IC, their number at the agency.
+     *
+     * @param  array<string, float|int|string|null>  $amounts
+     * @return array{payslip: Payslip, name: string, ic: string, ref: ?string, amounts: array<string, float>}
+     */
+    protected function row(Payslip $p, ?string $ref, array $amounts): array
+    {
+        return [
+            'payslip' => $p,
+            'name' => (string) $p->employee?->name,
+            'ic' => $this->digits($p->employee?->nric),
+            'ref' => $ref,
+            'amounts' => array_map(fn ($v) => round((float) $v, 2), $amounts),
+        ];
+    }
+
     /** @param  Collection<int, Payslip>  $payslips */
     abstract public function build(PayrollRun $run, Tenant $tenant, Collection $payslips): string;
 

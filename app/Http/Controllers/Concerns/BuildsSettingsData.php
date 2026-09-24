@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminController;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\EasterEgg;
+use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\GreetingLine;
 use App\Models\StaffLevel;
@@ -38,6 +39,10 @@ trait BuildsSettingsData
             'staffLevels' => StaffLevel::orderByRaw('`rank` IS NULL, `rank`')->orderBy('name')->get(),
             'employmentTypes' => EmploymentType::orderBy('name')->get(),
             'locationTypes' => app(AdminController::class)->locationTypes(),
+            // Statutory & tax card: who can sign the LHDN staff forms, and whether the
+            // HRD Corp block applies (levy switched on).
+            'signatoryOptions' => Employee::active()->orderBy('name')->get(['id', 'name', 'position']),
+            'hrdfOn' => (string) (app(FeatureManager::class)->value($tenant, 'payroll.hrdf') ?? 'off') !== 'off',
             'canManageFeatures' => $canManage,
             'featureRows' => $canManage ? $this->featureRows($tenant) : [],
             'greetingLines' => $canManage ? $this->greetingLinesOrdered() : collect(),

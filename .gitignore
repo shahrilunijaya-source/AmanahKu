@@ -53,3 +53,10 @@ skills-lock.json
 
 # Design scratch mocks (served locally, never shipped)
 public/_*.html
+
+# PERKESO marks this spec confidential, not for redistribution; this repo is public
+docs/statutory/perkeso-text-file-format-v2.1-2026-02.pdf
+# LHDN stamps the e-SPC manual "RESTRICTED" on every page
+docs/statutory/e-spc-user-manual-2023.pdf
+# PERKESO's macro workbook from the same text-file package; nothing here uses it
+docs/statutory/perkeso-excel-to-text-file-combine-contribution.xlsm

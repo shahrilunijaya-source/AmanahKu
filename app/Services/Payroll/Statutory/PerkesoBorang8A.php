@@ -10,16 +10,16 @@ use App\Models\Tenant;
 use Illuminate\Support\Collection;
 
 /**
- * PERKESO Borang 8A contribution listing, fixed width at 119 characters a line. Layout is
- * ours, pinned by tests/Fixtures/statutory/perkeso-8a-2026-06.txt; not yet checked against
- * PERKESO's published specification. Add the official document to docs/statutory and flip
- * verified() once it matches. SKBBK has no column here: it is paid through the portal.
+ * PERKESO combined SOCSO + EIS + SKBBK contribution text file for the ASSIST 2.0 portal,
+ * fixed width at 278 characters a line. Transcribed from "Combine SOCSO + EIS Contribution
+ * Text File Format" v2.1 (13 Feb 2026), kept in docs/statutory but out of git because
+ * PERKESO marks it confidential. Mandatory for every upload from 1 October 2026.
+ *
+ * Amounts are right justified with spaces, as in the spec's sample file, which also shows
+ * the wage column carrying actual wages: only the contributions stop at the RM6,000 ceiling.
  */
 final class PerkesoBorang8A extends StatutoryFile
 {
-    /** Contributions are assessed on wages up to RM6,000 a month. */
-    public const WAGE_CEILING = 6000.0;
-
     public function key(): string
     {
         return 'perkeso-8a';
@@ -32,7 +32,7 @@ final class PerkesoBorang8A extends StatutoryFile
 
     public function verified(): bool
     {
-        return false;
+        return true;
     }
 
     public function contentType(): string
@@ -42,30 +42,74 @@ final class PerkesoBorang8A extends StatutoryFile
 
     public function filename(PayrollRun $run, Tenant $tenant): string
     {
-        return 'PERKESO-8A-'.($tenant->socso_employer_code ?? 'employer').'-'.$this->contributionMonth($run).'.txt';
+        return 'PERKESO-8A-'.($tenant->socso_employer_code ?? 'employer').'-'.$this->wageMonth($run).'.txt';
+    }
+
+    public function columns(): array
+    {
+        return [
+            'wages' => ['Wages', 'Gaji'],
+            'socso_employer' => ['SOCSO employer', 'PERKESO majikan'], 'socso_employee' => ['SOCSO employee', 'PERKESO pekerja'],
+            'eis_employer' => ['EIS employer', 'SIP majikan'], 'eis_employee' => ['EIS employee', 'SIP pekerja'],
+            'skbbk_employee' => ['SKBBK', 'SKBBK'],
+        ];
+    }
+
+    public function rows(Collection $payslips): array
+    {
+        return $payslips->filter(fn (Payslip $p) => ((float) $p->socso_employee + (float) $p->socso_employer + (float) $p->eis_employee + (float) $p->eis_employer + (float) $p->skbbk_employee) > 0)
+            ->map(fn (Payslip $p) => $this->row($p, $p->employee?->salaryStructure?->socso_no, [
+                'wages' => $p->gross,
+                'socso_employer' => $p->socso_employer, 'socso_employee' => $p->socso_employee,
+                'eis_employer' => $p->eis_employer, 'eis_employee' => $p->eis_employee,
+                'skbbk_employee' => $p->skbbk_employee,
+            ]))->values()->all();
     }
 
     public function build(PayrollRun $run, Tenant $tenant, Collection $payslips): string
     {
-        $rows = $payslips->filter(fn (Payslip $p) => ((float) $p->socso_employee + (float) $p->socso_employer + (float) $p->eis_employee + (float) $p->eis_employer) > 0)->values();
-
         $lines = [];
-        foreach ($rows as $p) {
-            $emp = $p->employee;
-            $s = $emp?->salaryStructure;
-            $nric = substr($this->digits($emp?->nric), 0, 12);
-            $lines[] = str_pad(substr($this->ascii((string) $tenant->socso_employer_code), 0, 12), 12)
-                .str_pad(substr($this->digits($s?->socso_no) ?: $nric, 0, 12), 12)
-                .str_pad($nric, 12)
-                .str_pad(substr($this->ascii((string) $emp?->name), 0, 45), 45)
-                .$this->contributionMonth($run)
-                .$this->cents(min(self::WAGE_CEILING, (float) $p->gross), 8)
-                .$this->cents($p->socso_employer, 6)
-                .$this->cents($p->socso_employee, 6)
-                .$this->cents($p->eis_employer, 6)
-                .$this->cents($p->eis_employee, 6);
+        foreach ($this->rows($payslips) as $r) {
+            $a = $r['amounts'];
+            // A foreign worker has no NRIC; PERKESO then takes the SSFW / SSFDW number.
+            $id = $r['ic'] ?: (preg_replace('/[^A-Z0-9]/', '', $this->ascii((string) $r['ref'])) ?? '');
+            $lines[] = $this->text($tenant->socso_employer_code, 12)
+                .$this->text($tenant->registration_number, 20)
+                .$this->text($id, 12)
+                .$this->text($r['name'], 150)
+                .$this->wageMonth($run)
+                .$this->money($a['wages'], 14)
+                .$this->money($a['socso_employer'], 6)
+                .$this->money($a['socso_employee'], 6)
+                .$this->money($a['eis_employer'], 6)
+                .$this->money($a['eis_employee'], 6)
+                .$this->money($a['skbbk_employee'], 6)
+                .str_repeat(' ', 34);
         }
 
         return implode("\r\n", $lines);
+    }
+
+    /**
+     * PERKESO's contribution month is the month the wages were earned (MMYYYY), paid by
+     * the end of the following month. KWSP's Form A uses the month after instead.
+     */
+    private function wageMonth(PayrollRun $run): string
+    {
+        return substr($run->period, 5, 2).substr($run->period, 0, 4);
+    }
+
+    /** Left justified, uppercase ASCII, cut or space-padded to the width. */
+    private function text(?string $value, int $width): string
+    {
+        return str_pad(substr($this->ascii((string) $value), 0, $width), $width);
+    }
+
+    /** Cents with no decimal point, right justified with spaces; zero is written 0000 as in the spec's sample. */
+    private function money(float|int|string|null $value, int $width): string
+    {
+        $cents = (int) round(((float) $value) * 100);
+
+        return str_pad($cents === 0 ? '0000' : (string) $cents, $width, ' ', STR_PAD_LEFT);
     }
 }

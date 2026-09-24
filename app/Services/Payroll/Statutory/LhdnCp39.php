@@ -46,19 +46,33 @@ final class LhdnCp39 extends StatutoryFile
         return $this->employerNo($tenant).$month.'_'.$year.'.txt';
     }
 
+    public function columns(): array
+    {
+        return ['mtd' => ['PCB (MTD)', 'PCB (PCB)'], 'cp38' => ['CP38', 'CP38']];
+    }
+
+    public function rows(Collection $payslips): array
+    {
+        return $payslips->filter(fn (Payslip $p) => ((float) $p->pcb + (float) $p->pcb_additional + (float) $p->cp38) > 0)
+            ->map(fn (Payslip $p) => $this->row($p, $p->employee?->salaryStructure?->tax_no, [
+                'mtd' => (float) $p->pcb + (float) $p->pcb_additional,
+                'cp38' => $p->cp38,
+            ]))->values()->all();
+    }
+
     public function build(PayrollRun $run, Tenant $tenant, Collection $payslips): string
     {
         [$year, $month] = explode('-', $run->period);
-        $rows = $payslips->filter(fn (Payslip $p) => ((float) $p->pcb + (float) $p->pcb_additional + (float) $p->cp38) > 0)->values();
 
         $details = [];
         $mtdTotal = 0;
         $cp38Total = 0;
         $mtdCount = 0;
         $cp38Count = 0;
-        foreach ($rows as $p) {
-            $mtd = round((float) $p->pcb + (float) $p->pcb_additional, 2);
-            $cp38 = round((float) $p->cp38, 2);
+        foreach ($this->rows($payslips) as $r) {
+            $p = $r['payslip'];
+            $mtd = $r['amounts']['mtd'];
+            $cp38 = $r['amounts']['cp38'];
             $mtdTotal += (int) round($mtd * 100);
             $cp38Total += (int) round($cp38 * 100);
             $mtdCount += $mtd > 0 ? 1 : 0;
@@ -69,10 +83,10 @@ final class LhdnCp39 extends StatutoryFile
             $foreign = $s !== null && $s->nationality === 'foreign';
 
             $details[] = 'D'
-                .str_pad(substr($this->digits($s?->tax_no), -11), 11, '0', STR_PAD_LEFT)
-                .str_pad(substr($this->ascii((string) $p->employee?->name), 0, 60), 60)
+                .str_pad(substr($this->digits($r['ref']), -11), 11, '0', STR_PAD_LEFT)
+                .str_pad(substr($this->ascii($r['name']), 0, 60), 60)
                 .str_repeat(' ', 12)
-                .str_pad($foreign ? '' : substr($this->digits($p->employee?->nric), 0, 12), 12)
+                .str_pad($foreign ? '' : substr($r['ic'], 0, 12), 12)
                 .str_repeat(' ', 12)   // ponytail: passport number has no column yet; add when foreign staff are on payroll
                 .($foreign ? '  ' : 'MY')
                 .$this->cents($mtd, 8)

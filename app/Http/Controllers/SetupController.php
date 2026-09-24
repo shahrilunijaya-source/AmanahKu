@@ -19,6 +19,7 @@ use App\Models\SalaryStructure;
 use App\Models\StaffLevel;
 use App\Models\TimesheetCategory;
 use App\Services\FeatureManager;
+use App\Services\Payroll\PayrollReadiness;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -104,6 +105,9 @@ class SetupController extends Controller
         // Payroll is only relevant when the module is enabled for the tenant.
         if ($this->payrollEnabled()) {
             $defs['payroll_setup'] = ['label' => 'Configure payroll', 'label_ms' => 'Konfigur gaji', 'desc' => 'Salary structures for active employees. EPF/SOCSO/EIS/PCB follow fixed published schedules.', 'desc_ms' => 'Struktur gaji untuk pekerja aktif. EPF/SOCSO/EIS/PCB ikut jadual rasmi tetap.', 'guide' => 'Open each active employee\'s profile and save their basic salary and statutory numbers under Bank & Statutory.', 'guide_ms' => 'Buka profil setiap pekerja aktif dan simpan gaji pokok serta nombor berkanun mereka di bawah Bank & Statutori.', 'screen' => 'payroll-process', 'query' => [], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
+            // Not launch-critical: staff can sign in without it, and a payroll run already
+            // refuses to start while these are blank (PayrollReadiness::employerGaps).
+            $defs['statutory'] = ['label' => 'Company statutory numbers', 'label_ms' => 'Nombor berkanun syarikat', 'desc' => 'LHDN E number, KWSP employer number and PERKESO employer code, printed on every agency file.', 'desc_ms' => 'Nombor E LHDN, nombor majikan KWSP dan kod majikan PERKESO, dicetak pada setiap fail agensi.', 'guide' => 'On Company Settings, open Statutory & tax, fill in your LHDN E number, KWSP employer number and PERKESO employer code, and click Save statutory details.', 'guide_ms' => 'Di Tetapan Syarikat, buka Berkanun & cukai, isi nombor E LHDN, nombor majikan KWSP dan kod majikan PERKESO, dan klik Simpan butiran berkanun.', 'screen' => 'settings', 'query' => ['section' => 'statutory'], 'auto' => true, 'domain' => 'payroll', 'critical' => false];
         }
 
         // Dashboard touches — optional. Both banks are seeded for every company, so these
@@ -145,6 +149,9 @@ class SetupController extends Controller
 
         if ($this->payrollEnabled()) {
             $statuses['payroll_setup'] = SalaryStructure::count() > 0;
+            // Same list that blocks a payroll run, so the two can't disagree (HRD Corp
+            // only counts while the levy is switched on).
+            $statuses['statutory'] = app(PayrollReadiness::class)->employerGaps($tenant) === [];
         }
 
         return $statuses;

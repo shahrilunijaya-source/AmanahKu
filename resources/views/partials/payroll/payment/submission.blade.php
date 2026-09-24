@@ -34,17 +34,21 @@
         @endif
         @php
             $hrdfOn = \App\Services\Payroll\HrdCorpLevy::rate((string) app(\App\Services\FeatureManager::class)->value(app(\App\Tenancy\CurrentTenant::class)->get(), 'payroll.hrdf')) > 0;
-            $fileLabels = ['kwsp-form-a' => ['EPF file', 'Fail KWSP'], 'perkeso-8a' => ['SOCSO/EIS file', 'Fail PERKESO/SIP'], 'cp39' => ['PCB file', 'Fail PCB'], 'hrdcorp' => ['HRD Corp file', 'Fail HRD Corp']];
+            $fileLabels = ['kwsp-form-a' => ['EPF file', 'Fail KWSP'], 'perkeso-8a' => ['SOCSO/EIS file', 'Fail PERKESO/SIP'], 'cp39' => ['PCB file', 'Fail PCB'], 'hrdcorp' => ['HRD Corp levy worksheet', 'Lembaran levi HRD Corp']];
+            $company = app(\App\Tenancy\CurrentTenant::class)->get();
         @endphp
         @foreach (\App\Services\Payroll\Statutory\StatutoryFileRegistry::all() as $key => $file)
             @continue($key === 'hrdcorp' && ! $hrdfOn)
-            @if ($activeRun->status === 'finalized')
+            @php $gap = $file->missingEmployerNumber($company); @endphp
+            @if ($gap !== null)
+                <a href="{{ route('app.screen', ['screen' => 'settings', 'section' => 'statutory']) }}" title="{{ $gap }}" data-testid="missing-{{ $key }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--muted);"><span style="opacity:.6;text-decoration:line-through;" x-text="$store.ui.lang==='en' ? @js($fileLabels[$key][0]) : @js($fileLabels[$key][1])">{{ $fileLabels[$key][0] }}</span><span class="uj-pill" style="font-size:10px;background:var(--red-tint);color:var(--red);">{{ $gap }}</span></a>
+            @elseif ($activeRun->status === 'finalized')
                 <a href="{{ route('payroll.export.statutory-file', [$activeRun, $key]) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;"><span x-text="$store.ui.lang==='en' ? @js($fileLabels[$key][0]) : @js($fileLabels[$key][1])">{{ $fileLabels[$key][0] }}</span>@unless ($file->verified())<span class="uj-pill" style="margin-left:6px;font-size:10px;" x-text="$store.ui.lang==='en' ? 'check layout' : 'semak susun atur'">check layout</span>@endunless</a>
             @else
                 <button type="button" disabled title="Available once this run is finalized" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;opacity:.55;cursor:not-allowed;" x-text="$store.ui.lang==='en' ? @js($fileLabels[$key][0]) : @js($fileLabels[$key][1])">{{ $fileLabels[$key][0] }}</button>
             @endif
         @endforeach
     </div>
-    @include('partials.hint', ['tone' => 'warn', 'en' => "All four are due by the 15th of next month. The PCB file follows LHDN's published layout. The EPF, SOCSO/EIS and HRD Corp files marked 'check layout' have not been checked against the agency's current upload specification yet: try them on the portal's validator before relying on them. SKBBK is not in the SOCSO/EIS file; pay it through the ASSIST portal.", 'ms' => "Keempat-empatnya perlu dihantar sebelum 15 haribulan bulan hadapan. Fail PCB mengikut susun atur rasmi LHDN. Fail KWSP, PERKESO/SIP dan HRD Corp yang bertanda 'semak susun atur' belum disemak dengan spesifikasi muat naik terkini agensi: cuba pada penyemak portal sebelum bergantung padanya. SKBBK tiada dalam fail PERKESO/SIP; bayar melalui portal ASSIST."])
+    @include('partials.hint', ['tone' => 'warn', 'en' => "All four are due by the 15th of next month. The PCB file follows LHDN's published layout. The SOCSO/EIS file follows PERKESO's ASSIST 2.0 layout and carries SOCSO, EIS and SKBBK together. A file marked 'check layout' has not been checked against the agency's current upload specification yet: try it on the portal's validator before relying on it. HRD Corp has no upload file; the worksheet is what to key into eTRiS.", 'ms' => "Keempat-empatnya perlu dihantar sebelum 15 haribulan bulan hadapan. Fail PCB mengikut susun atur rasmi LHDN. Fail PERKESO/SIP mengikut susun atur ASSIST 2.0 dan membawa PERKESO, SIP dan SKBBK bersama. Fail bertanda 'semak susun atur' belum disemak dengan spesifikasi muat naik terkini agensi: cuba pada penyemak portal sebelum bergantung padanya. HRD Corp tiada fail muat naik; lembaran ini untuk dimasukkan ke eTRiS."])
 </div>
 @endif

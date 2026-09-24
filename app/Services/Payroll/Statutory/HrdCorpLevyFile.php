@@ -42,32 +42,35 @@ final class HrdCorpLevyFile extends StatutoryFile
         return 'HRDCorp-'.($tenant->hrdf_registration_no ?? 'employer').'-'.$this->wageMonth($run).'.csv';
     }
 
+    public function columns(): array
+    {
+        return ['wages' => ['Levy wages', 'Upah levi'], 'levy' => ['Levy', 'Levi']];
+    }
+
+    public function rows(Collection $payslips): array
+    {
+        return $payslips->filter(fn (Payslip $p) => (float) $p->hrdf_levy > 0)
+            ->map(fn (Payslip $p) => $this->row($p, null, [
+                // The levy's own wage base: basic pay plus fixed allowances, less unpaid leave.
+                'wages' => (float) $p->basic + (float) $p->allowances_total - (float) $p->unpaid_deduction,
+                'levy' => $p->hrdf_levy,
+            ]))->values()->all();
+    }
+
     public function build(PayrollRun $run, Tenant $tenant, Collection $payslips): string
     {
-        $rows = $payslips->filter(fn (Payslip $p) => (float) $p->hrdf_levy > 0)->values();
+        $rows = collect($this->rows($payslips));
         $month = $this->wageMonth($run);
 
-        $detail = [];
-        $wagesTotal = 0.0;
-        foreach ($rows as $p) {
-            $emp = $p->employee;
-            // The levy's own wage base: basic pay plus fixed allowances, less unpaid leave.
-            $wages = round((float) $p->basic + (float) $p->allowances_total - (float) $p->unpaid_deduction, 2);
-            $wagesTotal += $wages;
-            $detail[] = [
-                $tenant->hrdf_registration_no,
-                $month,
-                $this->digits($emp?->nric),
-                $this->ascii((string) $emp?->name),
-                $this->amount($wages),
-                $this->amount($p->hrdf_levy),
-            ];
-        }
+        $detail = $rows->map(fn (array $r) => [
+            $tenant->hrdf_registration_no, $month, $r['ic'], $this->ascii($r['name']),
+            $this->amount($r['amounts']['wages']), $this->amount($r['amounts']['levy']),
+        ])->all();
 
         return $this->csv([
             ['EMPLOYER CODE', 'MONTH', 'NRIC', 'NAME', 'WAGES', 'LEVY'],
             ...$detail,
-            ['TOTAL', '', '', '', $this->amount($wagesTotal), $this->amount($rows->sum(fn (Payslip $p) => (float) $p->hrdf_levy))],
+            ['TOTAL', '', '', '', $this->amount($rows->sum(fn (array $r) => $r['amounts']['wages'])), $this->amount($rows->sum(fn (array $r) => $r['amounts']['levy']))],
         ]);
     }
 
