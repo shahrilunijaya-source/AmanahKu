@@ -44,6 +44,7 @@ class Project extends Model implements HasAuditedFields
     {
         return [
             'is_active' => 'boolean',
+            'is_other' => 'boolean',
             'sort' => 'integer',
             'contract_value' => 'decimal:2',
             'bond_value' => 'decimal:2',

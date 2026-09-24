@@ -188,20 +188,20 @@ class Amanahku
             // AppController::screen via canSeeAll.
             // 'landing' => true gives the group heading its own page (screens/oversight.blade.php)
             // instead of being a pure accordion toggle — see sidebar.blade.php's landing branch.
-            $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'landing' => true, 'icon' => 'M9 17v-6M12 17v-3M15 17v-8M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'children' => [
+            $s('Insights', 'Analitik', ['id' => 'oversight', 'label' => 'Oversight', 'label_ms' => 'Pengawasan', 'landing' => true, 'icon' => 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'children' => [
                 // Company-wide analytics (headcount, department capacity, workload split) —
                 // used to be its own top-level Insights item; folded in here since it shares
                 // the same manager/management/hr gate as every other card in this group.
-                ['id' => 'reports', 'label' => 'Workforce Reports', 'label_ms' => 'Laporan Tenaga Kerja'],
-                ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran'],
-                ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti'],
+                ['id' => 'reports', 'label' => 'Workforce Reports', 'label_ms' => 'Laporan Tenaga Kerja', 'icon' => 'M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z'],
+                ['id' => 'attendance-report', 'label' => 'Attendance Reports', 'label_ms' => 'Laporan Kehadiran', 'icon' => 'M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M8.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4'],
+                ['id' => 'leave-report', 'label' => 'Leave Reports', 'label_ms' => 'Laporan Cuti', 'icon' => 'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4'],
                 // Same gate as its siblings since CR-02; the RM cost inside is hidden from
                 // managers by TimesheetController::MONEY_ROLES, not by the nav.
-                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa'],
-                ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit'],
+                ['id' => 'timesheet-reports', 'label' => 'Timesheet Reports', 'label_ms' => 'Laporan Lembaran Masa', 'icon' => 'M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 10v4l2 2M10 2h4M12 2v4'],
+                ['id' => 'audit', 'label' => 'Audit Logs', 'label_ms' => 'Log Audit', 'icon' => 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
                 // Read-only view of everyone's profile-test answers. Rows are scoped in
                 // ProfileTestController::resultsData — a manager sees only their own staff.
-                ['id' => 'profile-test-results', 'label' => 'Profile Test Results', 'label_ms' => 'Keputusan Ujian Profil'],
+                ['id' => 'profile-test-results', 'label' => 'Profile Test Results', 'label_ms' => 'Keputusan Ujian Profil', 'icon' => 'M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12'],
             ]]),
 
             // ── Administration ────────────────────────────────────────────────

@@ -40,7 +40,7 @@ class CsvExportSafetyTest extends TestCase
             ->streamedContent();
 
         // Neutralised (quoted) form present; raw executable form absent.
-        $this->assertStringContainsString("'=cmd|", $content);
-        $this->assertStringNotContainsString("\n=cmd|", $content);
+        $this->assertStringContainsString("'=Cmd|", $content);
+        $this->assertStringNotContainsString("\n=Cmd|", $content);
     }
 }

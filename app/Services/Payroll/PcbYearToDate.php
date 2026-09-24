@@ -64,7 +64,7 @@ final class PcbYearToDate
         // it all into one figure) — the spec's ∑Y wants exactly that combined total.
         $paidThisYear = Payslip::where('tenant_id', $employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')
+            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->countsAsRemuneration()
                 ->where('period', '>=', $year.'-01')
                 ->where('period', '<', $period))
             ->get();
@@ -78,11 +78,16 @@ final class PcbYearToDate
         return [
             // Spec F8: pay exempted by a Payroll Item's yearly cap never entered the
             // taxable base in its own month, so it must not enter ∑Y either.
-            'grossY' => (float) (($opening !== null ? $opening->gross : null) ?? 0) + (float) (($opening !== null ? $opening->additional_gross : null) ?? 0) + (float) $paidThisYear->sum('gross') - (float) $paidThisYear->sum('pcb_exempt_amount'),
+            // Take-on lines B1(c) to B1(f) are taxable pay too. ponytail: B2 to B6 (arrears,
+            // benefits in kind, accommodation, refunds, compensation) stay out of ∑Y, the way
+            // our own pay runs never produce them; add them if a client needs PCB on them.
+            'grossY' => (float) (($opening !== null ? $opening->gross : null) ?? 0) + (float) (($opening !== null ? $opening->additional_gross : null) ?? 0)
+                + ($opening !== null ? $opening->line('b1c') + $opening->line('b1d') + $opening->line('b1e') + $opening->line('b1f') : 0.0) + (float) $paidThisYear->sum('gross') - (float) $paidThisYear->sum('pcb_exempt_amount'),
             'epfK' => (float) (($opening !== null ? $opening->epf : null) ?? 0) + (float) (($opening !== null ? $opening->additional_epf : null) ?? 0) + (float) $paidThisYear->sum('epf_employee'),
             // TP1 zakat never reaches the payslip (LHDN spec p.35), so earlier months'
             // TP1 zakat has to be added to Z alongside what was deducted from pay.
-            'zakatZ' => (float) (($opening !== null ? $opening->zakat_paid : null) ?? 0) + (float) $paidThisYear->sum('zakat') + $tp1['ytdZakat'],
+            // Take-on box D5(b) is TP1 zakat paid outside salary, which Z counts the same way.
+            'zakatZ' => (float) (($opening !== null ? $opening->zakat_paid : null) ?? 0) + ($opening !== null ? $opening->line('d5b') : 0.0) + (float) $paidThisYear->sum('zakat') + $tp1['ytdZakat'],
             'mtdPaidX' => (float) (($opening !== null ? $opening->pcb_paid : null) ?? 0) + (float) $paidThisYear->sum(fn ($p) => $p->pcb + $p->pcb_additional),
             // ∑LP opening balance — TP1 optional deductions (parents' medical, study fees,
             // etc.) the employee already claimed through a previous employer this year.

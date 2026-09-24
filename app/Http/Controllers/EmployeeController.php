@@ -140,7 +140,8 @@ class EmployeeController extends Controller
                 'name' => $data['name'],
                 'nickname' => $data['nickname'] ?? null,
                 'email' => $data['email'] ?? null,
-                'staff_id' => $data['staff_id'] ?? null,
+                // Blank keeps the current number: every employee has one (Employee::nextStaffId).
+                'staff_id' => $data['staff_id'] ?? $employee->staff_id,
                 // Hire date never silently clears: keep the existing value when left blank,
                 // falling back to today — matching store() / import().
                 'joined_at' => $data['joined_at'] ?? $employee->joined_at ?? now()->toDateString(),

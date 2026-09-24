@@ -51,6 +51,7 @@ class ProjectController extends Controller
 
         return [
             'projects' => Project::with(['categories', 'versions.createdBy', 'variations.decidedBy'])
+                ->where('is_other', false)
                 ->orderBy('sort')->orderBy('name')->get(),
             'subPillars' => SubPillar::orderBy('sort')->orderBy('name')->get(),
             // Two lists on purpose: the ADD form offers active categories only (a
