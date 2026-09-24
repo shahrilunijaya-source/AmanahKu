@@ -12,11 +12,13 @@ use App\Models\Employee;
 use App\Services\FeatureManager;
 use App\Support\AttachmentName;
 use App\Tenancy\CurrentTenant;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClaimController extends Controller
@@ -40,7 +42,28 @@ class ClaimController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01', 'max:1000000'],
             'date' => ['required', 'date'],
             'reason' => ['nullable', 'string', 'max:500'],
+            'vehicle' => ['required_if:type,mileage', 'nullable', 'in:'.implode(',', array_keys(Claim::MILEAGE_RATES))],
+            'distance_km' => ['required_if:type,mileage', 'nullable', 'numeric', 'min:0.1', 'max:100000'],
+            'trip_from' => ['required_if:type,mileage', 'nullable', 'string', 'max:120'],
+            'trip_to' => ['required_if:type,mileage', 'nullable', 'string', 'max:120'],
+            'toll' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'parking' => ['nullable', 'numeric', 'min:0', 'max:100000'],
         ]);
+
+        // Mileage is worked out here from distance × the vehicle's rate, plus toll and
+        // parking, never taken from the form. Other types carry no trip at all.
+        $trip = ['vehicle' => null, 'distance_km' => null, 'trip_from' => null, 'trip_to' => null, 'toll' => null, 'parking' => null];
+        if ($data['type'] === 'mileage') {
+            $trip = [
+                'vehicle' => $data['vehicle'],
+                'distance_km' => round((float) $data['distance_km'], 1),
+                'trip_from' => $data['trip_from'],
+                'trip_to' => $data['trip_to'],
+                'toll' => round((float) ($data['toll'] ?? 0), 2),
+                'parking' => round((float) ($data['parking'] ?? 0), 2),
+            ];
+            $data['amount'] = round(round($trip['distance_km'] * Claim::MILEAGE_RATES[$trip['vehicle']], 2) + $trip['toll'] + $trip['parking'], 2);
+        }
 
         // Medical claims share an annual reimbursement ceiling per employee, counted by
         // expense-date year across all non-rejected claims. Reject anything that would
@@ -83,6 +106,7 @@ class ClaimController extends Controller
             'type' => $data['type'],
             'title' => $data['title'],
             'amount' => $data['amount'],
+            ...$trip,
             'date' => $data['date'],
             'reason' => $data['reason'] ?? null,
             'receipt_path' => $receiptPath,
@@ -232,7 +256,7 @@ class ClaimController extends Controller
     /**
      * Stream a claim receipt through an auth-gated action (never a public URL).
      * Receipts can carry personal/financial detail: only the claimant, their immediate
-     * superior (the verifier) and management/HR may view.
+     * superior (the verifier) and management/HR (directors included) may view.
      */
     public function receipt(Request $request, Claim $claim): StreamedResponse
     {
@@ -241,11 +265,11 @@ class ClaimController extends Controller
 
         /** @var Employee|null $actor */
         $actor = $request->attributes->get('employee');
-        $role = $request->attributes->get('tenantRole');
 
         $isOwner = $actor && $actor->id === $claim->employee_id;
         $isSuperior = $actor && $claim->employee?->reports_to_id === $actor->id;
-        $isPrivileged = in_array($role, ['management', 'hr'], true);
+        // hasTenantRole, not a plain in_array: a director counts as management.
+        $isPrivileged = $this->hasTenantRole($request, ['management', 'hr']);
 
         abort_unless($isOwner || $isSuperior || $isPrivileged, 403);
         abort_unless(Storage::disk(self::RECEIPT_DISK)->exists($claim->receipt_path), 404);
@@ -260,5 +284,44 @@ class ClaimController extends Controller
                 $claim->date,
             ),
         );
+    }
+
+    /**
+     * One person's claims for a month (?month=YYYY-MM, default this month) as the
+     * Borang Tuntutan Perjalanan PDF. Rejected and cancelled claims are left off.
+     * The claimant, their immediate superior, or management/HR (directors included).
+     */
+    public function form(Request $request, Employee $employee): Response
+    {
+        $this->assertSameTenant($employee->tenant_id);
+
+        /** @var Employee|null $actor */
+        $actor = $request->attributes->get('employee');
+
+        $isOwner = $actor && $actor->id === $employee->id;
+        $isSuperior = $actor && $employee->reports_to_id === $actor->id;
+        // hasTenantRole, not a plain in_array: a director counts as management.
+        $isPrivileged = $this->hasTenantRole($request, ['management', 'hr']);
+
+        abort_unless($isOwner || $isSuperior || $isPrivileged, 403);
+
+        $request->validate(['month' => ['nullable', 'date_format:Y-m']]);
+        $month = Carbon::createFromFormat('!Y-m', $request->query('month', now()->format('Y-m')));
+
+        $claims = $employee->claims()
+            ->whereNotIn('status', ['rejected', 'cancelled'])
+            ->whereBetween('date', [$month->copy()->startOfMonth(), $month->copy()->endOfMonth()])
+            ->orderBy('date')->orderBy('id')
+            ->get();
+
+        AuditLog::record('Downloaded claim form PDF', $employee->name.' · '.$month->format('Y-m'));
+
+        return Pdf::loadView('pdf.claim-form', [
+            'employee' => $employee->loadMissing('department'),
+            'claims' => $claims,
+            'month' => $month,
+            'rates' => Claim::MILEAGE_RATES,
+        ])->setPaper('a4', 'landscape')
+            ->download('borang-tuntutan-'.($employee->staff_id ?: $employee->id).'-'.$month->format('Y-m').'.pdf');
     }
 }

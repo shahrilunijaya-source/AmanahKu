@@ -289,6 +289,8 @@ class WritePathsTest extends TestCase
         $this->actingInTenant()->post('/app/claims', [
             'type' => 'mileage', 'title' => 'Client visit', 'amount' => 120.50,
             'date' => '2026-06-20', 'reason' => 'Klang',
+            // 200 km by car at RM 0.60 is RM 120.00, plus RM 0.50 parking.
+            'vehicle' => 'car', 'distance_km' => 200, 'trip_from' => 'Office', 'trip_to' => 'Klang', 'parking' => 0.50,
             'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
 

@@ -197,6 +197,16 @@
                     ? 'Tap any claim to see where it is and who is holding it.'
                     : 'Ketik mana-mana tuntutan untuk lihat statusnya dan siapa memegangnya.'"></span>
             </p>
+            @if ($employee ?? null)
+                {{-- The month's claims on the Borang Tuntutan Perjalanan, ready to sign and hand in. --}}
+                <form method="get" action="{{ route('claims.form', $employee) }}" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 12px;">
+                    <input type="month" name="month" value="{{ now()->format('Y-m') }}" required class="uj-lv-in" style="width:auto;height:36px;">
+                    <button type="submit" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:var(--t-sm);display:inline-flex;align-items:center;gap:7px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+                        <span x-text="$store.ui.lang==='en' ? 'Download claim form' : 'Muat turun borang tuntutan'">Download claim form</span>
+                    </button>
+                </form>
+            @endif
             <div class="uj-card">
                 @forelse ($myClaims as $c)
                     @php $tm = $typeMeta[$c->type] ?? $typeMeta['other']; @endphp
@@ -329,6 +339,7 @@
                     'currency' => $c->currency,
                     'date' => $c->date?->toDateString(),
                     'changed' => optional($c->updated_at)->toIso8601String(),
+                    'form' => $c->employee ? route('claims.form', ['employee' => $c->employee, 'month' => $c->date?->format('Y-m')]) : null,
                 ])->values()),
                 q: '', fstatus: 'all', ftype: 'all',
                 daysAgo(iso) { return iso ? Math.floor((Date.now() - new Date(iso)) / 864e5) : null; },
@@ -401,6 +412,7 @@
                 <div style="display:flex;gap:14px;padding:9px 20px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;border-top:1px solid var(--hairline);">
                     <div style="width:78px;" x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</div>
                     <div style="flex:1;min-width:0;" x-text="$store.ui.lang==='en' ? 'Employee' : 'Pekerja'">Employee</div>
+                    <div style="width:15px;flex:none;"></div>
                     <div style="width:84px;" x-text="$store.ui.lang==='en' ? 'Type' : 'Jenis'">Type</div>
                     <div style="width:96px;text-align:right;" x-text="$store.ui.lang==='en' ? 'Amount' : 'Jumlah'">Amount</div>
                     <div style="width:150px;" x-text="$store.ui.lang==='en' ? 'Where it is' : 'Di mana'">Where it is</div>
@@ -410,6 +422,12 @@
                          :style="isStuck(r) ? { background: 'linear-gradient(90deg,rgba(214,35,43,.045),transparent 55%)' } : {}">
                         <div style="width:78px;font-size:12px;color:var(--muted);" x-text="fmtDate(r.date)"></div>
                         <div style="flex:1;min-width:0;font-size:13px;color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="r.name"></div>
+                        {{-- That person's claim form for the claim's month. --}}
+                        <a x-show="r.form" :href="r.form" style="flex:none;color:var(--muted);display:inline-flex;"
+                           :title="$store.ui.lang==='en' ? 'Claim form for this month' : 'Borang tuntutan bulan ini'"
+                           :aria-label="$store.ui.lang==='en' ? 'Claim form for this month' : 'Borang tuntutan bulan ini'">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+                        </a>
                         <div style="width:84px;font-size:12px;color:var(--muted);" x-text="cap(r.type)"></div>
                         <div style="width:96px;text-align:right;font-size:13px;font-weight:600;color:var(--ink);font-family:var(--font-mono);" x-text="r.currency + ' ' + r.amount.toFixed(2)"></div>
                         <div style="width:150px;font-size:11.5px;line-height:1.35;display:flex;flex-direction:column;">

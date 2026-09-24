@@ -190,12 +190,14 @@ class ClaimApprovalRoutingTest extends TestCase
 
         $this->actingAsEmployee($report)->post('/app/claims', [
             'type' => 'mileage', 'title' => 'Client run', 'amount' => 30, 'date' => '2026-06-21',
+            'vehicle' => 'car', 'distance_km' => 50, 'trip_from' => 'Office', 'trip_to' => 'Client',
         ])->assertSessionHasErrors('receipt');
 
         $this->assertDatabaseMissing('claims', ['title' => 'Client run']);
 
         $this->actingAsEmployee($report)->post('/app/claims', [
             'type' => 'mileage', 'title' => 'Client run', 'amount' => 30, 'date' => '2026-06-21',
+            'vehicle' => 'car', 'distance_km' => 50, 'trip_from' => 'Office', 'trip_to' => 'Client',
             'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
 
@@ -508,6 +510,7 @@ class ClaimApprovalRoutingTest extends TestCase
 
         $this->actingAsEmployee($hr)->post('/app/claims', [
             'type' => 'mileage', 'title' => 'HR Run', 'amount' => 40, 'date' => '2026-06-21',
+            'vehicle' => 'car', 'distance_km' => 50, 'trip_from' => 'Office', 'trip_to' => 'Client', 'toll' => 10,
             'receipt' => UploadedFile::fake()->create('r.pdf', 20, 'application/pdf'),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
