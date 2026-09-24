@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\PersonName;
 use App\Support\Tone;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -49,6 +50,54 @@ class Employee extends Model
     // The assigned Position band is the single source of truth for a person's job
     // title — always loaded so the `position` accessor below never lazy-loads.
     protected $with = ['positionBand'];
+
+    /** Anyone added without a staff number gets the company's next one (see nextStaffId). */
+    protected static function booted(): void
+    {
+        static::creating(function (Employee $employee) {
+            if (blank($employee->staff_id)) {
+                $employee->staff_id = self::nextStaffId((int) $employee->tenant_id);
+            }
+        });
+
+        // The login account carries its own copy of the name; keep it in step.
+        static::updated(function (Employee $employee) {
+            if ($employee->wasChanged('name') && $employee->user_id) {
+                User::whereKey($employee->user_id)->update(['name' => $employee->name]);
+            }
+        });
+    }
+
+    /** Stored with every word capitalised (see PersonName), however it was typed. */
+    protected function name(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => $value === null ? null : PersonName::format($value));
+    }
+
+    /**
+     * The next staff number in Worksy's format: letters then five digits (UR00023).
+     * The letters come from the company's existing numbers, or its initials when it has
+     * none yet. The digits are the LOWEST number nobody uses, so a number HR typed in by
+     * hand further up the range is stepped over, never followed. Archived staff keep their
+     * numbers, so a leaver's number is never handed out again.
+     */
+    public static function nextStaffId(int $tenantId): string
+    {
+        $existing = self::withoutGlobalScopes()->where('tenant_id', $tenantId)->whereNotNull('staff_id')->pluck('staff_id')
+            ->map(fn (string $id) => preg_match('/^([A-Z]+)(\d+)$/', $id, $m) ? [$m[1], (int) $m[2]] : null)->filter();
+        $prefix = $existing->countBy(0)->sortDesc()->keys()->first()
+            ?? strtoupper((string) Tenant::whereKey($tenantId)->value('initials'));
+        $used = $existing->where(0, $prefix)->pluck(1)->flip();
+
+        // ponytail: two people adding staff in the same instant can both get the same number
+        // (uniqueness is only checked on the form, before this runs). Lock the tenant row if it bites.
+        $next = 1;
+        while ($used->has($next)) {
+            $next++;
+        }
+
+        return $prefix.str_pad((string) $next, 5, '0', STR_PAD_LEFT);
+    }
 
     /**
      * Job title — always derived from the assigned Position band, never the legacy

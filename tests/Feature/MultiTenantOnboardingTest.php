@@ -222,7 +222,7 @@ class MultiTenantOnboardingTest extends TestCase
             ->get('/app/directory')
             ->assertOk()
             ->assertSee('Finance Colleague')
-            ->assertDontSee('IT Colleague');
+            ->assertDontSee('It Colleague');
     }
 
     public function test_default_company_scope_sees_all_staff(): void
@@ -236,7 +236,7 @@ class MultiTenantOnboardingTest extends TestCase
         Employee::create(['tenant_id' => $tenant->id, 'name' => 'IT Colleague', 'department_id' => $it->id, 'status' => 'active', 'workload' => 'green', 'workload_label' => 'Healthy', 'initials' => 'IC', 'avatar_color' => '#000', 'joined_at' => now()->toDateString()]);
 
         $this->actingAs($mgr)->withSession(['current_tenant' => $tenant->id])
-            ->get('/app/directory')->assertOk()->assertSee('IT Colleague');
+            ->get('/app/directory')->assertOk()->assertSee('It Colleague');
     }
 
     public function test_admin_can_set_a_member_data_scope(): void

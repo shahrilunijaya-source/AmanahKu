@@ -175,7 +175,7 @@ class CompanySignupTest extends TestCase
         $this->assertNotNull($invite->used_at);
         $this->assertSame($tenant->id, $invite->used_by_tenant_id);
         $this->assertDatabaseHas('audit_logs', [
-            'tenant_id' => $tenant->id, 'user_id' => $user->id, 'actor_name' => 'Faizal bin Ahmad',
+            'tenant_id' => $tenant->id, 'user_id' => $user->id, 'actor_name' => 'Faizal Bin Ahmad',
             'action' => 'Company self-registered', 'target' => 'Maju Bina Sdn Bhd · admin faizal@majubina.com',
         ]);
         Notification::assertNothingSent();

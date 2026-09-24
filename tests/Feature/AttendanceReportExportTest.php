@@ -114,7 +114,7 @@ class AttendanceReportExportTest extends TestCase
 
         $csv = $this->download($this->oneDay());
 
-        $this->assertStringContainsString("'=cmd|calc", $csv, 'CWE-1236: must not open as a formula');
+        $this->assertStringContainsString("'=Cmd|Calc", $csv, 'CWE-1236: must not open as a formula');
     }
 
     public function test_the_export_is_recorded_in_the_audit_trail(): void
