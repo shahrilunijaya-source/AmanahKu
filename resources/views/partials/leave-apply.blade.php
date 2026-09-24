@@ -172,11 +172,12 @@
         left() { const m = this.t(); return m && m.balLeft !== null ? m.balLeft : null; },
         overBy() { const l = this.left(); return l === null ? 0 : Math.max(0, this.days() - l); },
         /**
-         * Unplanned leave that spends another type's balance (Emergency off Annual) is
-         * never refused for being over that balance: the days past it are approved as
-         * Unpaid leave, which carries no quota.
+         * Unplanned leave (Emergency) is never refused for being over balance, whether it
+         * spends another type's quota (off Annual) or its own: the days past it are
+         * approved as Unpaid leave, which carries no quota. LeaveController::store() never
+         * blocks this server-side either — see the comment above its balance check.
          */
-        overflows() { const m = this.t(); return !!(m && m.unplanned && m.deducts); },
+        overflows() { const m = this.t(); return !!(m && m.unplanned); },
         remains() { const l = this.left(); return l === null ? null : Math.max(0, l - this.days()); },
         pct(v) { const m = this.t(); return m && m.balQuota ? Math.min(100, (v / m.balQuota) * 100) : 0; },
         used() { const m = this.t(); return m && m.balQuota !== null && m.balLeft !== null ? m.balQuota - m.balLeft : 0; },
