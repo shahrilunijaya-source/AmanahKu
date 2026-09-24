@@ -21,7 +21,7 @@
     ];
     $typeLabels = [
         'expense' => ['Expense', 'Perbelanjaan', 'A receipted work expense — supplies, meals, parking.', 'Perbelanjaan kerja yang ada resit — bekalan, makan, letak kereta.'],
-        'mileage' => ['Mileage', 'Mileage', 'Driving your own car for work. Enter the distance.', 'Memandu kereta sendiri untuk kerja. Masukkan jarak.'],
+        'mileage' => ['Mileage', 'Mileage', 'Driving your own car or motorcycle for work. Enter the distance.', 'Memandu kereta atau motosikal sendiri untuk kerja. Masukkan jarak.'],
         'medical' => ['Medical', 'Perubatan', 'Clinic or pharmacy, against your yearly cap.', 'Klinik atau farmasi, ditolak daripada had tahunan.'],
         'travel'  => ['Travel', 'Perjalanan', 'Flights, hotels and fares for a work trip.', 'Tiket, hotel dan tambang untuk perjalanan kerja.'],
         'other'   => ['Other', 'Lain-lain', 'Anything else. Add a note so finance can code it.', 'Apa-apa lagi. Tambah nota supaya finance boleh kod.'],
@@ -43,11 +43,14 @@
         meta: @js($applyMeta),
         cap: @js((float) $medicalCap),
         capLeft: @js((float) $medicalRemaining),
-        rate: 0.60,
+        rates: @js(\App\Models\Claim::MILEAGE_RATES),
+        vehicle: @js(old('vehicle', 'car')),
         sel: @js(old('type', null)),
         step: @js(old('type') ? 2 : 1),
         amt: @js(old('amount') ? (float) old('amount') : 0),
-        km: '',
+        km: @js((string) old('distance_km', '')),
+        toll: @js((string) old('toll', '')),
+        parking: @js((string) old('parking', '')),
         title: @js(old('title', '')),
         fileName: '',
 
@@ -55,8 +58,13 @@
         open(n) { if (this.reachable(n)) this.step = n; },
         reachable(n) { return n === 1 || (n === 2 && this.sel) || (n === 3 && this.sel && this.amt > 0); },
 
-        pick(id) { this.sel = id; this.amt = 0; this.km = ''; this.step = 2; },
-        setKm(v) { this.km = v; const n = parseFloat(v) || 0; this.amt = n ? +(n * this.rate).toFixed(2) : 0; },
+        pick(id) { this.sel = id; this.amt = 0; this.km = ''; this.toll = ''; this.parking = ''; this.vehicle = 'car'; this.step = 2; },
+        rate() { return this.rates[this.vehicle]; },
+        /** km is kept to 1 decimal, as the server stores it, so both work out the same amount. */
+        mileage() { return +((Math.round((parseFloat(this.km) || 0) * 10) / 10) * this.rate()).toFixed(2); },
+        /** Mileage total: distance × the vehicle's rate, plus toll and parking. The server works it out the same way. */
+        recalc() { const m = this.mileage(); this.amt = m ? +(m + (parseFloat(this.toll) || 0) + (parseFloat(this.parking) || 0)).toFixed(2) : 0; },
+        setVehicle(v) { this.vehicle = v; this.recalc(); },
         setAmt(v) { this.amt = parseFloat(v) || 0; },
 
         money(v) { return 'RM ' + Number(v || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
@@ -137,16 +145,55 @@
             <div class="uj-lv-fold"><div><div class="uj-lv-fold-in">
                 {{-- Mileage helper — enter distance, the amount is worked out. --}}
                 <div x-show="t() && t().mileage" x-cloak style="margin-bottom:14px;">
+                    {{-- Unijaya pays RM 0.60/km for a car, RM 0.30/km for a motorcycle. --}}
+                    <span class="uj-lv-field" x-text="$store.ui.lang==='en' ? 'Vehicle' : 'Kenderaan'">Vehicle</span>
+                    <div class="uj-lv-half" style="margin-bottom:14px;">
+                        <button type="button" :data-on="vehicle === 'car' ? '' : null" @click="setVehicle('car')"
+                                x-text="$store.ui.lang==='en' ? 'Car' : 'Kereta'">Car</button>
+                        <button type="button" :data-on="vehicle === 'motorcycle' ? '' : null" @click="setVehicle('motorcycle')"
+                                x-text="$store.ui.lang==='en' ? 'Motorcycle' : 'Motosikal'">Motorcycle</button>
+                    </div>
+                    <input type="hidden" name="vehicle" :value="vehicle">
+
+                    <div class="uj-lv-row2" style="margin-bottom:14px;">
+                        <div>
+                            <label class="uj-lv-field" for="cl-from" x-text="$store.ui.lang==='en' ? 'From' : 'Dari'">From</label>
+                            <input class="uj-lv-in" id="cl-from" name="trip_from" maxlength="120" value="{{ old('trip_from') }}"
+                                   :required="t() && t().mileage" :placeholder="$store.ui.lang==='en' ? 'e.g. Office, Shah Alam' : 'cth. Pejabat, Shah Alam'">
+                        </div>
+                        <div>
+                            <label class="uj-lv-field" for="cl-to" x-text="$store.ui.lang==='en' ? 'To' : 'Ke'">To</label>
+                            <input class="uj-lv-in" id="cl-to" name="trip_to" maxlength="120" value="{{ old('trip_to') }}"
+                                   :required="t() && t().mileage" :placeholder="$store.ui.lang==='en' ? 'e.g. Client site, Klang' : 'cth. Tapak client, Klang'">
+                        </div>
+                    </div>
                     <label class="uj-lv-field">
                         <span x-text="$store.ui.lang==='en' ? 'Distance' : 'Jarak'">Distance</span>
                         <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— we work out the amount' : '— kami kira jumlahnya'"></span>
                     </label>
                     <div class="uj-cl-km">
                         <div class="uj-cl-km-in">
-                            <input type="text" inputmode="decimal" x-model="km" @input="setKm($event.target.value)" placeholder="0">
+                            <input type="text" inputmode="decimal" name="distance_km" x-model="km" @input="recalc()" :required="t() && t().mileage" placeholder="0">
                             <span class="u">km</span>
                         </div>
-                        <span class="uj-cl-km-rate">× RM&nbsp;0.60 / km</span>
+                        <span class="uj-cl-km-rate" x-text="'× RM\u00a0' + rate().toFixed(2) + ' / km'">× RM&nbsp;0.60 / km</span>
+                    </div>
+
+                    <div class="uj-lv-row2" style="margin-top:14px;">
+                        <div>
+                            <label class="uj-lv-field" for="cl-toll">
+                                <span x-text="$store.ui.lang==='en' ? 'Toll (RM)' : 'Tol (RM)'">Toll (RM)</span>
+                                <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional' : '— pilihan'"></span>
+                            </label>
+                            <input class="uj-lv-in" id="cl-toll" name="toll" type="number" step="0.01" min="0" x-model="toll" @input="recalc()" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="uj-lv-field" for="cl-parking">
+                                <span x-text="$store.ui.lang==='en' ? 'Parking (RM)' : 'Parking (RM)'">Parking (RM)</span>
+                                <span class="uj-lv-opt" x-text="$store.ui.lang==='en' ? '— optional' : '— pilihan'"></span>
+                            </label>
+                            <input class="uj-lv-in" id="cl-parking" name="parking" type="number" step="0.01" min="0" x-model="parking" @input="recalc()" placeholder="0.00">
+                        </div>
                     </div>
                 </div>
 
@@ -179,7 +226,7 @@
 
                 {{-- Mileage breakdown, and the one hard error we can call — over cap. --}}
                 <div class="uj-lv-note" data-tone="info" x-show="t() && t().mileage && amt > 0" x-cloak
-                     x-text="(parseFloat(km)||0) + ($store.ui.lang==='en' ? ' km × RM 0.60 = ' : ' km × RM 0.60 = ') + money(amt) + ($store.ui.lang==='en' ? '. Keep any toll or parking receipts.' : '. Simpan resit tol atau letak kereta.')"></div>
+                     x-text="(parseFloat(km)||0) + ' km × RM ' + rate().toFixed(2) + ' = ' + money(mileage()) + ((parseFloat(toll)||0) + (parseFloat(parking)||0) > 0 ? ' + ' + money((parseFloat(toll)||0) + (parseFloat(parking)||0)) + ($store.ui.lang==='en' ? ' toll and parking = ' : ' tol dan parking = ') + money(amt) : '') + ($store.ui.lang==='en' ? '. Keep any toll or parking receipts.' : '. Simpan resit tol atau letak kereta.')"></div>
                 <div class="uj-lv-note" data-tone="bad" x-show="overCap() > 0" x-cloak
                      x-text="$store.ui.lang==='en'
                         ? 'That is ' + money(overCap()) + ' over your medical cap for the year. The excess is not reimbursed.'

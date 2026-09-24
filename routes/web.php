@@ -323,6 +323,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/claims/{claim}/reject', [ClaimController::class, 'reject'])->name('claims.reject');
         Route::post('/app/claims/{claim}/cancel', [ClaimController::class, 'cancel'])->name('claims.cancel');
         Route::get('/app/claims/{claim}/receipt', [ClaimController::class, 'receipt'])->name('claims.receipt');
+        Route::get('/app/claims/form/{employee}', [ClaimController::class, 'form'])->name('claims.form');
         Route::post('/app/handbook/{section}/acknowledge', [HandbookController::class, 'acknowledge'])->name('handbook.acknowledge');
         Route::post('/app/achievements', [AchievementController::class, 'store'])->name('achievements.store');
         Route::post('/app/reviews/{review}/acknowledge', [ReviewController::class, 'acknowledge'])->name('reviews.acknowledge');
