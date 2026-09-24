@@ -786,4 +786,30 @@ class LeaveScreenTabsTest extends TestCase
 
         $this->assertSame(0, LeaveGrant::count());
     }
+
+    /**
+     * Emergency leave must never be hard-blocked by the apply form for running out of
+     * balance, whether it spends Annual's quota (deducts_from_leave_type_id) or, as here,
+     * carries its own zero-balance row. The Alpine overflows() check used to require both
+     * `unplanned` and `deducts`, so a standalone-balance Emergency type fell through to the
+     * same "shorten your dates" hard block as Annual.
+     */
+    public function test_emergency_with_its_own_zero_balance_is_not_hard_blocked_client_side(): void
+    {
+        $emergency = LeaveType::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Emergency', 'entitlement' => 0,
+            'is_unplanned' => true,
+        ]);
+        $staff = $this->member('employee', 'Staff');
+        LeaveBalance::create([
+            'employee_id' => $staff->id, 'leave_type_id' => $emergency->id, 'balance' => 0,
+        ]);
+
+        // @js() hex-escapes quotes (") so the JSON survives inside the HTML attribute.
+        // @js() hex-escapes quotes as a literal " so the JSON survives inside the HTML attribute.
+        $needle = '\\u0022unplanned\\u0022:true,\\u0022doc\\u0022:false,\\u0022name\\u0022:\\u0022Emergency\\u0022,\\u0022deducts\\u0022:null';
+        $this->screenAs($staff)->assertOk()
+            ->assertSee($needle, false)
+            ->assertSee('overflows() { const m = this.t(); return !!(m && m.unplanned); }', false);
+    }
 }
