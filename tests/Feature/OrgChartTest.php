@@ -64,7 +64,7 @@ class OrgChartTest extends TestCase
         // chart is drawn at a time.
         $response->assertOk();
         $response->assertSee('Aisyah Rahman');           // root
-        $response->assertSee('Nurul Iman binti Hassan'); // child
+        $response->assertSee('Nurul Iman Binti Hassan'); // child
         $response->assertSee('Farah Aziz');              // child
     }
 

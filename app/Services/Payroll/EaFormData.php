@@ -23,6 +23,10 @@ use Illuminate\Support\Collection;
  * Only finalized payroll runs count — a draft/approved run can still change, so it must
  * never appear on a statutory form (same rule as PcbYearToDate/PayslipYearToDate).
  *
+ * A take-on row (PayrollOpeningFigure::isTakeOn(): what THIS company paid through its
+ * old payroll system earlier in the year) IS this employer's pay, so its figures are
+ * added into the totals below, box by box.
+ *
  * Previous-employer figures (PayrollOpeningFigure, LHDN's Form TP3 in database form) are
  * returned as their OWN top-level component, never merged into this employer's totals.
  * LHDN's own EA covers only what THIS employer paid in the calendar year; a renderer
@@ -43,7 +47,7 @@ final class EaFormData
 
         $payslips = Payslip::where('tenant_id', $tenant->id)
             ->where('employee_id', $employee->id)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')
+            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->countsAsRemuneration()
                 ->where('period', 'like', $year.'-%'))
             ->with('lines.payrollItem')
             ->get();
@@ -52,6 +56,9 @@ final class EaFormData
             ->where('employee_id', $employee->id)
             ->where('year', $year)
             ->first();
+
+        $takeOn = $opening !== null && $opening->isTakeOn() ? $opening : null;
+        $previous = $takeOn === null ? $opening : null;
 
         return [
             'year' => $year,
@@ -70,31 +77,39 @@ final class EaFormData
                 'nric' => $employee->nric,
                 'income_tax_no' => $employee->salaryStructure?->tax_no,
             ],
-            'employment_income' => $this->employmentIncome($payslips),
-            'deductions' => $this->deductions($payslips),
-            'previous_employment' => $opening === null ? null : [
-                'previous_employer' => $opening->previous_employer,
-                'previous_employer_tin' => $opening->previous_employer_tin,
-                'gross' => (float) $opening->gross,
-                'additional_gross' => (float) $opening->additional_gross,
-                'epf' => (float) $opening->epf,
-                'additional_epf' => (float) $opening->additional_epf,
-                'socso' => (float) $opening->socso,
-                'eis' => (float) $opening->eis,
-                'zakat_paid' => (float) $opening->zakat_paid,
-                'pcb_paid' => (float) $opening->pcb_paid,
+            'employment_income' => $this->employmentIncome($payslips, $takeOn),
+            'deductions' => $this->deductions($payslips, $takeOn),
+            // Take-on boxes nothing in a pay run produces; EaFormPdfData prints them as is.
+            'take_on' => $takeOn === null ? null : [
+                'd4' => $takeOn->line('d4'),
+                'd5a' => (float) $takeOn->optional_deductions,
+                'd5b' => $takeOn->line('d5b'),
+                'd6' => $takeOn->line('d6'),
+            ] + array_intersect_key($takeOn->ea_lines ?? [], array_flip(PayrollOpeningFigure::EA_TEXT)),
+            'previous_employment' => $previous === null ? null : [
+                'previous_employer' => $previous->previous_employer,
+                'previous_employer_tin' => $previous->previous_employer_tin,
+                'gross' => (float) $previous->gross,
+                'additional_gross' => (float) $previous->additional_gross,
+                'epf' => (float) $previous->epf,
+                'additional_epf' => (float) $previous->additional_epf,
+                'socso' => (float) $previous->socso,
+                'eis' => (float) $previous->eis,
+                'zakat_paid' => (float) $previous->zakat_paid,
+                'pcb_paid' => (float) $previous->pcb_paid,
                 // Form TP3 section C2 — recorded specifically "for the EA form only" (see
                 // the model's own ponytail comment); never wired into PcbYearToDate/PCB.
-                'exempt_allowances' => (float) $opening->exempt_allowances,
+                'exempt_allowances' => (float) $previous->exempt_allowances,
             ],
         ];
     }
 
     /**
      * @param  Collection<int, Payslip>  $payslips
+     * @param  ?PayrollOpeningFigure  $takeOn  this employer's own pay before the app, added box by box
      * @return array{by_category: array<string, float>, overtime_total: float, taxable_total: float, tax_exempt_total: float, exempt_cap_candidates_total: float}
      */
-    private function employmentIncome(Collection $payslips): array
+    private function employmentIncome(Collection $payslips, ?PayrollOpeningFigure $takeOn): array
     {
         $byCategory = [];
         $overtimeTotal = 0.0;
@@ -159,6 +174,21 @@ final class EaFormData
         $taxableTotal = max(0.0, $taxableTotal - $cappedExempt);
         $exemptTotal += $cappedExempt;
 
+        if ($takeOn !== null) {
+            $boxes = ['B1(a)' => (float) $takeOn->gross, 'B1(b)' => (float) $takeOn->additional_gross,
+                'B1(c)' => $takeOn->line('b1c'), 'B1(d)' => $takeOn->line('b1d'), 'B1(e)' => $takeOn->line('b1e'), 'B1(f)' => $takeOn->line('b1f'),
+                'B2' => $takeOn->line('b2'), 'B3' => $takeOn->line('b3'), 'B4' => $takeOn->line('b4'), 'B5' => $takeOn->line('b5'), 'B6' => $takeOn->line('b6')];
+            foreach (array_filter($boxes) as $box => $amount) {
+                $byCategory[$box] = ($byCategory[$box] ?? 0.0) + $amount;
+                $taxableTotal += $amount;
+            }
+            // Section C (pension, annuities) is not employment income, so it has its own boxes.
+            foreach (array_filter(['C1' => $takeOn->line('c1'), 'C2' => $takeOn->line('c2')]) as $box => $amount) {
+                $byCategory[$box] = ($byCategory[$box] ?? 0.0) + $amount;
+            }
+            $exemptTotal += (float) $takeOn->exempt_allowances + $takeOn->line('f2') + $takeOn->line('f3') + $takeOn->line('f4');
+        }
+
         return [
             'by_category' => array_map(fn (float $v) => round($v, 2), $byCategory),
             // Informational only — already included in one of the by_category totals
@@ -181,19 +211,19 @@ final class EaFormData
      * @param  Collection<int, Payslip>  $payslips
      * @return array{epf_employee: float, socso_employee: float, eis_employee: float, skbbk_employee: float, zakat: float, pcb_total: float, cp38: float}
      */
-    private function deductions(Collection $payslips): array
+    private function deductions(Collection $payslips, ?PayrollOpeningFigure $takeOn): array
     {
         return [
-            'epf_employee' => round((float) $payslips->sum('epf_employee'), 2),
-            'socso_employee' => round((float) $payslips->sum('socso_employee'), 2),
-            'eis_employee' => round((float) $payslips->sum('eis_employee'), 2),
-            'skbbk_employee' => round((float) $payslips->sum('skbbk_employee'), 2),
-            'zakat' => round((float) $payslips->sum('zakat'), 2),
+            'epf_employee' => round((float) $payslips->sum('epf_employee') + (float) $takeOn?->epf + (float) $takeOn?->additional_epf, 2),
+            'socso_employee' => round((float) $payslips->sum('socso_employee') + (float) $takeOn?->socso, 2),
+            'eis_employee' => round((float) $payslips->sum('eis_employee') + (float) $takeOn?->eis, 2),
+            'skbbk_employee' => round((float) $payslips->sum('skbbk_employee') + (float) $takeOn?->line('skbbk'), 2),
+            'zakat' => round((float) $payslips->sum('zakat') + (float) $takeOn?->zakat_paid, 2),
             // Normal + additional/bonus PCB reported as one figure, the way LHDN wants it.
-            'pcb_total' => round((float) $payslips->sum(fn (Payslip $p) => $p->pcb + $p->pcb_additional), 2),
+            'pcb_total' => round((float) $payslips->sum(fn (Payslip $p) => $p->pcb + $p->pcb_additional) + (float) $takeOn?->pcb_paid, 2),
             // CP38 is an instalment against an older tax debt, never part of the year's
             // PCB deducted — reported separately, never folded into pcb_total.
-            'cp38' => round((float) $payslips->sum('cp38'), 2),
+            'cp38' => round((float) $payslips->sum('cp38') + (float) $takeOn?->line('d2'), 2),
         ];
     }
 }

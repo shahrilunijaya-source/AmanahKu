@@ -290,9 +290,10 @@ class EaFormPdfTest extends TestCase
         $this->assertNotContains('Header|Employer\'s TIN', $filledBoxes);
         $this->assertNotContains('Footer|Employer\'s Telephone No.', $filledBoxes);
 
-        // Printed with the "E" prefix the form shows, not stored with it.
+        // Printed next to the form's own "E" prefix, not stored with it.
         $html = view('pdf.ea-form', ['forms' => collect([$filled])])->render();
-        $this->assertStringContainsString('E1234567890', $html);
+        $this->assertStringContainsString('1234567890', $html);
+        $this->assertStringNotContainsString('E1234567890', $html);
     }
 
     public function test_hr_can_set_employer_tin_and_telephone_via_the_company_settings_screen(): void
@@ -335,10 +336,10 @@ class EaFormPdfTest extends TestCase
 
         $html = view('pdf.ea-form', ['forms' => collect([$data])])->render();
         $this->assertStringContainsString('250.00', $html);
-        $this->assertStringContainsString('Total tax exempt allowances', $html);
+        $this->assertStringContainsString('250.00', $this->extractBoxFRow($html));
     }
 
-    public function test_box_f_is_blank_not_zero_when_there_is_no_exempt_income(): void
+    public function test_box_f_prints_zero_when_there_is_no_exempt_income(): void
     {
         $this->finalizedPayslipWithAllBoxes($this->emp); // no exempt-item lines in this fixture
 
@@ -346,12 +347,13 @@ class EaFormPdfTest extends TestCase
         $this->assertNull($data['f']);
 
         $html = view('pdf.ea-form', ['forms' => collect([$data])])->render();
-        $this->assertStringNotContainsString('0.00', $this->extractBoxFRow($html));
+        // Worksy prints 0.00 in an empty box rather than leaving it blank.
+        $this->assertStringContainsString('0.00', $this->extractBoxFRow($html));
     }
 
     private function extractBoxFRow(string $html): string
     {
-        preg_match('/Total tax exempt allowances.*?<\/tr>/s', $html, $m);
+        preg_match('/TOTAL TAX EXEMPT ALLOWANCES.*?<\/tr>/s', $html, $m);
 
         return $m[0] ?? '';
     }

@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Support\Permissions;
+use App\Support\PersonName;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -42,6 +44,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     protected $attributes = [
         'timesheet_fill_from_board' => true,
     ];
+
+    /** Stored with every word capitalised (see PersonName), however it was typed. */
+    protected function name(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => $value === null ? null : PersonName::format($value));
+    }
 
     /**
      * Get the attributes that should be cast.

@@ -68,10 +68,10 @@ export function registerWorkBoard(Alpine) {
         // Whether the collapsible secondary-filter panel (label + project) is open.
         filtersOpen: false,
         counts: { all: 0, task: 0, assignment: 0, adhoc: 0 },
-        // CR-04 role chip: which of my roles the board shows. Assigned is the default
-        // (the column badges count it alone); Tagged is helper + fyi; Reviewing is
-        // reviewer; All shows every card I hold any role on.
-        roleFilter: 'assigned',
+        // CR-04 role chip: which of my roles the board shows. All is the default and
+        // shows every card I hold any role on; Assigned is mine to do (the column
+        // badges count it alone); Tagged is helper + fyi; Reviewing is reviewer.
+        roleFilter: 'all',
         roleCounts: { assigned: 0, tagged: 0, reviewing: 0, all: 0 },
         token: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
         busy: false,

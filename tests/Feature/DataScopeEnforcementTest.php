@@ -121,7 +121,7 @@ class DataScopeEnforcementTest extends TestCase
             ->assertOk()
             ->streamedContent();
 
-        $this->assertStringContainsString('Alice in A', $content);
+        $this->assertStringContainsString('Alice In A', $content);
         $this->assertStringNotContainsString('Bob in B', $content);
     }
 

@@ -22,6 +22,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * zakat_paid, additional_gross, additional_epf, optional_deductions.
  * Record-keeping only, NEVER wired into the tax maths: socso, eis, previous_employer,
  * previous_employer_tin, exempt_allowances (see its own ponytail comment below).
+ *
+ * The same row is also Worksy's "Payroll Figures Take On": what THIS company already
+ * paid before it moved its payroll here, one year-to-date figure per Form EA line.
+ * Lines without a column of their own sit in `ea_lines` (EA_AMOUNTS, EA_TEXT).
+ * A row with no `previous_employer` is this company's own pay and is counted on its
+ * EA form; a row naming a previous employer is a TP3 and is not (see isTakeOn()).
+ *
+ * @property array<string, string|float|int>|null $ea_lines
  */
 class PayrollOpeningFigure extends Model
 {
@@ -43,7 +51,24 @@ class PayrollOpeningFigure extends Model
         'previous_employer_tin',
         'optional_deductions',
         'exempt_allowances',
+        'ea_lines',
     ];
+
+    /**
+     * Form EA amount lines held in `ea_lines`, by box. Taxable pay: b1c to b1f. The
+     * rest are for the EA form and the statutory YTD only (employer_* and skbbk).
+     *
+     * @var list<string>
+     */
+    public const array EA_AMOUNTS = ['b1c', 'b1d', 'b1e', 'b1f', 'b2', 'b3', 'b4', 'b5', 'b6', 'c1', 'c2',
+        'd2', 'd4', 'd5b', 'd6', 'f2', 'f3', 'f4', 'employer_epf', 'employer_socso', 'employer_eis', 'hrdf', 'skbbk'];
+
+    /**
+     * Free-text notes Form EA prints beside some lines, held in `ea_lines`.
+     *
+     * @var list<string>
+     */
+    public const array EA_TEXT = ['b1c_details', 'b1f_from', 'b1f_to', 'b2_type_a', 'b2_type_b', 'b3_details', 'b4_address'];
 
     protected function casts(): array
     {
@@ -64,7 +89,24 @@ class PayrollOpeningFigure extends Model
             // opening figures while current-year pay is always treated as taxable would
             // be inconsistent. Wire it in once the pay-item catalogue can mark items exempt.
             'exempt_allowances' => 'float',
+            'ea_lines' => 'array',
         ];
+    }
+
+    /** One amount from `ea_lines` (0 when it was never entered). */
+    public function line(string $box): float
+    {
+        return (float) ($this->ea_lines[$box] ?? 0);
+    }
+
+    /**
+     * This company's own earlier pay (Worksy take-on) rather than a previous employer's
+     * Form TP3. ponytail: told apart by whether a previous employer is named; add an
+     * explicit flag if one person ever needs both kinds in the same year.
+     */
+    public function isTakeOn(): bool
+    {
+        return blank($this->previous_employer);
     }
 
     public function employee(): BelongsTo

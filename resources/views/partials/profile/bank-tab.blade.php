@@ -1,5 +1,5 @@
 {{-- Bank & Statutory: SalaryStructure read grid + edit modal posting to payroll.salary (back() returns here).
-     Expects $p, $canEditSalaryStructure, $cp38Notices, $fs. --}}
+     Expects $p, $canEditSalaryStructure, $fs. --}}
 @php
     use App\Support\StatutoryOptions;
     $L = fn ($en, $ms) => '<span x-text="'.e("\$store.ui.lang==='en' ? ".json_encode($en).' : '.json_encode($ms)).'">'.e($en).'</span>';
@@ -75,55 +75,6 @@
         @endif
     </div>
 @endforeach
-
-{{-- Spec F9: CP38 directions from LHDN. The balance moves only when a run is finalized. --}}
-<div>
-    <div class="uj-section-head" style="margin-bottom:12px;">{!! $L('CP38 notices', 'Notis CP38') !!}</div>
-    @if (count($cp38Notices ?? []) === 0)
-        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px;">{!! $L('No CP38 notice on file.', 'Tiada notis CP38 dalam rekod.') !!}</p>
-    @else
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-            <tr style="color:var(--muted);text-align:left;">
-                <th style="padding:4px 8px 4px 0;font-weight:500;">{!! $L('Reference', 'Rujukan') !!}</th>
-                <th style="padding:4px 8px;font-weight:500;">{!! $L('Per month', 'Sebulan') !!}</th>
-                <th style="padding:4px 8px;font-weight:500;">{!! $L('Total', 'Jumlah') !!}</th>
-                <th style="padding:4px 8px;font-weight:500;">{!! $L('Balance', 'Baki') !!}</th>
-                <th style="padding:4px 8px;font-weight:500;">{!! $L('From', 'Dari') !!}</th>
-                <th style="padding:4px 8px;font-weight:500;">{!! $L('Status', 'Status') !!}</th>
-                <th></th>
-            </tr>
-            @foreach ($cp38Notices as $n)
-                <tr style="border-top:1px solid var(--hairline-soft);">
-                    <td style="padding:7px 8px 7px 0;">{{ $n->reference ?: '—' }}</td>
-                    <td style="padding:7px 8px;">RM {{ number_format($n->monthly_instalment, 2) }}</td>
-                    <td style="padding:7px 8px;">{{ $n->total_amount === null ? '—' : 'RM '.number_format($n->total_amount, 2) }}</td>
-                    <td style="padding:7px 8px;">{{ $n->remaining_balance === null ? '—' : 'RM '.number_format($n->remaining_balance, 2) }}</td>
-                    <td style="padding:7px 8px;">{{ $n->first_period }}{{ $n->last_period ? ' – '.$n->last_period : '' }}</td>
-                    <td style="padding:7px 8px;">{{ $n->status }}</td>
-                    <td style="padding:7px 0;text-align:right;">
-                        @if ($canEdit && $n->status === 'active')
-                            <form method="post" action="{{ route('payroll.cp38.cancel', $n) }}" onsubmit="return confirm('Cancel this CP38 notice?')" style="display:inline;">@csrf
-                                <button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">{!! $L('Cancel', 'Batal') !!}</button>
-                            </form>
-                        @endif
-                    </td>
-                </tr>
-            @endforeach
-        </table>
-    @endif
-    @if ($canEdit)
-        <form method="post" action="{{ route('payroll.cp38.store') }}" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;">@csrf
-            <input type="hidden" name="employee_id" value="{{ $p->id }}" />
-            <div><label style="{{ $lbl }}">{!! $L('Reference', 'Rujukan') !!}</label><input name="reference" maxlength="60" style="{{ $fs }}" /></div>
-            <div><label style="{{ $lbl }}">{!! $L('Notice date', 'Tarikh notis') !!}</label><input name="notice_date" type="date" style="{{ $fs }}" /></div>
-            <div><label style="{{ $lbl }}">{!! $L('Total (RM)', 'Jumlah (RM)') !!}</label><input name="total_amount" type="number" step="0.01" min="0" style="{{ $fs }}" /></div>
-            <div><label style="{{ $lbl }}">{!! $L('Per month (RM)', 'Sebulan (RM)') !!}</label><input name="monthly_instalment" type="number" step="0.01" min="0.01" required style="{{ $fs }}" /></div>
-            <div><label style="{{ $lbl }}">{!! $L('First month', 'Bulan pertama') !!}</label><input name="first_period" type="month" value="{{ now()->format('Y-m') }}" required style="{{ $fs }}" /></div>
-            <div><label style="{{ $lbl }}">{!! $L('Last month', 'Bulan akhir') !!}</label><input name="last_period" type="month" style="{{ $fs }}" /></div>
-            <div><button type="submit" class="uj-btn-primary" style="height:40px;padding:0 16px;font-size:13px;">{!! $L('Add notice', 'Tambah notis') !!}</button></div>
-        </form>
-    @endif
-</div>
 
 @if ($canEdit)
     <template x-teleport="body">

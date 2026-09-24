@@ -13,6 +13,7 @@ use App\Models\IndividualTransaction;
 use App\Models\LeaveRequest;
 use App\Models\OffboardingCase;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollCp38Month;
 use App\Models\PayrollItem;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
@@ -20,10 +21,7 @@ use App\Models\PayrollSubmission;
 use App\Models\Payslip;
 use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
-use App\Models\User;
-use App\Notifications\PayslipPublished;
 use App\Services\FeatureManager;
-use App\Services\Payroll\Cp38Notices;
 use App\Services\Payroll\EpfCalculator;
 use App\Services\Payroll\ExemptionCap;
 use App\Services\Payroll\HrdCorpLevy;
@@ -47,7 +45,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -66,12 +63,14 @@ class PayrollController extends Controller
      */
     private const FT_FORBIDDEN_ITEM_CODES = ['basic-salary', 'overtime', 'unpaid-leave-deduction', 'claim-reimbursement'];
 
+    /** Which run pays a Fixed or Individual Transaction, as in Worksy: Month End (default) or Mid Month. */
+    private const TRANSACTION_CYCLES = ['month_end', 'mid_month'];
+
     public function __construct(
         private readonly PayrollCalculator $calculator,
         private readonly PcbCalculator $pcb,
         private readonly EpfCalculator $epf,
         private readonly PcbYearToDate $pcbYtd,
-        private readonly Cp38Notices $cp38,
         private readonly StatutoryCalendar $calendar,
         private readonly LifecycleNotices $notices,
     ) {}
@@ -224,25 +223,29 @@ class PayrollController extends Controller
             'exempt_allowances' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'previous_employer' => ['nullable', 'string', 'max:120'],
             'previous_employer_tin' => ['nullable', 'string', 'max:40'],
+            'ea' => ['nullable', 'array:'.implode(',', [...PayrollOpeningFigure::EA_AMOUNTS, ...PayrollOpeningFigure::EA_TEXT])],
+            ...array_fill_keys(array_map(fn ($k) => 'ea.'.$k, PayrollOpeningFigure::EA_AMOUNTS), ['nullable', 'numeric', 'min:0', 'max:100000000']),
+            ...array_fill_keys(array_map(fn ($k) => 'ea.'.$k, PayrollOpeningFigure::EA_TEXT), ['nullable', 'string', 'max:200']),
         ]);
 
-        PayrollOpeningFigure::updateOrCreate(
-            ['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']],
-            [
-                'gross' => $data['gross'] ?? 0,
-                'epf' => $data['epf'] ?? 0,
-                'pcb_paid' => $data['pcb_paid'] ?? 0,
-                'zakat_paid' => $data['zakat_paid'] ?? 0,
-                'additional_gross' => $data['additional_gross'] ?? 0,
-                'additional_epf' => $data['additional_epf'] ?? 0,
-                'socso' => $data['socso'] ?? 0,
-                'eis' => $data['eis'] ?? 0,
-                'optional_deductions' => $data['optional_deductions'] ?? 0,
-                'exempt_allowances' => $data['exempt_allowances'] ?? 0,
-                'previous_employer' => $data['previous_employer'] ?? null,
-                'previous_employer_tin' => $data['previous_employer_tin'] ?? null,
-            ],
-        );
+        // Only the fields the form sent are written: the profile's TP3 form and the
+        // Take On tab each hold a different part of the same row.
+        $row = PayrollOpeningFigure::firstOrNew(['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']]);
+        foreach (['gross', 'epf', 'pcb_paid', 'zakat_paid', 'additional_gross', 'additional_epf', 'socso', 'eis', 'optional_deductions', 'exempt_allowances'] as $f) {
+            if (array_key_exists($f, $data)) {
+                $row->{$f} = $data[$f] ?? 0;
+            }
+        }
+        foreach (['previous_employer', 'previous_employer_tin'] as $f) {
+            if (array_key_exists($f, $data)) {
+                $row->{$f} = $data[$f];
+            }
+        }
+        if (array_key_exists('ea', $data)) {
+            $lines = array_merge($row->ea_lines ?? [], $data['ea'] ?? []);
+            $row->ea_lines = array_filter($lines, fn ($v) => $v !== null && $v !== '' && (! is_numeric($v) || (float) $v != 0));
+        }
+        $row->save();
 
         $name = Employee::find($data['employee_id'])?->name;
         AuditLog::record('Updated payroll opening figures', $name.' · '.$data['year']);
@@ -307,7 +310,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string, consent_reference: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, amount: float, start_period: string, end_period: ?string, last_amount: ?float, prorate: bool, remarks: ?string, consent_reference: ?string, payroll_cycle: string, last_payroll_cycle: ?string}
      */
     private function validateFixedTransaction(Request $request, int $tid, ?int $lockEmployeeId = null): array
     {
@@ -331,6 +334,8 @@ class PayrollController extends Controller
             // EA s.24: a non-statutory deduction needs the employee's written consent —
             // this records where that consent is filed, not the consent itself.
             'consent_reference' => ['nullable', 'string', 'max:160'],
+            'payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
+            'last_payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
         ]);
 
         return [
@@ -343,6 +348,9 @@ class PayrollController extends Controller
             'prorate' => $request->boolean('prorate'),
             'remarks' => $data['remarks'] ?? null,
             'consent_reference' => $data['consent_reference'] ?? null,
+            'payroll_cycle' => $data['payroll_cycle'] ?? 'month_end',
+            // Only means something alongside a last-month amount.
+            'last_payroll_cycle' => isset($data['last_amount']) ? ($data['last_payroll_cycle'] ?? null) : null,
         ];
     }
 
@@ -354,7 +362,7 @@ class PayrollController extends Controller
         $tid = app(CurrentTenant::class)->id();
 
         $data = $this->validateIndividualTransaction($request, $tid);
-        $this->assertPeriodEditable($tid, $data['period'], $data['for_bonus_run']);
+        $this->assertPeriodEditable($tid, $data['period'], $data['for_bonus_run'], $data['payroll_cycle']);
 
         $tx = IndividualTransaction::create($data + ['created_by_id' => Auth::id()]);
 
@@ -368,12 +376,17 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run, $individualTransaction->payroll_cycle);
 
         $data = $this->validateIndividualTransaction($request, $individualTransaction->tenant_id, $individualTransaction->employee_id, $individualTransaction->period);
         // Editing never moves a one-off between the monthly and the bonus run — the same
         // rule the employee and the period follow.
         unset($data['for_bonus_run']);
+        if ($individualTransaction->for_bonus_run || ! $request->filled('payroll_cycle')) {
+            unset($data['payroll_cycle']);
+        } else {
+            $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, false, $data['payroll_cycle']);
+        }
         $individualTransaction->update($data);
 
         AuditLog::record('Updated individual transaction', $individualTransaction->employee?->name.' · '.$individualTransaction->payrollItem?->name);
@@ -385,7 +398,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         abort_unless($individualTransaction->tenant_id === app(CurrentTenant::class)->id(), 403);
-        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run);
+        $this->assertPeriodEditable($individualTransaction->tenant_id, $individualTransaction->period, $individualTransaction->for_bonus_run, $individualTransaction->payroll_cycle);
 
         $name = $individualTransaction->employee?->name;
         $itemName = $individualTransaction->payrollItem?->name;
@@ -397,7 +410,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * @return array{employee_id: int, payroll_item_id: int, period: string, for_bonus_run: bool, amount: float, remarks: ?string}
+     * @return array{employee_id: int, payroll_item_id: int, period: string, for_bonus_run: bool, payroll_cycle: string, amount: float, remarks: ?string}
      */
     private function validateIndividualTransaction(Request $request, int $tid, ?int $lockEmployeeId = null, ?string $lockPeriod = null): array
     {
@@ -418,6 +431,7 @@ class PayrollController extends Controller
             // Spec F10: ticked means "pay this in the bonus run for the month", so the
             // monthly run leaves it alone.
             'for_bonus_run' => ['nullable', 'boolean'],
+            'payroll_cycle' => ['nullable', Rule::in(self::TRANSACTION_CYCLES)],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:10000000'],
             'remarks' => ['nullable', 'string', 'max:255'],
         ]);
@@ -427,6 +441,8 @@ class PayrollController extends Controller
             'payroll_item_id' => $data['payroll_item_id'],
             'period' => $lockPeriod ?? $data['period'],
             'for_bonus_run' => $request->boolean('for_bonus_run'),
+            // A bonus-run one-off has no cycle of its own; it is paid in the bonus run.
+            'payroll_cycle' => $request->boolean('for_bonus_run') ? 'month_end' : ($data['payroll_cycle'] ?? 'month_end'),
             'amount' => $data['amount'],
             'remarks' => $data['remarks'] ?? null,
         ];
@@ -437,12 +453,14 @@ class PayrollController extends Controller
      * an Individual Transaction must not add, edit or delete anything against it. A
      * period with a draft run, or no run at all yet, is freely editable.
      */
-    private function assertPeriodEditable(int $tid, string $period, bool $forBonus = false): void
+    private function assertPeriodEditable(int $tid, string $period, bool $forBonus = false, string $cycle = 'month_end'): void
     {
         // Spec F10: the kinds are locked separately — a finalized monthly run must not
-        // stop HR queuing a bonus for the same month, and vice versa.
+        // stop HR queuing a bonus for the same month, and vice versa. A mid-month one-off
+        // is also locked once the mid-month run that paid it is finalized.
+        $kinds = $forBonus ? ['bonus'] : ($cycle === 'mid_month' ? ['monthly', 'mid_month'] : ['monthly']);
         $finalized = PayrollRun::where('tenant_id', $tid)->where('period', $period)
-            ->where('kind', $forBonus ? 'bonus' : 'monthly')
+            ->whereIn('kind', $kinds)
             ->where('status', 'finalized')->exists();
         abort_if($finalized, 422, 'Payroll for '.$period.' has already been finalized and can no longer be changed.');
     }
@@ -464,12 +482,13 @@ class PayrollController extends Controller
      * fix short of a baseline entry/ignore comment, which CLAUDE.md rules out for this
      * pass — see individualLineAttrs()/refreshVariableLines() below for the real shape.
      */
-    private function individualTransactionLinesForPeriod(Employee $employee, string $period, bool $forBonus = false): Collection
+    private function individualTransactionLinesForPeriod(Employee $employee, string $period, bool $forBonus = false, ?string $cycle = null): Collection
     {
         $rows = IndividualTransaction::with('payrollItem')
             ->where('employee_id', $employee->id)
             ->forPeriod($period)
             ->forBonusRun($forBonus)
+            ->when($cycle !== null, fn ($q) => $q->where('payroll_cycle', $cycle))
             ->get();
 
         $lines = [];
@@ -579,9 +598,12 @@ class PayrollController extends Controller
      * calendar-day proration factor. That factor is 1.0 for a full-month employee, so
      * applying it unconditionally is always safe.
      *
-     * @return Collection<int, array{item: PayrollItem, amount: float, fixed_transaction_id: int}>
+     * $cycle keeps only the lines paid in that cycle this month: the last-month amount
+     * follows last_payroll_cycle when HR set one, every other month payroll_cycle.
+     *
+     * @return Collection<int, array{item: PayrollItem, amount: float, fixed_transaction_id: int, cycle: string}>
      */
-    private function fixedTransactionLines(Employee $employee, string $period): Collection
+    private function fixedTransactionLines(Employee $employee, string $period, ?string $cycle = null): Collection
     {
         return FixedTransaction::with('payrollItem')
             ->where('employee_id', $employee->id)
@@ -589,16 +611,21 @@ class PayrollController extends Controller
             ->get()
             ->filter(fn (FixedTransaction $ft) => $ft->payrollItem !== null)
             ->map(function (FixedTransaction $ft) use ($employee, $period) {
-                $amount = ($ft->end_period === $period && $ft->last_amount !== null)
-                    ? $ft->last_amount
-                    : $ft->amount;
+                $isLastMonth = $ft->end_period === $period && $ft->last_amount !== null;
+                $amount = $isLastMonth ? $ft->last_amount : $ft->amount;
 
                 if ($ft->prorate) {
                     $amount = round($amount * $this->prorationFactor($employee, $period), 2);
                 }
 
-                return ['item' => $ft->payrollItem, 'amount' => $amount, 'fixed_transaction_id' => $ft->id];
+                return [
+                    'item' => $ft->payrollItem,
+                    'amount' => $amount,
+                    'fixed_transaction_id' => $ft->id,
+                    'cycle' => $isLastMonth ? ($ft->last_payroll_cycle ?? $ft->payroll_cycle) : $ft->payroll_cycle,
+                ];
             })
+            ->filter(fn (array $line) => $cycle === null || $line['cycle'] === $cycle)
             ->values();
     }
 
@@ -809,6 +836,12 @@ class PayrollController extends Controller
             'pull_unpaid' => ['nullable', 'boolean'],
             'exclude_employee_ids' => ['nullable', 'array'],
             'exclude_employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            // Process Payroll wizard: when sent, the run covers only these people.
+            'include_employee_ids' => ['nullable', 'array'],
+            'include_employee_ids.*' => ['integer', Rule::exists('employees', 'id')->where('tenant_id', $tid)],
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'mid_month_basis' => [Rule::requiredIf(fn () => $request->input('kind') === 'mid_month'), 'nullable', Rule::in(['cutoff', 'percentage'])],
+            'mid_month_value' => ['nullable', 'integer', 'min:1', $request->input('mid_month_basis') === 'cutoff' ? 'max:28' : 'max:100'],
         ]);
         // A tick that was never sent counts as on, so a post without the ticks pulls everything as before.
         $pulls = collect(PayrollRun::PULL_SOURCES)->mapWithKeys(fn (string $s) => [$s => $request->boolean('pull_'.$s, true)])->all();
@@ -846,22 +879,45 @@ class PayrollController extends Controller
             return back()->withErrors(['period' => 'A payroll run already exists for '.$data['period'].'.'])->withInput();
         }
 
+        // Mid month is an advance the month-end run takes back, so it has to come first,
+        // there is one per period, and month end waits until it is no longer a draft.
+        $periodRuns = PayrollRun::where('tenant_id', $tid)->where('period', $data['period']);
+        if ($kind === 'mid_month') {
+            if ((clone $periodRuns)->where('kind', 'monthly')->exists()) {
+                return back()->withErrors(['period' => 'The '.$data['period'].' month-end run already exists. A mid-month run has to come before it.'])->withInput();
+            }
+            if ((clone $periodRuns)->where('kind', 'mid_month')->exists()) {
+                return back()->withErrors(['period' => 'A mid-month run already exists for '.$data['period'].'.'])->withInput();
+            }
+        }
+        if ($kind === 'monthly' && (clone $periodRuns)->where('kind', 'mid_month')->where('status', 'draft')->exists()) {
+            return back()->withErrors(['period' => 'The '.$data['period'].' mid-month run is still a draft. Approve or delete the mid-month run first.'])->withInput();
+        }
+
         $excluded = array_map('intval', $data['exclude_employee_ids'] ?? []);
         // A final run is that one leaver and nobody else — they may already be marked
         // resigned, so the "currently employed" allowlist below would miss them.
         $employees = $leaver !== null ? collect([$leaver]) : Employee::active()->with('salaryStructure')
             ->whereHas('salaryStructure')
             ->whereIn('status', ['active', 'probation', 'on_leave'])   // everyone currently employed (allowlist)
-            ->whereNotIn('id', $excluded)
             // Anyone already paid out in a final run is done with payroll for good.
             ->whereNull('final_pay_run_id')
             // A draft final run has not stamped final_pay_run_id yet, but it already holds
             // this month's payslip for that leaver.
-            ->when($kind === 'monthly', fn ($q) => $q->whereNotIn('id', Payslip::whereHas('payrollRun',
+            ->when(in_array($kind, ['monthly', 'mid_month'], true), fn ($q) => $q->whereNotIn('id', Payslip::whereHas('payrollRun',
                 fn ($r) => $r->where('period', $data['period'])->where('kind', 'final'))->select('employee_id')))
             ->when($kind === 'bonus', fn ($q) => $q->whereIn('id', IndividualTransaction::where('tenant_id', $tid)
                 ->forPeriod($data['period'])->forBonusRun(true)->select('employee_id')))
             ->orderBy('name')->get();
+        if ($leaver === null) {
+            // Everyone eligible but not picked in the wizard counts as excluded, so the
+            // readiness gate below and the stored exclusions treat them exactly alike.
+            if (($data['include_employee_ids'] ?? null) !== null) {
+                $notIncluded = $employees->pluck('id')->diff(array_map('intval', $data['include_employee_ids']))->all();
+                $excluded = array_values(array_unique([...$excluded, ...$notIncluded]));
+            }
+            $employees = $employees->whereNotIn('id', $excluded)->values();
+        }
 
         // Spec F2 readiness gate: refuse while the employer or any included employee is
         // missing an identifier an agency upload needs. Exclusions are HR's explicit call
@@ -879,8 +935,11 @@ class PayrollController extends Controller
                 $problems[] = $leaver->name.': '.implode(', ', $leaverGaps);
             }
         } else {
+            // With the wizard's explicit pick list, only the people actually in the run can
+            // block it; the list page already shows HR who is left out (e.g. no salary structure).
+            $onlyThisRun = $kind !== 'monthly' || ($data['include_employee_ids'] ?? null) !== null;
             foreach ($readiness->blockingRows($tenant, $excluded) as $row) {
-                if ($kind !== 'monthly' && ! in_array($row['employee']->id, $inThisRun, true)) {
+                if ($onlyThisRun && ! in_array($row['employee']->id, $inThisRun, true)) {
                     continue;
                 }
                 $problems[] = $row['employee']->name.': '.implode(', ', $row['blocking']);
@@ -909,16 +968,19 @@ class PayrollController extends Controller
         // pay date unless HR typed one in.
         $finalPayDate = $leaver === null ? null : $this->lastWorkingDayFor($leaver, $data['period'])?->toDateString();
 
-        DB::transaction(function () use ($data, $kind, $leaver, $finalPayDate, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
+        $run = DB::transaction(function () use ($data, $kind, $leaver, $finalPayDate, $employees, $periodEnd, $catalog, $pulls, $excluded, $hrdfRate, &$overtimeWarnings) {
             $run = new PayrollRun([
                 'period' => $data['period'],
                 'kind' => $kind,
                 'employee_id' => $leaver?->id,
-                'label' => $this->periodStart($data['period'])->format('F Y').['monthly' => '', 'bonus' => ' bonus', 'final' => ' final pay'][$kind],
+                'label' => $this->periodStart($data['period'])->format('F Y').['monthly' => '', 'mid_month' => ' mid month', 'bonus' => ' bonus', 'final' => ' final pay'][$kind],
                 'run_by_id' => Auth::id(),
                 'payment_date' => $data['payment_date'] ?? $finalPayDate,
                 'pull_options' => $pulls,
                 'excluded_employee_ids' => $excluded ?: null,
+                'remarks' => $data['remarks'] ?? null,
+                'mid_month_basis' => $kind === 'mid_month' ? $data['mid_month_basis'] : null,
+                'mid_month_value' => $kind === 'mid_month' ? ($data['mid_month_value'] ?? ($data['mid_month_basis'] === 'cutoff' ? 15 : 50)) : null,
             ]);
             // status is a lifecycle column excluded from $fillable — set it directly.
             $run->status = 'draft';
@@ -926,6 +988,13 @@ class PayrollController extends Controller
 
             if ($kind === 'bonus') {
                 $this->buildBonusPayslips($run, $employees, $periodEnd, $catalog);
+            } elseif ($kind === 'mid_month') {
+                $this->buildMidMonthPayslips($run, $employees, $catalog);
+                // Everyone chosen joined after the cutoff (or left before the 1st). Throwing
+                // rolls the empty run back and sends HR back to the form with their input.
+                if (! $run->payslips()->exists()) {
+                    throw ValidationException::withMessages(['period' => 'Nobody is due a mid-month advance for '.$this->periodStart($run->period)->format('F Y').'. Everyone chosen joined after the cutoff day or had left before the month began.']);
+                }
             } else {
                 $this->buildMonthlyPayslips($run, $employees, $periodEnd, $catalog, $pulls, $hrdfRate, $overtimeWarnings);
             }
@@ -934,6 +1003,8 @@ class PayrollController extends Controller
             $skipped = array_keys(array_filter($pulls, fn (bool $on) => ! $on));
             $note = $kind !== 'monthly' ? '' : ($skipped ? ' · not pulled: '.implode(', ', $skipped) : '').($excluded ? ' · excluded: '.count($excluded) : '');
             AuditLog::record('Created payroll run', $run->label.' · '.$run->payslips()->count().' payslips'.$note);
+
+            return $run;
         });
 
         $msg = 'Draft payroll run created for '.$this->periodStart($data['period'])->format('F Y').'.';
@@ -944,7 +1015,8 @@ class PayrollController extends Controller
             $msg .= ' Warning: overtime above the 104-hour monthly limit for '.implode(', ', $overtimeWarnings).'.';
         }
 
-        return back()->with('ok', $msg);
+        return redirect()->route('app.screen', ['screen' => 'payroll-process', 'tab' => 'monthly', 'step' => 'results', 'run' => $run->id])
+            ->with('ok', $msg);
     }
 
     /**
@@ -993,7 +1065,15 @@ class PayrollController extends Controller
             // Fixed Transactions replace salary_structures.allowances as the source of
             // recurring earnings/deductions (see migration 2026_08_25_200200) — split
             // by the transaction's own Payroll Item type.
-            $ftLines = $pulls['fixed'] ? $this->fixedTransactionLines($employee, $period) : collect();
+            // Mid-month Fixed Transactions the mid-month run already paid are part of this
+            // month's pay (statutory is worked out here on the whole month), so they come
+            // in even with the pull unticked; the advance deduction then takes them back.
+            $midMonthAdvance = $this->midMonthAdvanceFor($employee, $period);
+            $ftLines = match (true) {
+                $pulls['fixed'] => $this->fixedTransactionLines($employee, $period),
+                $midMonthAdvance > 0 => $this->fixedTransactionLines($employee, $period, 'mid_month'),
+                default => collect(),
+            };
             $fixedEarnings = $ftLines->filter(fn (array $l) => $l['item']->type === 'earning');
             $fixedDeductions = $ftLines->filter(fn (array $l) => $l['item']->type === 'deduction');
 
@@ -1065,7 +1145,8 @@ class PayrollController extends Controller
             $inputs['pcb'] = $result->netNormalMtd;
             $inputs['pcb_additional'] = $result->additionalMtd;
             $inputs['zakat'] = (float) ($structure->zakat_monthly ?? 0);
-            $inputs['cp38'] = $this->cp38->instalmentFor($employee, $period);
+            $inputs['cp38'] = PayrollCp38Month::amountFor($employee, $period);
+            $inputs['mid_month_advance'] = $midMonthAdvance;
             $comp = $this->calculator->compute($inputs);
 
             // Computed amount columns are excluded from $fillable — forceFill them.
@@ -1154,6 +1235,72 @@ class PayrollController extends Controller
     }
 
     /**
+     * A mid-month run pays an advance on basic salary and nothing else: no allowances,
+     * claims, overtime or unpaid leave, and no EPF, SOCSO, EIS, PCB, HRDF, zakat or CP38.
+     * Statutory is worked out once, on the whole month, by the month-end run, which then
+     * takes this advance back out of net pay (midMonthAdvanceFor()).
+     *
+     * Cutoff basis: salary × calendar days employed from the 1st to the cutoff day ÷ days
+     * in the month. Percentage basis: salary × percent. Either way someone with no days
+     * employed by the cutoff (day 15 for the percentage basis) gets no advance.
+     *
+     * Fixed and Individual Transactions HR set to the Mid Month cycle are paid here too,
+     * still with no statutory. The month-end run counts them again in the full month's
+     * gross and statutory, and its advance deduction (this payslip's net) evens it out.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @param  Collection<string, PayrollItem>  $catalog
+     */
+    private function buildMidMonthPayslips(PayrollRun $run, Collection $employees, Collection $catalog): void
+    {
+        $byCutoff = $run->mid_month_basis === 'cutoff';
+        $cutoffDate = $this->periodStart($run->period)->day($byCutoff ? (int) $run->mid_month_value : 15);
+
+        foreach ($employees as $employee) {
+            $lastDay = $this->lastWorkingDayFor($employee, $run->period);
+            $days = Proration::days($run->period, $employee->joined_at, $lastDay !== null && $lastDay->lt($cutoffDate) ? $lastDay : $cutoffDate);
+            if ($days['employed'] === 0) {
+                continue;
+            }
+            $salary = (float) ($employee->salary ?? 0);
+            $advance = $byCutoff
+                ? Proration::prorate($salary, $days['employed'], $days['in_month'])
+                : round($salary * (int) $run->mid_month_value / 100, 2);
+
+            $ftLines = $this->fixedTransactionLines($employee, $run->period, 'mid_month');
+            $itLines = $this->individualTransactionLinesForPeriod($employee, $run->period, false, 'mid_month');
+            $sum = fn (Collection $lines, string $type) => round($lines->filter(fn (array $l) => $l['item']->type === $type)->sum('amount'), 2);
+
+            // Empty wage-base lines put every statutory base at zero, so no EPF, SOCSO,
+            // EIS or HRDF; PCB is never passed in.
+            $comp = $this->calculator->compute([
+                'basic' => $advance,
+                'allowances_total' => $sum($ftLines, 'earning'),
+                'fixed_deductions_total' => $sum($ftLines, 'deduction'),
+                'individual_earnings_total' => $sum($itLines, 'earning'),
+                'individual_deductions_total' => $sum($itLines, 'deduction'),
+                'lines' => [],
+                'overtime_flags' => [],
+            ]);
+
+            $payslip = $run->payslips()->make(['employee_id' => $employee->id]);
+            $payslip->forceFill($comp->toPayslipAttributes() + [
+                'days_employed' => $days['employed'],
+                'days_in_month' => $days['in_month'],
+            ])->save();
+            $this->writePayslipLines($payslip, $comp, $ftLines, $itLines, $catalog);
+        }
+    }
+
+    /** Net pay already handed to this employee in the period's mid-month run, which the month-end or final payslip takes back. */
+    private function midMonthAdvanceFor(Employee $employee, string $period): float
+    {
+        return round((float) Payslip::where('employee_id', $employee->id)
+            ->whereHas('payrollRun', fn ($q) => $q->where('period', $period)->where('kind', 'mid_month'))
+            ->sum('net_pay'), 2);
+    }
+
+    /**
      * The normal remuneration (Y1) and its EPF (K1) that a bonus run's PCB has to sit on
      * top of: the same month's monthly payslip when one exists — draft or finalized, the
      * figures are the same money either way — otherwise a projection from the employee's
@@ -1209,6 +1356,8 @@ class PayrollController extends Controller
         // the levy back on it and tax the bonus as normal pay. Change the transaction and
         // regenerate the run instead.
         abort_if($payslip->payrollRun->isBonus(), 422, 'A bonus payslip is edited through its individual transaction — change that and create the bonus run again.');
+        // A mid-month payslip is basic salary only, worked out from the run's basis.
+        abort_if($payslip->payrollRun->isMidMonth(), 422, 'A mid-month payslip cannot be edited. Delete the mid-month run and create it again.');
 
         $data = $request->validate([
             // Blank/absent = use the auto-pulled figure (approved overtime for this
@@ -1391,7 +1540,8 @@ class PayrollController extends Controller
                 'pcb' => $result->netNormalMtd,
                 'pcb_additional' => $result->additionalMtd,
                 'zakat' => (float) ($structure->zakat_monthly ?? 0),
-                'cp38' => $this->cp38->instalmentFor($payslip->employee, $payslip->payrollRun->period),
+                'cp38' => PayrollCp38Month::amountFor($payslip->employee, $payslip->payrollRun->period),
+                'mid_month_advance' => $this->midMonthAdvanceFor($payslip->employee, $payslip->payrollRun->period),
                 'pcb_override' => $data['pcb_override'] ?? null,
             ]);
 
@@ -1616,11 +1766,6 @@ class PayrollController extends Controller
                 LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => now()]);
             }
 
-            // Spec F9: the CP38 balances move only now, never while the run is a draft.
-            foreach ($payslips as $payslip) {
-                $this->cp38->applyFinalized($payslip);
-            }
-
             // Spec F10/F11: a leaver is paid out for good here — no later monthly run
             // picks them up — and the money itself waits while the CP22A is unsettled.
             if ($run->isFinal()) {
@@ -1639,8 +1784,9 @@ class PayrollController extends Controller
 
             // Spec F12: open this month's agency filings so the Deadlines tab and the
             // reminder digest have something to track from the moment the run is closed.
+            // A mid-month advance carries no statutory, so it owes no filing of its own.
             $tenant = app(CurrentTenant::class)->get();
-            if ($tenant !== null) {
+            if ($tenant !== null && ! $run->isMidMonth()) {
                 $this->calendar->openFor($run, $tenant);
             }
 
@@ -1675,9 +1821,9 @@ class PayrollController extends Controller
     }
 
     /**
-     * Stamps published_at and tells every employee once: the in-app notice for anyone
-     * with a login, plus a queued email to the same people (an employee with no user
-     * account has no inbox here, so they get neither and HR hands over the PDF).
+     * Stamps published_at and sends the in-app notice to every employee with a login
+     * (an employee with no user account gets nothing and HR hands over the PDF). The
+     * email waits for the 5th of the month, see the payroll:payslip-ready command.
      */
     private function publish(PayrollRun $run): void
     {
@@ -1701,14 +1847,6 @@ class PayrollController extends Controller
 
             AuditLog::record('Published payroll run', $run->label.' · '.$payslips->count().' payslips released to staff');
         });
-
-        foreach ($payslips as $payslip) {
-            $userId = $payslip->employee?->user_id;
-            $user = $userId !== null ? User::find($userId) : null;
-            if ($user !== null) {
-                Notification::send($user, new PayslipPublished($payslip));
-            }
-        }
     }
 
     /**
@@ -1738,6 +1876,9 @@ class PayrollController extends Controller
         // Spec F12: once a filing has gone to an agency the run behind it is history.
         $filed = PayrollSubmission::where('payroll_run_id', $run->id)->whereNotNull('submitted_at')->exists();
         abort_if($filed, 422, 'This run has already been filed with an agency; it cannot be deleted.');
+        // The month-end run has already taken this advance back out of net pay.
+        abort_if($run->isMidMonth() && PayrollRun::where('tenant_id', $run->tenant_id)->where('period', $run->period)->where('kind', 'monthly')->exists(),
+            422, 'The '.$run->period.' month-end run already deducts this mid-month advance. Delete the month-end run first.');
 
         $label = $run->label;
         $period = $run->period;
@@ -1761,10 +1902,6 @@ class PayrollController extends Controller
                 $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
                 if ($unpaidLeaveIds->isNotEmpty()) {
                     LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
-                }
-                // Spec F9: hand each notice back exactly what this run took from it.
-                foreach ($payslips as $payslip) {
-                    $this->cp38->reverseFinalized($payslip);
                 }
             }
 
@@ -2050,6 +2187,9 @@ class PayrollController extends Controller
         }
         foreach ($comp->otherDeductions as $deduction) {
             $lines[] = $this->lineAttrs($catalog, 'other-deduction', $deduction['name'], 'deduction', $deduction['amount'], null, 'manual', $sort++);
+        }
+        if ($comp->midMonthAdvance > 0) {
+            $lines[] = $this->lineAttrs($catalog, 'mid-month-advance', 'Mid-month advance', 'deduction', $comp->midMonthAdvance, null, 'manual', $sort++);
         }
 
         return $lines;

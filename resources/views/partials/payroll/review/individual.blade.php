@@ -107,7 +107,7 @@
                                      variable inputs of its own — it is exactly the
                                      individual transactions flagged for the bonus run, so
                                      it is changed there and the run regenerated. --}}
-                                @if ($activeRun->status !== 'finalized' && ! $activeRun->isBonus())
+                                @if ($activeRun->status !== 'finalized' && ! $activeRun->isBonus() && ! $activeRun->isMidMonth())
                                     <div x-show="editing === {{ $p->id }}" x-cloak style="padding:4px 22px 18px 64px;">
                                         <form method="post" action="{{ route('payroll.payslips.update', $p) }}" style="background:var(--canvas);border:1px solid var(--hairline);border-radius:10px;padding:16px;">
                                             @csrf
