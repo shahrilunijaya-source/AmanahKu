@@ -189,7 +189,7 @@ class LeaveApprovalRoutingTest extends TestCase
         $this->request($report, 'verified', $manager->id);
 
         $this->actingAsEmployee($mgmt)->get('/app/leave')->assertOk()
-            ->assertSee('Waiting for final approval')
+            ->assertSee('All pending leave')
             ->assertSee('Reportee');
     }
 

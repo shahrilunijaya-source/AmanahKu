@@ -2,11 +2,32 @@
      that folds open for the reason, the document and the timeline.
 
      Params: $item (LeaveRequest), $showName (lead with the requester's name),
-             $mode ('verify' | 'approve' for a pending row, null for a settled one).
+             $mode ('verify' | 'approve' for a pending row, null for a settled one),
+             $showWhere (show which stage it sits at and for how long, flagged after 5 days),
+             $verifyIds (ids the viewer may verify, for a mixed list).
+     In a mixed approve queue each row gets the action for its own stage: Verify for the
+     viewer's own reports, Approve once verified, none while it sits with another manager.
+     Only rows at the queue's own stage join the bulk selection.
      A pending row also carries the bulk-select checkbox (`sel` on the queue wrapper)
      and the balance the person is left with if you say yes. --}}
 @php
     $a = $item;
+    $showWhere ??= false;
+    $verifyIds ??= [];
+    $queueMode = $mode;
+    $isMine = $a->status === 'submitted' && in_array($a->id, $verifyIds, true);
+    if ($mode === 'approve' && $a->status !== 'verified') {
+        $mode = $isMine ? 'verify' : null;
+    }
+    if ($showWhere) {
+        $waitingDays = (int) ($a->status === 'verified' ? $a->verified_at : $a->created_at)?->diffInDays(now());
+        $isStuck = $waitingDays >= 5;
+        [$whereEn, $whereMs, $stepEn, $stepMs] = match (true) {
+            $a->status === 'verified' => ['With management', 'Dengan pengurusan', 'to approve', 'lulus'],
+            $isMine => ['With you', 'Dengan anda', 'to verify', 'sahkan'],
+            default => ['With manager', 'Dengan pengurus', 'to verify', 'sahkan'],
+        };
+    }
     $act = ['verify' => ['leave.verify', 'Verify', 'Sahkan'], 'approve' => ['leave.approve', 'Approve', 'Luluskan']][$mode ?? ''] ?? null;
     $num = fn ($v) => rtrim(rtrim(number_format((float) $v, 1), '0'), '.');
     if ($act) {
@@ -41,10 +62,18 @@
                 <small class="uj-ap-sub" x-text="$store.ui.lang==='en' ? 'verified by {{ $a->verifiedBy->name }}' : 'disahkan oleh {{ $a->verifiedBy->name }}'">verified by {{ $a->verifiedBy->name }}</small>
             @endif
         </span>
+        @if ($showWhere)
+            <span style="color:{{ $isStuck ? 'var(--red-active,#b01b22)' : 'var(--muted)' }};">
+                <span style="font-weight:500;color:{{ $isStuck ? 'inherit' : 'var(--ink)' }};" x-text="$store.ui.lang==='en' ? @js($whereEn) : @js($whereMs)">{{ $whereEn }}</span>
+                <span x-text="$store.ui.lang==='en' ? @js(' · '.$stepEn.' · '.$waitingDays.'d'.($isStuck ? ' ⚠' : '')) : @js(' · '.$stepMs.' · '.$waitingDays.'h'.($isStuck ? ' ⚠' : ''))"> · {{ $stepEn }} · {{ $waitingDays }}d{{ $isStuck ? ' ⚠' : '' }}</span>
+            </span>
+        @endif
         <span class="uj-ap-acts">
             @if ($act)
-                <input type="checkbox" class="uj-lv-ck" value="{{ $a->id }}" x-model="sel"
-                       :aria-label="$store.ui.lang==='en' ? 'Select' : 'Pilih'">
+                @if ($mode === $queueMode)
+                    <input type="checkbox" class="uj-lv-ck" value="{{ $a->id }}" x-model="sel"
+                           :aria-label="$store.ui.lang==='en' ? 'Select' : 'Pilih'">
+                @endif
                 <form method="post" action="{{ route($act[0], $a) }}" id="lv-act-{{ $a->id }}">
                     @csrf
                     <button type="submit" class="uj-btn-primary uj-ap-btn">

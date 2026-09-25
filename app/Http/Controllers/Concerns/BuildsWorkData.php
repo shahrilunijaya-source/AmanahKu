@@ -547,6 +547,8 @@ trait BuildsWorkData
         $actors = ['leaveType', 'verifiedBy:id,name,position_id', 'approvedBy:id,name,position_id', 'rejectedBy:id,name,position_id'];
         $settledLeave = fn (array $statuses) => $filter($this->scopeReviewable(LeaveRequest::with(['employee', ...$actors]), $request))
             ->whereIn('status', $statuses)->latest('date_from')->get();
+        $givesFinalApproval = $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES);
+        $leaveToVerify = $filter($this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get();
 
         return [
             'balances' => $employee?->leaveBalances()->with('leaveType')->get() ?? collect(),
@@ -567,8 +569,18 @@ trait BuildsWorkData
             'leaveSkipsVerification' => $this->skipsVerification($request, $applyFor),
             // Names the Approvals tab for what this viewer can actually do — see the note
             // on $givesFinalApproval in the claims builder.
-            'givesFinalApproval' => $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES),
-            'leaveToVerify' => $filter($this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get(),
+            'givesFinalApproval' => $givesFinalApproval,
+            'leaveToVerify' => $leaveToVerify,
+            // Final approvers also see what is still sitting with someone else's manager,
+            // read-only, so nothing in the pipeline is hidden from them until it is verified.
+            // Rows already in their own verify queue are left out to avoid listing them twice.
+            'leaveAwaitingVerification' => $givesFinalApproval
+                ? $filter($this->scopeReviewable(LeaveRequest::with(['employee', ...$actors]), $request))
+                    ->where('status', 'submitted')
+                    ->whereHas('employee', fn ($q) => $q->active())
+                    ->whereKeyNot($leaveToVerify->modelKeys())
+                    ->latest()->get()
+                : collect(),
             'leaveToApprove' => $filter($this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get(),
             // Every settled request from the people this viewer can act on, whoever decided it.
             'leaveApproved' => $settledLeave(['approved']),
