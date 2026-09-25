@@ -128,6 +128,25 @@ class ProjectMasterTest extends TestCase
         $this->assertSame('2027-09-30', $row['contract_end']);
     }
 
+    public function test_api_projects_payload_carries_the_pm_and_pe_login_emails(): void
+    {
+        $user = User::create(['name' => 'Pat PM', 'email' => 'pat.pm@example.com', 'password' => Hash::make('password')]);
+        $pm = Employee::create(['tenant_id' => $this->tenant->id, 'user_id' => $user->id, 'name' => 'Pat PM', 'status' => 'active', 'workload' => 'green']);
+        // No login account: Track gets a name it must not guess from, and no email.
+        $pe = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Eve PE', 'status' => 'active', 'workload' => 'green']);
+        Project::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'project_code' => 'KPT-1',
+            'is_active' => true, 'pm_id' => $pm->id, 'pe_id' => $pe->id,
+        ]);
+
+        $plain = ApiClient::create(['tenant_id' => $this->tenant->id, 'name' => 'Track'])->mintKey(['projects:read'])->plainTextToken;
+        $row = collect($this->withHeader('Authorization', 'Bearer '.$plain)->getJson('/api/v1/projects')->assertOk()->json('data'))
+            ->firstWhere('project_code', 'KPT-1');
+
+        $this->assertSame('pat.pm@example.com', $row['pm_email']);
+        $this->assertNull($row['pe_email']);
+    }
+
     public function test_edit_form_disables_fields_outside_the_viewers_set(): void
     {
         $project = Project::create([
