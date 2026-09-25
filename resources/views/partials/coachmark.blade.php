@@ -43,13 +43,21 @@
     for this page view only. Used by the live setup guide: the pointer must come back
     on the next visit while the step is still current.
 
-    Required: $key, $en. $ms, $after, $anchor, $side and $when optional; $ms falls back to English.
+    Optional $until: the last day (Y-m-d, app timezone) the bubble may show. Give every
+    "New: ..." bubble one. Dismissal lives in one browser's localStorage, so without an
+    end date a new device, a cleared cache or a new hire keeps being told about a
+    months-old "new" feature.
+
+    Required: $key, $en. $ms, $after, $anchor, $side, $when and $until optional; $ms falls back to English.
 --}}
 @php
     $ms = $ms ?? $en;
     $after = $after ?? null;
     $anchor = $anchor ?? null;
     $when = $when ?? null;
+    if (isset($until) && now()->toDateString() > $until) {
+        return;
+    }
 @endphp
 {{-- $when is unescaped on purpose: it is developer-authored JS from the include
      site, never user input, and {{ }} would turn its quotes into &#039;. --}}

@@ -127,5 +127,18 @@
     @endif
 </div>
 
+{{-- Track imports new projects on the hour, so the creator is told up front not to go
+     looking for it there straight away. --}}
+<script>
+    window.addEventListener('row-added', function (e) {
+        if (! e.detail.in_track) { return; }
+        var en = Alpine.store('ui').lang === 'en';
+        Alpine.store('notice').show({
+            title: e.detail.project_name + (en ? ' added' : ' ditambah'),
+            body: en ? 'It will appear in Track within 1 hour.' : 'Ia akan muncul dalam Track dalam masa 1 jam.',
+        });
+    });
+</script>
+
 @include('partials.ajax-row-add')
 @endsection
