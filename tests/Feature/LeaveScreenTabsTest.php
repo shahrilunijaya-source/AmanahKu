@@ -265,8 +265,46 @@ class LeaveScreenTabsTest extends TestCase
         $res = $this->screenAs($management);
 
         $res->assertOk()
-            ->assertSee('Waiting for final approval')
+            ->assertSee('All pending leave')
             ->assertSee(route('leave.bulk-approve'), false);
+    }
+
+    /**
+     * Management gets one pending list: their own reports to verify, what they can approve
+     * now, and what is still with another manager. Each row says where it is and for how
+     * long, and carries only the action for its own stage. A plain manager sees none of this.
+     */
+    public function test_management_sees_every_pending_leave_labelled_by_stage(): void
+    {
+        $management = $this->member('management', 'Director');
+        $manager = $this->member('manager', 'Manager', $management->id);
+        $waiting = $this->member('employee', 'Staffer', $manager->id);
+        $verified = $this->member('employee', 'Verifiedperson', $manager->id);
+        $otherManager = $this->member('manager', 'Other Manager');
+
+        $stuck = $this->submittedRequestFor($waiting);
+        $stuck->forceFill(['created_at' => now()->subDays(6)])->save();
+        $ready = $this->submittedRequestFor($verified);
+        $ready->update(['status' => 'verified', 'verified_by_id' => $manager->id, 'verified_at' => now()]);
+        $this->submittedRequestFor($management);
+        $mine = $this->submittedRequestFor($manager);
+
+        $this->screenAs($management)->assertOk()
+            ->assertSee('All pending leave')
+            ->assertDontSee('Yours to verify')
+            ->assertSee('With you')
+            ->assertSee(route('leave.verify', $mine), false)
+            ->assertSee('Staffer')
+            ->assertSee('With manager')
+            ->assertSee('to verify · 6d ⚠', false)
+            ->assertDontSee(route('leave.approve', $stuck), false)
+            ->assertSee('With management')
+            ->assertSee(route('leave.approve', $ready), false)
+            ->assertSee('Select all 1');
+
+        $this->screenAs($otherManager)->assertOk()
+            ->assertDontSee('With manager')
+            ->assertDontSee('Staffer');
     }
 
     /**
