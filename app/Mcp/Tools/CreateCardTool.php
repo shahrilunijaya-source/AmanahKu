@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
+use App\Mcp\Tools\Concerns\ResolvesEmployeeNames;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\WorkItem;
@@ -28,10 +29,11 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('create_card')]
 #[IsReadOnly]
-#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). A due date is required and is locked once the card is created — the only way to move it later is to cancel the card with a reason and create a new one. timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — without it BoardSuggestions holds the card\'s rows back and it never turns up on the timesheet screen. Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
+#[Description('Preview creating a new board card on your OWN board (mirrors the "add work item" form). A due date is required and is locked once the card is created — the only way to move it later is to cancel the card with a reason and create a new one. timesheet_category_id sets the effort type the card is costed as once it reaches a timesheet — without it BoardSuggestions holds the card\'s rows back and it never turns up on the timesheet screen. Put other people on the card with `participants` (names, e.g. [\'Nabil\']); confirming emails each of them. Requires board:write. Returns a summary and a confirm_token — nothing is created until confirm_write is called with that token.')]
 class CreateCardTool extends Tool
 {
     use PreviewsWrites;
+    use ResolvesEmployeeNames;
 
     public function __construct(private BoardRules $boardRules) {}
 
@@ -64,11 +66,26 @@ class CreateCardTool extends Tool
             // Default (ParentOnly) scope on purpose: a subtask's id is not found, which
             // is what refuses a grandchild.
             'parent_id' => ['nullable', 'integer', Rule::exists('work_items', 'id')->where('tenant_id', $tid)->whereNull('parent_id')],
+            // Top-level cards only: refused on a subtask rather than silently dropped.
+            'participant_ids' => ['sometimes', 'array', 'prohibits:parent_id'],
+            'participant_ids.*' => ['integer'],
+            'participants' => ['sometimes', 'array', 'prohibits:participant_ids,parent_id'],
+            'participants.*' => ['string', 'max:80'],
         ]);
 
         if (! empty($data['parent_id'])) {
             return $this->previewChild($request, $httpRequest, $employee, $data);
         }
+
+        // By reference: namesToParticipantIds() swaps `participants` for `participant_ids` in $data.
+        $resolved = $this->guarded(function () use (&$data, $tid) {
+            return ['names' => $this->namesToParticipantIds($data, $tid)];
+        });
+        if (isset($resolved['error'])) {
+            return Response::error($resolved['error']);
+        }
+
+        $participants = $this->participantNames($data['participant_ids'] ?? [], $employee->id, $tid);
 
         $payload = ['employee_id' => $employee->id] + $data;
 
@@ -82,12 +99,14 @@ class CreateCardTool extends Tool
             'due_at' => $data['due_at'],
             'project_id' => $data['project_id'] ?? null,
             'timesheet_category_id' => $data['timesheet_category_id'] ?? null,
+            'participants' => $participants,
         ];
 
         return $this->preview(
             $httpRequest,
             $payload,
-            "Create a new '".$data['title']."' card on your board, in the ".($data['status'] ?? 'todo').' column.',
+            "Create a new '".$data['title']."' card on your board, in the ".($data['status'] ?? 'todo').' column.'.
+                ($participants !== [] ? ' This WILL email and notify '.implode(', ', $participants).'.' : ''),
             $changes,
         );
     }
@@ -166,6 +185,8 @@ class CreateCardTool extends Tool
             // does not offer never sticks, however the card was created.
             BoardRules::dropProjectTheCategoryDisallows($item);
 
+            $this->syncParticipants($item, $payload['participant_ids'] ?? [], $employee);
+
             AuditLog::record('Created board card'.$this->keySuffix($httpRequest), $item->title);
 
             return ['ok' => true, 'card' => ['id' => $item->id, 'title' => $item->title, 'status' => $item->status]];
@@ -222,6 +243,8 @@ class CreateCardTool extends Tool
             'parent_id' => $schema->integer()->description('Make this card a subtask of that card. The subtask lands on the parent\'s board, copies its type, project and category, and is only ever todo or done. A subtask cannot itself be a parent.'),
             'project_id' => $schema->integer()->description('Project this card is planned under, if any. Dropped if it does not match timesheet_category_id — see that field.'),
             'timesheet_category_id' => $schema->integer()->description('The effort type this card is costed as on a timesheet. Call timesheet_options to see valid ids. A category that does not require a project (e.g. HR & Admin) drops project_id if it was sent; a category that does (e.g. Development) only keeps project_id when that project is tagged with it.'),
+            'participants' => $schema->array()->items($schema->string())->description('Other people to put on the card, by the nicknames people actually say (["Nabil", "Kus"]) or full names. Pass this or participant_ids, not both. Not allowed with parent_id. A name matching nobody, or more than one person, refuses the whole card with the candidates listed. Each one is emailed on confirm.'),
+            'participant_ids' => $schema->array()->items($schema->integer())->description('Other people to put on the card, by employee id. Prefer `participants` unless a name came back ambiguous.'),
         ];
     }
 }

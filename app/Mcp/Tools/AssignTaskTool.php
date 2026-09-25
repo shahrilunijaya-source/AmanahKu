@@ -45,7 +45,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  */
 #[Name('assign_task')]
 #[IsReadOnly]
-#[Description("Preview assigning an adhoc task onto a staff member's board. Restricted to manager/management/hr roles. Name the staff member with `employee` — the nickname people actually say, e.g. 'Nabil' — or with employee_id if you already have it. A name matching nobody, or more than one person, is refused with the candidates listed. A due date is required, and the staff member must be active (not archived). timesheet_category_id sets the effort type the assigned card is costed as once it reaches the assignee's timesheet — without it the card never turns up there. Requires board:write. Confirming this WILL email and in-app notify the assignee. Returns a summary and a confirm_token — nothing is created and no notification is sent until confirm_write is called.")]
+#[Description("Preview assigning an adhoc task onto a staff member's board. Restricted to manager/management/hr roles. Name the staff member with `employee` — the nickname people actually say, e.g. 'Nabil' — or with employee_id if you already have it. A name matching nobody, or more than one person, is refused with the candidates listed. A due date is required, and the staff member must be active (not archived). timesheet_category_id sets the effort type the assigned card is costed as once it reaches the assignee's timesheet — without it the card never turns up there. Put other people on the card with `participants` (names, like `employee`). Requires board:write. Confirming this WILL email and in-app notify the assignee and every participant. Returns a summary and a confirm_token — nothing is created and no notification is sent until confirm_write is called.")]
 class AssignTaskTool extends Tool
 {
     use PreviewsWrites;
@@ -84,6 +84,10 @@ class AssignTaskTool extends Tool
             // timesheet row at all for the assignee.
             'timesheet_category_id' => ['nullable', 'integer', Rule::exists('timesheet_categories', 'id')->where('tenant_id', $tid)],
             'project_id' => ['nullable', 'integer', Rule::exists('projects', 'id')->where('tenant_id', $tid)],
+            'participant_ids' => ['sometimes', 'array'],
+            'participant_ids.*' => ['integer'],
+            'participants' => ['sometimes', 'array', 'prohibits:participant_ids'],
+            'participants.*' => ['string', 'max:80'],
         ]);
 
         if (isset($data['employee_id'])) {
@@ -102,6 +106,16 @@ class AssignTaskTool extends Tool
             }
         }
 
+        // By reference: namesToParticipantIds() swaps `participants` for `participant_ids` in $data.
+        $resolved = $this->guarded(function () use (&$data, $tid) {
+            return ['names' => $this->namesToParticipantIds($data, $tid)];
+        });
+        if (isset($resolved['error'])) {
+            return Response::error($resolved['error']);
+        }
+
+        $participants = $this->participantNames($data['participant_ids'] ?? [], $employee->id, $tid);
+
         // The + operator keeps the left array's value on a key collision, so this
         // overrides $data's own 'employee_id' (the raw, unvalidated-as-a-model id)
         // with the row we just loaded and checked.
@@ -117,7 +131,8 @@ class AssignTaskTool extends Tool
             // nothing to them.
             'timesheet_category' => TimesheetCategory::find($data['timesheet_category_id'] ?? null)?->name,
             'project' => Project::find($data['project_id'] ?? null)?->name,
-            'notifies' => $employee->display_name.' (email + in-app)',
+            'participants' => $participants,
+            'notifies' => implode(', ', [$employee->display_name, ...$participants]).' (email + in-app)',
         ];
 
         // Mirrors UpdateCardTool: say so in the preview rather than letting the pairing
@@ -133,7 +148,8 @@ class AssignTaskTool extends Tool
             $httpRequest,
             $payload,
             "Assign '".$data['title']."' to ".$employee->display_name.', due '.$data['due_at'].
-                '. This WILL email and notify '.$employee->display_name.'.',
+                ($participants !== [] ? ', with '.implode(', ', $participants) : '').
+                '. This WILL email and notify '.implode(', ', [$employee->display_name, ...$participants]).'.',
             $changes,
         );
     }
@@ -174,6 +190,8 @@ class AssignTaskTool extends Tool
             // category does not offer never sticks, however the card was created.
             BoardRules::dropProjectTheCategoryDisallows($item);
 
+            $this->syncParticipants($item, $payload['participant_ids'] ?? [], $assigner);
+
             AppNotification::send(
                 $employee->user_id,
                 $assigner->display_name.' assigned you a task',
@@ -203,6 +221,8 @@ class AssignTaskTool extends Tool
             'description' => $schema->string(),
             'timesheet_category_id' => $schema->integer()->description('The effort type this card is costed as once it reaches the assignee\'s timesheet. Call timesheet_options to see valid ids. A category that does not require a project drops project_id if it was sent; one that does only keeps project_id when that project is tagged with it.'),
             'project_id' => $schema->integer()->description('Project this card is planned under, if any. Dropped if it does not match timesheet_category_id — see that field.'),
+            'participants' => $schema->array()->items($schema->string())->description('Other people to put on the card alongside the assignee, by the nicknames people actually say (["Nabil", "Kus"]) or full names. Pass this or participant_ids, not both. A name matching nobody, or more than one person, refuses the whole assignment with the candidates listed. Each one is emailed on confirm.'),
+            'participant_ids' => $schema->array()->items($schema->integer())->description('Other people to put on the card, by employee id. Prefer `participants` unless a name came back ambiguous.'),
         ];
     }
 }

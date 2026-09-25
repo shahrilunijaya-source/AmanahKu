@@ -576,6 +576,80 @@ class AmanahkuWriteToolsTest extends TestCase
         $this->assertTrue($this->toolIsError($response));
     }
 
+    // --- create_card / assign_task: participants at creation ----------------
+
+    /**
+     * The bug this guards: create_card had no participants field, so names sent
+     * along were silently dropped by validation and the card was created alone.
+     */
+    public function test_create_card_adds_participants_named_by_nickname(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->otherEmpA->update(['nickname' => 'omar']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->staffA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(CreateCardTool::class, [
+            'title' => 'Team job', 'type' => 'adhoc', 'priority' => 'medium', 'due_at' => '2026-08-10',
+            'participants' => ['Omar'],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+        $this->assertSame(['Omar'], $data['changes']['participants']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame([$this->otherEmpA->id], WorkItem::first()->participants()->pluck('employees.id')->all());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    /** The assignee owns the card, so naming them as a participant too is dropped, and the preview says who is really added. */
+    public function test_assign_task_adds_participants_but_never_the_assignee(): void
+    {
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $preview = $this->callTool(AssignTaskTool::class, [
+            'employee_id' => $this->otherEmpA->id, 'title' => 'Do it', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+            'participants' => ['Staff Sam', 'Other Omar'],
+        ], $headers);
+
+        $this->assertFalse($this->toolIsError($preview));
+        $data = $this->toolData($preview);
+        $this->assertSame(['Staff Sam'], $data['changes']['participants']);
+        $this->assertStringContainsString('Staff Sam', $data['summary']);
+
+        $confirm = $this->confirm($data['confirm_token'], $headers);
+        $this->assertFalse($this->toolIsError($confirm));
+
+        app(CurrentTenant::class)->set($this->tenantA);
+        $this->assertSame([$this->staffEmpA->id], WorkItem::first()->participants()->pluck('employees.id')->all());
+        app(CurrentTenant::class)->set(null);
+    }
+
+    public function test_assign_task_refuses_an_ambiguous_participant_name(): void
+    {
+        app(CurrentTenant::class)->set($this->tenantA);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabil Aziz', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenantA->id, 'name' => 'Nabilah Rahim', 'status' => 'active', 'workload' => 'green']);
+        app(CurrentTenant::class)->set(null);
+
+        $headers = $this->bearer($this->managerA, $this->tenantA, ['board:write']);
+
+        $response = $this->callTool(AssignTaskTool::class, [
+            'employee_id' => $this->otherEmpA->id, 'title' => 'Do it', 'type' => 'adhoc',
+            'priority' => 'high', 'due_at' => '2026-08-10',
+            'participants' => ['Nabil'],
+        ], $headers);
+
+        $this->assertTrue($this->toolIsError($response));
+        $this->assertStringContainsString('Nabilah Rahim', (string) json_encode($response->json('result.content')));
+    }
+
     // --- assign_task: role gate + notify wording ----------------------------
 
     public function test_plain_employee_cannot_assign_a_task(): void
