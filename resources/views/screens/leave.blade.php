@@ -47,6 +47,12 @@
 
     $pending = $myRequests->whereIn('status', ['submitted', 'verified']);
     $reviewCount = $leaveToVerify->count() + $leaveToApprove->count();
+    // Final approvers get one list of every pending request, each row labelled with where it
+    // is: theirs to verify, theirs to approve, or still with someone else's manager. A plain
+    // manager only ever has the verify rows.
+    $pendingList = $leaveToVerify->concat($leaveToApprove)->concat($leaveAwaitingVerification ?? collect())
+        ->sortByDesc('created_at')->values();
+    $pendingCount = $pendingList->count();
 
     // Ledger: every type the person carries a real entitlement in, with the days
     // already spent and the days still awaiting a decision.
@@ -361,19 +367,18 @@
 
     {{-- ── Approvals ── --}}
     @if ($showApprovals)
-        {{-- `st` is the status pill, `queue` the verify/approve split inside Pending. Opens
+        {{-- `st` is the status pill. Opens
              on the pill in the URL (the filter bar keeps it), else Pending when anything
              waits, else Approved, so an idle approver lands on something. --}}
         @php
             $stInitial = in_array(request()->query('st'), ['pending', 'approved', 'rejected', 'cancelled'], true)
-                ? request()->query('st') : ($reviewCount > 0 ? 'pending' : 'approved');
+                ? request()->query('st') : ($pendingCount > 0 ? 'pending' : 'approved');
         @endphp
         <div role="tabpanel" x-show="tab === 'approvals'" x-cloak
-             x-data="{ st: @js($stInitial),
-                       queue: @js($leaveToVerify->isNotEmpty() ? 'verify' : 'approve') }"
+             x-data="{ st: @js($stInitial) }"
              class="uj-lv-panel">
             @include('partials.approval-toolbar', [
-                'counts' => ['pending' => $reviewCount, 'approved' => $leaveApproved->count(), 'rejected' => $leaveRejected->count(), 'cancelled' => $leaveCancelled->count()],
+                'counts' => ['pending' => $pendingCount, 'approved' => $leaveApproved->count(), 'rejected' => $leaveRejected->count(), 'cancelled' => $leaveCancelled->count()],
                 'filters' => $approvalFilters,
                 'periodEn' => 'Apply period',
                 'periodMs' => 'Tempoh cuti',
@@ -381,31 +386,13 @@
 
             {{-- ── Pending ── --}}
             <div x-show="st === 'pending'" class="uj-tab-stack">
-                @if ($leaveToVerify->isNotEmpty() && $leaveToApprove->isNotEmpty())
-                    <div class="uj-lv-qbar">
-                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'verify' ? '' : null" @click="queue = 'verify'">
-                            <span x-text="$store.ui.lang==='en' ? 'Yours to verify' : 'Untuk anda sahkan'">Yours to verify</span>
-                            <b>{{ $leaveToVerify->count() }}</b>
-                        </button>
-                        <button type="button" class="uj-lv-qchip" :data-on="queue === 'approve' ? '' : null" @click="queue = 'approve'">
-                            <span x-text="$store.ui.lang==='en' ? 'Final approval' : 'Kelulusan akhir'">Final approval</span>
-                            <b>{{ $leaveToApprove->count() }}</b>
-                        </button>
-                    </div>
+                @if ($givesFinalApproval && $pendingList->isNotEmpty())
+                    @include('partials.leave-review-queue', ['items' => $pendingList, 'mode' => 'approve', 'showWhere' => true, 'verifyIds' => $leaveToVerify->modelKeys(), 'title' => ['All pending leave', 'Semua cuti belum selesai']])
+                @elseif ($leaveToVerify->isNotEmpty())
+                    @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify', 'title' => ['Yours to verify', 'Untuk anda sahkan']])
                 @endif
 
-                @if ($leaveToVerify->isNotEmpty())
-                    <div x-show="queue === 'verify'">
-                        @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify', 'title' => ['Yours to verify', 'Untuk anda sahkan']])
-                    </div>
-                @endif
-                @if ($leaveToApprove->isNotEmpty())
-                    <div x-show="queue === 'approve'">
-                        @include('partials.leave-review-queue', ['items' => $leaveToApprove, 'mode' => 'approve', 'title' => ['Waiting for final approval', 'Menunggu kelulusan akhir']])
-                    </div>
-                @endif
-
-                @if ($reviewCount === 0)
+                @if ($pendingCount === 0)
                     <div class="uj-card uj-lv-empty">
                         <span x-text="$store.ui.lang==='en' ? 'Nothing is waiting on you.' : 'Tiada apa-apa menunggu anda.'">Nothing is waiting on you.</span>
                     </div>
