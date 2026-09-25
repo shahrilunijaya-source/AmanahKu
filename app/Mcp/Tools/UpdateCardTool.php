@@ -6,7 +6,6 @@ namespace App\Mcp\Tools;
 
 use App\Mcp\Tools\Concerns\PreviewsWrites;
 use App\Mcp\Tools\Concerns\ResolvesEmployeeNames;
-use App\Models\AppNotification;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Scopes\ParentOnly;
@@ -171,68 +170,6 @@ class UpdateCardTool extends Tool
 
             return ['ok' => true, 'card' => ['id' => $item->id, 'title' => $item->title]];
         });
-    }
-
-    /**
-     * Turns a `participants` list of spoken names into the `participant_ids` the
-     * rest of the tool already understands, in place. Every name has to resolve to
-     * exactly one active person or the whole edit is refused — a half-applied
-     * participant list would silently drop somebody off the card.
-     *
-     * @param  array<string, mixed>  $data
-     * @return list<string>|null The resolved display names, or null if no names were sent.
-     */
-    private function namesToParticipantIds(array &$data, int $tenantId): ?array
-    {
-        if (! array_key_exists('participants', $data)) {
-            return null;
-        }
-
-        $names = [];
-        $ids = [];
-        $errors = [];
-
-        foreach ($data['participants'] as $needle) {
-            $found = $this->resolveByName($needle, $tenantId);
-
-            if (is_string($found)) {
-                $errors[] = $found;
-
-                continue;
-            }
-
-            $ids[] = $found->id;
-            $names[] = $found->display_name;
-        }
-
-        abort_if($errors !== [], 422, implode(' ', $errors));
-
-        unset($data['participants']);
-        $data['participant_ids'] = $ids;
-
-        return $names;
-    }
-
-    /** Mirrors WorkItemController::syncParticipants() — never the owner, active tenant employees only. */
-    private function syncParticipants(WorkItem $item, array $ids, Employee $actor): void
-    {
-        $target = Employee::active()
-            ->whereIn('id', array_filter($ids))
-            ->where('id', '!=', $item->employee_id)
-            ->pluck('id');
-
-        $before = $item->participants()->pluck('employees.id');
-        $item->participants()->sync($target);
-
-        foreach ($target->diff($before) as $addedId) {
-            AppNotification::send(
-                Employee::find($addedId)?->user_id,
-                $actor->display_name.' added you to a task',
-                $item->title,
-                route('app.screen', 'board'),
-                mail: true,
-            );
-        }
     }
 
     /**
