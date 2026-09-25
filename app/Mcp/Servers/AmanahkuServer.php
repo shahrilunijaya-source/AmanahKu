@@ -91,9 +91,10 @@ use Laravel\Mcp\Server\Attributes\Version;
     is no staff directory to look an id up in. An unmatched or ambiguous name comes
     back as an error listing the candidates and their ids; pass employee_id only to
     settle that. assign_task and its confirm step WILL email and in-app notify the
-    assignee; the preview says so plainly. update_card names its participants the
-    same way — `participants: ["Nabil"]` — and confirming that also emails anyone
-    newly added. create_external_tot_event posts onto the Events
+    assignee; the preview says so plainly. create_card, assign_task and update_card
+    all name card participants the same way — `participants: ["Nabil"]` — and
+    confirming also emails anyone newly added. Put people on a card when creating
+    or assigning it; do not leave them out and hope to add them later. create_external_tot_event posts onto the Events
     screen (External TOT is no longer a screen of its own) and always requires a
     host, since the host is what marks an event External rather than internal. It
     never tags anyone, on any run, so it never sends a "you're required to

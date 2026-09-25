@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace App\Mcp\Tools\Concerns;
 
+use App\Models\AppNotification;
 use App\Models\Employee;
+use App\Models\WorkItem;
 use Illuminate\Support\Collection;
 
 /**
  * Resolving a staff member from the nickname people actually say ("Nabil"),
  * because no MCP tool hands out employee ids — WorkItemsTool returns an
  * assignee's name and nothing else, so a caller asked to pass an id has
- * nowhere to get one. Shared by assign_task and update_card so both refuse
- * ambiguity the same way.
+ * nowhere to get one. Shared by assign_task, create_card and update_card so
+ * they all refuse ambiguity the same way, and add card participants the same way.
  */
 trait ResolvesEmployeeNames
 {
@@ -60,5 +62,84 @@ trait ResolvesEmployeeNames
         }
 
         return $matches->first();
+    }
+
+    /**
+     * Turns a `participants` list of spoken names into the `participant_ids` the
+     * rest of the tool already understands, in place. Every name has to resolve to
+     * exactly one active person or the whole write is refused — a half-applied
+     * participant list would silently drop somebody off the card.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<string>|null The resolved display names, or null if no names were sent.
+     */
+    protected function namesToParticipantIds(array &$data, int $tenantId): ?array
+    {
+        if (! array_key_exists('participants', $data)) {
+            return null;
+        }
+
+        $names = [];
+        $ids = [];
+        $errors = [];
+
+        foreach ($data['participants'] as $needle) {
+            $found = $this->resolveByName($needle, $tenantId);
+
+            if (is_string($found)) {
+                $errors[] = $found;
+
+                continue;
+            }
+
+            $ids[] = $found->id;
+            $names[] = $found->display_name;
+        }
+
+        abort_if($errors !== [], 422, implode(' ', $errors));
+
+        unset($data['participants']);
+        $data['participant_ids'] = $ids;
+
+        return $names;
+    }
+
+    /** Mirrors WorkItemController::syncParticipants() — never the owner, active tenant employees only. */
+    protected function syncParticipants(WorkItem $item, array $ids, Employee $actor): void
+    {
+        $target = Employee::active()
+            ->whereIn('id', array_filter($ids))
+            ->where('id', '!=', $item->employee_id)
+            ->pluck('id');
+
+        $before = $item->participants()->pluck('employees.id');
+        $item->participants()->sync($target);
+
+        foreach ($target->diff($before) as $addedId) {
+            AppNotification::send(
+                Employee::find($addedId)?->user_id,
+                $actor->display_name.' added you to a task',
+                $item->title,
+                route('app.screen', 'board'),
+                mail: true,
+            );
+        }
+    }
+
+    /**
+     * Who syncParticipants() would actually put on a card owned by $ownerId, by
+     * display name: active staff in this tenant, never the owner. The preview shows
+     * this so the approver sees exactly who confirm will add and email.
+     *
+     * @param  list<int>  $ids
+     * @return list<string>
+     */
+    protected function participantNames(array $ids, int $ownerId, int $tenantId): array
+    {
+        return Employee::active()->where('tenant_id', $tenantId)
+            ->whereIn('id', array_filter($ids))
+            ->where('id', '!=', $ownerId)
+            ->orderBy('name')->get()
+            ->map(fn (Employee $e) => $e->display_name)->values()->all();
     }
 }
