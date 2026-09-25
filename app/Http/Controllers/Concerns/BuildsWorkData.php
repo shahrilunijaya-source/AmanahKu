@@ -577,7 +577,7 @@ trait BuildsWorkData
             'leaveAwaitingVerification' => $givesFinalApproval
                 ? $filter($this->scopeReviewable(LeaveRequest::with(['employee', ...$actors]), $request))
                     ->where('status', 'submitted')
-                    ->whereHas('employee', fn ($q) => $q->active())
+                    ->whereIn('employee_id', Employee::active()->select('id'))
                     ->whereKeyNot($leaveToVerify->modelKeys())
                     ->latest()->get()
                 : collect(),
