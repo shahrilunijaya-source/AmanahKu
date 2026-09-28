@@ -54,12 +54,29 @@ class PayrollTakeOnImportTest extends TestCase
     }
 
     /** @param list<string> $rows */
-    private function upload(array $rows, string $header = self::HEADER, int $year = 2026, ?User $as = null): TestResponse
+    private function preview(array $rows, string $header = self::HEADER, int $year = 2026, ?User $as = null): TestResponse
     {
         $csv = implode("\r\n", [$header, ...$rows])."\r\n";
 
         return $this->actingAs($as ?? $this->hr)->withSession(['current_tenant' => $this->tenant->id])
-            ->post('/app/payroll/opening/import', ['year' => $year, 'file' => UploadedFile::fake()->createWithContent('summary.csv', $csv)]);
+            ->post('/app/payroll/opening/preview', ['year' => $year, 'file' => UploadedFile::fake()->createWithContent('summary.csv', $csv)], ['Accept' => 'application/json']);
+    }
+
+    /** @param list<array{line: int, employee_id: ?int, values: array<string, mixed>}> $rows */
+    private function import(array $rows, int $year = 2026, ?User $as = null): TestResponse
+    {
+        return $this->actingAs($as ?? $this->hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->postJson('/app/payroll/opening/import', ['year' => $year, 'rows' => $rows]);
+    }
+
+    /**
+     * Preview, then import the rows exactly as previewed (HR changes nothing).
+     *
+     * @param  list<string>  $rows
+     */
+    private function upload(array $rows, string $header = self::HEADER): TestResponse
+    {
+        return $this->import($this->preview($rows, $header)->assertOk()->json('rows'));
     }
 
     private function row(Employee $employee, int $year = 2026): ?PayrollOpeningFigure
@@ -73,7 +90,7 @@ class PayrollTakeOnImportTest extends TestCase
         // others are claims (not income), advance only touched net pay.
         $this->upload([
             'Aina Binti Ahmad,"50,000.00","1,000.00",300.00,200.00,100.00,50.00,"51,650.00","5,500.00","1,500.00",400.00,90.00,800.00,250.50,500.00,0.00,90.00,"40,000.00","6,500.00",800.00,90.00,#REF!',
-        ])->assertRedirect()->assertSessionHas('ok');
+        ])->assertOk()->assertSessionHas('ok');
 
         $row = $this->row($this->aina);
         $this->assertNotNull($row);
@@ -90,29 +107,31 @@ class PayrollTakeOnImportTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'Imported payroll take-on figures']);
     }
 
-    public function test_label_total_and_blank_rows_are_skipped_and_unknown_names_are_reported(): void
+    public function test_preview_saves_nothing_and_lists_only_rows_with_pay(): void
     {
-        $response = $this->upload([
+        $response = $this->preview([
             'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",110.00,0.00,5.00,2.00,0.00,0.00,0.00,0.00,0.00,883.00,130.00,17.50,2.00,',
             'INTERN,,,,,,,,,,,,,,,,,,,,,',
             ',,,,,,,,,,,,,,,,,,,,,',
             ',#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,#REF!,',
             'TOTAL,"  1,000.00 ",  -   ,  -   ,  -   ,  -   ,  -   ,"  1,000.00 ",  110.00 ,  -   ,  5.00 ,  2.00 ,  -   ,  -   ,  -   ,  -   ,  -   ,  883.00 ,  130.00 ,  17.50 ,  2.00 ,',
             'Director,"  200,000.00 ",  -   ,  -   ,  -   ,  -   ,  -   ,"  200,000.00 ",  -   ,  -   ,  -   ,  -   ,  -   ,  -   ,  -   ,  -   ,  -   ,"  200,000.00 ",  -   ,  -   ,  -   ,',
-        ]);
+        ])->assertOk();
 
-        $response->assertRedirect()->assertSessionHas('ok', fn (string $msg) => str_contains($msg, 'Director'));
-        $this->assertSame(1000.0, $this->row($this->aina)?->gross);
-        $this->assertSame(1, PayrollOpeningFigure::count());
+        $this->assertSame([2, 7], array_column($response->json('rows'), 'line'));
+        $this->assertSame([$this->aina->id, null], array_column($response->json('rows'), 'employee_id'));
+        $this->assertStringContainsString('No staff member by this name', $response->json('rows.1.note'));
+        $this->assertSame('1,000.00', $response->json('rows.0.values.basic'));
+        $this->assertSame(0, PayrollOpeningFigure::count());
     }
 
     /** Google Sheets exports every empty grid row, often well past the row cap. */
     public function test_trailing_empty_rows_do_not_count_toward_the_row_cap(): void
     {
         $this->upload([
-            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
             ...array_fill(0, 1200, ',,,,,,,,,,,,,,,,,,,,,'),
-        ])->assertSessionHasNoErrors();
+        ])->assertOk();
 
         $this->assertSame(1000.0, $this->row($this->aina)?->gross);
     }
@@ -120,9 +139,9 @@ class PayrollTakeOnImportTest extends TestCase
     public function test_names_match_ignoring_case_spacing_and_bin_binti(): void
     {
         $this->upload([
-            'AINA  AHMAD,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-            'Badrul Bin Hisham,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasNoErrors();
+            'AINA  AHMAD,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Badrul Bin Hisham,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+        ])->assertOk();
 
         $this->assertSame(1000.0, $this->row($this->aina)?->gross);
         $this->assertSame(2000.0, $this->row($this->badrul)?->gross);
@@ -131,12 +150,28 @@ class PayrollTakeOnImportTest extends TestCase
     public function test_a_staff_id_column_wins_over_the_name(): void
     {
         $this->upload(
-            ['UR002,Aina Binti Ahmad,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00'],
+            ['UR002,Aina Binti Ahmad,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00'],
             'STAFF ID,STAFF TETAP,BASIC,BONUS,ALLOWANCE,MEDICAL,MILEAGE,OTHERS,GROSS,EPF,TAX,SOCSO,EIS,ZAKAT,UNPAID LEAVE,ADVANCE,DEDUCTION,CP38,NET SALARY,EMPLOYER EPF,EMPLOYER SOCSO,EMPLOYER EIS',
-        )->assertSessionHasNoErrors();
+        )->assertOk();
 
         $this->assertNull($this->row($this->aina));
         $this->assertSame(2000.0, $this->row($this->badrul)?->gross);
+    }
+
+    /** HR picks the staff member for a name the file spells differently. */
+    public function test_a_name_that_did_not_match_imports_under_the_staff_member_hr_picks(): void
+    {
+        $rows = $this->preview([
+            'Aina Ahmed,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Leaver Long Gone,"3,000.00",0.00,0.00,0.00,0.00,0.00,"3,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+        ])->json('rows');
+        $this->assertNull($rows[0]['employee_id']);
+        $rows[0]['employee_id'] = $this->aina->id;
+
+        $this->import($rows)->assertOk();
+
+        $this->assertSame(1000.0, $this->row($this->aina)?->gross);
+        $this->assertSame(1, PayrollOpeningFigure::count());
     }
 
     /** Someone paid as an intern early in the year and as staff later shows up twice: both count. */
@@ -145,7 +180,7 @@ class PayrollTakeOnImportTest extends TestCase
         $this->upload([
             'Aina Binti Ahmad,"3,000.00",0.00,0.00,50.00,0.00,0.00,"3,050.00",330.00,0.00,15.00,6.00,0.00,0.00,0.00,0.00,0.00,0.00,390.00,50.00,6.00,',
             'Aina Binti Ahmad,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,50.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasNoErrors();
+        ])->assertOk();
 
         $row = $this->row($this->aina);
         $this->assertSame(4950.0, $row?->gross);
@@ -153,30 +188,52 @@ class PayrollTakeOnImportTest extends TestCase
         $this->assertSame(50.0, $row->medical_claimed);
     }
 
-    public function test_a_row_whose_parts_do_not_add_up_to_gross_saves_nothing(): void
+    public function test_a_row_whose_parts_do_not_add_up_points_at_gross_and_saves_nothing(): void
     {
         $this->upload([
-            'Badrul Hisham,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-            'Aina Binti Ahmad,"100,000.00",0.00,0.00,0.00,0.00,0.00,"90,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasErrors('file');
+            'Badrul Hisham,"2,000.00",0.00,0.00,0.00,0.00,0.00,"2,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Aina Binti Ahmad,"100,000.00",0.00,0.00,0.00,0.00,0.00,"90,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+        ])->assertStatus(422)
+            ->assertJsonPath('problems.3.gross', 'BASIC + BONUS + ALLOWANCE + MEDICAL + MILEAGE + OTHERS = 100,000.00, but GROSS is 90,000.00 (10,000.00 apart).')
+            ->assertJsonMissingPath('problems.2');
 
         $this->assertSame(0, PayrollOpeningFigure::count());
     }
 
-    public function test_a_non_number_in_a_matched_row_saves_nothing(): void
+    /** HR fixes the marked cell on the review screen instead of editing the sheet. */
+    public function test_a_cell_fixed_on_the_review_screen_imports(): void
     {
-        $this->upload([
-            'Aina Binti Ahmad,abc,0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasErrors('file');
+        $rows = $this->preview(['Aina Binti Ahmad,"100,000.00",0.00,0.00,0.00,0.00,0.00,"90,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])->json('rows');
+        $rows[0]['values']['unpaid'] = '10,000.00';
+        $rows[0]['values']['gross'] = '100000';
+
+        $this->import($rows)->assertOk();
+
+        $this->assertSame(90000.0, $this->row($this->aina)?->gross);
+    }
+
+    public function test_a_non_number_points_at_its_cell_and_saves_nothing(): void
+    {
+        $this->upload(['Aina Binti Ahmad,#REF!,0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])
+            ->assertStatus(422)->assertJsonPath('problems.2.basic', "'#REF!' is not a number.");
 
         $this->assertSame(0, PayrollOpeningFigure::count());
+    }
+
+    /** A row left on Skip is not checked: its numbers are someone else's problem. */
+    public function test_a_skipped_row_with_bad_numbers_does_not_block_the_rest(): void
+    {
+        $this->upload([
+            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Intern Nobody,"1,500.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+        ])->assertOk();
+
+        $this->assertSame(1000.0, $this->row($this->aina)?->gross);
     }
 
     public function test_a_file_missing_a_needed_column_is_refused(): void
     {
-        $this->upload(['Aina Binti Ahmad,"1,000.00"'], 'STAFF TETAP,BASIC')->assertSessionHasErrors('file');
-
-        $this->assertSame(0, PayrollOpeningFigure::count());
+        $this->preview(['Aina Binti Ahmad,"1,000.00"'], 'STAFF TETAP,BASIC')->assertStatus(422)->assertJsonValidationErrors('file');
     }
 
     public function test_import_keeps_take_on_fields_the_sheet_does_not_carry(): void
@@ -184,9 +241,7 @@ class PayrollTakeOnImportTest extends TestCase
         PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->aina->id, 'year' => 2026,
             'gross' => 1, 'optional_deductions' => 900, 'ea_lines' => ['d4' => 250, 'b1c_details' => 'Phone']]);
 
-        $this->upload([
-            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasNoErrors();
+        $this->upload(['Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])->assertOk();
 
         $row = $this->row($this->aina);
         $this->assertSame(1000.0, $row?->gross);
@@ -195,40 +250,51 @@ class PayrollTakeOnImportTest extends TestCase
         $this->assertSame('Phone', $row->ea_lines['b1c_details'] ?? null);
     }
 
-    /** A current staff member the file never mentions would get no take-on at all, so HR is told. */
-    public function test_current_staff_missing_from_the_file_are_named(): void
+    /** A current staff member with no row would get no take-on at all, so HR is told. */
+    public function test_current_staff_not_imported_are_named(): void
     {
         Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Left Early', 'status' => 'resigned', 'workload' => 'green']);
 
-        $this->upload([
-            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHas('ok', fn (string $msg) => str_contains($msg, 'not in the file: Badrul Hisham.') && ! str_contains($msg, 'Left Early'));
+        $this->upload(['Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])
+            ->assertOk()->assertSessionHas('ok', fn (string $msg) => str_contains($msg, 'not imported: Badrul Hisham.') && ! str_contains($msg, 'Left Early'));
     }
 
-    public function test_a_file_that_matches_nobody_is_refused(): void
+    public function test_nothing_picked_is_refused(): void
     {
-        $this->upload([
-            'Someone Else,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasErrors('file');
+        $this->upload(['Someone Else,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])
+            ->assertStatus(422)->assertJsonValidationErrors('rows');
 
         $this->assertDatabaseMissing('audit_logs', ['action' => 'Imported payroll take-on figures']);
     }
 
-    public function test_a_previous_employer_tp3_row_is_not_overwritten(): void
+    public function test_a_previous_employer_tp3_row_is_flagged_and_not_overwritten(): void
     {
         PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->aina->id, 'year' => 2026,
             'gross' => 5000, 'previous_employer' => 'Acme Prior Sdn Bhd']);
 
-        $this->upload([
-            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
-        ])->assertSessionHasErrors('file');
+        $preview = $this->preview(['Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,']);
+        $preview->assertJsonPath('tp3', [$this->aina->id]);
+        $this->import($preview->json('rows'))->assertStatus(422)->assertJsonPath('problems.2.employee_id', fn ($m) => str_contains($m, 'Form TP3'));
 
         $this->assertSame(5000.0, $this->row($this->aina)?->gross);
     }
 
-    public function test_employee_cannot_import(): void
+    public function test_a_staff_member_from_another_company_cannot_be_picked(): void
     {
-        $this->upload([], as: $this->empUser)->assertForbidden();
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        $stranger = Employee::create(['tenant_id' => $other->id, 'name' => 'Stranger', 'status' => 'active', 'workload' => 'green']);
+        $rows = $this->preview(['Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])->json('rows');
+        $rows[0]['employee_id'] = $stranger->id;
+
+        $this->import($rows)->assertStatus(422)->assertJsonPath('problems.2.employee_id', 'Not a staff member here.');
+
+        $this->assertSame(0, PayrollOpeningFigure::withoutGlobalScopes()->count());
+    }
+
+    public function test_employee_cannot_preview_or_import(): void
+    {
+        $this->preview([], as: $this->empUser)->assertForbidden();
+        $this->import([['line' => 2, 'employee_id' => $this->aina->id, 'values' => []]], as: $this->empUser)->assertForbidden();
     }
 
     /** Medical already claimed under the old system uses up the same yearly cap. */
