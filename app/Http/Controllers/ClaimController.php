@@ -66,16 +66,12 @@ class ClaimController extends Controller
         }
 
         // Medical claims share an annual reimbursement ceiling per employee, counted by
-        // expense-date year across all non-rejected claims. Reject anything that would
-        // push the running total past the cap.
+        // expense-date year across all non-rejected claims (and the take-on medical the
+        // old system already paid). Reject anything that would push it past the cap.
         if ($data['type'] === 'medical') {
             $cap = (float) app(FeatureManager::class)->value(app(CurrentTenant::class)->get(), 'claims.medical_cap');
             $year = Carbon::parse($data['date'])->year;
-            $usedThisYear = (float) $employee->claims()
-                ->where('type', 'medical')
-                ->whereNotIn('status', ['rejected', 'cancelled'])
-                ->whereYear('date', $year)
-                ->sum('amount');
+            $usedThisYear = $employee->medicalClaimedIn($year);
 
             if ($usedThisYear + (float) $data['amount'] > $cap) {
                 $remaining = max(0, $cap - $usedThisYear);

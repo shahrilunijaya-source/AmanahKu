@@ -495,6 +495,24 @@ class Employee extends Model
         return $this->hasMany(Claim::class);
     }
 
+    /**
+     * Medical claims used up in a calendar year against the yearly cap: every medical
+     * claim here that was not rejected or cancelled, plus what the old payroll system
+     * already paid before this app took over (the take-on row's medical_claimed).
+     */
+    public function medicalClaimedIn(int $year): float
+    {
+        $here = (float) $this->claims()
+            ->where('type', 'medical')
+            ->whereNotIn('status', ['rejected', 'cancelled'])
+            ->whereYear('date', $year)
+            ->sum('amount');
+        $takeOn = (float) PayrollOpeningFigure::where('tenant_id', $this->tenant_id)
+            ->where('employee_id', $this->id)->where('year', $year)->value('medical_claimed');
+
+        return round($here + $takeOn, 2);
+    }
+
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class);

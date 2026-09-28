@@ -471,11 +471,7 @@ trait BuildsWorkData
         // Medical allowance consumed this calendar year (all non-rejected medical claims),
         // so the form can show what's left against the annual cap. Counted for the person
         // the form is filing FOR, which is the viewer unless HR picked someone.
-        $medicalUsedYtd = (float) ($applyFor?->claims()
-            ->where('type', 'medical')
-            ->whereNotIn('status', ['rejected', 'cancelled'])
-            ->whereYear('date', now()->year)
-            ->sum('amount') ?? 0);
+        $medicalUsedYtd = $applyFor?->medicalClaimedIn(now()->year) ?? 0.0;
 
         // An approver has a verify/approve queue; a privileged viewer (management/hr) also
         // sees the company-wide ledger. A plain employee is neither, and gets no extra keys.
