@@ -247,20 +247,8 @@ parameters:
 			path: app/Http/Controllers/ClaimController.php
 
 		-
-			message: '#^Call to function abort_unless\(\) with arguments false, 422 and ''A claim must be…'' will always evaluate to false\.$#'
-			identifier: function.impossibleType
-			count: 1
-			path: app/Http/Controllers/ClaimController.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, string\|null given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/ClaimController.php
-
-		-
-			message: '#^Strict comparison using \=\=\= between ''approved''\|''paid''\|''rejected''\|''submitted'' and ''verified'' will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
 			count: 1
 			path: app/Http/Controllers/ClaimController.php
 
@@ -391,12 +379,6 @@ parameters:
 			path: app/Http/Controllers/LeaveController.php
 
 		-
-			message: '#^Call to function abort_unless\(\) with arguments false, 422 and ''A request must be…'' will always evaluate to false\.$#'
-			identifier: function.impossibleType
-			count: 1
-			path: app/Http/Controllers/LeaveController.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\LeaveType\|Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), App\\Models\\LeaveType\>\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -417,12 +399,6 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$leaveRequest of method App\\Http\\Controllers\\LeaveController\:\:applyVerification\(\) expects App\\Models\\LeaveRequest, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/LeaveController.php
-
-		-
-			message: '#^Strict comparison using \=\=\= between ''approved''\|''draft''\|''rejected''\|''submitted'' and ''verified'' will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
 			count: 1
 			path: app/Http/Controllers/LeaveController.php
 
