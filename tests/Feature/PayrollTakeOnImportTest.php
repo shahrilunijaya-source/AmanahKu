@@ -106,6 +106,17 @@ class PayrollTakeOnImportTest extends TestCase
         $this->assertSame(1, PayrollOpeningFigure::count());
     }
 
+    /** Google Sheets exports every empty grid row, often well past the row cap. */
+    public function test_trailing_empty_rows_do_not_count_toward_the_row_cap(): void
+    {
+        $this->upload([
+            'Aina Binti Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            ...array_fill(0, 1200, ',,,,,,,,,,,,,,,,,,,,,'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1000.0, $this->row($this->aina)?->gross);
+    }
+
     public function test_names_match_ignoring_case_spacing_and_bin_binti(): void
     {
         $this->upload([

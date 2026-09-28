@@ -66,16 +66,18 @@ final class TakeOnImport
         $skipped = [];
         $errors = [];
         $line = 1;
+        $rows = 0;
         while (($data = fgetcsv($handle, null, ',', '"', '')) !== false) {
             $line++;
-            if ($line > CsvImport::ROW_CAP + 1) {
-                $errors[] = 'Stopped at '.CsvImport::ROW_CAP.' rows.';
-                break;
-            }
             $name = trim((string) ($data[$col[$nameCol]] ?? ''));
-            // Blank lines, section labels (INTERN) and the TOTAL line carry nobody's pay.
+            // Blank lines, section labels (INTERN) and the TOTAL line carry nobody's pay. Google
+            // Sheets exports every empty grid row too, so only rows with pay count toward the cap.
             if ($name === '' || in_array(mb_strtolower($name), ['total', 'jumlah'], true) || CsvImport::cell($data, $col, 'basic') === '') {
                 continue;
+            }
+            if (++$rows > CsvImport::ROW_CAP) {
+                $errors[] = 'Stopped at '.CsvImport::ROW_CAP.' rows.';
+                break;
             }
 
             $staffId = CsvImport::key(CsvImport::cell($data, $col, 'staff id'));
