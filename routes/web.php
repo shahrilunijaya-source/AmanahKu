@@ -419,6 +419,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/admin/settings', [AdminController::class, 'updateSettings'])->name('admin.settings.update');
         Route::post('/app/admin/settings/statutory', [AdminController::class, 'updateStatutory'])->name('admin.settings.statutory');
         Route::post('/app/admin/work-week', [AdminController::class, 'updateWorkWeek'])->name('admin.workweek.update');
+        Route::post('/app/admin/approval-escalation', [AdminController::class, 'updateApprovalEscalation'])->name('admin.approval-escalation.update');
         // Dashboard greeting bank (CR-33) — HR curates it on Company Settings.
         Route::post('/app/admin/greetings', [GreetingLineController::class, 'store'])->name('admin.greetings.store');
         // CR-30 reaction set: read by every picker, curated by HR on Company Settings.

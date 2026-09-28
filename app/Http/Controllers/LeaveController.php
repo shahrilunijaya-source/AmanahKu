@@ -374,7 +374,7 @@ class LeaveController extends Controller
     public function approve(Request $request, LeaveRequest $leaveRequest): RedirectResponse
     {
         $this->assertApprover($request, $leaveRequest->employee, $leaveRequest->tenant_id, $leaveRequest->verified_by_id, $leaveRequest->filed_by_id);
-        abort_unless($leaveRequest->status === 'verified', 422, 'A request must be verified by the immediate superior before approval.');
+        $this->assertApprovableStage($request, $leaveRequest, 'A request must be verified by the immediate superior before approval.');
 
         $this->applyApproval($leaveRequest, $request->attributes->get('employee')?->id);
 
@@ -469,7 +469,8 @@ class LeaveController extends Controller
     }
 
     /**
-     * Flip a verified request to approved and decrement the matching balance, atomically.
+     * Flip a verified (or overdue submitted) request to approved and decrement the matching
+     * balance, atomically.
      * Returns false if another approve won the race (so the caller doesn't double-count).
      */
     private function applyApproval(LeaveRequest $leaveRequest, ?int $actorId): bool
@@ -482,8 +483,10 @@ class LeaveController extends Controller
             // Atomic compare-and-set: two concurrent approves can both pass the status
             // check, but only one flips verified→approved here. The loser matches zero
             // rows and must NOT decrement the balance again.
+            // Matches the stage the caller checked: verified, or submitted when the manager
+            // ran out of time to verify (see isOverdueForApproval).
             $ok = LeaveRequest::whereKey($leaveRequest->id)
-                ->where('status', 'verified')
+                ->where('status', $leaveRequest->status)
                 ->update(['status' => 'approved', 'approved_by_id' => $actorId, 'approved_at' => now()]);
 
             if ($ok === 0) {
@@ -539,7 +542,8 @@ class LeaveController extends Controller
             return false;
         }
 
-        AuditLog::record('Approved leave', $leaveRequest->employee->name.' · '.$originalDays.'d'
+        $action = $leaveRequest->status === 'submitted' ? 'Approved leave without verification (manager did not verify in time)' : 'Approved leave';
+        AuditLog::record($action, $leaveRequest->employee->name.' · '.$originalDays.'d'
             .($unpaidDays > 0 ? ' ('.$unpaidDays.'d unpaid)' : ''));
         if ($reconciled > 0) {
             AuditLog::record('Reconciled timesheet', $leaveRequest->employee->name.' · '.$reconciled.' week(s) updated for approved leave');

@@ -4,9 +4,11 @@
      Params: $item (LeaveRequest), $showName (lead with the requester's name),
              $mode ('verify' | 'approve' for a pending row, null for a settled one),
              $showWhere (show which stage it sits at and for how long, flagged after 5 days),
-             $verifyIds (ids the viewer may verify, for a mixed list).
+             $verifyIds (ids the viewer may verify, for a mixed list),
+             $approveIds (ids the viewer may approve, for a mixed list; defaults to verified rows).
      In a mixed approve queue each row gets the action for its own stage: Verify for the
-     viewer's own reports, Approve once verified, none while it sits with another manager.
+     viewer's own reports, Approve once verified (or once another manager has sat on it past
+     the company's limit), none while it still sits with another manager.
      Only rows at the queue's own stage join the bulk selection.
      A pending row also carries the bulk-select checkbox (`sel` on the queue wrapper)
      and the balance the person is left with if you say yes. --}}
@@ -16,7 +18,9 @@
     $verifyIds ??= [];
     $queueMode = $mode;
     $isMine = $a->status === 'submitted' && in_array($a->id, $verifyIds, true);
-    if ($mode === 'approve' && $a->status !== 'verified') {
+    // A submitted row in the approve set: its manager ran out of time to verify.
+    $isOverdue = $a->status === 'submitted' && in_array($a->id, $approveIds ?? [], true);
+    if ($mode === 'approve' && $a->status !== 'verified' && ! $isOverdue) {
         $mode = $isMine ? 'verify' : null;
     }
     if ($showWhere) {
@@ -24,6 +28,7 @@
         $isStuck = $waitingDays >= 5;
         [$whereEn, $whereMs, $stepEn, $stepMs] = match (true) {
             $a->status === 'verified' => ['With management', 'Dengan pengurusan', 'to approve', 'lulus'],
+            $isOverdue => ['Manager has not verified', 'Pengurus belum sahkan', 'you can approve', 'anda boleh lulus'],
             $isMine => ['With you', 'Dengan anda', 'to verify', 'sahkan'],
             default => ['With manager', 'Dengan pengurus', 'to verify', 'sahkan'],
         };

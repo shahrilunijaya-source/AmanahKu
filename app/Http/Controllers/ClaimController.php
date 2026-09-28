@@ -182,10 +182,11 @@ class ClaimController extends Controller
     public function approve(Request $request, Claim $claim): RedirectResponse
     {
         $this->assertApprover($request, $claim->employee, $claim->tenant_id, $claim->verified_by_id, $claim->filed_by_id);
-        abort_unless($claim->status === 'verified', 422, 'A claim must be verified by the immediate superior before approval.');
+        $this->assertApprovableStage($request, $claim, 'A claim must be verified by the immediate superior before approval.');
 
         // Compare-and-set so two concurrent approves don't double-audit / double-notify.
-        $flipped = Claim::whereKey($claim->id)->where('status', 'verified')->update([
+        // Matches the stage just checked, so a claim verified meanwhile is not approved blind.
+        $flipped = Claim::whereKey($claim->id)->where('status', $claim->status)->update([
             'status' => 'approved',
             'approved_by_id' => $request->attributes->get('employee')?->id,
             'approved_at' => now(),
@@ -194,7 +195,10 @@ class ClaimController extends Controller
             return back()->with('ok', 'Claim approved for '.$claim->employee->name.'.');
         }
 
-        AuditLog::record('Approved claim', $claim->employee->name.' · RM '.number_format($claim->amount, 2));
+        AuditLog::record(
+            $claim->status === 'submitted' ? 'Approved claim without verification (manager did not verify in time)' : 'Approved claim',
+            $claim->employee->name.' · RM '.number_format($claim->amount, 2),
+        );
         AppNotification::send(
             $claim->employee->user_id,
             'Claim approved',

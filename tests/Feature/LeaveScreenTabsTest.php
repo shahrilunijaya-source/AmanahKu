@@ -281,6 +281,9 @@ class LeaveScreenTabsTest extends TestCase
         $waiting = $this->member('employee', 'Staffer', $manager->id);
         $verified = $this->member('employee', 'Verifiedperson', $manager->id);
         $otherManager = $this->member('manager', 'Other Manager');
+        // Shortcut off: a 6-day-old unverified request stays with its manager here. The
+        // overdue case is covered in ApprovalEscalationTest.
+        $this->tenant->update(['approval_escalation_days' => null]);
 
         $stuck = $this->submittedRequestFor($waiting);
         $stuck->forceFill(['created_at' => now()->subDays(6)])->save();

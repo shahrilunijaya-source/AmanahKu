@@ -387,7 +387,7 @@
             {{-- ── Pending ── --}}
             <div x-show="st === 'pending'" class="uj-tab-stack">
                 @if ($givesFinalApproval && $pendingList->isNotEmpty())
-                    @include('partials.leave-review-queue', ['items' => $pendingList, 'mode' => 'approve', 'showWhere' => true, 'verifyIds' => $leaveToVerify->modelKeys(), 'title' => ['All pending leave', 'Semua cuti belum selesai']])
+                    @include('partials.leave-review-queue', ['items' => $pendingList, 'mode' => 'approve', 'showWhere' => true, 'verifyIds' => $leaveToVerify->modelKeys(), 'approveIds' => $leaveToApprove->modelKeys(), 'title' => ['All pending leave', 'Semua cuti belum selesai']])
                 @elseif ($leaveToVerify->isNotEmpty())
                     @include('partials.leave-review-queue', ['items' => $leaveToVerify, 'mode' => 'verify', 'title' => ['Yours to verify', 'Untuk anda sahkan']])
                 @endif
