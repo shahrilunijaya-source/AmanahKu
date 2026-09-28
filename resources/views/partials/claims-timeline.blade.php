@@ -20,9 +20,12 @@
         $cancelled = $c->status === 'cancelled';
         $steps[] = ['state' => 'rejected', 'en' => $cancelled ? 'Cancelled' : 'Declined', 'ms' => $cancelled ? 'Dibatalkan' : 'Ditolak', 'who' => null, 'at' => $c->updated_at];
     } else {
-        $steps[] = $c->verified_at
-            ? ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $verifierName, 'at' => $c->verified_at]
-            : ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => null, 'at' => null];
+        $steps[] = match (true) {
+            (bool) $c->verified_at => ['state' => 'done', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $verifierName, 'at' => $c->verified_at],
+            // Approved while still unverified: the manager ran out of time (approval shortcut).
+            in_array($c->status, ['approved', 'paid'], true) => ['state' => 'done', 'en' => 'Not verified in time, management approved directly', 'ms' => 'Tidak disahkan dalam masa, pengurusan meluluskan terus', 'who' => null, 'at' => null],
+            default => ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => null, 'at' => null],
+        };
         $steps[] = in_array($c->status, ['approved', 'paid'], true)
             ? ['state' => 'done', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'at' => null]
             : ['state' => 'pending', 'en' => 'Approved by management', 'ms' => 'Diluluskan oleh pengurusan', 'who' => null, 'at' => null];

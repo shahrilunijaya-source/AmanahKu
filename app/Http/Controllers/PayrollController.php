@@ -35,6 +35,7 @@ use App\Services\Payroll\PcbInputs;
 use App\Services\Payroll\PcbYearToDate;
 use App\Services\Payroll\Proration;
 use App\Services\Payroll\StatutoryCalendar;
+use App\Services\Payroll\TakeOnImport;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
@@ -223,6 +224,7 @@ class PayrollController extends Controller
             'eis' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'optional_deductions' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'exempt_allowances' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'medical_claimed' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
             'previous_employer' => ['nullable', 'string', 'max:120'],
             'previous_employer_tin' => ['nullable', 'string', 'max:40'],
             'ea' => ['nullable', 'array:'.implode(',', [...PayrollOpeningFigure::EA_AMOUNTS, ...PayrollOpeningFigure::EA_TEXT])],
@@ -233,7 +235,7 @@ class PayrollController extends Controller
         // Only the fields the form sent are written: the profile's TP3 form and the
         // Take On tab each hold a different part of the same row.
         $row = PayrollOpeningFigure::firstOrNew(['tenant_id' => $tid, 'employee_id' => $data['employee_id'], 'year' => $data['year']]);
-        foreach (['gross', 'epf', 'pcb_paid', 'zakat_paid', 'additional_gross', 'additional_epf', 'socso', 'eis', 'optional_deductions', 'exempt_allowances'] as $f) {
+        foreach (['gross', 'epf', 'pcb_paid', 'zakat_paid', 'additional_gross', 'additional_epf', 'socso', 'eis', 'optional_deductions', 'exempt_allowances', 'medical_claimed'] as $f) {
             if (array_key_exists($f, $data)) {
                 $row->{$f} = $data[$f] ?? 0;
             }
@@ -253,6 +255,63 @@ class PayrollController extends Controller
         AuditLog::record('Updated payroll opening figures', $name.' · '.$data['year']);
 
         return back()->with('ok', 'Opening figures saved for '.$name.' ('.$data['year'].').');
+    }
+
+    /**
+     * Take On in bulk: HR uploads the Summary tab of their own salary listing instead of
+     * keying each person in (see TakeOnImport for how its columns map). All or nothing:
+     * one bad row saves no one. Only the fields the listing carries are written, so TP3
+     * details and EA lines it has no column for stay as they were.
+     */
+    public function importOpening(Request $request, TakeOnImport $import): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $tid = app(CurrentTenant::class)->id();
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+        ]);
+
+        $employees = Employee::get(['id', 'name', 'staff_id', 'status']);
+        ['figures' => $figures, 'skipped' => $skipped, 'errors' => $errors] = $import->read($request->file('file'), $employees);
+        if ($errors === [] && $figures === []) {
+            $errors[] = 'No row in this file matched anyone in AmanahKu. Is it the Summary tab, with the staff name in the first column?';
+        }
+        // A row that already holds a previous employer's Form TP3 is a different kind of
+        // take-on (see PayrollOpeningFigure::isTakeOn()); the listing must not overwrite it.
+        $tp3 = PayrollOpeningFigure::where('year', $data['year'])->whereIn('employee_id', array_keys($figures))
+            ->whereNotNull('previous_employer')->where('previous_employer', '!=', '')->pluck('employee_id');
+        foreach ($tp3 as $employeeId) {
+            $errors[] = $employees->firstWhere('id', $employeeId)?->name.' already has a previous employer\'s Form TP3 for '.$data['year'].'. Enter their figures by hand.';
+        }
+        if ($errors !== []) {
+            return back()->withErrors(['file' => 'Nothing was imported. Fix the listing and upload it again. '.implode(' ', array_slice($errors, 0, 5))
+                .(count($errors) > 5 ? ' ('.(count($errors) - 5).' more)' : '')]);
+        }
+
+        DB::transaction(function () use ($figures, $tid, $data) {
+            foreach ($figures as $employeeId => ['columns' => $columns, 'ea' => $ea]) {
+                $row = PayrollOpeningFigure::firstOrNew(['tenant_id' => $tid, 'employee_id' => $employeeId, 'year' => $data['year']]);
+                $row->fill($columns);
+                // A zero from the listing clears the line, the same way a blank does on the form.
+                $row->ea_lines = array_filter(array_merge($row->ea_lines ?? [], $ea), fn ($v) => ! is_numeric($v) || (float) $v != 0);
+                $row->save();
+            }
+        });
+        AuditLog::record('Imported payroll take-on figures', count($figures).' staff · '.$data['year']);
+
+        $msg = 'Take-on figures imported for '.count($figures).' staff ('.$data['year'].').';
+        // Current staff the file never mentions would get no take-on and a wrong PCB, so
+        // name them first; they are easy to miss among the leavers and subtotals skipped.
+        $missing = $employees->where('status', '!=', 'resigned')->whereNotIn('id', array_keys($figures))->pluck('name');
+        if ($missing->isNotEmpty()) {
+            $msg .= ' Check these current staff, not in the file: '.$missing->implode(', ').'.';
+        }
+        if ($skipped !== []) {
+            $msg .= ' Skipped, no staff member by that name: '.implode(', ', $skipped).'.';
+        }
+
+        return back()->with('ok', $msg);
     }
 
     // ── Fixed Transactions (recurring per-employee pay/deduction lines) ────────────

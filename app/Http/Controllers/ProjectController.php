@@ -110,10 +110,16 @@ class ProjectController extends Controller
                     'canRaiseBigDeal' => $this->hasTenantRole($request, ['manager', 'hr', 'management', 'director']),
                 ])->render(),
                 'count_sel' => '#ts-proj-count',
+                // Track imports active projects on the hour (Track's amanahku:import-projects);
+                // the Projects screen turns these into its "appears in Track" dialog.
+                'project_name' => $project->name,
+                'in_track' => $project->is_active,
             ]);
         }
 
-        return back()->with('ok', $project->name.' added.');
+        return back()->with('ok', $project->is_active
+            ? $project->name.' added. It will appear in Track within 1 hour.'
+            : $project->name.' added.');
     }
 
     public function updateProject(Request $request, Project $project): JsonResponse|RedirectResponse

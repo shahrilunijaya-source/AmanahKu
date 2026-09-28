@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Timesheet;
 
 use App\Models\PublicHoliday;
+use App\Models\Timesheet;
 use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -61,6 +62,22 @@ final class DayRules
         }
 
         return $day;
+    }
+
+    /**
+     * Does the backdate window apply to this week's sheet yet? Not while the sheet is
+     * missing, and not for the rest of the day it was first created: the grid saves on
+     * every click, so a grace of "the first save only" would close after one click.
+     * Catching up a whole week in one sitting is fine; coming back another day is not.
+     */
+    public function windowApplies(?Timesheet $timesheet, CarbonInterface $today): bool
+    {
+        if ($timesheet === null || ! $timesheet->exists) {
+            return false;
+        }
+
+        return $timesheet->created_at === null
+            || $timesheet->created_at->lt(CarbonImmutable::parse($today)->startOfDay());
     }
 
     /**

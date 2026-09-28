@@ -315,7 +315,13 @@
                          lines come from, or it just reads as broken. --}}
                     <template x-if="!(rows[selected] || []).length && !dismissedFor(selected).length">
                         <div style="padding:16px 0 4px;font-size:12.5px;color:var(--muted);line-height:1.5;">
-                            <span x-text="fillFromBoard
+                            {{-- A day past the edit window drops its board cards (the staffer can't
+                                 edit it), so say that instead of "move a card on the board". --}}
+                            <span x-text="isFrozen(selected) && dayStatus(selected) !== 'submitted' && dayStatus(selected) !== 'approved'
+                                ? ($store.ui.lang==='en'
+                                    ? 'This day is more than {{ (int) config('manday.edit_window_working_days', 3) }} working days back, so it is locked and your board cards are hidden. To fill it in, ask your manager to unlock it and your board cards will show up here.'
+                                    : 'Hari ini lebih {{ (int) config('manday.edit_window_working_days', 3) }} hari bekerja yang lalu, jadi ia dikunci dan kad papan anda disembunyikan. Untuk mengisinya, minta pengurus membuka kunci dan kad papan anda akan muncul di sini.')
+                                : fillFromBoard
                                 ? ($store.ui.lang==='en'
                                     ? 'Nothing from your board for this day. A line appears here for each card you had In Progress or In Review — move a card on the board and it shows up.'
                                     : 'Tiada apa-apa dari papan anda untuk hari ini. Satu baris muncul di sini bagi setiap kad anda yang In Progress atau In Review — gerakkan kad di papan dan ia akan muncul.')

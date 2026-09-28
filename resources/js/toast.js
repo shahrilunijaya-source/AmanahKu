@@ -63,4 +63,33 @@ export function registerToast(Alpine) {
             return (typeof performance !== 'undefined' ? performance.now() : Date.now());
         },
     });
+
+    // The centered popup, for the few things that must not be missed (clock in/out, a
+    // project reaching Track later, a new version). Everything else stays a toast, so this
+    // one keeps its weight. One at a time: a second show() replaces the first.
+    // `timeout` (ms) closes it on its own, 0 keeps it until dismissed. `action` is optional
+    // `{ label, run }`, rendered as the main button with a quieter "Not now" beside it.
+    // `corner: true` shows it in the toast corner without blocking the page.
+    Alpine.store('notice', {
+        open: false,
+        seq: 0,
+        title: '',
+        body: '',
+        tone: 'success',
+        timeout: 2000,
+        action: null,
+        corner: false,
+        _timer: null,
+
+        show({ title, body = '', tone = 'success', timeout = 2000, action = null, corner = false }) {
+            clearTimeout(this._timer);
+            Object.assign(this, { title, body, tone, timeout, action, corner, open: true });
+            this.seq++;
+            if (timeout > 0) this._timer = setTimeout(() => this.close(), timeout);
+        },
+        close() {
+            clearTimeout(this._timer);
+            this.open = false;
+        },
+    });
 }

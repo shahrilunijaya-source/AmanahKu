@@ -29,6 +29,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * A row with no `previous_employer` is this company's own pay and is counted on its
  * EA form; a row naming a previous employer is a TP3 and is not (see isTakeOn()).
  *
+ * `medical_claimed` is not pay at all: medical claims the old system already paid this
+ * year, counted only against the yearly medical claim cap (Employee::medicalClaimedIn()).
+ *
  * @property array<string, string|float|int>|null $ea_lines
  */
 class PayrollOpeningFigure extends Model
@@ -51,6 +54,7 @@ class PayrollOpeningFigure extends Model
         'previous_employer_tin',
         'optional_deductions',
         'exempt_allowances',
+        'medical_claimed',
         'ea_lines',
     ];
 
@@ -89,6 +93,7 @@ class PayrollOpeningFigure extends Model
             // opening figures while current-year pay is always treated as taxable would
             // be inconsistent. Wire it in once the pay-item catalogue can mark items exempt.
             'exempt_allowances' => 'float',
+            'medical_claimed' => 'float',
             'ea_lines' => 'array',
         ];
     }

@@ -3,7 +3,7 @@
      year arrows and Edit. It is what this company paid before its payroll moved here; PCB
      for the rest of the year and the year-end EA form both count it. --}}
 @php
-    $columns = ['gross', 'additional_gross', 'pcb_paid', 'zakat_paid', 'optional_deductions', 'epf', 'exempt_allowances', 'socso', 'eis'];
+    $columns = ['gross', 'additional_gross', 'pcb_paid', 'zakat_paid', 'optional_deductions', 'epf', 'exempt_allowances', 'socso', 'eis', 'medical_claimed'];
     $thisYear = (int) now()->format('Y');
     $rowYears = $openingFigures->collapse()->pluck('year')->all();
     $takeOnYears = range(min([$thisYear - 1, ...$rowYears]), max([$thisYear + 1, ...$rowYears]));
@@ -63,6 +63,10 @@
             ['2.', 'EIS', 'SIP', 'eis'],
             ['3.', 'SKBBK', 'SKBBK', 'skbbk'],
         ]],
+        // Not on Form EA and never taxed: only counts toward the yearly medical claim cap.
+        ['', 'Not on Form EA', 'Tiada dalam Borang EA', null, null, [
+            ['1.', 'Medical claimed this year (counts toward the medical claim limit)', 'Tuntutan perubatan tahun ini (dikira dalam had tuntutan perubatan)', 'medical_claimed'],
+        ]],
     ];
     $cell = 'padding:8px 12px;border-bottom:1px solid var(--hairline-soft);font-size:12.5px;color:var(--ink);vertical-align:top;';
     $amountBox = 'width:140px;height:30px;padding:0 8px;border:1px solid var(--hairline);border-radius:6px;font-family:var(--font-mono);font-size:12.5px;text-align:right;background:var(--surface,#fff);color:var(--ink);';
@@ -99,6 +103,16 @@
     </div>
 
     <div style="flex:3;min-width:min(480px,100%);">
+        <form method="post" action="{{ route('payroll.opening.import') }}" enctype="multipart/form-data" class="uj-card" style="padding:16px 20px;margin-bottom:16px;">
+            @csrf
+            <input type="hidden" name="year" :value="year" />
+            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Import from salary listing' : 'Import daripada senarai gaji'">Import from salary listing</span> (<span x-text="year">{{ $takeOnYear }}</span>)</div>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" x-text="$store.ui.lang==='en' ? @js('Open the Summary tab of the salary listing, check it covers only the months paid before AmanahKu, then File > Download > CSV and upload it here. Staff are matched by name (or a STAFF ID column). Unpaid leave comes off salary, medical counts toward the medical claim limit, and mileage, others and advance are left out. If any row is wrong, nothing is saved.') : @js('Buka tab Summary senarai gaji, pastikan ia hanya meliputi bulan yang dibayar sebelum AmanahKu, kemudian File > Download > CSV dan muat naik di sini. Staf dipadankan ikut nama (atau lajur STAFF ID). Cuti tanpa gaji ditolak daripada gaji, perubatan dikira dalam had tuntutan perubatan, dan mileage, others serta advance tidak diambil. Jika ada baris yang salah, tiada apa disimpan.')">Open the Summary tab of the salary listing, check it covers only the months paid before AmanahKu, then File > Download > CSV and upload it here.</p>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <input type="file" name="file" accept=".csv,text/csv" required style="font-size:12.5px;" />
+                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 16px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Import' : 'Import'">Import</button>
+            </div>
+        </form>
         @if ($openingEmployees->isEmpty())
             <div class="uj-card" style="padding:22px;color:var(--muted);font-size:13px;" x-text="$store.ui.lang==='en' ? 'No active staff yet.' : 'Belum ada staf aktif.'">No active staff yet.</div>
         @else

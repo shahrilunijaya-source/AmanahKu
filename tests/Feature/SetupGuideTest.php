@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\FeatureManager;
 use App\Support\SetupGuide;
 use App\Tenancy\CurrentTenant;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -223,6 +224,22 @@ class SetupGuideTest extends TestCase
         $this->assertStringNotContainsString("localStorage.setItem('amanahku-coach-guide-branches'", $html);
         $this->assertStringNotContainsString("localStorage.getItem('amanahku-coach-guide-branches')", $html);
         $this->assertStringContainsString('uj-coach-bubble', $html);
+    }
+
+    /** A "New:" bubble stops on its end date, whatever the browser remembers. */
+    public function test_coachmark_with_until_stops_showing_after_that_day(): void
+    {
+        $bubble = fn (): string => view('partials.coachmark', [
+            'key' => 'attendance-work-mode',
+            'until' => '2026-09-20',
+            'en' => ['title' => 'New: pick your working mode', 'body' => 'Tap it.'],
+        ])->render();
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-20 23:00:00'));
+        $this->assertStringContainsString('uj-coach-bubble', $bubble());
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-21 00:30:00'));
+        $this->assertSame('', trim($bubble()));
     }
 
     public function test_coachmark_without_when_still_remembers_dismissal_in_localstorage(): void

@@ -471,11 +471,7 @@ trait BuildsWorkData
         // Medical allowance consumed this calendar year (all non-rejected medical claims),
         // so the form can show what's left against the annual cap. Counted for the person
         // the form is filing FOR, which is the viewer unless HR picked someone.
-        $medicalUsedYtd = (float) ($applyFor?->claims()
-            ->where('type', 'medical')
-            ->whereNotIn('status', ['rejected', 'cancelled'])
-            ->whereYear('date', now()->year)
-            ->sum('amount') ?? 0);
+        $medicalUsedYtd = $applyFor?->medicalClaimedIn(now()->year) ?? 0.0;
 
         // An approver has a verify/approve queue; a privileged viewer (management/hr) also
         // sees the company-wide ledger. A plain employee is neither, and gets no extra keys.
@@ -549,6 +545,7 @@ trait BuildsWorkData
             ->whereIn('status', $statuses)->latest('date_from')->get();
         $givesFinalApproval = $this->hasTenantRole($request, Permissions::FINAL_APPROVAL_ROLES);
         $leaveToVerify = $filter($this->scopeToVerify(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get();
+        $leaveToApprove = $filter($this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get();
 
         return [
             'balances' => $employee?->leaveBalances()->with('leaveType')->get() ?? collect(),
@@ -573,15 +570,16 @@ trait BuildsWorkData
             'leaveToVerify' => $leaveToVerify,
             // Final approvers also see what is still sitting with someone else's manager,
             // read-only, so nothing in the pipeline is hidden from them until it is verified.
-            // Rows already in their own verify queue are left out to avoid listing them twice.
+            // Rows already in their own verify or approve queue (overdue for verification) are
+            // left out to avoid listing them twice.
             'leaveAwaitingVerification' => $givesFinalApproval
                 ? $filter($this->scopeReviewable(LeaveRequest::with(['employee', ...$actors]), $request))
                     ->where('status', 'submitted')
                     ->whereIn('employee_id', Employee::active()->select('id'))
-                    ->whereKeyNot($leaveToVerify->modelKeys())
+                    ->whereKeyNot([...$leaveToVerify->modelKeys(), ...$leaveToApprove->modelKeys()])
                     ->latest()->get()
                 : collect(),
-            'leaveToApprove' => $filter($this->scopeToApprove(LeaveRequest::with(['employee.leaveBalances.leaveType', ...$actors]), $request))->latest()->get(),
+            'leaveToApprove' => $leaveToApprove,
             // Every settled request from the people this viewer can act on, whoever decided it.
             'leaveApproved' => $settledLeave(['approved']),
             'leaveRejected' => $settledLeave(['rejected']),

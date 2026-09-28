@@ -21,6 +21,7 @@ class Tenant extends Model
             'subscription_end' => 'date',
             'onboarding_enforced' => 'boolean',
             'late_grace_minutes' => 'integer',
+            'approval_escalation_days' => 'integer',
             'work_days' => 'array',
             'tot_saturday' => 'boolean',
             'journal_accounts' => 'array',

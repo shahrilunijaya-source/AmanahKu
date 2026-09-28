@@ -75,6 +75,16 @@ class AttendanceClockEndpointTest extends TestCase
         $this->assertNotNull($this->employee->attendanceRecords()->first()?->clock_in);
     }
 
+    /** A successful punch is confirmed in the centered popup, not a corner toast. */
+    public function test_a_successful_punch_opens_the_centered_popup(): void
+    {
+        $this->from('/app/attendance')->followingRedirects()
+            ->punch(['action' => 'in', 'photo' => UploadedFile::fake()->image('selfie.jpg')])
+            ->assertOk()
+            ->assertSee("Alpine.store('notice').show({ title: ", false)
+            ->assertSee('Clocked in at');
+    }
+
     /**
      * A second clock-in is understood and declined, never performed. Flashing it as a
      * success painted a green tick that read as "punched again", which is how staff came to

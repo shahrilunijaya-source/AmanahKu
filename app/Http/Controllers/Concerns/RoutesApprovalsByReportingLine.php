@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\AppNotification;
+use App\Models\Claim;
 use App\Models\Employee;
+use App\Models\LeaveRequest;
 use App\Models\Tenant;
 use App\Support\Permissions;
 use App\Tenancy\CurrentTenant;
@@ -33,12 +35,18 @@ use Illuminate\Support\Collection;
  *   their own request.
  * - Segregation of duties: nobody acts on their own request, and the verifier may not also
  *   approve. A request with no superior set stays at `submitted` until one is assigned.
+ * - A BUSY MANAGER DOES NOT HOLD THINGS UP FOREVER: a leave or claim request still unverified
+ *   after the company's `approval_escalation_days` joins the final approvers' queue, and they
+ *   may approve it directly. Their own reports are left out, as they should simply verify.
  *
  * Used by the controllers that authorise each step and by the screen-data builders that
  * assemble the "to verify" and "to approve" queues.
  */
 trait RoutesApprovalsByReportingLine
 {
+    /** Request types whose unverified requests fall to the final approvers after the company's wait. */
+    private const ESCALATES_UNVERIFIED = [Claim::class, LeaveRequest::class];
+
     /**
      * Roles that give final approval (after verification): HR, management and director.
      * Listed explicitly (not just via effectiveRole) because notifyManagementToApprove()
@@ -267,8 +275,9 @@ trait RoutesApprovalsByReportingLine
     }
 
     /**
-     * The viewer's APPROVE queue: every verified request, but only for management. Returns
-     * an always-empty query for everyone else.
+     * The viewer's APPROVE queue: every verified request, plus leave and claims still waiting
+     * on a manager past the company's limit (see isOverdueForApproval), but only for
+     * management. Returns an always-empty query for everyone else.
      */
     protected function scopeToApprove(Builder $query, Request $request): Builder
     {
@@ -276,11 +285,57 @@ trait RoutesApprovalsByReportingLine
             return $query->whereRaw('1 = 0');
         }
 
+        $cutoff = in_array($query->getModel()::class, self::ESCALATES_UNVERIFIED, true)
+            ? $this->verificationOverdueBefore()
+            : null;
+        $actorId = $this->actingEmployeeId($request);
+
         // active() on the requester: a verified request whose owner was archived after
         // verification drops out of management's approve queue (no balance decrement for a
         // detached person). On-archive cancellation is the primary guard; this backs it up.
-        return $query->where('status', 'verified')
+        return $query
+            ->where(fn (Builder $w) => $w
+                ->where('status', 'verified')
+                ->when($cutoff, fn (Builder $w) => $w->orWhere(fn (Builder $o) => $o
+                    ->where('status', 'submitted')
+                    ->where('created_at', '<=', $cutoff)
+                    ->whereDoesntHave('employee', fn (Builder $e) => $e
+                        ->where('reports_to_id', $actorId)
+                        ->orWhereHas('additionalManagers', fn (Builder $m) => $m->whereKey($actorId))))))
             ->whereHas('employee', fn (Builder $q) => $q->active());
+    }
+
+    /** Submissions made before this moment have waited too long for verification; null when the shortcut is off. */
+    private function verificationOverdueBefore(): ?Carbon
+    {
+        $days = app(CurrentTenant::class)->get()?->approval_escalation_days;
+
+        return $days ? now()->subDays($days) : null;
+    }
+
+    /**
+     * True when a still-submitted leave or claim request has waited past the company's limit
+     * for verification and the acting user may approve it directly. The requester's own
+     * managers are excluded: they should verify, not verify and approve in one go.
+     */
+    protected function isOverdueForApproval(Request $request, Model $record): bool
+    {
+        $cutoff = $this->verificationOverdueBefore();
+
+        return $cutoff !== null
+            && $record->status === 'submitted'
+            && in_array($record::class, self::ESCALATES_UNVERIFIED, true)
+            && $record->created_at?->lte($cutoff)
+            && ! in_array($this->actingEmployeeId($request), $record->employee?->verifierIds() ?? [], true);
+    }
+
+    /**
+     * Authorise the STAGE of an approve: the request is verified, or it is overdue for
+     * verification (see isOverdueForApproval). Pair with assertApprover(), which checks who.
+     */
+    protected function assertApprovableStage(Request $request, Model $record, string $message): void
+    {
+        abort_unless($record->status === 'verified' || $this->isOverdueForApproval($request, $record), 422, $message);
     }
 
     /**

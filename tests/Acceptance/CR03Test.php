@@ -226,12 +226,15 @@ class CR03Test extends TestCase
     #[Test]
     public function test_acceptance_6_staff_cannot_edit_a_day_older_than_three_working_days_without_manager_unlock(): void
     {
-        Carbon::setTestNow('2026-06-19 12:00:00');
-
-        // Tuesday is three working days back: editable. Monday is four: closed.
+        // The week was started on an earlier day: the window only bites once the day
+        // the sheet was created has passed (DayRules::windowApplies).
+        Carbon::setTestNow('2026-06-18 12:00:00');
         $this->actingInTenantAs($this->staff)
             ->postJson('/app/timesheets', $this->grid(['2026-06-16' => [[$this->others, 100]]]))
             ->assertOk();
+        Carbon::setTestNow('2026-06-19 12:00:00');
+
+        // Tuesday is three working days back: editable. Monday is four: closed.
         $this->actingInTenantAs($this->staff)
             ->postJson('/app/timesheets', $this->grid(['2026-06-15' => [[$this->others, 100]], '2026-06-16' => [[$this->others, 100]]]))
             ->assertStatus(422)

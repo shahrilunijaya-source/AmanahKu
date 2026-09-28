@@ -574,28 +574,36 @@
         @if (session('info'))
         Alpine.store('toast').info(@js(session('info')));
         @endif
+        {{-- A punch is the one save staff must be sure of, so it gets the centered popup.
+             Not on a holiday-eve clock-out: that full-screen greeting already says it. --}}
+        @if (session('clock_ok') && ! session('holiday_eve'))
+        Alpine.store('notice').show({ title: @js(session('clock_ok')) });
+        @endif
 
         // Deploy watcher. A release that ships new JS/CSS changes the Vite manifest hash,
         // which leaves an already-open tab running code the server no longer serves. Poll
-        // the hash and offer a reload; the toast stays until acted on (timeout 0).
+        // the hash and offer a reload; the corner card stays until acted on (timeout 0).
         (() => {
             const running = @js(\Illuminate\Support\Facades\Vite::manifestHash());
             if (! running) { return; }
-            // No latch: someone who dismisses the toast is still running stale code, so the
-            // next tick offers again. The queue check just avoids stacking duplicates.
+            // No latch: someone who picks "Not now" is still running stale code, so the next
+            // tick offers again. The open check just avoids replacing another popup.
             const check = async () => {
-                if (document.hidden || Alpine.store('toast').items.some((t) => t.action)) { return; }
+                if (document.hidden || Alpine.store('notice').open) { return; }
                 try {
                     const res = await fetch(@js(route('build.id')), { headers: { Accept: 'application/json' } });
                     if (! res.ok) { return; }
                     const { id } = await res.json();
                     if (! id || id === running) { return; }
                     const en = Alpine.store('ui').lang === 'en';
-                    Alpine.store('toast').info(
-                        en ? 'A new version of Amanahku is ready.' : 'Versi baharu Amanahku sudah sedia.',
-                        0,
-                        { label: en ? 'Update' : 'Kemas kini', run: () => window.location.reload() },
-                    );
+                    Alpine.store('notice').show({
+                        title: en ? 'A new version of Amanahku is ready' : 'Versi baharu Amanahku sudah sedia',
+                        body: en ? 'Updating reloads this page, so save anything you are working on first.' : 'Kemas kini akan memuat semula halaman ini, jadi simpan kerja anda dahulu.',
+                        tone: 'info',
+                        timeout: 0,
+                        corner: true,
+                        action: { label: en ? 'Update now' : 'Kemas kini sekarang', run: () => window.location.reload() },
+                    });
                 } catch (e) { /* offline or mid-deploy — the next tick tries again */ }
             };
             setInterval(check, 300000);
@@ -620,6 +628,7 @@
     });
 </script>
 @include('partials.toast-host')
+@include('partials.notice-host')
 {{-- CR-31 tab_collector: 20+ Amanahku tabs open (this browser only — it can't see other
      sites), the line shows once a day, via a localStorage heartbeat. Never under Keep it
      plain, never with sound. Human check (CR31Test item 6). --}}

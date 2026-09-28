@@ -174,6 +174,27 @@ class AdminController extends Controller
     }
 
     /**
+     * Days a leave or claim request may wait for the manager's verification before HR or a
+     * director may approve it directly. Blank turns the shortcut off.
+     */
+    public function updateApprovalEscalation(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+
+        $days = $request->validate([
+            'approval_escalation_days' => ['nullable', 'integer', 'between:1,60'],
+        ])['approval_escalation_days'] ?? null;
+
+        app(CurrentTenant::class)->get()->update(['approval_escalation_days' => $days]);
+
+        AuditLog::record('Updated approval shortcut', $days ? 'After '.$days.' day'.($days === 1 ? '' : 's') : 'Off');
+
+        return back()->with('ok', $days
+            ? 'Final approvers can now approve a request the manager has not verified after '.$days.' day'.($days === 1 ? '' : 's').'.'
+            : 'Approval shortcut turned off. Every request needs the manager to verify first.');
+    }
+
+    /**
      * Persist this company's feature overrides. Only tenant-scope keys are
      * accepted; platform-scope keys (e.g. platform.registration) are never
      * exposed here. A LOCKED key is rejected — the override would be a no-op

@@ -892,6 +892,7 @@
         {{-- First visit only. Explains the switch above it, then never returns. --}}
         @include('partials.coachmark', [
             'key' => 'attendance-work-mode',
+            'until' => '2026-09-20', // shipped 2026-08-21, shown for 30 days
             'en'  => [
                 'title' => 'New: pick your working mode',
                 'body'  => 'Leave this on "Office / Home" for an ordinary day, and tap "Site visit" when you are going to a customer.',
@@ -963,6 +964,7 @@
                          it always fits and always points at the row the badge lives in. --}}
                     @include('partials.coachmark', [
                         'key' => 'attendance-fence-badge',
+                        'until' => '2026-09-20', // shipped 2026-08-21, shown for 30 days
                         'after' => 'attendance-work-mode',
                         'anchor' => '.uj-at-fence',
                         'en'  => [

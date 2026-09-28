@@ -18,6 +18,7 @@
         <span class="uj-ap-rem">
             {{ $c->title }}
             @if ($c->status === 'paid')<span class="uj-stamp" x-text="$store.ui.lang==='en' ? 'paid' : 'dibayar'">paid</span>@endif
+            @if ($mode === 'approve' && $c->status === 'submitted')<span class="uj-stamp" data-tone="error" x-text="$store.ui.lang==='en' ? 'manager has not verified' : 'pengurus belum sahkan'">manager has not verified</span>@endif
             @if ($waitingDays >= 5)<span class="uj-stamp" data-tone="error">{{ $waitingDays }}<span x-text="$store.ui.lang==='en' ? 'd waiting' : ' hari'">d waiting</span></span>@endif
         </span>
         <span class="uj-ap-num">{{ number_format((float) $c->amount, 2) }}</span>
