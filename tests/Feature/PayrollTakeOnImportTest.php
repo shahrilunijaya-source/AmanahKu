@@ -342,4 +342,16 @@ class PayrollTakeOnImportTest extends TestCase
 
         $this->assertSame(320.0, $this->row($this->aina)?->medical_claimed);
     }
+
+    /**
+     * In-app navigation swaps the page body and re-runs its scripts after alpine:init has
+     * already fired, so the import card's component must also register straight away.
+     */
+    public function test_take_on_tab_registers_the_import_component_after_alpine_has_started(): void
+    {
+        $this->actingAs($this->hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/payroll-transaction?tab=takeon')
+            ->assertOk()
+            ->assertSee("window.Alpine ? register() : document.addEventListener('alpine:init', register);", false);
+    }
 }
