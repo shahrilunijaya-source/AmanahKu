@@ -763,6 +763,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware('throttle:30,1,payroll')->group(function () {
             Route::post('/app/payroll/salary', [PayrollController::class, 'storeSalary'])->name('payroll.salary');
             Route::post('/app/payroll/opening', [PayrollController::class, 'storeOpening'])->name('payroll.opening');
+            Route::post('/app/payroll/opening/preview', [PayrollController::class, 'previewOpening'])->name('payroll.opening.preview');
             Route::post('/app/payroll/opening/import', [PayrollController::class, 'importOpening'])->name('payroll.opening.import');
             Route::post('/app/payroll/fixed-transactions', [PayrollController::class, 'storeFixedTransaction'])->name('payroll.fixed-transactions.store');
             Route::post('/app/payroll/fixed-transactions/{fixedTransaction}', [PayrollController::class, 'updateFixedTransaction'])->name('payroll.fixed-transactions.update');

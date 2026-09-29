@@ -103,16 +103,119 @@
     </div>
 
     <div style="flex:3;min-width:min(480px,100%);">
-        <form method="post" action="{{ route('payroll.opening.import') }}" enctype="multipart/form-data" class="uj-card" style="padding:16px 20px;margin-bottom:16px;">
-            @csrf
-            <input type="hidden" name="year" :value="year" />
+        {{-- Salary listing import: upload, review every row (pick staff for names that did not
+             match, fix cells marked red), then save. The server checks it all again on save. --}}
+        <div class="uj-card" style="padding:16px 20px;margin-bottom:16px;" x-data="{
+                fields: @js(\App\Services\Payroll\TakeOnImport::COLUMNS),
+                rows: null, staff: [], tp3: [], err: '', busy: false,
+                money(s) { s = String(s ?? '').replace(/[,\s]/g, ''); if (s === '' || s === '-') return 0; const n = Number(s); return Number.isFinite(n) ? Math.round(n * 100) / 100 : null; },
+                problems(r) {
+                    if (!r.employee_id) return {};
+                    const e = {}, v = {};
+                    for (const f in this.fields) { v[f] = this.money(r.values[f]); if (v[f] === null) e[f] = `'${r.values[f]}' is not a number.`; }
+                    if (!Object.keys(e).length) {
+                        const parts = Math.round((v.basic + v.bonus + v.allowance + v.medical + v.mileage + v.others) * 100) / 100;
+                        if (Math.abs(parts - v.gross) > 0.005) e.gross = `BASIC + BONUS + ALLOWANCE + MEDICAL + MILEAGE + OTHERS = ${this.fmt(parts)}, but GROSS is ${this.fmt(v.gross)} (${this.fmt(Math.abs(parts - v.gross))} apart).`;
+                        if (v.unpaid > v.basic) e.unpaid = 'UNPAID LEAVE is more than BASIC.';
+                    }
+                    if (this.tp3.includes(Number(r.employee_id))) e.employee_id = `Already has a previous employer's Form TP3 for ${this.year}. Enter their figures by hand.`;
+                    return { ...e, ...r.server };
+                },
+                fmt(n) { return n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+                toFix() { return (this.rows || []).filter(r => Object.keys(this.problems(r)).length).length; },
+                picked() { return (this.rows || []).filter(r => r.employee_id).length; },
+                notPicked() { const ids = (this.rows || []).map(r => Number(r.employee_id)); return this.staff.filter(s => s.current && !ids.includes(s.id)); },
+                label(s) { return s.name + (s.staff_id ? ' (' + s.staff_id + ')' : '') + (s.current ? '' : ' (resigned)'); },
+                async send(url, body) {
+                    this.busy = true; this.err = '';
+                    try {
+                        const res = await fetch(url, { method: 'POST', body, headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) } });
+                        const j = await res.json().catch(() => ({}));
+                        if (!res.ok) { this.err = j.message || 'Something went wrong. Try again.'; }
+                        return { ok: res.ok, j };
+                    } catch { this.err = 'Could not reach the server. Try again.'; return { ok: false, j: {} }; }
+                    finally { this.busy = false; }
+                },
+                async check() {
+                    const f = this.$refs.file.files[0]; if (!f) { this.err = 'Choose the CSV file first.'; return; }
+                    const body = new FormData(); body.append('file', f); body.append('year', this.year);
+                    const { ok, j } = await this.send(@js(route('payroll.opening.preview')), body);
+                    if (!ok) return;
+                    this.rows = j.rows.map(r => ({ ...r, employee_id: r.employee_id ? String(r.employee_id) : '', server: {} }));
+                    this.staff = j.staff; this.tp3 = j.tp3;
+                },
+                async save() {
+                    const rows = this.rows.map(r => ({ line: r.line, employee_id: r.employee_id ? Number(r.employee_id) : null, values: r.values }));
+                    const { ok, j } = await this.send(@js(route('payroll.opening.import')), JSON.stringify({ year: this.year, rows }));
+                    if (ok) { location.reload(); return; }
+                    for (const r of this.rows) r.server = (j.problems || {})[r.line] || {};
+                },
+             }">
             <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Import from salary listing' : 'Import daripada senarai gaji'">Import from salary listing</span> (<span x-text="year">{{ $takeOnYear }}</span>)</div>
-            <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" x-text="$store.ui.lang==='en' ? @js('Open the Summary tab of the salary listing, check it covers only the months paid before AmanahKu, then File > Download > CSV and upload it here. Staff are matched by name (or a STAFF ID column). Unpaid leave comes off salary, medical counts toward the medical claim limit, and mileage, others and advance are left out. If any row is wrong, nothing is saved.') : @js('Buka tab Summary senarai gaji, pastikan ia hanya meliputi bulan yang dibayar sebelum AmanahKu, kemudian File > Download > CSV dan muat naik di sini. Staf dipadankan ikut nama (atau lajur STAFF ID). Cuti tanpa gaji ditolak daripada gaji, perubatan dikira dalam had tuntutan perubatan, dan mileage, others serta advance tidak diambil. Jika ada baris yang salah, tiada apa disimpan.')">Open the Summary tab of the salary listing, check it covers only the months paid before AmanahKu, then File > Download > CSV and upload it here.</p>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <input type="file" name="file" accept=".csv,text/csv" required style="font-size:12.5px;" />
-                <button type="submit" class="uj-btn-primary" style="height:30px;padding:0 16px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Import' : 'Import'">Import</button>
+            <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" x-text="$store.ui.lang==='en' ? @js('Open the Summary tab of the salary listing, check it covers only the months paid before AmanahKu, then File > Download > CSV and upload it here. You can review every row before anything is saved: pick the staff member for a name that did not match, and fix any cell marked red. Unpaid leave comes off salary, medical counts toward the medical claim limit, and mileage, others and advance are left out.') : @js('Buka tab Summary senarai gaji, pastikan ia hanya meliputi bulan yang dibayar sebelum AmanahKu, kemudian File > Download > CSV dan muat naik di sini. Anda boleh semak setiap baris sebelum apa-apa disimpan: pilih staf bagi nama yang tidak sepadan, dan betulkan sel yang bertanda merah. Cuti tanpa gaji ditolak daripada gaji, perubatan dikira dalam had tuntutan perubatan, dan mileage, others serta advance tidak diambil.')">Open the Summary tab of the salary listing, then File > Download > CSV and upload it here.</p>
+            <div x-show="!rows" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <input type="file" x-ref="file" accept=".csv,text/csv" style="font-size:12.5px;" />
+                <button type="button" @click="check()" :disabled="busy" class="uj-btn-primary" style="height:30px;padding:0 16px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Check file' : 'Semak fail'">Check file</button>
             </div>
-        </form>
+            <div x-show="err" x-cloak x-text="err" role="alert" style="margin-top:10px;font-size:12.5px;color:var(--danger,#b42318);"></div>
+
+            <template x-if="rows">
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 10px;font-size:12.5px;">
+                        <span x-text="`${picked()} of ${rows.length} rows will be imported`"></span>
+                        <span x-show="toFix()" style="color:var(--danger,#b42318);font-weight:600;" x-text="`${toFix()} to fix`"></span>
+                        <div style="margin-left:auto;display:flex;gap:6px;">
+                            <button type="button" @click="rows = null; err = ''" :disabled="busy" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Start over' : 'Mula semula'">Start over</button>
+                            <button type="button" @click="save()" :disabled="busy || toFix() > 0 || picked() === 0" class="uj-btn-primary" style="height:30px;padding:0 16px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Import' : 'Import'">Import</button>
+                        </div>
+                    </div>
+                    <details x-show="notPicked().length" style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+                        <summary style="cursor:pointer;" x-text="$store.ui.lang==='en' ? `${notPicked().length} current staff have no row yet (their PCB will be wrong without take-on figures)` : `${notPicked().length} staf semasa belum ada baris (PCB mereka akan salah tanpa angka take-on)`"></summary>
+                        <div style="margin-top:6px;" x-text="notPicked().map(s => s.name).join(', ')"></div>
+                    </details>
+                    <div style="overflow:auto;max-height:560px;border:1px solid var(--hairline);border-radius:8px;">
+                        <table style="border-collapse:collapse;font-size:12px;min-width:100%;">
+                            <thead style="position:sticky;top:0;background:var(--canvas);z-index:1;">
+                                <tr>
+                                    <th style="padding:6px 8px;text-align:left;" x-text="$store.ui.lang==='en' ? 'Row' : 'Baris'">Row</th>
+                                    <th style="padding:6px 8px;text-align:left;min-width:180px;" x-text="$store.ui.lang==='en' ? 'Name in file' : 'Nama dalam fail'">Name in file</th>
+                                    <th style="padding:6px 8px;text-align:left;min-width:220px;" x-text="$store.ui.lang==='en' ? 'Staff in AmanahKu' : 'Staf dalam AmanahKu'">Staff in AmanahKu</th>
+                                    <template x-for="(h, f) in fields" :key="f"><th style="padding:6px 8px;text-align:right;white-space:nowrap;" x-text="h.toUpperCase()"></th></template>
+                                </tr>
+                            </thead>
+                            <template x-for="r in rows" :key="r.line">
+                                <tbody :style="{ opacity: r.employee_id ? 1 : .55 }" style="border-top:1px solid var(--hairline-soft);">
+                                    <tr>
+                                        <td style="padding:6px 8px;color:var(--muted);" x-text="r.line"></td>
+                                        <td style="padding:6px 8px;" x-text="r.name"></td>
+                                        <td style="padding:6px 8px;">
+                                            <select x-model="r.employee_id" @change="r.server = {}" :style="{ borderColor: problems(r).employee_id ? 'var(--danger,#b42318)' : 'var(--hairline)' }" style="width:100%;height:28px;border:1px solid;border-radius:6px;font-size:12px;background:var(--surface,#fff);color:var(--ink);">
+                                                <option value="" x-text="$store.ui.lang==='en' ? 'Skip (not imported)' : 'Langkau (tidak diimport)'"></option>
+                                                <template x-for="s in staff" :key="s.id"><option :value="String(s.id)" :selected="String(s.id) === r.employee_id" x-text="label(s)"></option></template>
+                                            </select>
+                                        </td>
+                                        <template x-for="(h, f) in fields" :key="f">
+                                            <td style="padding:4px;">
+                                                <input x-model="r.values[f]" @input="r.server = {}" :disabled="!r.employee_id" :title="problems(r)[f] || ''" :aria-invalid="problems(r)[f] ? 'true' : 'false'" :style="problems(r)[f] ? { borderColor: 'var(--danger,#b42318)', background: 'rgba(180,35,24,.08)' } : {}" style="width:92px;height:26px;padding:0 6px;border:1px solid var(--hairline);border-radius:5px;font-family:var(--font-mono);font-size:11.5px;text-align:right;background:var(--surface,#fff);color:var(--ink);" />
+                                            </td>
+                                        </template>
+                                    </tr>
+                                    <tr x-show="r.note && !r.employee_id || Object.keys(problems(r)).length">
+                                        <td></td>
+                                        <td :colspan="Object.keys(fields).length + 2" style="padding:0 8px 8px;font-size:11.5px;">
+                                            <div x-show="r.note && !r.employee_id" style="color:var(--muted);" x-text="r.note"></div>
+                                            <template x-for="(msg, f) in problems(r)" :key="f">
+                                                <div style="color:var(--danger,#b42318);"><strong x-text="(f === 'employee_id' ? 'STAFF' : fields[f].toUpperCase()) + ':'"></strong> <span x-text="msg"></span></div>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </template>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </div>
         @if ($openingEmployees->isEmpty())
             <div class="uj-card" style="padding:22px;color:var(--muted);font-size:13px;" x-text="$store.ui.lang==='en' ? 'No active staff yet.' : 'Belum ada staf aktif.'">No active staff yet.</div>
         @else

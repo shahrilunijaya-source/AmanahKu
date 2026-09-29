@@ -12,7 +12,10 @@ use Illuminate\Support\Collection;
 /**
  * Reads the Summary tab of HR's own salary listing (downloaded as CSV): one year-to-date
  * row per person for the months paid before AmanahKu took over, with the columns the
- * listing already has. Turns each row into Take On figures (PayrollOpeningFigure):
+ * listing already has. Import is two steps: rows() turns the file into review rows that
+ * HR checks on screen (pick the staff member for a name that did not match, fix a cell
+ * marked wrong), then figures() turns the reviewed rows into Take On figures
+ * (PayrollOpeningFigure):
  *
  * - B1(a) salary is BASIC less UNPAID LEAVE. The listing's GROSS is before unpaid leave,
  *   which it only takes off on the way to NET, but tax is on what was actually earned.
@@ -20,16 +23,11 @@ use Illuminate\Support\Collection;
  *   on Form EA (same as this app's own claim-reimbursement line). MEDICAL is still kept,
  *   because it uses up the yearly medical claim cap.
  * - ADVANCE, DEDUCTION and NET SALARY only moved take-home pay, so they are not read.
- *
- * Rows are matched to staff by a STAFF ID column when the sheet has one, otherwise by
- * name. Rows naming nobody on file (department subtotals, interns never set up here)
- * are skipped and listed back to HR; a bad number or a row whose parts do not add up to
- * its GROSS is an error, and the caller saves nothing when there is any error.
  */
 final class TakeOnImport
 {
     /** @var array<string, string> field => listing header (matched lower-cased) */
-    private const array COLUMNS = [
+    public const array COLUMNS = [
         'basic' => 'basic', 'bonus' => 'bonus', 'allowance' => 'allowance', 'medical' => 'medical',
         'mileage' => 'mileage', 'others' => 'others', 'gross' => 'gross', 'epf' => 'epf', 'tax' => 'tax',
         'socso' => 'socso', 'eis' => 'eis', 'zakat' => 'zakat', 'unpaid' => 'unpaid leave', 'cp38' => 'cp38',
@@ -40,14 +38,18 @@ final class TakeOnImport
     private const array NAME_FILLER = ['bin', 'binti', 'bte', 'bt'];
 
     /**
+     * Every row that carries pay, matched to a staff member where the name (or a STAFF ID
+     * column) finds exactly one. Blank lines, section labels (INTERN) and the TOTAL line
+     * are left out. Nothing is checked or saved here.
+     *
      * @param  Collection<int, Employee>  $employees  everyone the rows may name
-     * @return array{figures: array<int, array{columns: array<string, float>, ea: array<string, float>}>, skipped: list<string>, errors: list<string>}
+     * @return array{rows: list<array{line: int, name: string, employee_id: ?int, note: ?string, values: array<string, string>}>, error: ?string}
      */
-    public function read(UploadedFile $file, Collection $employees): array
+    public function rows(UploadedFile $file, Collection $employees): array
     {
         [$handle, $col, $error] = CsvImport::open($file);
         if ($error !== null) {
-            return ['figures' => [], 'skipped' => [], 'errors' => [$error]];
+            return ['rows' => [], 'error' => $error];
         }
 
         $missing = array_values(array_filter(self::COLUMNS, fn ($h) => ! isset($col[$h])));
@@ -55,68 +57,93 @@ final class TakeOnImport
         if ($missing !== [] || $nameCol === false) {
             fclose($handle);
 
-            return ['figures' => [], 'skipped' => [], 'errors' => ['This is not the salary listing Summary tab. Missing column(s): '
-                .implode(', ', array_map('strtoupper', $missing ?: ['staff name'])).'.']];
+            return ['rows' => [], 'error' => 'This is not the salary listing Summary tab. Missing column(s): '
+                .implode(', ', array_map('strtoupper', $missing ?: ['staff name'])).'.'];
         }
 
         $byStaffId = $employees->filter(fn (Employee $e) => filled($e->staff_id))->keyBy(fn (Employee $e) => CsvImport::key($e->staff_id));
         $byName = $employees->groupBy(fn (Employee $e) => $this->nameKey($e->name));
 
-        $figures = [];
-        $skipped = [];
-        $errors = [];
+        $rows = [];
         $line = 1;
         while (($data = fgetcsv($handle, null, ',', '"', '')) !== false) {
             $line++;
-            if ($line > CsvImport::ROW_CAP + 1) {
-                $errors[] = 'Stopped at '.CsvImport::ROW_CAP.' rows.';
-                break;
-            }
             $name = trim((string) ($data[$col[$nameCol]] ?? ''));
-            // Blank lines, section labels (INTERN) and the TOTAL line carry nobody's pay.
+            // Google Sheets also exports every empty grid row, so only rows with pay count toward the cap.
             if ($name === '' || in_array(mb_strtolower($name), ['total', 'jumlah'], true) || CsvImport::cell($data, $col, 'basic') === '') {
                 continue;
+            }
+            if (count($rows) === CsvImport::ROW_CAP) {
+                fclose($handle);
+
+                return ['rows' => [], 'error' => 'The file has more than '.CsvImport::ROW_CAP.' staff rows.'];
             }
 
             $staffId = CsvImport::key(CsvImport::cell($data, $col, 'staff id'));
             $matches = $staffId !== '' ? collect([$byStaffId->get($staffId)])->filter() : $byName->get($this->nameKey($name), collect());
-            if ($matches->isEmpty()) {
-                $skipped[] = $name;
+            $rows[] = [
+                'line' => $line,
+                'name' => $name,
+                'employee_id' => $matches->count() === 1 ? $matches->first()->id : null,
+                'note' => match (true) {
+                    $matches->count() > 1 => "More than one staff member is called $name. Pick the right one.",
+                    $matches->isEmpty() => 'No staff member by this name. Pick one, or leave it on Skip.',
+                    default => null,
+                },
+                'values' => collect(self::COLUMNS)->map(fn ($header) => CsvImport::cell($data, $col, $header))->all(),
+            ];
+        }
+        fclose($handle);
 
-                continue;
+        return ['rows' => $rows, 'error' => null];
+    }
+
+    /**
+     * What is wrong with one row's amounts, keyed by the field to point at. Empty when fine.
+     * The review screen runs the same checks as HR types; this is the one that decides.
+     *
+     * @param  array<string, mixed>  $values  field => amount as typed
+     * @return array<string, string>
+     */
+    public function problems(array $values): array
+    {
+        $v = [];
+        $problems = [];
+        foreach (array_keys(self::COLUMNS) as $field) {
+            $raw = is_scalar($values[$field] ?? null) ? (string) $values[$field] : '';
+            $v[$field] = $this->money($raw);
+            if ($v[$field] === null) {
+                $problems[$field] = "'$raw' is not a number.";
             }
-            if ($matches->count() > 1) {
-                $errors[] = "Row $line: more than one staff member is called $name. Add a STAFF ID column.";
+        }
+        if ($problems !== []) {
+            return $problems;
+        }
 
-                continue;
-            }
+        $parts = round($v['basic'] + $v['bonus'] + $v['allowance'] + $v['medical'] + $v['mileage'] + $v['others'], 2);
+        if (abs($parts - $v['gross']) > 0.005) {
+            $problems['gross'] = 'BASIC + BONUS + ALLOWANCE + MEDICAL + MILEAGE + OTHERS = '.number_format($parts, 2)
+                .', but GROSS is '.number_format((float) $v['gross'], 2).' ('.number_format(abs($parts - $v['gross']), 2).' apart).';
+        }
+        if ($v['unpaid'] > $v['basic']) {
+            $problems['unpaid'] = 'UNPAID LEAVE is more than BASIC.';
+        }
 
-            $v = [];
-            foreach (self::COLUMNS as $field => $header) {
-                $raw = CsvImport::cell($data, $col, $header);
-                $v[$field] = $this->money($raw);
-                if ($v[$field] === null) {
-                    $errors[] = "Row $line ($name): '$raw' under ".strtoupper($header).' is not a number.';
+        return $problems;
+    }
 
-                    continue 2;
-                }
-            }
-
-            $parts = $v['basic'] + $v['bonus'] + $v['allowance'] + $v['medical'] + $v['mileage'] + $v['others'];
-            if (abs($parts - $v['gross']) > 0.005) {
-                $errors[] = "Row $line ($name): BASIC + BONUS + ALLOWANCE + MEDICAL + MILEAGE + OTHERS = "
-                    .number_format($parts, 2).' but GROSS is '.number_format($v['gross'], 2).'.';
-
-                continue;
-            }
-            if ($v['unpaid'] > $v['basic']) {
-                $errors[] = "Row $line ($name): UNPAID LEAVE is more than BASIC.";
-
-                continue;
-            }
-
-            // Someone on the listing twice (paid as an intern, then as staff) gets both rows.
-            $id = $matches->first()->id;
+    /**
+     * Take On figures per employee. Someone on the listing twice (paid as an intern, then
+     * as staff) gets both rows added together. Every row must already pass problems().
+     *
+     * @param  list<array{employee_id: int, values: array<string, mixed>}>  $rows
+     * @return array<int, array{columns: array<string, float>, ea: array<string, float>}>
+     */
+    public function figures(array $rows): array
+    {
+        $figures = [];
+        foreach ($rows as ['employee_id' => $id, 'values' => $values]) {
+            $v = collect(self::COLUMNS)->map(fn ($h, $field) => $this->money((string) $values[$field]) ?? 0.0)->all();
             $figures[$id] = [
                 'columns' => $this->add($figures[$id]['columns'] ?? [], [
                     'gross' => $v['basic'] - $v['unpaid'], 'additional_gross' => $v['bonus'], 'epf' => $v['epf'],
@@ -129,9 +156,8 @@ final class TakeOnImport
                 ]),
             ];
         }
-        fclose($handle);
 
-        return ['figures' => $figures, 'skipped' => array_values(array_unique($skipped)), 'errors' => $errors];
+        return $figures;
     }
 
     /**

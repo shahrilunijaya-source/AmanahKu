@@ -36,10 +36,12 @@ use App\Services\Payroll\PcbYearToDate;
 use App\Services\Payroll\Proration;
 use App\Services\Payroll\StatutoryCalendar;
 use App\Services\Payroll\TakeOnImport;
+use App\Support\CsvImport;
 use App\Support\Permissions;
 use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -263,32 +265,78 @@ class PayrollController extends Controller
      * one bad row saves no one. Only the fields the listing carries are written, so TP3
      * details and EA lines it has no column for stay as they were.
      */
-    public function importOpening(Request $request, TakeOnImport $import): RedirectResponse
+    /**
+     * Step 1 of the salary listing import: read the file into rows for HR to review on the
+     * Take On screen (pick a staff member for a name that did not match, fix a cell marked
+     * wrong). Nothing is saved here.
+     */
+    public function previewOpening(Request $request, TakeOnImport $import): JsonResponse
     {
         $this->authorizeAdmin($request);
-        $tid = app(CurrentTenant::class)->id();
         $data = $request->validate([
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
         ]);
 
-        $employees = Employee::get(['id', 'name', 'staff_id', 'status']);
-        ['figures' => $figures, 'skipped' => $skipped, 'errors' => $errors] = $import->read($request->file('file'), $employees);
-        if ($errors === [] && $figures === []) {
-            $errors[] = 'No row in this file matched anyone in AmanahKu. Is it the Summary tab, with the staff name in the first column?';
+        $employees = Employee::orderBy('name')->get(['id', 'name', 'staff_id', 'status']);
+        ['rows' => $rows, 'error' => $error] = $import->rows($request->file('file'), $employees);
+        if ($error === null && $rows === []) {
+            $error = 'No staff rows found. Is it the Summary tab, with the staff name in the first column?';
         }
-        // A row that already holds a previous employer's Form TP3 is a different kind of
-        // take-on (see PayrollOpeningFigure::isTakeOn()); the listing must not overwrite it.
-        $tp3 = PayrollOpeningFigure::where('year', $data['year'])->whereIn('employee_id', array_keys($figures))
-            ->whereNotNull('previous_employer')->where('previous_employer', '!=', '')->pluck('employee_id');
-        foreach ($tp3 as $employeeId) {
-            $errors[] = $employees->firstWhere('id', $employeeId)?->name.' already has a previous employer\'s Form TP3 for '.$data['year'].'. Enter their figures by hand.';
-        }
-        if ($errors !== []) {
-            return back()->withErrors(['file' => 'Nothing was imported. Fix the listing and upload it again. '.implode(' ', array_slice($errors, 0, 5))
-                .(count($errors) > 5 ? ' ('.(count($errors) - 5).' more)' : '')]);
+        if ($error !== null) {
+            throw ValidationException::withMessages(['file' => $error]);
         }
 
+        return response()->json([
+            'rows' => $rows,
+            'staff' => $employees->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->name, 'staff_id' => $e->staff_id, 'current' => $e->status !== 'resigned'])->values(),
+            'tp3' => $this->tp3EmployeeIds((int) $data['year'], $employees->pluck('id')->all()),
+        ]);
+    }
+
+    /**
+     * Step 2: save the reviewed rows. Rows left on Skip (no employee_id) are not imported.
+     * Everything is checked again here; any problem saves nothing and comes back per row
+     * and field, so the review screen can mark the exact cell.
+     */
+    public function importOpening(Request $request, TakeOnImport $import): JsonResponse
+    {
+        $this->authorizeAdmin($request);
+        $tid = app(CurrentTenant::class)->id();
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'rows' => ['required', 'array', 'max:'.CsvImport::ROW_CAP],
+            'rows.*.line' => ['required', 'integer'],
+            'rows.*.employee_id' => ['nullable', 'integer'],
+            'rows.*.values' => ['required', 'array'],
+        ]);
+
+        $picked = array_values(array_filter($data['rows'], fn ($r) => ($r['employee_id'] ?? null) !== null));
+        if ($picked === []) {
+            throw ValidationException::withMessages(['rows' => 'Pick a staff member for at least one row.']);
+        }
+
+        $employees = Employee::whereIn('id', array_column($picked, 'employee_id'))->get(['id', 'name', 'status']);
+        $tp3 = $this->tp3EmployeeIds((int) $data['year'], $employees->pluck('id')->all());
+        $problems = [];
+        foreach ($picked as $r) {
+            $rowProblems = $import->problems($r['values']);
+            if (! $employees->contains('id', $r['employee_id'])) {
+                $rowProblems['employee_id'] = 'Not a staff member here.';
+            } elseif (in_array($r['employee_id'], $tp3, true)) {
+                // A previous employer's Form TP3 is a different kind of take-on (see
+                // PayrollOpeningFigure::isTakeOn()); the listing must not overwrite it.
+                $rowProblems['employee_id'] = 'Already has a previous employer\'s Form TP3 for '.$data['year'].'. Enter their figures by hand.';
+            }
+            if ($rowProblems !== []) {
+                $problems[$r['line']] = $rowProblems;
+            }
+        }
+        if ($problems !== []) {
+            return response()->json(['message' => 'Nothing was imported. Fix the cells marked in red.', 'problems' => $problems], 422);
+        }
+
+        $figures = $import->figures(array_map(fn ($r) => ['employee_id' => (int) $r['employee_id'], 'values' => $r['values']], $picked));
         DB::transaction(function () use ($figures, $tid, $data) {
             foreach ($figures as $employeeId => ['columns' => $columns, 'ea' => $ea]) {
                 $row = PayrollOpeningFigure::firstOrNew(['tenant_id' => $tid, 'employee_id' => $employeeId, 'year' => $data['year']]);
@@ -301,17 +349,27 @@ class PayrollController extends Controller
         AuditLog::record('Imported payroll take-on figures', count($figures).' staff · '.$data['year']);
 
         $msg = 'Take-on figures imported for '.count($figures).' staff ('.$data['year'].').';
-        // Current staff the file never mentions would get no take-on and a wrong PCB, so
-        // name them first; they are easy to miss among the leavers and subtotals skipped.
-        $missing = $employees->where('status', '!=', 'resigned')->whereNotIn('id', array_keys($figures))->pluck('name');
+        // Current staff with no row would get no take-on and a wrong PCB, so name them.
+        $missing = Employee::where('status', '!=', 'resigned')->whereNotIn('id', array_keys($figures))->orderBy('name')->pluck('name');
         if ($missing->isNotEmpty()) {
-            $msg .= ' Check these current staff, not in the file: '.$missing->implode(', ').'.';
+            $msg .= ' Check these current staff, not imported: '.$missing->implode(', ').'.';
         }
-        if ($skipped !== []) {
-            $msg .= ' Skipped, no staff member by that name: '.implode(', ', $skipped).'.';
-        }
+        session()->flash('ok', $msg);
 
-        return back()->with('ok', $msg);
+        return response()->json(['message' => $msg]);
+    }
+
+    /**
+     * Which of these employees already hold a previous employer's Form TP3 for the year.
+     *
+     * @param  list<int>  $employeeIds
+     * @return list<int>
+     */
+    private function tp3EmployeeIds(int $year, array $employeeIds): array
+    {
+        return PayrollOpeningFigure::where('year', $year)->whereIn('employee_id', $employeeIds)
+            ->whereNotNull('previous_employer')->where('previous_employer', '!=', '')
+            ->pluck('employee_id')->map(fn ($id) => (int) $id)->values()->all();
     }
 
     // ── Fixed Transactions (recurring per-employee pay/deduction lines) ────────────
