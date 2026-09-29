@@ -43,7 +43,11 @@ final class TakeOnImport
      * are left out. Nothing is checked or saved here.
      *
      * @param  Collection<int, Employee>  $employees  everyone the rows may name
-     * @return array{rows: list<array{line: int, name: string, employee_id: ?int, note: ?string, values: array<string, string>}>, error: ?string}
+     *                                                A row that finds nobody may still carry a `suggestion`: the one staff member whose name
+     *                                                covers every word of the file's name, allowing one typo per longer word ("Ahmad Irfan"
+     *                                                for Ahmad Irfan Bin Harman, "Muhibbuddin" for Muhibbudin). HR confirms it on screen;
+     *                                                it is never imported on its own.
+     * @return array{rows: list<array{line: int, name: string, employee_id: ?int, suggestion: ?int, ambiguous: bool, values: array<string, string>}>, error: ?string}
      */
     public function rows(UploadedFile $file, Collection $employees): array
     {
@@ -85,11 +89,8 @@ final class TakeOnImport
                 'line' => $line,
                 'name' => $name,
                 'employee_id' => $matches->count() === 1 ? $matches->first()->id : null,
-                'note' => match (true) {
-                    $matches->count() > 1 => "More than one staff member is called $name. Pick the right one.",
-                    $matches->isEmpty() => 'No staff member by this name. Pick one, or leave it on Skip.',
-                    default => null,
-                },
+                'suggestion' => $matches->isEmpty() && $staffId === '' ? $this->suggest($name, $employees) : null,
+                'ambiguous' => $matches->count() > 1,
                 'values' => collect(self::COLUMNS)->map(fn ($header) => CsvImport::cell($data, $col, $header))->all(),
             ];
         }
@@ -183,6 +184,29 @@ final class TakeOnImport
         }
 
         return is_numeric($clean) ? round((float) $clean, 2) : null;
+    }
+
+    /**
+     * The one employee whose name contains every word of $name, each exactly or (for words of
+     * five letters or more) one typo away. Null when nobody or more than one fits, or when
+     * the file gives a single word, which is too little to go on.
+     *
+     * @param  Collection<int, Employee>  $employees
+     */
+    private function suggest(string $name, Collection $employees): ?int
+    {
+        $words = explode(' ', $this->nameKey($name));
+        if (count($words) < 2) {
+            return null;
+        }
+        $fits = $employees->filter(function (Employee $e) use ($words) {
+            $theirs = explode(' ', $this->nameKey($e->name));
+
+            return collect($words)->every(fn ($w) => collect($theirs)->contains(
+                fn ($t) => $t === $w || (mb_strlen($w) >= 5 && levenshtein($t, $w) <= 1)));
+        });
+
+        return $fits->count() === 1 ? $fits->first()->id : null;
     }
 
     /** Lower-case name without punctuation, extra spaces or bin/binti, so "AINA  AHMAD" finds "Aina Binti Ahmad". */

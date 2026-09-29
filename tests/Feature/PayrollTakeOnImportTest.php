@@ -120,7 +120,7 @@ class PayrollTakeOnImportTest extends TestCase
 
         $this->assertSame([2, 7], array_column($response->json('rows'), 'line'));
         $this->assertSame([$this->aina->id, null], array_column($response->json('rows'), 'employee_id'));
-        $this->assertStringContainsString('No staff member by this name', $response->json('rows.1.note'));
+        $this->assertNull($response->json('rows.1.suggestion'));
         $this->assertSame('1,000.00', $response->json('rows.0.values.basic'));
         $this->assertSame(0, PayrollOpeningFigure::count());
     }
@@ -172,6 +172,27 @@ class PayrollTakeOnImportTest extends TestCase
 
         $this->assertSame(1000.0, $this->row($this->aina)?->gross);
         $this->assertSame(1, PayrollOpeningFigure::count());
+    }
+
+    /** A shortened or misspelt name is offered as a suggestion for HR to confirm, never matched on its own. */
+    public function test_a_close_name_is_suggested_but_not_matched(): void
+    {
+        Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Nur Humaira Binti Muhibbudin', 'status' => 'active', 'workload' => 'green']);
+        $irfan = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Ahmad Irfan Bin Harman', 'status' => 'active', 'workload' => 'green']);
+        Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Ahmad Kussairi Bin Sutikno', 'status' => 'active', 'workload' => 'green']);
+
+        $rows = $this->preview([
+            'Ahmad Irfan,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Nur Humaira Binti Muhibbuddin,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Ahmad,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+            'Ahmad Zulkifli,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,',
+        ])->json('rows');
+
+        $this->assertSame([null, null, null, null], array_column($rows, 'employee_id'));
+        $this->assertSame($irfan->id, $rows[0]['suggestion']);
+        $this->assertSame(Employee::where('name', 'like', 'Nur Humaira%')->value('id'), $rows[1]['suggestion']);
+        $this->assertNull($rows[2]['suggestion']);
+        $this->assertNull($rows[3]['suggestion']);
     }
 
     /** Someone paid as an intern early in the year and as staff later shows up twice: both count. */
