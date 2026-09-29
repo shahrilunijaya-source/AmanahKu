@@ -52,6 +52,7 @@
             "npm run build"
         ],
         "analyse": [
+            "Composer\\Config::disableProcessTimeout",
             "@php vendor/bin/phpstan analyse --memory-limit=512M"
         ],
         "deploy": [

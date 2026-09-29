@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\PublicHoliday;
 use App\Models\Timesheet;
 use App\Models\TimesheetCategory;
 use App\Models\TimesheetDay;
+use App\Models\TimesheetEntry;
+use App\Models\User;
 use App\Timesheet\DayRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Tests\Acceptance\AlwaysChecks;
 use Tests\TestCase;
 
@@ -96,6 +100,8 @@ class TimesheetDayTest extends TestCase
             'tenant_id' => $this->tenant()->id, 'employee_id' => $this->staff->id,
             'week_start' => '2026-06-15', 'status' => 'draft',
         ]);
+        // Started on an earlier day, so the backdate window applies.
+        $sheet->forceFill(['created_at' => '2026-06-16 09:00:00'])->saveQuietly();
         $sheet->entries()->create([
             'tenant_id' => $this->tenant()->id, 'entry_date' => '2026-06-15',
             'category_id' => $this->others->id, 'percentage' => 100, 'hours' => 8,
@@ -129,6 +135,59 @@ class TimesheetDayTest extends TestCase
         ])->assertOk();
 
         $this->assertSame(60.0, (float) $sheet->fresh()->entries()->whereDate('entry_date', '2026-06-15')->first()->percentage);
+    }
+
+    public function test_a_week_started_today_stays_open_for_older_days_across_saves(): void
+    {
+        Carbon::setTestNow('2026-06-19 12:00:00'); // Friday, Monday 15th is outside the window
+
+        foreach ([60, 100] as $pct) {
+            $this->actingInTenantAs($this->staff)->postJson('/app/timesheets', [
+                'week_start' => '2026-06-15',
+                'entries' => [['entry_date' => '2026-06-15', 'category_id' => $this->others->id, 'percentage' => $pct]],
+            ])->assertOk();
+        }
+
+        $this->assertSame(100.0, (float) TimesheetEntry::whereDate('entry_date', '2026-06-15')->first()->percentage);
+        $this->actingInTenantAs($this->staff)->get('/app/timesheets?week=2026-06-15')
+            ->assertViewHas('tsEarliestEditable', '2026-06-15');
+
+        // The next day the window applies again.
+        Carbon::setTestNow('2026-06-20 12:00:00');
+        $this->actingInTenantAs($this->staff)->postJson('/app/timesheets', [
+            'week_start' => '2026-06-15',
+            'entries' => [['entry_date' => '2026-06-15', 'category_id' => $this->others->id, 'percentage' => 50]],
+        ])->assertStatus(422);
+        $this->actingInTenantAs($this->staff)->get('/app/timesheets?week=2026-06-15')
+            ->assertViewHas('tsEarliestEditable', app(DayRules::class)->earliestEditable(Carbon::now())->toDateString());
+    }
+
+    public function test_superadmin_observer_can_unlock_a_day_and_leaves_no_audit_row(): void
+    {
+        Carbon::setTestNow('2026-06-19 12:00:00'); // Friday
+
+        $sheet = Timesheet::create([
+            'tenant_id' => $this->tenant()->id, 'employee_id' => $this->staff->id,
+            'week_start' => '2026-06-15', 'status' => 'draft',
+        ]);
+        $superadmin = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $superadmin->forceFill(['is_super_admin' => true])->save();
+
+        $this->actingAs($superadmin)->withSession(['current_tenant' => $this->tenant()->id])
+            ->postJson("/app/timesheets/{$this->staff->id}/days/2026-06-15/unlock", ['reason' => 'Support fix'])
+            ->assertOk();
+
+        $day = TimesheetDay::where('timesheet_id', $sheet->id)->where('entry_date', '2026-06-15')->first();
+        $this->assertNotNull($day->unlocked_at);
+        $this->assertNull($day->unlocked_by_id);
+        $this->assertSame(0, AuditLog::where('action', 'like', '%unlocked%')->count());
+    }
+
+    public function test_capture_screen_explains_a_locked_day_instead_of_blaming_the_board(): void
+    {
+        $this->actingInTenantAs($this->staff)->get('/app/timesheets')
+            ->assertOk()
+            ->assertSee('ask your manager to unlock it and your board cards will show up here', false);
     }
 
     // ---- recall: submitted days go back to draft, approved days stay -------

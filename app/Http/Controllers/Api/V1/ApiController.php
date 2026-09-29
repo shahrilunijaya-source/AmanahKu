@@ -164,8 +164,10 @@ class ApiController extends Controller
             ->where('is_other', false)
             ->with([
                 'categories:id,name',
-                'pm:id,name,nickname',
-                'pe:id,name,nickname',
+                'pm:id,name,nickname,user_id',
+                'pm.user:id,email',
+                'pe:id,name,nickname,user_id',
+                'pe.user:id,email',
                 'versions:id,project_id,version_no,effective_date,snapshot',
                 'variations:id,project_id,status',
             ])
@@ -205,6 +207,8 @@ class ApiController extends Controller
                         'drive_link' => $s['drive_link'] ?? null,
                         'pm' => $p->pm?->display_name,
                         'pe' => $p->pe?->display_name,
+                        'pm_email' => $p->pm?->user?->email,
+                        'pe_email' => $p->pe?->user?->email,
                         'version' => $version->version_no,
                         'awaiting_approval' => $awaitingApproval,
                     ];
@@ -235,6 +239,11 @@ class ApiController extends Controller
                     'drive_link' => $p->drive_link,
                     'pm' => $p->pm?->display_name,
                     'pe' => $p->pe?->display_name,
+                    // Login email, so Track can assign the matching user: a display name is
+                    // not unique enough to hand someone budget access on. Null when the
+                    // employee has no login account.
+                    'pm_email' => $p->pm?->user?->email,
+                    'pe_email' => $p->pe?->user?->email,
                     'version' => $p->versions->max('version_no'),
                     'awaiting_approval' => $awaitingApproval,
                 ];

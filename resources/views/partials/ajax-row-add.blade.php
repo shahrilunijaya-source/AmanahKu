@@ -39,6 +39,8 @@
                     if (window.Alpine && added) { window.Alpine.initTree(added); }
                 }
                 bump(res.d.count_sel, 1);
+                // Lets a screen react to its own adds, e.g. the Projects "appears in Track" dialog.
+                window.dispatchEvent(new CustomEvent('row-added', { detail: res.d }));
                 form.reset();
                 var first = form.querySelector('input[name=name]');
                 if (first) { first.focus(); }

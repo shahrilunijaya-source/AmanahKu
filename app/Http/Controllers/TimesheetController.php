@@ -193,8 +193,12 @@ class TimesheetController extends Controller
             'tsFillFromBoard' => $tsFillFromBoard,
             // Per-day submit state (CR-03) for the capture screen's badges/actions.
             'tsDays' => $weekTimesheet ? $this->dayStatuses($weekTimesheet) : [],
-            // First date still editable without a manager unlock (CR-03 edit window).
-            'tsEarliestEditable' => app(DayRules::class)->earliestEditable(Carbon::now())->toDateString(),
+            // First date still editable without a manager unlock (CR-03 edit window). While
+            // the window doesn't apply to this week yet (no sheet, or one started today) the
+            // whole week is open, same as WeekWriter.
+            'tsEarliestEditable' => app(DayRules::class)->windowApplies($weekTimesheet, Carbon::now())
+                ? app(DayRules::class)->earliestEditable(Carbon::now())->toDateString()
+                : $weekStart->toDateString(),
         ];
     }
 
@@ -1079,7 +1083,7 @@ class TimesheetController extends Controller
             ['timesheet_id' => $timesheet->id, 'entry_date' => $iso],
             ['status' => TimesheetDay::STATUS_DRAFT],
         );
-        $day->update(['unlocked_at' => now(), 'unlocked_by_id' => $actor->id]);
+        $day->update(['unlocked_at' => now(), 'unlocked_by_id' => $actor?->id]);
         AuditLog::change($timesheet, "day.{$iso}.unlocked", null, true, $data['reason']);
 
         return $this->dayActionResponse($request, $day, 'Unlocked.');
@@ -1133,6 +1137,13 @@ class TimesheetController extends Controller
      */
     private function managesDays(Request $request, Employee $employee): bool
     {
+        // The super-admin observer seat has no Employee record here but may act on any
+        // day; AuditLog already drops its rows, so it stays invisible to the company.
+        $tenant = app(CurrentTenant::class)->get();
+        if ($tenant && $request->user()?->isObserverIn($tenant)) {
+            return true;
+        }
+
         $actor = $request->attributes->get('employee');
         if (! $actor || $actor->id === $employee->id) {
             return false;

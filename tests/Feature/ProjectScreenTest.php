@@ -335,6 +335,23 @@ class ProjectScreenTest extends TestCase
         $this->assertSame('#ts-proj-count', $res->json('count_sel'));
     }
 
+    /** Track imports new projects hourly, so the creator is told not to expect it there straight away. */
+    public function test_creating_a_project_says_when_it_reaches_track(): void
+    {
+        $this->actingAsRole('hr')
+            ->postJson(route('projects.store'), ['name' => 'KPT: RMS', 'project_code' => 'KPT-RMS-2026-01', 'client' => 'KPT'])
+            ->assertOk()
+            ->assertJsonPath('project_name', 'KPT: RMS')
+            ->assertJsonPath('in_track', true);
+
+        $this->actingAsRole('hr')->get('/app/projects')
+            ->assertSee('It will appear in Track within 1 hour.');
+
+        $this->actingAsRole('hr')
+            ->post(route('projects.store'), ['name' => 'KPT: HR', 'project_code' => 'KPT-HR-2026-01', 'client' => 'KPT', 'is_active' => 0])
+            ->assertSessionHas('ok', 'KPT: HR added.');
+    }
+
     public function test_sub_pillar_ajax_add_returns_a_rendered_row_and_bumps_its_own_count(): void
     {
         $res = $this->actingAsRole('hr')->postJson(route('sub-pillars.store'), ['name' => 'Technical']);

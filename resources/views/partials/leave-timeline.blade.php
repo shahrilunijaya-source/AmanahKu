@@ -24,9 +24,12 @@
     } else {
         // Verify: once done, the actual verifier (name + position); while pending, the
         // assigned superior(s) so the applicant knows who is holding it.
-        $steps[] = $r->verified_at
-            ? $verifyDone
-            : ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $pendingVerifierNames, 'whoRole' => $pendingVerifierRole, 'at' => null];
+        $steps[] = match (true) {
+            (bool) $r->verified_at => $verifyDone,
+            // Approved while still unverified: the manager ran out of time (approval shortcut).
+            $r->status === 'approved' => ['state' => 'done', 'en' => 'Not verified in time', 'ms' => 'Tidak disahkan dalam masa', 'who' => null, 'whoRole' => null, 'whoI18n' => ['en' => 'Management approved directly', 'ms' => 'Pengurusan meluluskan terus'], 'at' => null],
+            default => ['state' => 'pending', 'en' => 'Verified by superior', 'ms' => 'Disahkan oleh penyelia', 'who' => $pendingVerifierNames, 'whoRole' => $pendingVerifierRole, 'at' => null],
+        };
         // Approve: once done, the actual approver (name + position). Before that, no single
         // approver is assigned — final approval is any management member — so label the body.
         $steps[] = $r->status === 'approved'

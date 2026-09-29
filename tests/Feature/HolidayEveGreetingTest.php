@@ -186,7 +186,9 @@ class HolidayEveGreetingTest extends TestCase
             ->assertSee('uj-hv-stamp', false)
             ->assertSee('Malaysia Day')
             ->assertSee('Selamat Hari Malaysia, see you Thursday.')
-            ->assertSee('Thu 17 Sep');
+            ->assertSee('Thu 17 Sep')
+            // The greeting already says it; the clock-out popup would stack on top of it.
+            ->assertDontSee("Alpine.store('notice').show({ title: ", false);
     }
 
     // ---- sweep -------------------------------------------------------------

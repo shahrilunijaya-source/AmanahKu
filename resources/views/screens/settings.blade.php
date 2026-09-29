@@ -232,6 +232,25 @@
         </div>
         @endif
 
+        @if (!empty($canManageFeatures) && (! $only || $only === 'approvals'))
+        {{-- Approval shortcut: after this many days unverified, HR / a director may approve a
+             leave or claim request directly (RoutesApprovalsByReportingLine). Blank = off. --}}
+        <div class="uj-card" style="padding:20px;">
+            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Approval shortcut' : 'Pintasan kelulusan'">Approval shortcut</h3>
+            <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'When a manager has not verified a leave or claim request after this many days, HR or a director can approve it directly.' : 'Jika pengurus belum mengesahkan permohonan cuti atau tuntutan selepas bilangan hari ini, HR atau pengarah boleh meluluskannya terus.'">When a manager has not verified a leave or claim request after this many days, HR or a director can approve it directly.</p>
+
+            <form method="post" action="{{ route('admin.approval-escalation.update') }}">
+                @csrf
+                @error('approval_escalation_days')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:12px;">{{ $message }}</div>@enderror
+                <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;" for="approval_escalation_days" x-text="$store.ui.lang==='en' ? 'Days to wait' : 'Hari menunggu'">Days to wait</label>
+                <input id="approval_escalation_days" name="approval_escalation_days" type="number" min="1" max="60" value="{{ old('approval_escalation_days', $company->approval_escalation_days) }}" placeholder="3" style="width:110px;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;margin-bottom:6px;outline:none;" />
+                @include('partials.hint', ['en' => 'Calendar days from when the request was sent. Leave blank to turn this off.', 'ms' => 'Hari kalendar dari masa permohonan dihantar. Biarkan kosong untuk mematikannya.'])
+
+                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;margin-top:6px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
+            </form>
+        </div>
+        @endif
+
         @if (! $only || $only === 'branches')
         {{-- Branches: name + state CRUD. Geofence/hours live on the Attendance Setup screen. --}}
         <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>

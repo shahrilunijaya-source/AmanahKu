@@ -94,21 +94,20 @@ final class WeekWriter
             : collect();
         $storedRowsByDate = $this->storedEntryRowsByDate($timesheet);
         $earliestEditable = $this->dayRules->earliestEditable($today);
+        $windowApplies = $this->dayRules->windowApplies($timesheet, $today);
 
         // Every working day that is frozen for the staff — submitted/approved, or
         // beyond the backdate window with no unlock — either keeps its stored lines
         // (grid omitted it) or refuses a changed line (grid resent it differently).
         //
-        // The backdate window only bites once this week's Timesheet row already
-        // exists: the very first save of a week (catching up a whole week's grid in
-        // one go, possibly Friday) is creating the draft, not editing an old one, so
-        // nothing is "frozen" yet to protect. A second save against an existing draft
-        // is what the window guards.
+        // The backdate window only bites once this week's Timesheet row was created
+        // on an earlier day (DayRules::windowApplies): catching up a whole week in one
+        // sitting, possibly Friday, is filling the draft, not editing an old one.
         $frozenMessages = [];
         foreach ($this->dayRules->weekWorkingDays($weekStartCarbon) as $iso) {
             $dayRow = $existingDays->get($iso);
             $lockedByStatus = $dayRow !== null && $dayRow->isLockedForStaff();
-            $lockedByWindow = $timesheet->exists && Carbon::parse($iso)->lt($earliestEditable) && ($dayRow === null || $dayRow->unlocked_at === null);
+            $lockedByWindow = $windowApplies && Carbon::parse($iso)->lt($earliestEditable) && ($dayRow === null || $dayRow->unlocked_at === null);
 
             if (! $lockedByStatus && ! $lockedByWindow) {
                 continue;
