@@ -380,4 +380,18 @@ class PayrollTakeOnImportTest extends TestCase
             ->get('/app/payroll-transaction?tab=takeon')
             ->assertOk()->assertSee('Chong Wei Lin')->assertDontSee('Farid Kamal')->assertSee('Badrul Hisham');
     }
+
+    /** The staff list carries each person's status, type and department so the filter can narrow it. */
+    public function test_take_on_tab_offers_status_type_and_department_filters(): void
+    {
+        Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Chong Wei Lin', 'status' => 'resigned', 'workload' => 'green', 'archived_at' => '2026-03-31']);
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => Employee::withoutGlobalScopes()->where('name', 'Chong Wei Lin')->value('id'), 'year' => 2026, 'gross' => 1000]);
+
+        $this->actingAs($this->hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/payroll-transaction?tab=takeon')
+            ->assertOk()
+            ->assertSee('\u0022s\u0022:\u0022resigned\u0022', false)
+            ->assertSee('\u0022s\u0022:\u0022confirmed\u0022', false)
+            ->assertSee("toggle('s', 'resigned')", false);
+    }
 }

@@ -77,11 +77,21 @@
         year: {{ $takeOnYear }},
         years: @js($takeOnYears),
         pick: {{ (int) request('emp', $openingEmployees->first()?->id ?? 0) }},
-        rows: @js($openingEmployees->map(fn ($e) => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position.' '.$e->staff_id)))->values()),
+        rows: @js($openingEmployees->map(fn ($e) => [
+            'h' => mb_strtolower(trim($e->display_name.' '.$e->name.' '.$e->position.' '.$e->staff_id)),
+            's' => $e->archived_at || $e->status === 'resigned' ? 'resigned' : ($e->status === 'probation' ? 'probation' : 'confirmed'),
+            't' => $e->employmentType?->name,
+            'd' => $e->department?->name,
+        ])->values()),
+        filtersOpen: false,
+        f: { s: '', t: '', d: '' },
+        get activeFilterCount() { return Object.values(this.f).filter(Boolean).length; },
+        toggle(k, v) { this.f[k] = this.f[k] === v ? '' : v; },
+        get shown() { return this.rows.filter(r => this.hit(r)).length; },
         data: @js($takeOnData),
         editing: false,
         vals: {},
-        hit(h) { return this.q.trim() === '' || h.includes(this.q.trim().toLowerCase()); },
+        hit(r) { return (this.q.trim() === '' || r.h.includes(this.q.trim().toLowerCase())) && ['s', 't', 'd'].every(k => !this.f[k] || r[k] === this.f[k]); },
         cur() { return (this.data[this.pick] || {})[this.year] || {}; },
         num(k) { return parseFloat((this.editing ? this.vals : this.cur())[k]) || 0; },
         fmt(v) { return (parseFloat(v) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
@@ -90,7 +100,42 @@
      }" x-init="$watch('pick', () => { editing = false; sync(); }); $watch('year', () => sync())" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
     <div class="uj-card" style="flex:1;min-width:240px;max-width:300px;padding:0;">
         <div style="padding:12px;border-bottom:1px solid var(--hairline);">
-            <input type="search" x-model="q" @keydown.escape="q = ''" :placeholder="$store.ui.lang==='en' ? 'Search name or ID' : 'Cari nama atau ID'" style="width:100%;height:32px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);">
+            <div style="display:flex;gap:6px;">
+                <input type="search" x-model="q" @keydown.escape="q = ''" :placeholder="$store.ui.lang==='en' ? 'Name or ID' : 'Nama atau ID'" style="flex:1;min-width:0;height:32px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:var(--surface,#fff);color:var(--ink);">
+                <button type="button" @click="filtersOpen = !filtersOpen" :aria-expanded="filtersOpen"
+                        :style="filtersOpen || activeFilterCount > 0 ? { background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' } : { background: 'var(--surface,#fff)', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                        style="height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;">
+                    <span x-text="$store.ui.lang==='en' ? 'Filter' : 'Tapis'">Filter</span>
+                    <span x-show="activeFilterCount > 0" x-cloak x-text="activeFilterCount" style="font-size:10.5px;font-family:var(--font-mono);"></span>
+                </button>
+            </div>
+            @php
+                $takeOnFilters = [
+                    's' => [['Status', 'Status'], ['confirmed' => ['Confirmed', 'Disahkan'], 'probation' => ['Probation', 'Percubaan'], 'resigned' => ['Resigned', 'Berhenti']]],
+                    't' => [['Employment type', 'Jenis pekerjaan'], $openingEmployees->pluck('employmentType.name')->filter()->unique()->sort()->mapWithKeys(fn ($n) => [$n => [$n, $n]])->all()],
+                    'd' => [['Department', 'Jabatan'], $openingEmployees->pluck('department.name')->filter()->unique()->sort()->mapWithKeys(fn ($n) => [$n => [$n, $n]])->all()],
+                ];
+            @endphp
+            <div x-show="filtersOpen" x-cloak style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+                @foreach ($takeOnFilters as $fk => [$fLabel, $fOptions])
+                    @continue(empty($fOptions))
+                    <div>
+                        <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;" x-text="$store.ui.lang==='en' ? @js($fLabel[0]) : @js($fLabel[1])">{{ $fLabel[0] }}</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                            @foreach ($fOptions as $fv => $fl)
+                                <button type="button" @click="toggle('{{ $fk }}', @js($fv))"
+                                        :style="f.{{ $fk }} === @js($fv) ? { background: 'var(--ink)', color: '#fff', borderColor: 'var(--ink)' } : { background: 'var(--surface,#fff)', color: 'var(--body)', borderColor: 'var(--hairline)' }"
+                                        style="padding:4px 10px;font-size:11.5px;font-weight:600;border:1px solid var(--hairline);border-radius:9999px;cursor:pointer;"
+                                        x-text="$store.ui.lang==='en' ? @js($fl[0]) : @js($fl[1])">{{ $fl[0] }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                @endforeach
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted);">
+                    <span x-text="shown + ($store.ui.lang==='en' ? ' of ' : ' daripada ') + rows.length"></span>
+                    <button type="button" x-show="activeFilterCount > 0" @click="f = { s: '', t: '', d: '' }" style="font-size:11.5px;font-weight:600;color:var(--muted);background:transparent;border:0;cursor:pointer;text-decoration:underline;padding:0;" x-text="$store.ui.lang==='en' ? 'Clear all' : 'Kosongkan'"></button>
+                </div>
+            </div>
         </div>
         <div style="max-height:720px;overflow:auto;">
             @foreach ($openingEmployees as $e)
@@ -99,6 +144,7 @@
                     <div style="min-width:0;"><div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $e->name }}@if ($e->archived_at) <span style="font-size:10.5px;color:var(--muted);font-weight:500;margin-left:4px;" x-text="$store.ui.lang==='en' ? 'Left' : 'Berhenti'">Left</span>@endif</div><div style="font-size:11px;color:var(--muted);">{{ $e->position }}{{ $e->staff_id ? ' · '.$e->staff_id : '' }}</div></div>
                 </button></div>
             @endforeach
+            <div x-show="shown === 0" x-cloak style="padding:20px 14px;font-size:12px;color:var(--muted);text-align:center;" x-text="$store.ui.lang==='en' ? 'No staff match.' : 'Tiada staf sepadan.'"></div>
         </div>
     </div>
 
