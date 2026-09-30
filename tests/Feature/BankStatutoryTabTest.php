@@ -75,6 +75,21 @@ class BankStatutoryTabTest extends TestCase
             ->assertSessionHasErrors(['tax_category', 'epf_scheme', 'socso_category']);
     }
 
+    /** SKBBK is a PERKESO scheme, so it sits with SOCSO / EIS rather than under Zakat. */
+    public function test_skbbk_is_shown_and_edited_with_socso_not_zakat(): void
+    {
+        $this->login('hr');
+        $e = $this->emp('Adibah');
+        $this->post('/app/payroll/salary', ['employee_id' => $e->id, 'basic_salary' => 2500, 'skbbk_opt_in' => '1'])->assertRedirect();
+        $this->assertTrue(SalaryStructure::where('employee_id', $e->id)->firstOrFail()->skbbk_opt_in);
+
+        $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()
+            ->assertDontSee('Zakat · SKBBK')
+            ->assertDontSee('Zakat / SKBBK')
+            ->assertSeeInOrder(['SOCSO / EIS', 'SKBBK (Lindung 24 Jam)', 'Zakat (monthly)'], false)
+            ->assertSeeInOrder(['EPF · SOCSO / EIS', 'name="skbbk_opt_in"', '<div class="uj-section-head">Zakat</div>'], false);
+    }
+
     public function test_existing_payroll_salary_form_still_saves_without_new_fields(): void
     {
         $this->login('hr');
