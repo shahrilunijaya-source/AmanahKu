@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
@@ -72,6 +73,7 @@ class StaffImportPayTest extends TestCase
         $this->assertSame('citizen', $s->nationality);
         $this->assertTrue($s->tax_resident);
         $this->assertNotNull($s->effective_from);
+        $this->assertTrue(AuditLog::withoutGlobalScopes()->where('action', 'Updated salary structure')->where('target', 'Adri (staff import)')->exists());
     }
 
     public function test_a_row_with_no_pay_cells_creates_no_structure(): void

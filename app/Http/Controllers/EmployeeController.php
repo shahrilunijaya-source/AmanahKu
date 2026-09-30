@@ -680,6 +680,8 @@ class EmployeeController extends Controller
             $structure->fill(['effective_from' => now()->toDateString(), 'nationality' => 'citizen', 'tax_resident' => true]);
         }
         $structure->fill($pay)->save();
+        // Same per-person trail as a save on the profile form, so a bank change by upload names who it touched.
+        AuditLog::record('Updated salary structure', $employee->name.' (staff import)');
 
         return [true, [$structure->wasRecentlyCreated ? 'Pay details set up.' : 'Pay details updated.', ...$notes]];
     }
