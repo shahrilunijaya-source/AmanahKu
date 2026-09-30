@@ -131,4 +131,14 @@ class BankStatutoryTabTest extends TestCase
         $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('<option value="Maybank" selected', false);
     }
 
+    /** A super admin looking around a tenant (no membership) gets the HR view of Bank & Statutory. */
+    public function test_a_super_admin_observer_sees_bank_and_statutory(): void
+    {
+        $e = $this->emp('Haryati');
+        $admin = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $admin->forceFill(['is_super_admin' => true])->save();
+        $this->actingAs($admin)->withSession(['current_tenant' => $this->tenant->id]);
+
+        $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('Bank &amp; Statutory', false);
+    }
 }

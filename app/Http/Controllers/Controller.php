@@ -29,8 +29,11 @@ abstract class Controller
             return false;
         }
 
+        // A super admin passes director checks too, so money and Bank & Statutory are
+        // visible when they look around a tenant (they sit there as a management observer).
         return in_array($role, $roles, true)
-            || in_array(Permissions::effectiveRole($role), $roles, true);
+            || in_array(Permissions::effectiveRole($role), $roles, true)
+            || (in_array('director', $roles, true) && (bool) $request->user()?->isSuperAdmin());
     }
 
     /** 403 unless the acting user's tenant role is one of $roles. */
