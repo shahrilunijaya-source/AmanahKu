@@ -110,6 +110,17 @@ class StaffImportPayTest extends TestCase
             ->assertSessionHas('import_report', [['row' => 2, 'name' => 'Adri', 'outcome' => 'skipped', 'notes' => ['Invalid email.']]]);
     }
 
+    public function test_the_import_screen_lists_each_row_with_skipped_rows_first(): void
+    {
+        $this->followingRedirects()
+            ->from('/app/staff-load')
+            ->post('/app/employees/import', ['file' => UploadedFile::fake()->createWithContent('staff.csv', "name,email,bank_name\nAdri,,Maybank\nBad,not-an-email,\n")])
+            ->assertOk()
+            ->assertSee('Last import')
+            ->assertSeeInOrder(['Bad', 'Invalid email.', 'Adri', 'Pay details set up.'])
+            ->assertSee('ready for payroll');
+    }
+
     public function test_someone_given_import_access_without_a_pay_role_cannot_set_pay(): void
     {
         $manager = $this->loginAs('manager');
