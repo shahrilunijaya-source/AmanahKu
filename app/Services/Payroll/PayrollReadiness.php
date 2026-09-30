@@ -99,7 +99,7 @@ final class PayrollReadiness
         if (blank($e->nric)) {
             $blocking[] = 'NRIC';
         }
-        if (blank($s->epf_no)) {
+        if ($s->epf_scheme !== 'exempt' && blank($s->epf_no)) {
             $blocking[] = 'EPF number';
         }
         if (! $s->socso_exempt && blank($s->socso_no)) {

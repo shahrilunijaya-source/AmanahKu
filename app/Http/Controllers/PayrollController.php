@@ -1179,7 +1179,7 @@ class PayrollController extends Controller
             $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
             // electedBefore1998 has no column — no tenant has data going back that far,
             // so every non-citizen falls under mandatory Part F.
-            $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
+            $epfPart = $this->epfPartFor($structure, $age);
 
             // Fixed Transactions replace salary_structures.allowances as the source of
             // recurring earnings/deductions (see migration 2026_08_25_200200) — split
@@ -1313,7 +1313,7 @@ class PayrollController extends Controller
             }
 
             $age = $employee->date_of_birth === null ? null : (int) $employee->date_of_birth->diffInYears($periodEnd);
-            $epfPart = $this->epf->part($structure->nationality ?? 'citizen', $age, false);
+            $epfPart = $this->epfPartFor($structure, $age);
 
             $inputs = [
                 'basic' => 0.0,
@@ -1527,7 +1527,7 @@ class PayrollController extends Controller
         // is genuinely nullable (not every employee has a salary structure row) —
         // Larastan false-positives "nullsafe.neverNull" on ?-> here, so this is written
         // as an explicit null check to sidestep that rather than silence it.
-        $epfPart = $this->epf->part(($structure !== null ? $structure->nationality : null) ?? 'citizen', $age, false);
+        $epfPart = $this->epfPartFor($structure, $age);
 
         // overtime_hours/unpaid_days: null or '' (never submitted, or explicitly cleared)
         // means "use the pulled figure"; any other value — including 0 — is HR's override
@@ -2061,6 +2061,20 @@ class PayrollController extends Controller
      * (Kt) is the difference between EPF on the full month's pay and EPF on the pay
      * excluding the bonus — EpfCalculator gives both.
      */
+    /**
+     * EPF Part for this person, or null when no EPF is due: HR set the EPF scheme to Exempt
+     * (an intern, say), or they are 75 or over. electedBefore1998 has no column, so every
+     * non-citizen falls under mandatory Part F.
+     */
+    private function epfPartFor(?SalaryStructure $structure, ?int $age): ?string
+    {
+        if ($structure !== null && $structure->epf_scheme === 'exempt') {
+            return null;
+        }
+
+        return $this->epf->part(($structure !== null ? $structure->nationality : null) ?? 'citizen', $age, false);
+    }
+
     private function buildPcbInputs(Employee $employee, string $period, PayslipComputation $comp, ?SalaryStructure $structure, ?string $epfPart, float $exemptThisMonth = 0.0): PcbInputs
     {
         // Category derivation lives on PcbCalculator (also reused by Cp8dData for the
