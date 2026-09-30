@@ -90,6 +90,16 @@ class BankStatutoryTabTest extends TestCase
             ->assertSeeInOrder(['EPF · SOCSO / EIS', 'name="skbbk_opt_in"', '<div class="uj-section-head">Zakat</div>'], false);
     }
 
+    /** The payroll wizard's "Set up pay" link adds edit=bank, which opens the form once and then drops itself from the URL. */
+    public function test_edit_bank_query_opens_the_form_on_arrival(): void
+    {
+        $this->login('hr');
+        $e = $this->emp('Adibah');
+        $this->get("/app/profile?emp={$e->id}&tab=bank&edit=bank")->assertOk()
+            ->assertSee("get('edit') === 'bank'", false)
+            ->assertSee("location.href.replace('&edit=bank', '')", false);
+    }
+
     public function test_existing_payroll_salary_form_still_saves_without_new_fields(): void
     {
         $this->login('hr');

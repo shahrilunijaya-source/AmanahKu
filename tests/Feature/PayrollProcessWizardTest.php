@@ -90,7 +90,7 @@ class PayrollProcessWizardTest extends TestCase
         $dept = Department::forceCreate(['tenant_id' => $this->tenant->id, 'name' => 'Finance']);
         $ready = $this->employee('Aina', ['department_id' => $dept->id, 'gender' => 'female', 'photo' => '/storage/photos/aina.jpg']);
         $this->employee('Gap', [], true)->salaryStructure->update(['epf_no' => null]);
-        $this->employee('NoStructure', [], false);
+        $noStructure = $this->employee('NoStructure', ['department_id' => $dept->id], false);
         $this->employee('Archived', ['archived_at' => now()]);
         $paidOut = $this->employee('Leaver', ['last_working_day' => now()->toDateString()]);
         PayrollItem::seedFor($this->tenant);
@@ -98,7 +98,7 @@ class PayrollProcessWizardTest extends TestCase
             'payroll_item_id' => PayrollItem::where('tenant_id', $this->tenant->id)->value('id'),
             'period' => '2026-12', 'amount' => 500, 'for_bonus_run' => true]);
 
-        $this->asHr()->get('/app/payroll-process')->assertOk()->assertViewHas('payrollWizard', function (array $w) use ($ready, $paidOut) {
+        $this->asHr()->get('/app/payroll-process')->assertOk()->assertViewHas('payrollWizard', function (array $w) use ($ready, $paidOut, $noStructure) {
             $people = collect($w['people'])->keyBy('name');
             $this->assertSame(['Aina', 'Boss', 'Gap', 'Leaver'], $people->keys()->sort()->values()->all());
             $this->assertSame('Finance', $people['Aina']['department']);
@@ -108,7 +108,7 @@ class PayrollProcessWizardTest extends TestCase
             $this->assertSame('AC-Aina', $people['Aina']['staff_id']);
             $this->assertSame([], $people['Aina']['blocking']);
             $this->assertSame(['EPF number'], $people['Gap']['blocking']);
-            $this->assertSame([['name' => 'NoStructure', 'blocking' => ['Salary structure']]], $w['outside']);
+            $this->assertSame([['id' => $noStructure->id, 'name' => 'NoStructure', 'staff_id' => 'AC-NoStructure', 'department' => 'Finance', 'blocking' => ['Salary structure']]], $w['outside']);
             $this->assertSame([$ready->id], $w['bonusByPeriod']['2026-12']);
             $this->assertSame([$paidOut->id], array_column($w['leavers'], 'id'));
             $this->assertSame('Acme Sdn Bhd', $w['company']);
