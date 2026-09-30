@@ -34,13 +34,29 @@
     @endif
     @foreach ($readinessCompanyWarnings as $w)
         @php preg_match('/\d+/', $w, $m); $n = $m[0] ?? '0'; @endphp
-        <div style="margin-bottom:12px;background:#fff7e6;border:1px solid var(--amber);color:var(--amber);font-size:12.5px;border-radius:8px;padding:9px 12px;"
+        <div class="pw-out" style="font-size:12.5px;padding:10px 16px;"
              x-text="t(@js($w), @js('Levi HRD Corp dimatikan tetapi syarikat mempunyai '.$n.' pekerja warganegara Malaysia; pendaftaran adalah wajib pada 10.'))">{{ $w }}</div>
     @endforeach
-    <div x-show="(kind === 'monthly' || kind === 'mid_month') && outside.length" style="margin-bottom:12px;background:#fff7e6;border:1px solid var(--amber);font-size:12.5px;border-radius:8px;padding:9px 12px;">
-        <b style="color:var(--amber);" x-text="t('Currently employed but not in this list, so not paid:', 'Masih bekerja tetapi tiada dalam senarai ini, jadi tidak dibayar:')"></b>
-        <template x-for="o in outside" :key="o.name"><span style="margin-left:6px;"><span x-text="o.name"></span> (<span style="color:var(--error);" x-text="o.blocking.join(', ')"></span>)</span></template>
-    </div>
+    {{-- Staff still employed but with no salary structure: they can't be paid, so each one links
+         straight to their pay setup (new tab, so this run isn't lost). --}}
+    <section x-show="(kind === 'monthly' || kind === 'mid_month') && outside.length" x-data="{ allOutside: false }" class="pw-out" aria-labelledby="pw-out-title">
+        <div id="pw-out-title" style="font-size:13.5px;font-weight:600;" x-text="outside.length + ' ' + t('staff will not be paid in this run', 'kakitangan tidak akan dibayar dalam run ini')"></div>
+        <p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;max-width:75ch;" x-text="t('They still work here but have no pay details yet. Set up each one (it opens in a new tab), then reload this page to add them. If someone should not be paid, you can leave them.', 'Mereka masih bekerja di sini tetapi belum ada butiran gaji. Tetapkan setiap seorang (dibuka dalam tab baharu), kemudian muat semula halaman ini untuk memasukkan mereka. Jika seseorang tidak patut dibayar, biarkan sahaja.')"></p>
+        <ul>
+            <template x-for="(o, i) in outside" :key="o.id">
+                <li x-show="allOutside || i < 6">
+                    <div style="min-width:0;">
+                        <div style="font-size:12.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="o.name" x-text="o.name"></div>
+                        <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="[o.staff_id, o.department].filter(Boolean).join(' · ') || t('No staff ID', 'Tiada ID staf')"></div>
+                    </div>
+                    <a class="pw-fixlink" target="_blank" rel="noopener" :href="@js(route('app.screen', 'profile')) + '?emp=' + o.id + '&tab=bank&edit=bank'"
+                       :aria-label="t('Set up pay for', 'Tetapkan gaji untuk') + ' ' + o.name + ' ' + t('(opens in a new tab)', '(dibuka dalam tab baharu)')" x-text="t('Set up pay', 'Tetapkan gaji')"></a>
+                </li>
+            </template>
+        </ul>
+        <button type="button" x-show="outside.length > 6" @click="allOutside = ! allOutside" class="pw-fixlink" style="margin-top:10px;background:none;border:0;padding:0;cursor:pointer;"
+                :aria-expanded="allOutside" x-text="allOutside ? t('Show fewer', 'Tunjuk kurang') : t('Show all', 'Tunjuk semua') + ' ' + outside.length"></button>
+    </section>
     <div x-show="blockers().length" style="margin-bottom:12px;background:var(--red-tint);border:1px solid var(--red);color:var(--error);font-size:12.5px;border-radius:8px;padding:9px 12px;"
          x-text="blockers().length + ' ' + t('switched-on employees have a red gap. Fix their profile, or switch them off to leave them out of this run.', 'pekerja yang dihidupkan ada jurang merah. Betulkan profil mereka, atau matikan untuk mengecualikan daripada run ini.')"></div>
 
