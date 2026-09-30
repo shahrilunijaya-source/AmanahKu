@@ -43,6 +43,11 @@
     .pw-arrow:hover { border-color:var(--red);color:var(--red); }
     .pw-pillbtn { height:32px;padding:0 16px;border-radius:9999px;border:1px solid var(--hairline);background:#fff;color:var(--ink);font-size:12.5px;font-weight:500;cursor:pointer; }
     .pw-pillbtn:hover { border-color:var(--red);color:var(--red); }
+    .pw-out { margin-bottom:12px;background:color-mix(in srgb, var(--amber) 8%, #fff);border:1px solid color-mix(in srgb, var(--amber) 40%, var(--hairline));border-radius:10px;padding:14px 16px;color:var(--amber-ink); }
+    .pw-out ul { list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:6px; }
+    .pw-out li { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:#fff;border:1px solid color-mix(in srgb, var(--amber) 22%, var(--hairline));border-radius:8px; }
+    .pw-fixlink { color:var(--red);font-size:12.5px;font-weight:500;text-decoration:none;white-space:nowrap; }
+    .pw-fixlink:hover { text-decoration:underline;text-underline-offset:3px; }
     .pw-summary { min-width:150px;padding:12px 16px;border-radius:10px;background:var(--canvas);text-align:center; }
     .pw-av { width:34px;height:34px;border-radius:50%;background:var(--info);color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
     .pw-switch { position:relative;display:inline-block;width:38px;height:22px;flex-shrink:0; }

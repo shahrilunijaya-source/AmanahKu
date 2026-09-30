@@ -25,9 +25,10 @@
         ['SOCSO / EIS', 'PERKESO / SIP', [
             ['SOCSO No', 'No. PERKESO', $v($s?->socso_no)], ['Category', 'Kategori', StatutoryOptions::SOCSO_CATEGORIES[$s?->socso_category] ?? '—'],
             ['SOCSO exempt', 'Dikecualikan PERKESO', $s ? $yn($s->socso_exempt) : '—'], ['HRD Corp exempt', 'Dikecualikan HRD Corp', $s ? $yn($s->hrdf_exempt) : '—'],
+            ['SKBBK (Lindung 24 Jam)', 'SKBBK (Lindung 24 Jam)', $s ? $yn($s->skbbk_opt_in) : '—'],
         ]],
-        ['Zakat / SKBBK', 'Zakat / SKBBK', [
-            ['Zakat (monthly)', 'Zakat (bulanan)', $s ? 'RM '.number_format($s->zakat_monthly, 2) : '—'], ['Zakat authority', 'Pihak berkuasa zakat', StatutoryOptions::ZAKAT_AUTHORITIES[$s?->zakat_authority] ?? '—'], ['SKBBK', 'SKBBK', $s ? $yn($s->skbbk_opt_in) : '—'],
+        ['Zakat', 'Zakat', [
+            ['Zakat (monthly)', 'Zakat (bulanan)', $s ? 'RM '.number_format($s->zakat_monthly, 2) : '—'], ['Zakat authority', 'Pihak berkuasa zakat', StatutoryOptions::ZAKAT_AUTHORITIES[$s?->zakat_authority] ?? '—'],
         ]],
     ];
     $lbl = 'display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;';
@@ -126,12 +127,12 @@
                 <div><label style="{{ $lbl }}">{!! $L('Nationality (statutory)', 'Kewarganegaraan (statutori)') !!}</label>{!! $sel('nationality', ['citizen' => 'Citizen', 'pr' => 'Permanent resident', 'foreign' => 'Foreign'], $old('nationality', 'citizen'), true) !!}</div>
                 <label style="{{ $chkRow }}">{!! $chk('socso_exempt', (bool) $s?->socso_exempt) !!} {!! $L('SOCSO exempt (no PERKESO number required)', 'Dikecualikan PERKESO (no. PERKESO tidak diperlukan)') !!}</label>
                 <label style="{{ $chkRow }}">{!! $chk('hrdf_exempt', (bool) $s?->hrdf_exempt) !!} {!! $L('HRD Corp levy exempt', 'Dikecualikan levi HRD Corp') !!}</label>
+                <label style="{{ $chkRow }}">{!! $chk('skbbk_opt_in', (bool) $s?->skbbk_opt_in) !!} {!! $L('SKBBK (Lindung 24 Jam, employee-paid)', 'SKBBK (Lindung 24 Jam, dibayar pekerja)') !!}</label>
             </div>
-            <div class="uj-section-head">Zakat · SKBBK</div>
+            <div class="uj-section-head">Zakat</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('Zakat (RM / month)', 'Zakat (RM / bulan)') !!}</label><input name="zakat_monthly" type="number" step="0.01" min="0" value="{{ $old('zakat_monthly', 0) }}" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('Zakat authority', 'Pihak berkuasa zakat') !!}</label>{!! $sel('zakat_authority', StatutoryOptions::ZAKAT_AUTHORITIES, $old('zakat_authority'), true) !!}</div>
-                <label style="{{ $chkRow }}">{!! $chk('skbbk_opt_in', (bool) $s?->skbbk_opt_in) !!} SKBBK</label>
             </div>
             <div style="display:flex;gap:8px;justify-content:flex-end;">
                 <button type="button" @click="editBank = false" class="uj-btn-ghost" style="height:40px;padding:0 16px;font-size:13px;">{!! $L('Cancel', 'Batal') !!}</button>

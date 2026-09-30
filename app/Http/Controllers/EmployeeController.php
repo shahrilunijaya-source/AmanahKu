@@ -10,12 +10,14 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmploymentType;
 use App\Models\Position;
+use App\Models\SalaryStructure;
 use App\Models\User;
 use App\Services\EmploymentRecordService;
 use App\Services\EmploymentTransitionException;
 use App\Services\Payroll\BackPay;
 use App\Services\StaffArchiver;
 use App\Support\CsvImport;
+use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -318,6 +320,9 @@ class EmployeeController extends Controller
         return redirect('/app/directory?view=archived')->with('ok', $name.' permanently deleted.');
     }
 
+    /** Staff import columns that set up the salary structure (same names as the profile's Bank & Statutory form). */
+    private const IMPORT_PAY_COLUMNS = ['bank_name', 'bank_account_no', 'epf_no', 'socso_no', 'tax_no'];
+
     /** Downloadable CSV template for the bulk staff import. */
     public function importTemplate(Request $request): Response
     {
@@ -328,9 +333,11 @@ class EmployeeController extends Controller
         // rows show a manager and a report that points back to her by name.
         // nric and last_working_day are optional. A resigned row with a last working day
         // adds someone who already left (paid this year, so owed an EA form and a C.P.8D line).
-        $headers = ['name', 'email', 'staff_id', 'joined', 'date_of_birth', 'position_band', 'salary', 'branch', 'employment_type', 'status', 'reports_to', 'nric', 'last_working_day'];
-        $manager = ['Aisyah Rahman', 'aisyah@example.com', 'UR-0001', '2020-01-06', '1985-02-20', 'Manager', '9000', 'Head Office', 'Full-time', 'active', '', '', ''];
-        $report = ['Ali bin Ahmad', 'ali@example.com', 'UR-0002', '2022-03-14', '1990-05-12', 'Executive', '4500', 'Head Office', 'Full-time', 'active', 'Aisyah Rahman', '', ''];
+        // The pay columns (bank_name onwards) set up the salary structure payroll needs;
+        // bank_name must be one of the bank names on the profile's Bank list.
+        $headers = ['name', 'email', 'staff_id', 'joined', 'date_of_birth', 'position_band', 'salary', 'branch', 'employment_type', 'status', 'reports_to', 'nric', 'last_working_day', ...self::IMPORT_PAY_COLUMNS];
+        $manager = ['Aisyah Rahman', 'aisyah@example.com', 'UR-0001', '2020-01-06', '1985-02-20', 'Manager', '9000', 'Head Office', 'Full-time', 'active', '', '', '', 'Maybank', '162272608045', '17191228', '850315105837', 'SG10234567080'];
+        $report = ['Ali bin Ahmad', 'ali@example.com', 'UR-0002', '2022-03-14', '1990-05-12', 'Executive', '4500', 'Head Office', 'Full-time', 'active', 'Aisyah Rahman', '', '', 'CIMB Bank', '7060123456', '20639108', '900512145531', ''];
         $csv = implode(',', $headers)."\n".implode(',', $manager)."\n".implode(',', $report)."\n";
 
         return response($csv, 200, [
@@ -383,6 +390,11 @@ class EmployeeController extends Controller
         $archivedByName = $archived->keyBy(fn ($e) => $key($e->name));
 
         $errors = [];
+        // One entry per row for the results table on the import screen.
+        $report = [];
+        // Import access can be granted per user, but pay details stay with the roles that can
+        // edit them on a profile (PayrollController::storeSalary).
+        $canSetPay = $this->hasTenantRole($request, ['management', 'hr']);
         $row = 1;
         // Reporting lines are resolved in a second pass: a manager named in one row may
         // be created by a later row, so we can only link names to ids once every row exists.
@@ -390,7 +402,7 @@ class EmployeeController extends Controller
 
         // One transaction around the whole import: a mid-file crash leaves nothing
         // behind instead of an unreported partial directory.
-        [$created, $updated, $errors, $linked] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $errors, $row, $pendingLinks, $byStaffId, $byEmail, $byName, $archivedByStaffId, $archivedByName) {
+        [$created, $updated, $errors, $linked, $report] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $errors, $report, $canSetPay, $row, $pendingLinks, $byStaffId, $byEmail, $byName, $archivedByStaffId, $archivedByName) {
             $created = 0;
             $updated = 0;
 
@@ -409,13 +421,20 @@ class EmployeeController extends Controller
                         continue; // blank line
                     }
                     $errors[] = "Row $row: name is required.";
+                    $report[] = ['row' => $row, 'name' => '', 'outcome' => 'skipped', 'notes' => ['Name is required.']];
 
                     continue;
                 }
 
+                $skip = function (string $why) use ($row, $name, &$errors, &$report): void {
+                    $errors[] = "Row $row: $why";
+                    $report[] = ['row' => $row, 'name' => $name, 'outcome' => 'skipped', 'notes' => [ucfirst($why)]];
+                };
+                $pay = array_combine(self::IMPORT_PAY_COLUMNS, array_map($get, self::IMPORT_PAY_COLUMNS));
+
                 $email = $get('email');
                 if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = "Row $row: invalid email.";
+                    $skip('invalid email.');
 
                     continue;
                 }
@@ -431,7 +450,7 @@ class EmployeeController extends Controller
                 if ($dob !== '') {
                     $dobValue = $this->parseIsoDate($dob);
                     if ($dobValue === null) {
-                        $errors[] = "Row $row: invalid date of birth (use YYYY-MM-DD).";
+                        $skip('invalid date of birth (use YYYY-MM-DD).');
 
                         continue;
                     }
@@ -442,7 +461,7 @@ class EmployeeController extends Controller
                 if ($joined !== '') {
                     $joinedValue = $this->parseIsoDate($joined);
                     if ($joinedValue === null) {
-                        $errors[] = "Row $row: invalid joined date (use YYYY-MM-DD).";
+                        $skip('invalid joined date (use YYYY-MM-DD).');
 
                         continue;
                     }
@@ -455,7 +474,7 @@ class EmployeeController extends Controller
                 if ($lastDay !== '') {
                     $lastDayValue = $this->parseIsoDate($lastDay);
                     if ($lastDayValue === null || $statusRaw !== 'resigned') {
-                        $errors[] = "Row $row: last_working_day needs status resigned and a date as YYYY-MM-DD.";
+                        $skip('last_working_day needs status resigned and a date as YYYY-MM-DD.');
 
                         continue;
                     }
@@ -481,7 +500,7 @@ class EmployeeController extends Controller
                     // Archiving a current person here would skip everything their resignation
                     // does (handing over reports, tasks and requests), so that stays on their profile.
                     if ($match) {
-                        $errors[] = "Row $row: $name still works here. Record their resignation on their profile instead.";
+                        $skip("$name still works here. Record their resignation on their profile instead.");
 
                         continue;
                     }
@@ -492,7 +511,7 @@ class EmployeeController extends Controller
                 if ($email !== '') {
                     $emailOwner = $byEmail->get($key($email));
                     if ($emailOwner && (! $match || $emailOwner->id !== $match->id)) {
-                        $errors[] = "Row $row: email already used by another staff member.";
+                        $skip('email already used by another staff member.');
 
                         continue;
                     }
@@ -536,6 +555,11 @@ class EmployeeController extends Controller
                         $fields['last_working_day'] = $lastDayValue;
                     }
 
+                    [$paySaved, $payNotes] = $this->importPayDetails($match, $pay, $canSetPay);
+                    $report[] = ['row' => $row, 'name' => $match->name, 'outcome' => $fields !== [] || $paySaved ? 'updated' : 'unchanged', 'notes' => $payNotes];
+                    if ($fields === [] && $paySaved) {
+                        $updated++;
+                    }
                     if ($fields !== []) {
                         $match->update($fields);
                         $updated++;
@@ -577,6 +601,8 @@ class EmployeeController extends Controller
                 ] + $this->bandFields($positionId));
                 app(EmploymentRecordService::class)->hire($employee);
                 $created++;
+                [, $payNotes] = $this->importPayDetails($employee, $pay, $canSetPay);
+                $report[] = ['row' => $row, 'name' => $name, 'outcome' => 'created', 'notes' => $lastDayValue !== null ? ['Added to the archive as a leaver.', ...$payNotes] : $payNotes];
 
                 // Register so a later row in THIS file updates it instead of duplicating.
                 if ($lastDayValue !== null) {
@@ -600,7 +626,7 @@ class EmployeeController extends Controller
 
             $linked = $this->applyImportedReportingLines($pendingLinks, $key);
 
-            return [$created, $updated, $errors, $linked];
+            return [$created, $updated, $errors, $linked, $report];
         });
         fclose($handle);
 
@@ -615,7 +641,49 @@ class EmployeeController extends Controller
         }
         $msg = CsvImport::summary($created, 'staff imported', $errors, implode(' ', $bits));
 
-        return back()->with($errors !== [] ? 'error' : 'ok', $msg);
+        return back()->with($errors !== [] ? 'error' : 'ok', $msg)->with('import_report', $report);
+    }
+
+    /**
+     * Write a staff import row's pay columns onto the employee's salary structure. Only
+     * filled cells are written, so a blank cell never wipes what is already there, and a
+     * row with no pay cells creates no structure at all (an empty one would move the person
+     * from "not paid" into the payroll run with red gaps, blocking it).
+     *
+     * @param  array<string, string>  $pay  IMPORT_PAY_COLUMNS => cell
+     * @return array{0: bool, 1: list<string>} [saved, notes for the import report]
+     */
+    private function importPayDetails(Employee $employee, array $pay, bool $allowed): array
+    {
+        $pay = array_filter($pay, fn (string $cell) => $cell !== '');
+        if ($pay === []) {
+            return [false, []];
+        }
+        if (! $allowed) {
+            return [false, ['Pay details not saved: only HR or management can set pay.']];
+        }
+
+        $notes = [];
+        if (isset($pay['bank_name'])) {
+            // ponytail: exact bank names only (any case). Add an alias table if sheets say "MBB" or "CIMB".
+            $bank = collect(array_keys(StatutoryOptions::BANK_CODES))->first(fn (string $b) => CsvImport::key($b) === CsvImport::key($pay['bank_name']));
+            if ($bank === null) {
+                $notes[] = 'Bank "'.$pay['bank_name'].'" not recognised, so payroll still needs it picked on their profile.';
+            }
+            $pay['bank_code'] = $bank !== null ? StatutoryOptions::BANK_CODES[$bank] : null;
+            $pay['bank_name'] = $bank ?? $pay['bank_name'];
+        }
+
+        $structure = SalaryStructure::firstOrNew(['employee_id' => $employee->id]);
+        if (! $structure->exists) {
+            // Same starting values as a first save of the profile form.
+            $structure->fill(['effective_from' => now()->toDateString(), 'nationality' => 'citizen', 'tax_resident' => true]);
+        }
+        $structure->fill($pay)->save();
+        // Same per-person trail as a save on the profile form, so a bank change by upload names who it touched.
+        AuditLog::record('Updated salary structure', $employee->name.' (staff import)');
+
+        return [true, [$structure->wasRecentlyCreated ? 'Pay details set up.' : 'Pay details updated.', ...$notes]];
     }
 
     /**

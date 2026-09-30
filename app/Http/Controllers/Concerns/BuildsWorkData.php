@@ -760,6 +760,8 @@ trait BuildsWorkData
         $relations = ['department:id,name', 'employmentType:id,name', 'positionBand:id,title', 'reportsTo:id,name', 'workSite:id,name', 'branch:id,name'];
         (new EloquentCollection(array_column($rows, 'employee')))->load($relations);
         $finalPayCandidates->load([...$relations, 'salaryStructure']);
+        $outsideRows = array_filter($readinessRows, fn (array $r) => ! $payable($r) && $r['blocking'] !== [] && $r['employee']->final_pay_run_id === null);
+        (new EloquentCollection(array_column($outsideRows, 'employee')))->load('department:id,name');
 
         $person = fn (Employee $e, array $gaps): array => [
             'id' => $e->id,
@@ -800,9 +802,10 @@ trait BuildsWorkData
             'people' => array_map(fn (array $r) => $person($r['employee'], $r), $rows),
             // Currently employed but not payable (no salary structure): they never appear in
             // the selection, but their gaps can still trip the server's readiness gate.
+            // id, staff_id and department let the notice link each person straight to their pay setup.
             'outside' => array_values(array_map(
-                fn (array $r) => ['name' => $r['employee']->name, 'blocking' => $r['blocking']],
-                array_filter($readinessRows, fn (array $r) => ! $payable($r) && $r['blocking'] !== [] && $r['employee']->final_pay_run_id === null),
+                fn (array $r) => ['id' => $r['employee']->id, 'name' => $r['employee']->name, 'staff_id' => $r['employee']->staff_id, 'department' => $r['employee']->department?->name, 'blocking' => $r['blocking']],
+                $outsideRows,
             )),
             // Bonus cycle: who has a bonus queued, per period (same rows createRun pays).
             'bonusByPeriod' => IndividualTransaction::forBonusRun(true)->select('period', 'employee_id')->distinct()->get()
