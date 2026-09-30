@@ -37,6 +37,27 @@ use Illuminate\Support\Collection;
 final class EaFormData
 {
     /**
+     * Everyone this employer paid in the year, so everyone owed an EA form and a C.P.8D
+     * line: a finalized payslip, or a take-on row (paid through the old payroll system
+     * before this app, including staff who left before the switch). A previous
+     * employer's TP3 row is not this employer's pay, so it does not count.
+     *
+     * @return Collection<int, Employee>
+     */
+    public static function paidIn(int $tenantId, int $year): Collection
+    {
+        $ids = Payslip::where('tenant_id', $tenantId)
+            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->where('period', 'like', $year.'-%'))
+            ->distinct()->pluck('employee_id')
+            ->merge(PayrollOpeningFigure::where('tenant_id', $tenantId)->where('year', $year)
+                ->where(fn ($q) => $q->whereNull('previous_employer')->orWhere('previous_employer', ''))
+                ->pluck('employee_id'));
+
+        return Employee::where('tenant_id', $tenantId)->whereIn('id', $ids->unique())
+            ->get()->sortBy('name')->values();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function forEmployee(Tenant $tenant, Employee $employee, int $year): array

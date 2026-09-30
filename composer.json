@@ -53,7 +53,7 @@
         ],
         "analyse": [
             "Composer\\Config::disableProcessTimeout",
-            "@php vendor/bin/phpstan analyse --memory-limit=512M"
+            "@php vendor/bin/phpstan analyse --memory-limit=1G"
         ],
         "deploy": [
             "@php artisan migrate --force",

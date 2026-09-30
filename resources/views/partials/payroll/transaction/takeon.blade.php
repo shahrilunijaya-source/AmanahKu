@@ -393,9 +393,12 @@
      * (nobody close, stays out) or "skipped" (HR chose to leave it out). Import is blocked
      * while any row is fix or check. The checks mirror TakeOnImport::problems(); the server
      * runs them again on save.
+     *
+     * Partial navigation re-runs this script after Alpine has started, when alpine:init
+     * will not fire again, so it registers straight away in that case.
      */
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('takeOnImport', (cfg) => ({
+    (() => {
+        const register = () => Alpine.data('takeOnImport', (cfg) => ({
             fields: cfg.fields, allNames: false, rows: null, staff: [], byId: {}, tp3: [], err: '', busy: false, view: 'all',
             pk: { row: null, el: null, q: '', idx: 0, style: '' },
             views: [
@@ -505,6 +508,7 @@
             },
             reset() { this.rows = null; this.err = ''; this.pk.row = null; this.$nextTick(() => { if (this.$refs.file) this.$refs.file.value = ''; }); },
         }));
-    });
+        window.Alpine ? register() : document.addEventListener('alpine:init', register);
+    })();
 </script>
 @endonce

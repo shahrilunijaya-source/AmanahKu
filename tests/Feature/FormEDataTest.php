@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\Tenant;
@@ -129,5 +130,18 @@ class FormEDataTest extends TestCase
         $data = $this->service->build($this->tenant, 2026);
 
         $this->assertTrue(collect($data['incomplete'])->contains('label', "Employer's TIN"));
+    }
+
+    /** PCB taken through the old payroll system counts; a previous employer's TP3 row does not. */
+    public function test_a2_counts_take_on_mtd_but_not_a_previous_employer(): void
+    {
+        $leftBeforeSwitch = $this->employee('resigned', '2020-01-01', '2026-03-31');
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $leftBeforeSwitch->id, 'year' => 2026, 'pcb_paid' => 90]);
+
+        $joinedFromElsewhere = $this->employee('active', '2026-06-01', null);
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $joinedFromElsewhere->id, 'year' => 2026,
+            'pcb_paid' => 300, 'previous_employer' => 'Other Sdn Bhd']);
+
+        $this->assertSame(1, $this->service->build($this->tenant, 2026)['part_a']['a2']);
     }
 }
