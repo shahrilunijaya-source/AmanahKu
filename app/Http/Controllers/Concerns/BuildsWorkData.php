@@ -713,7 +713,9 @@ trait BuildsWorkData
             // Spec F8: Form TP1 declarations for the year, newest first.
             'tp1Year' => $tp1Year = (int) ($request->integer('tp1_year') ?: now()->year),
             'tp1Claims' => PayrollTp1Claim::with('employee')->where('year', $tp1Year)->orderByDesc('month')->orderByDesc('id')->get(),
-            'openingEmployees' => Employee::active()->orderBy('name')->get(),
+            // Current staff, plus leavers who have take-on figures so HR can still check them.
+            'openingEmployees' => Employee::where(fn ($q) => $q->whereNull('archived_at')
+                ->orWhereIn('id', PayrollOpeningFigure::select('employee_id')))->with(['department', 'employmentType'])->orderBy('name')->get(),
             'openingFigures' => PayrollOpeningFigure::get()->groupBy('employee_id'),
             'payrollItems' => PayrollItem::orderBy('sort_order')->get(),
             // Fixed Transactions: every non-ended (or ended-in-the-future) one, grouped by
