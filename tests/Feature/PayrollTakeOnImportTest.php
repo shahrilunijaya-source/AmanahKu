@@ -367,4 +367,17 @@ class PayrollTakeOnImportTest extends TestCase
 
         $this->assertSame(1000.0, $this->row($leaver)?->gross);
     }
+
+    /** A leaver shows on the Take On tab once they have figures, so HR can still check them; one without does not. */
+    public function test_take_on_tab_lists_leavers_with_figures_only(): void
+    {
+        $archived = ['tenant_id' => $this->tenant->id, 'status' => 'resigned', 'workload' => 'green', 'archived_at' => '2026-03-31'];
+        $withFigures = Employee::create([...$archived, 'name' => 'Chong Wei Lin']);
+        Employee::create([...$archived, 'name' => 'Farid Kamal']);
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $withFigures->id, 'year' => 2026, 'gross' => 1000]);
+
+        $this->actingAs($this->hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/payroll-transaction?tab=takeon')
+            ->assertOk()->assertSee('Chong Wei Lin')->assertDontSee('Farid Kamal')->assertSee('Badrul Hisham');
+    }
 }
