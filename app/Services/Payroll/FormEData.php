@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Payroll;
 
 use App\Models\Employee;
+use App\Models\PayrollOpeningFigure;
 use App\Models\Payslip;
 use App\Models\Tenant;
 
@@ -82,12 +83,17 @@ final class FormEData
             ->where(fn ($q) => $q->whereNull('archived_at')->orWhere('archived_at', '>', $yearEnd))
             ->count();
 
-        // A2 — distinct employees with any MTD actually deducted on a finalized payslip
-        // this year (normal + additional, same combined figure EaFormData reports).
+        // A2 — distinct employees with any MTD actually deducted this year: on a finalized
+        // payslip (normal + additional, same combined figure EaFormData reports) or in a
+        // take-on row from the old payroll system. A previous employer's TP3 row is not ours.
         $a2 = Payslip::where('tenant_id', $tenant->id)
             ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->where('period', 'like', $year.'-%'))
             ->where(fn ($q) => $q->where('pcb', '>', 0)->orWhere('pcb_additional', '>', 0))
-            ->distinct('employee_id')->count('employee_id');
+            ->distinct()->pluck('employee_id')
+            ->merge(PayrollOpeningFigure::where('tenant_id', $tenant->id)->where('year', $year)->where('pcb_paid', '>', 0)
+                ->where(fn ($q) => $q->whereNull('previous_employer')->orWhere('previous_employer', ''))
+                ->pluck('employee_id'))
+            ->unique()->count();
 
         // A3 — joined within the calendar year.
         $a3 = Employee::where('tenant_id', $tenant->id)

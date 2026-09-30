@@ -6,14 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
-use App\Models\Payslip;
 use App\Services\Payroll\Cp8dData;
 use App\Services\Payroll\Cp8dLine;
+use App\Services\Payroll\EaFormData;
 use App\Services\Payroll\FormEData;
 use App\Tenancy\CurrentTenant;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -47,7 +46,7 @@ class FormEController extends Controller
         abort_if($tenant === null, 403);
 
         $formE = $this->formEData->build($tenant, $year);
-        $employees = $this->reportableEmployees($tenant->id, $year);
+        $employees = EaFormData::paidIn($tenant->id, $year);
         $cp8dRows = $employees->map(fn (Employee $e) => [
             'employee' => $e,
             'data' => $this->cp8dData->forEmployee($tenant, $e, $year),
@@ -105,7 +104,7 @@ class FormEController extends Controller
             "The company's Employer TIN is not set. Add it in Company Settings before downloading the C.P.8D file — LHDN rejects a file whose name is missing it."
         );
 
-        $employees = $this->reportableEmployees($tenant->id, $year);
+        $employees = EaFormData::paidIn($tenant->id, $year);
         $rows = $employees->map(fn (Employee $e) => $this->cp8dData->forEmployee($tenant, $e, $year));
         $missingCount = $rows->filter(fn ($row) => $row['incomplete'] !== [])->count();
 
@@ -131,30 +130,5 @@ class FormEController extends Controller
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/plain']);
-    }
-
-    /**
-     * Every employee with at least one finalized payslip in the year — same "nothing to
-     * report otherwise" rule EaFormController::bulk() uses, and for the same reason: a
-     * draft/approved run can still change, so it must never feed a statutory export.
-     *
-     * This deliberately still includes an employee whose finalized payslip nets to
-     * every C.P.8D money field printing blank (e.g. unpaid leave the whole period,
-     * zero MTD that month) — they were on payroll that year, which is what both the
-     * layout PDF's "employees' particulars" and Form E's Part A counts are keyed off,
-     * not "had a non-zero figure to report". An employee who was never run through
-     * payroll at all in the year has nothing to report and is correctly excluded by
-     * this same query (no Payslip row exists for them to match on).
-     *
-     * @return Collection<int, Employee>
-     */
-    private function reportableEmployees(int $tenantId, int $year): Collection
-    {
-        $employeeIds = Payslip::where('tenant_id', $tenantId)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->where('period', 'like', $year.'-%'))
-            ->distinct()->pluck('employee_id');
-
-        return Employee::where('tenant_id', $tenantId)->whereIn('id', $employeeIds)
-            ->get()->sortBy('name')->values();
     }
 }
