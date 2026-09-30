@@ -145,6 +145,7 @@ class PayrollCalculator
         // EPF — KWSP Third Schedule wage bands (EpfCalculator), not a flat percentage.
         // Callers that don't pass epf_part (e.g. older code paths) default to Part A —
         // the common case (citizen/PR under 60) — rather than silently contributing nothing.
+        // An epf_part passed as null is different: it means no EPF is due (exempt, or 75+).
         //
         // The EPF and PERKESO (SOCSO+EIS) wage bases are sums over each pay-item's own
         // epf_liable/perkeso_liable flags (see PayrollItem/PayrollItemSeeder), not a
@@ -161,7 +162,7 @@ class PayrollCalculator
         // back to the pre-catalogue hardcoded rule so every caller that doesn't pass a
         // catalogue (older code paths, unit tests exercising the calculator directly)
         // reproduces the exact same figures as before this pass.
-        $epfPart = $inputs['epf_part'] ?? 'A';
+        $epfPart = array_key_exists('epf_part', $inputs) ? $inputs['epf_part'] : 'A';
         $catalogueLines = $inputs['lines'] ?? null;
         $overtimeFlags = $inputs['overtime_flags'] ?? null;
         if ($catalogueLines !== null && $overtimeFlags !== null) {
