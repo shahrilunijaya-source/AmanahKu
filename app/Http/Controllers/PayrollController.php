@@ -124,6 +124,8 @@ class PayrollController extends Controller
             throw new ValidationException($validator);
         }
         $data = $validator->validated();
+        // A legacy name like "MBB" saves as its list name, so it gets a bank code.
+        $bank = StatutoryOptions::bankFor($data['bank_name'] ?? null);
 
         SalaryStructure::updateOrCreate(
             ['tenant_id' => $tid, 'employee_id' => $data['employee_id']],
@@ -134,9 +136,9 @@ class PayrollController extends Controller
                 // 2026_08_25_200200): a finalized payslip's history and any rollback still
                 // want it there, just nothing writes or reads it going forward.
                 'effective_from' => $data['effective_from'] ?? now()->toDateString(),
-                'bank_name' => $data['bank_name'] ?? null,
+                'bank_name' => $bank ?? $data['bank_name'] ?? null,
                 // SWIFT/BIC for the agency upload files; "Other" has no code and stays null.
-                'bank_code' => StatutoryOptions::BANK_CODES[$data['bank_name'] ?? ''] ?? null,
+                'bank_code' => $bank !== null ? StatutoryOptions::BANK_CODES[$bank] : null,
                 'bank_account_no' => $data['bank_account_no'] ?? null,
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,

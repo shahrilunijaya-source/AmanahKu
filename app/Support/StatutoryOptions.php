@@ -35,6 +35,40 @@ final class StatutoryOptions
         'Public Bank' => 'PBBEMYKL', 'RHB Bank' => 'RHBBMYKL', 'Standard Chartered' => 'SCBLMYKX', 'United Overseas Bank' => 'UOVBMYKL',
     ];
 
+    /** Short codes HR sheets and the old payroll system use for a bank, keyed lower-case. */
+    private const BANK_ALIASES = [
+        'mbb' => 'Maybank', 'pbb' => 'Public Bank', 'hlb' => 'Hong Leong Bank', 'hlbb' => 'Hong Leong Bank', 'bimb' => 'Bank Islam',
+        'bsn' => 'Bank Simpanan Nasional', 'uob' => 'United Overseas Bank', 'kfh' => 'Kuwait Finance House', 'scb' => 'Standard Chartered',
+    ];
+
+    /**
+     * The bank-list name for a typed or legacy bank name, or null when it can't be told
+     * apart. Accepts the list name in any case, a short code ("MBB"), or a longer name
+     * holding exactly one bank's distinctive part ("Malayan Banking Berhad (MAYBANK)").
+     * A name matching two banks ("Maybank Islamic") stays null rather than guessing.
+     */
+    public static function bankFor(?string $typed): ?string
+    {
+        $key = mb_strtolower(trim((string) $typed));
+        if ($key === '') {
+            return null;
+        }
+        foreach (array_keys(self::BANK_CODES) as $name) {
+            if (mb_strtolower($name) === $key) {
+                return $name;
+            }
+        }
+        if (isset(self::BANK_ALIASES[$key])) {
+            return self::BANK_ALIASES[$key];
+        }
+        // Same "distinctive part" rule as the bank_code backfill migration ("Bank Islam" -> "islam").
+        $hits = array_values(array_filter(array_keys(self::BANK_CODES), fn (string $name) => str_contains(
+            $key, mb_strtolower((string) preg_replace('/(^Bank |\s+Bank$)/', '', $name)),
+        )));
+
+        return count($hits) === 1 ? $hits[0] : null;
+    }
+
     /** LHDN PCB category codes. */
     public const TAX_CATEGORIES = ['1' => 'Category 1 · Single', '2' => 'Category 2 · Married, spouse not working', '3' => 'Category 3 · Married, spouse working'];
 
