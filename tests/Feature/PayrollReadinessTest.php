@@ -59,7 +59,7 @@ class PayrollReadinessTest extends TestCase
     {
         $this->readyEmployee(['nric' => null, 'salary' => 0], ['epf_no' => null, 'bank_code' => null, 'tax_no' => null]);
         $rows = app(PayrollReadiness::class)->employeeRows($this->tenant);
-        $this->assertSame(['Basic pay', 'NRIC', 'EPF number', 'Bank'], $rows[0]['blocking']);
+        $this->assertSame(['Basic pay', 'NRIC', 'EPF number', 'Bank not on list'], $rows[0]['blocking']);
         $this->assertSame(['TIN'], $rows[0]['warnings']);
     }
 

@@ -334,7 +334,7 @@ class EmployeeController extends Controller
         // nric and last_working_day are optional. A resigned row with a last working day
         // adds someone who already left (paid this year, so owed an EA form and a C.P.8D line).
         // The pay columns (bank_name onwards) set up the salary structure payroll needs;
-        // bank_name must be one of the bank names on the profile's Bank list.
+        // bank_name is a name on the profile's Bank list or a short code like MBB.
         $headers = ['name', 'email', 'staff_id', 'joined', 'date_of_birth', 'position_band', 'salary', 'branch', 'employment_type', 'status', 'reports_to', 'nric', 'last_working_day', ...self::IMPORT_PAY_COLUMNS];
         $manager = ['Aisyah Rahman', 'aisyah@example.com', 'UR-0001', '2020-01-06', '1985-02-20', 'Manager', '9000', 'Head Office', 'Full-time', 'active', '', '', '', 'Maybank', '162272608045', '17191228', '850315105837', 'SG10234567080'];
         $report = ['Ali bin Ahmad', 'ali@example.com', 'UR-0002', '2022-03-14', '1990-05-12', 'Executive', '4500', 'Head Office', 'Full-time', 'active', 'Aisyah Rahman', '', '', 'CIMB Bank', '7060123456', '20639108', '900512145531', ''];
@@ -665,8 +665,7 @@ class EmployeeController extends Controller
 
         $notes = [];
         if (isset($pay['bank_name'])) {
-            // ponytail: exact bank names only (any case). Add an alias table if sheets say "MBB" or "CIMB".
-            $bank = collect(array_keys(StatutoryOptions::BANK_CODES))->first(fn (string $b) => CsvImport::key($b) === CsvImport::key($pay['bank_name']));
+            $bank = StatutoryOptions::bankFor($pay['bank_name']);
             if ($bank === null) {
                 $notes[] = 'Bank "'.$pay['bank_name'].'" not recognised, so payroll still needs it picked on their profile.';
             }

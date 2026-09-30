@@ -91,7 +91,7 @@
             </div>
             <div class="uj-section-head">{!! $L('Bank', 'Bank') !!}</div>
             <div style="{{ $grid }}">
-                <div><label style="{{ $lbl }}">{!! $L('Bank', 'Bank') !!}</label>{!! $sel('bank_name', StatutoryOptions::BANKS, $old('bank_name'), false) !!}</div>
+                <div><label style="{{ $lbl }}">{!! $L('Bank', 'Bank') !!}</label>{!! $sel('bank_name', StatutoryOptions::BANKS, StatutoryOptions::bankFor($old('bank_name')) ?? $old('bank_name'), false) !!}</div>
                 <div><label style="{{ $lbl }}">{!! $L('Account No', 'No. Akaun') !!}</label><input name="bank_account_no" value="{{ $old('bank_account_no') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div x-data="{ custom: {{ $old('bank_holder_name') ? 'true' : 'false' }} }" style="grid-column:1/-1;">
                     <label style="{{ $chkRow }}margin-bottom:6px;"><input type="checkbox" x-model="custom" /> {!! $L('Account holder name differs from employee name', 'Nama pemegang akaun berbeza daripada nama pekerja') !!}</label>
