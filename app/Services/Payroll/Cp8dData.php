@@ -60,9 +60,10 @@ final class Cp8dData
         $structure = $employee->salaryStructure;
         $tp1 = $this->pcbYtd->tp1YearTotals($employee, $year);
 
-        $retirementOrEndDate = $employee->status === 'resigned' && $employee->archived_at
-            && $employee->archived_at->year === $year
-            ? $employee->archived_at : null;
+        // The last working day when HR recorded one, else the day the record was archived.
+        $endDate = $employee->last_working_day ?? $employee->archived_at;
+        $retirementOrEndDate = $employee->status === 'resigned' && $endDate && $endDate->year === $year
+            ? $endDate : null;
 
         $employeeStatus = $employee->employmentType
             ? self::EMPLOYMENT_TYPE_STATUS[$employee->employmentType->name] ?? null

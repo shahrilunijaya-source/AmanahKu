@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
-use App\Models\Payslip;
+use App\Services\Payroll\EaFormData;
 use App\Services\Payroll\EaFormPdfData;
 use App\Tenancy\CurrentTenant;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -77,13 +77,7 @@ class EaFormController extends Controller
         $tenant = app(CurrentTenant::class)->get();
         abort_if($tenant === null, 403);
 
-        // Every employee with at least one finalized payslip in the year — an employee
-        // with no finalized pay that year has nothing to report on an EA form.
-        $employeeIds = Payslip::where('tenant_id', $tenant->id)
-            ->whereHas('payrollRun', fn ($q) => $q->where('status', 'finalized')->where('period', 'like', $year.'-%'))
-            ->distinct()->pluck('employee_id');
-        $employees = Employee::where('tenant_id', $tenant->id)->whereIn('id', $employeeIds)
-            ->get()->sortBy('name')->values();
+        $employees = EaFormData::paidIn($tenant->id, $year);
 
         AuditLog::record('Downloaded bulk EA form PDF', $year.' · '.$employees->count().' employees');
 

@@ -342,4 +342,29 @@ class PayrollTakeOnImportTest extends TestCase
 
         $this->assertSame(320.0, $this->row($this->aina)?->medical_claimed);
     }
+
+    /**
+     * In-app navigation swaps the page body and re-runs its scripts after alpine:init has
+     * already fired, so the import card's component must also register straight away.
+     */
+    public function test_take_on_tab_registers_the_import_component_after_alpine_has_started(): void
+    {
+        $this->actingAs($this->hr)->withSession(['current_tenant' => $this->tenant->id])
+            ->get('/app/payroll-transaction?tab=takeon')
+            ->assertOk()
+            ->assertSee("window.Alpine ? register() : document.addEventListener('alpine:init', register);", false);
+    }
+
+    /** A leaver added only for the year-end return is archived, and the import must still find them. */
+    public function test_an_archived_leaver_is_matched_and_imported(): void
+    {
+        $leaver = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Chong Wei Lin', 'status' => 'resigned', 'workload' => 'green',
+            'resigned_at' => '2026-03-01', 'last_working_day' => '2026-03-31', 'archived_at' => '2026-03-31']);
+
+        $rows = $this->preview(['Chong Wei Lin,"1,000.00",0.00,0.00,0.00,0.00,0.00,"1,000.00",0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'])
+            ->assertOk()->assertJsonPath('rows.0.employee_id', $leaver->id)->json('rows');
+        $this->import($rows)->assertOk();
+
+        $this->assertSame(1000.0, $this->row($leaver)?->gross);
+    }
 }

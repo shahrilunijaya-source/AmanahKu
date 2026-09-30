@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\SalaryStructure;
@@ -156,5 +157,23 @@ class FormEControllerTest extends TestCase
         // route exists at all for it.
         $this->assertFalse(Route::has('payroll.form-e.show.employee'));
         $this->assertFalse(Route::has('payroll.form-e.pdf.employee'));
+    }
+
+    /** Someone paid only through the old payroll system before the switch still gets a C.P.8D line. */
+    public function test_cp8d_lists_a_leaver_paid_only_before_the_switch(): void
+    {
+        $leaver = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Chong Wei Lin', 'status' => 'resigned', 'workload' => 'green',
+            'last_working_day' => '2026-03-31', 'archived_at' => '2026-04-02']);
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $leaver->id, 'year' => 2026, 'gross' => 3000]);
+
+        $fromElsewhere = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Devi Raman', 'status' => 'active', 'workload' => 'green']);
+        PayrollOpeningFigure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $fromElsewhere->id, 'year' => 2026,
+            'gross' => 9000, 'previous_employer' => 'Other Sdn Bhd']);
+
+        $body = $this->actingHr()->get('/app/payroll/form-e/2026/cp8d')->assertOk()->streamedContent();
+
+        $this->assertStringContainsString('Chong Wei Lin', $body);
+        $this->assertStringContainsString('31-03-2026', $body); // end date is the last working day, not the archive day
+        $this->assertStringNotContainsString('Devi Raman', $body);
     }
 }

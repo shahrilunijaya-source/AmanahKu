@@ -326,9 +326,11 @@ class EmployeeController extends Controller
         // reports_to holds the manager's full name (matched against other staff, including
         // other rows in this same file). Leave blank for top-level people. The two sample
         // rows show a manager and a report that points back to her by name.
-        $headers = ['name', 'email', 'staff_id', 'joined', 'date_of_birth', 'position_band', 'salary', 'branch', 'employment_type', 'status', 'reports_to'];
-        $manager = ['Aisyah Rahman', 'aisyah@example.com', 'UR-0001', '2020-01-06', '1985-02-20', 'Manager', '9000', 'Head Office', 'Full-time', 'active', ''];
-        $report = ['Ali bin Ahmad', 'ali@example.com', 'UR-0002', '2022-03-14', '1990-05-12', 'Executive', '4500', 'Head Office', 'Full-time', 'active', 'Aisyah Rahman'];
+        // nric and last_working_day are optional. A resigned row with a last working day
+        // adds someone who already left (paid this year, so owed an EA form and a C.P.8D line).
+        $headers = ['name', 'email', 'staff_id', 'joined', 'date_of_birth', 'position_band', 'salary', 'branch', 'employment_type', 'status', 'reports_to', 'nric', 'last_working_day'];
+        $manager = ['Aisyah Rahman', 'aisyah@example.com', 'UR-0001', '2020-01-06', '1985-02-20', 'Manager', '9000', 'Head Office', 'Full-time', 'active', '', '', ''];
+        $report = ['Ali bin Ahmad', 'ali@example.com', 'UR-0002', '2022-03-14', '1990-05-12', 'Executive', '4500', 'Head Office', 'Full-time', 'active', 'Aisyah Rahman', '', ''];
         $csv = implode(',', $headers)."\n".implode(',', $manager)."\n".implode(',', $report)."\n";
 
         return response($csv, 200, [
@@ -374,6 +376,11 @@ class EmployeeController extends Controller
         $byStaffId = $existing->filter(fn ($e) => $e->staff_id)->keyBy(fn ($e) => $key($e->staff_id));
         $byEmail = $existing->filter(fn ($e) => $e->email)->keyBy(fn ($e) => $key($e->email));
         $byName = $existing->keyBy(fn ($e) => $key($e->name));
+        // Leavers already in the archive, so uploading the same leaver file twice updates
+        // them instead of adding them again.
+        $archived = Employee::archived()->get();
+        $archivedByStaffId = $archived->filter(fn (Employee $e) => filled($e->staff_id))->keyBy(fn ($e) => $key($e->staff_id));
+        $archivedByName = $archived->keyBy(fn ($e) => $key($e->name));
 
         $errors = [];
         $row = 1;
@@ -383,7 +390,7 @@ class EmployeeController extends Controller
 
         // One transaction around the whole import: a mid-file crash leaves nothing
         // behind instead of an unreported partial directory.
-        [$created, $updated, $errors, $linked] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $errors, $row, $pendingLinks, $byStaffId, $byEmail, $byName) {
+        [$created, $updated, $errors, $linked] = DB::transaction(function () use ($handle, $col, $positions, $branches, $employmentTypes, $key, $tenantId, $errors, $row, $pendingLinks, $byStaffId, $byEmail, $byName, $archivedByStaffId, $archivedByName) {
             $created = 0;
             $updated = 0;
 
@@ -441,6 +448,20 @@ class EmployeeController extends Controller
                     }
                 }
 
+                // Someone who already left, entered after the fact: resigned, with the day they
+                // left. Saved straight to the archive, since they no longer work here.
+                $lastDay = $get('last_working_day');
+                $lastDayValue = null;
+                if ($lastDay !== '') {
+                    $lastDayValue = $this->parseIsoDate($lastDay);
+                    if ($lastDayValue === null || $statusRaw !== 'resigned') {
+                        $errors[] = "Row $row: last_working_day needs status resigned and a date as YYYY-MM-DD.";
+
+                        continue;
+                    }
+                }
+                $nric = $get('nric');
+
                 // Tolerate spreadsheet formatting: thousands separators (7,250.00),
                 // stray spaces and a leading currency symbol (RM 7250) all normalise to a
                 // plain number. A cell that still isn't numeric is left as null.
@@ -455,6 +476,17 @@ class EmployeeController extends Controller
                 $match = ($staffId !== '' ? $byStaffId->get($key($staffId)) : null)
                     ?? ($email !== '' ? $byEmail->get($key($email)) : null)
                     ?? $byName->get($key($name));
+
+                if ($lastDayValue !== null) {
+                    // Archiving a current person here would skip everything their resignation
+                    // does (handing over reports, tasks and requests), so that stays on their profile.
+                    if ($match) {
+                        $errors[] = "Row $row: $name still works here. Record their resignation on their profile instead.";
+
+                        continue;
+                    }
+                    $match = ($staffId !== '' ? $archivedByStaffId->get($key($staffId)) : null) ?? $archivedByName->get($key($name));
+                }
 
                 // The row's email must not already belong to a DIFFERENT active person.
                 if ($email !== '') {
@@ -497,6 +529,12 @@ class EmployeeController extends Controller
                     if ($positionId) {
                         $fields += $this->bandFields($positionId);
                     }
+                    if ($nric !== '') {
+                        $fields['nric'] = $nric;
+                    }
+                    if ($lastDayValue !== null) {
+                        $fields['last_working_day'] = $lastDayValue;
+                    }
 
                     if ($fields !== []) {
                         $match->update($fields);
@@ -529,6 +567,9 @@ class EmployeeController extends Controller
                     'branch_id' => $branchId,
                     'employment_type_id' => $etId,
                     'status' => $statusGiven ? $statusRaw : 'active',
+                    'nric' => $nric ?: null,
+                    'last_working_day' => $lastDayValue,
+                    'archived_at' => $lastDayValue,
                     'workload' => 'green',
                     'workload_label' => 'Healthy',
                     'initials' => $this->initials($name),
@@ -538,6 +579,11 @@ class EmployeeController extends Controller
                 $created++;
 
                 // Register so a later row in THIS file updates it instead of duplicating.
+                if ($lastDayValue !== null) {
+                    $archivedByName->put($key($name), $employee);
+
+                    continue;
+                }
                 $byName->put($key($name), $employee);
                 if ($email !== '') {
                     $byEmail->put($key($email), $employee);
