@@ -11,7 +11,7 @@
         'results' => $wizardResultRun !== null,
         'hasOld' => $errors->any() || old('kind') !== null,
         'old' => [
-            'period' => old('period', now()->format('Y-m')),
+            'period' => old('period', $payrollWizard['defaultPeriod']),
             'kind' => old('kind', ''),
             'payment_date' => old('payment_date', now()->toDateString()),
             'employee_id' => (string) old('employee_id', ''),

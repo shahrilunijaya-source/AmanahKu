@@ -75,6 +75,19 @@ class PayrollProcessWizardTest extends TestCase
             ->assertSee('name="include_employee_ids[]"', false);
     }
 
+    /** September's payroll is run in early October, so the period starts on September until its Month End run exists. */
+    public function test_the_period_starts_on_last_month_until_its_month_end_run_exists(): void
+    {
+        $this->travelTo('2026-10-01 09:00');
+        $this->asHr()->get('/app/payroll-process')->assertViewHas('payrollWizard', fn (array $w) => $w['defaultPeriod'] === '2026-09');
+
+        PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-09', 'kind' => 'final', 'status' => 'draft']);
+        $this->asHr()->get('/app/payroll-process')->assertViewHas('payrollWizard', fn (array $w) => $w['defaultPeriod'] === '2026-09');
+
+        PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-09', 'kind' => 'monthly', 'status' => 'draft']);
+        $this->asHr()->get('/app/payroll-process')->assertViewHas('payrollWizard', fn (array $w) => $w['defaultPeriod'] === '2026-10');
+    }
+
     public function test_the_pull_ticks_default_to_unticked_like_worksy(): void
     {
         $html = $this->asHr()->get('/app/payroll-process')->getContent();
