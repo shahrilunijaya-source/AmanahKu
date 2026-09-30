@@ -98,11 +98,11 @@ class StaffImportPayTest extends TestCase
 
     public function test_an_unknown_bank_is_kept_by_name_with_no_code_and_flagged(): void
     {
-        $this->importCsv(['Adri,UR1,MBB,111,,,'])->assertRedirect()
-            ->assertSessionHas('import_report', fn (array $report) => str_contains($report[0]['notes'][1], 'Bank "MBB" not recognised'));
+        $this->importCsv(['Adri,UR1,XYZ Bank,111,,,'])->assertRedirect()
+            ->assertSessionHas('import_report', fn (array $report) => str_contains($report[0]['notes'][1], 'Bank "XYZ Bank" not recognised'));
 
         $s = $this->structureFor('Adri');
-        $this->assertSame('MBB', $s->bank_name);
+        $this->assertSame('XYZ Bank', $s->bank_name);
         $this->assertNull($s->bank_code);
     }
 

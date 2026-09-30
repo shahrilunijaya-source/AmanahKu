@@ -99,14 +99,18 @@ final class PayrollReadiness
         if (blank($e->nric)) {
             $blocking[] = 'NRIC';
         }
-        if (blank($s->epf_no)) {
+        if ($s->epf_scheme !== 'exempt' && blank($s->epf_no)) {
             $blocking[] = 'EPF number';
         }
         if (! $s->socso_exempt && blank($s->socso_no)) {
             $blocking[] = 'SOCSO number';
         }
-        if (blank($s->bank_code) || blank($s->bank_account_no)) {
+        if (blank($s->bank_account_no)) {
             $blocking[] = 'Bank';
+        } elseif (blank($s->bank_code)) {
+            // A saved name payroll can't match to a bank ("MBB" from the old system): say so,
+            // since the profile shows a bank and an account number and looks complete.
+            $blocking[] = 'Bank not on list';
         }
         if ($e->date_of_birth === null) {
             $blocking[] = 'Date of birth';

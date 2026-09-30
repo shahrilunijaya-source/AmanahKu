@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\StatutoryOptions;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -109,5 +110,35 @@ class BankStatutoryTabTest extends TestCase
         $this->assertTrue($s->tax_resident);
         $this->assertNull($s->child_relief_breakdown);
         $this->assertSame(0, $s->children_relief_count);
+    }
+
+    /** Old rows typed "MBB" had no bank code, so payroll kept flagging them. The list name and code are filled on save. */
+    public function test_a_bank_shorthand_is_saved_as_the_list_bank_with_its_code(): void
+    {
+        $this->assertSame('Maybank', StatutoryOptions::bankFor('MBB'));
+        $this->assertSame('Maybank', StatutoryOptions::bankFor(' maybank '));
+        $this->assertNull(StatutoryOptions::bankFor('Other'));
+        $this->assertNull(StatutoryOptions::bankFor(''));
+
+        $this->login('hr');
+        $e = $this->emp('Haryati');
+        $this->post('/app/payroll/salary', ['employee_id' => $e->id, 'basic_salary' => 5000, 'bank_name' => 'MBB', 'bank_account_no' => '111'])->assertRedirect();
+        $s = SalaryStructure::where('employee_id', $e->id)->firstOrFail();
+        $this->assertSame('Maybank', $s->bank_name);
+        $this->assertSame('MBBEMYKL', $s->bank_code);
+
+        $s->forceFill(['bank_name' => 'MBB', 'bank_code' => null])->save();
+        $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('<option value="Maybank" selected', false);
+    }
+
+    /** A super admin looking around a tenant (no membership) gets the HR view of Bank & Statutory. */
+    public function test_a_super_admin_observer_sees_bank_and_statutory(): void
+    {
+        $e = $this->emp('Haryati');
+        $admin = User::create(['name' => 'Root', 'email' => 'root@example.com', 'password' => Hash::make('password')]);
+        $admin->forceFill(['is_super_admin' => true])->save();
+        $this->actingAs($admin)->withSession(['current_tenant' => $this->tenant->id]);
+
+        $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('Bank &amp; Statutory', false);
     }
 }
