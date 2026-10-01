@@ -685,6 +685,8 @@ trait BuildsWorkData
             'payoutRuns' => PayrollRun::withCount('payslips')->with('payslips.employee:id,name')
                 ->where('period', 'like', $payoutYear.'-%')->orderByDesc('period')->get(),
             'activeRun' => $activeRun,
+            // Four-eyes on: a draft can't be finalized until someone approves it.
+            'payoutFourEyes' => app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.four_eyes'),
             // Spec F13: when payslip acknowledgement is on, who has not pressed it yet,
             // keyed by run — the payout tab lists them under each published run.
             'payslipAckOn' => $ackOn = app(FeatureManager::class)->enabled(app(CurrentTenant::class)->get(), 'payroll.payslip_acknowledgement'),
