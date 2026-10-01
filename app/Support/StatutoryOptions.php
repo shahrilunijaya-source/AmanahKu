@@ -74,7 +74,10 @@ final class StatutoryOptions
 
     public const EMPLOYEE_TAX_STATUS = ['normal' => 'Normal', 'returning_expert' => 'Returning Expert Programme', 'knowledge_worker' => 'Knowledge Worker (Iskandar)', 'non_resident' => 'Non-resident'];
 
-    public const EPF_SCHEMES = ['statutory' => 'Statutory rate', 'voluntary_higher' => 'Voluntary higher rate', 'exempt' => 'Exempt'];
+    /** Worksy's EPF Category, cut to what applies here: Custom replaces the statutory rates with HR's own. */
+    public const EPF_SCHEMES = ['statutory' => 'Statutory rate', 'custom' => 'Custom rate', 'exempt' => 'Exempt'];
+
+    public const EPF_ADDITIONAL_BY = ['percentage' => 'Percentage', 'amount' => 'Amount'];
 
     /** State zakat bodies, as Worksy's Zakat Form lists them. */
     public const ZAKAT_AUTHORITIES = ['johor' => 'Johor', 'kedah' => 'Kedah', 'kelantan' => 'Kelantan', 'kuala_lumpur' => 'Kuala Lumpur', 'labuan' => 'Labuan', 'melaka' => 'Malacca',

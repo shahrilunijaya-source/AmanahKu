@@ -129,4 +129,31 @@ class EpfCalculatorTest extends TestCase
 
         return $rows;
     }
+
+    /** Worksy Custom: HR's own rates on actual wages, rounded up (Haryati's 20% on 6,707.66 is 1,342). */
+    public function test_a_custom_rate_replaces_the_schedule(): void
+    {
+        $got = $this->epf->contribution(6707.66, 'A', ['scheme' => 'custom', 'employee_rate' => 20.0, 'employer_rate' => 13.0]);
+
+        $this->assertSame(['employee' => 1342.0, 'employer' => 872.0], $got);
+    }
+
+    /** Worksy Additional: the schedule amount plus a % of actual wages or a flat ringgit amount. */
+    public function test_additional_epf_goes_on_top_of_the_schedule(): void
+    {
+        // 5,000 wages: the schedule gives 550 employee and 650 employer.
+        $percent = $this->epf->contribution(5000.0, 'A', ['scheme' => 'statutory', 'additional_by' => 'percentage', 'additional_employee' => 9.0, 'additional_employer' => 0.5]);
+        $amount = $this->epf->contribution(5000.0, 'A', ['additional_by' => 'amount', 'additional_employee' => 100.0]);
+
+        $this->assertSame(['employee' => 1000.0, 'employer' => 675.0], $percent);
+        $this->assertSame(['employee' => 650.0, 'employer' => 650.0], $amount);
+    }
+
+    /** No EPF due (Exempt, or 75 and over) stays at zero whatever the setup says. */
+    public function test_no_epf_due_ignores_the_setup(): void
+    {
+        $got = $this->epf->contribution(5000.0, null, ['scheme' => 'custom', 'employee_rate' => 20.0, 'employer_rate' => 13.0]);
+
+        $this->assertSame(['employee' => 0.0, 'employer' => 0.0], $got);
+    }
 }

@@ -293,4 +293,42 @@ class PcbCalculatorTest extends TestCase
         $this->assertSame(300.00, $result->additionalMtd);
         $this->assertSame(1200.00, $result->totalPayable);
     }
+
+    /** Spec E (v): EPF of RM4,400 on RM40,000 salary is relieved only up to RM4,000 (K1*). */
+    public function test_current_epf_relief_stops_at_four_thousand(): void
+    {
+        $result = $this->pcb->calculate(new PcbInputs(
+            category: 1,
+            currentGrossY1: 40000.0,
+            currentEpfK1: 4400.0,
+            monthsRemainingAfterCurrent: 11,
+            currentOptionalDeductions: 3000.0,
+        ));
+
+        // P = (40,000 − 4,000) + (40,000 − 0) × 11 − (9,000 + 3,000)
+        $this->assertSame(464000.0, $result->chargeableIncomeP);
+        $this->assertSame(8420.00, $result->normalMtd);
+    }
+
+    /**
+     * EPF already paid this year counts against the same RM4,000 (K + K1 + K2 + Kt). Once
+     * January to August has used it up, September's EPF gives no further relief.
+     */
+    public function test_epf_paid_earlier_in_the_year_uses_up_the_four_thousand(): void
+    {
+        $result = $this->pcb->calculate(new PcbInputs(
+            category: 2,
+            ytdGrossY: 46800.0,
+            ytdEpfK: 5148.0,
+            currentGrossY1: 5700.0,
+            currentEpfK1: 627.0,
+            monthsRemainingAfterCurrent: 3,
+            ytdMtdPaidX: 958.10,
+            qualifyingChildren: 2,
+        ));
+
+        // P = (46,800 − 4,000) + (5,700 − 0) + 5,700 × 3 − (9,000 + 4,000 + 2 × 2,000)
+        $this->assertSame(48600.0, $result->chargeableIncomeP);
+        $this->assertSame(114.50, $result->normalMtd);
+    }
 }

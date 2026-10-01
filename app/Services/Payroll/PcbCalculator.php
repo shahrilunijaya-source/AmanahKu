@@ -94,13 +94,20 @@ final class PcbCalculator
         $reliefs = $this->reliefs($in);
         $n = $in->monthsRemainingAfterCurrent;
 
+        // K*, K1*, Kt*: spec "K + K1 + K2 + Kt not exceeding the total qualifying amount per
+        // year". Earlier months use up the RM4,000 first, so once ∑K passes it nothing more is
+        // relieved this month (K2 below already gets whatever is left over).
+        $ytdEpfK = min($in->ytdEpfK, self::EPF_RELIEF_CAP);
+        $currentEpfK1 = min($in->currentEpfK1, self::EPF_RELIEF_CAP - $ytdEpfK);
+        $additionalEpfKt = min($in->currentAdditionalEpfKt, self::EPF_RELIEF_CAP - $ytdEpfK - $currentEpfK1);
+
         // Step 1 — MTD on normal remuneration only (Yt – Kt excluded, per the spec's own
         // worked example: "Where (Yt – Kt) = 0"). This is the whole calculation when there
         // is no additional remuneration this month.
-        $k2Normal = $this->k2($in->ytdEpfK, $in->currentEpfK1, 0.0, $n);
+        $k2Normal = $this->k2($ytdEpfK, $currentEpfK1, 0.0, $n);
         $pNormal = $this->truncate(
-            ($in->ytdGrossY - $in->ytdEpfK)
-            + ($in->currentGrossY1 - $in->currentEpfK1)
+            ($in->ytdGrossY - $ytdEpfK)
+            + ($in->currentGrossY1 - $currentEpfK1)
             + ($in->currentGrossY1 - $k2Normal) * $n
             - $reliefs
         );
@@ -117,12 +124,12 @@ final class PcbCalculator
 
         // Step 2 — chargeable income for the year including this month's additional
         // remuneration; K2 is recomputed with Kt now in the EPF pool (spec E.13.iii).
-        $k2Combined = $this->k2($in->ytdEpfK, $in->currentEpfK1, $in->currentAdditionalEpfKt, $n);
+        $k2Combined = $this->k2($ytdEpfK, $currentEpfK1, $additionalEpfKt, $n);
         $pCombined = $this->truncate(
-            ($in->ytdGrossY - $in->ytdEpfK)
-            + ($in->currentGrossY1 - $in->currentEpfK1)
+            ($in->ytdGrossY - $ytdEpfK)
+            + ($in->currentGrossY1 - $currentEpfK1)
             + ($in->currentGrossY1 - $k2Combined) * $n
-            + ($in->currentAdditionalGrossYt - $in->currentAdditionalEpfKt)
+            + ($in->currentAdditionalGrossYt - $additionalEpfKt)
             - $reliefs
         );
 

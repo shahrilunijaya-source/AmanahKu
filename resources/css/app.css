@@ -5189,6 +5189,39 @@ textarea.uj-lv-in { height: auto; min-height: 66px; padding: 11px 13px; line-hei
 [data-tip][data-tip-start]::after { left: 0; translate: 0 2px; }
 [data-tip][data-tip-start]:is(:hover, :focus-visible)::after { translate: 0 0; }
 @media (hover: none) { [data-tip]::after { display: none; } }
+/* Payout Management rows: summary line (title, stamps, pay date, net, files), then the
+   next-step actions under it. Delete sits apart on the left, the primary step on the right. */
+.uj-payout-row { padding: 16px 20px; border-top: 1px solid var(--hairline-soft); }
+.uj-payout-row:first-child { border-top: 0; }
+.uj-payout-row[data-active] { background: var(--canvas); }
+.uj-payout-head { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.uj-payout-title { flex: 0 0 auto; min-width: 150px; }
+.uj-payout-stamps { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.uj-payout-stamps .uj-stamp { cursor: help; }
+.uj-payout-facts { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; margin-left: auto; }
+.uj-payout-net { display: inline-flex; align-items: baseline; gap: 6px; font: 600 14px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); cursor: help; }
+.uj-payout-files { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 9px; font-size: 12.5px; font-weight: 500; color: var(--ink); text-decoration: none; border: 1px solid var(--hairline); background: #fff; transition: border-color .15s; }
+.uj-payout-files:hover { border-color: var(--muted-soft); }
+.uj-payout-actions { display: flex; align-items: flex-end; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.uj-payout-finalize { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.uj-payout-delete-form { margin-right: auto; }
+.uj-payout-delete { height: 36px; padding: 0 4px; border: 0; background: none; font-size: 12.5px; font-weight: 500; color: var(--error-ink); cursor: pointer; text-underline-offset: 3px; }
+.uj-payout-delete:hover { text-decoration: underline; }
+.uj-payout-btn { height: 36px; padding: 0 16px; font-size: 12.5px; }
+.uj-payout-btn:disabled { opacity: .45; cursor: not-allowed; }
+.uj-payout-field label { display: flex; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.uj-payout-field input { width: 150px; height: 36px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 9px; font: 12.5px var(--font-mono); background: #fff; color: var(--ink); }
+.uj-payout-field--wide input { width: 260px; font-family: var(--font-sans); }
+.uj-payout-check { display: flex; align-items: center; gap: 6px; height: 36px; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.uj-payout-check input { accent-color: var(--red); width: 15px; height: 15px; }
+@media (max-width: 640px) {
+    .uj-payout-row { padding: 14px 16px; }
+    .uj-payout-facts { margin-left: 0; width: 100%; justify-content: space-between; }
+    .uj-payout-actions, .uj-payout-finalize { flex-direction: column; align-items: stretch; }
+    .uj-payout-actions > form, .uj-payout-field input, .uj-payout-field--wide input { width: 100%; }
+    .uj-payout-actions .uj-payout-btn { width: 100%; height: 44px; }
+    .uj-payout-delete-form { order: 9; margin: 0; text-align: center; }
+}
 .uj-tip-i { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; border: 1px solid var(--muted-soft); color: var(--muted); font: 600 10px var(--font-sans); vertical-align: -2px; cursor: help; }
 /* TOT drawer panes. Narrow: .tot-panes is the one scroller and the two panes stack.
    Wide: the drawer becomes a grid, record left, room right, composer under the room. */
