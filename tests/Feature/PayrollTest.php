@@ -131,6 +131,24 @@ class PayrollTest extends TestCase
         $this->assertEqualsWithDelta(60.0, (float) $slip->epf_employer, 0.001);
     }
 
+    /** The Worksy-style EPF setup on the Bank & Statutory tab reaches the payslip. */
+    public function test_a_custom_epf_rate_and_additional_epf_reach_the_payslip(): void
+    {
+        SalaryStructure::where('employee_id', $this->emp2->id)->update(['epf_scheme' => 'custom', 'epf_employee_rate_override' => 20, 'epf_employer_rate_override' => 13]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['epf_additional_by' => 'amount', 'epf_additional_employee' => 100]);
+        $run = $this->createRun();
+
+        // emp2 basic 3000: 20% / 13% of actual wages, no bands.
+        $slip2 = $run->payslips()->where('employee_id', $this->emp2->id)->firstOrFail();
+        $this->assertEqualsWithDelta(600.0, (float) $slip2->epf_employee, 0.001);
+        $this->assertEqualsWithDelta(390.0, (float) $slip2->epf_employer, 0.001);
+
+        // emp1 basic 5000: the schedule's 550 plus RM100 additional; employer stays at 650.
+        $slip1 = $run->payslips()->where('employee_id', $this->emp1->id)->firstOrFail();
+        $this->assertEqualsWithDelta(650.0, (float) $slip1->epf_employee, 0.001);
+        $this->assertEqualsWithDelta(650.0, (float) $slip1->epf_employer, 0.001);
+    }
+
     public function test_skbbk_opt_in_adds_a_deduction_line_and_lowers_net_pay(): void
     {
         $baseline = $this->createRun('2026-06');
@@ -341,25 +359,18 @@ class PayrollTest extends TestCase
     }
 
     /**
-     * epf_opt_in_60plus/epf_employee_rate_override are stored but read by no calculation
-     * (see the comment on SalaryStructure) — the form no longer submits them, and
-     * storeSalary() must not silently blank out whatever a tenant already has stored
-     * there when it saves any other field on the same structure.
+     * epf_opt_in_60plus is stored but read by no calculation and is not on the form, so
+     * saving any other field must not blank it.
      */
-    public function test_saving_the_salary_structure_never_touches_the_unwired_epf_columns(): void
+    public function test_saving_the_salary_structure_never_touches_the_unwired_epf_column(): void
     {
-        SalaryStructure::where('employee_id', $this->emp1->id)->update([
-            'epf_opt_in_60plus' => true,
-            'epf_employee_rate_override' => 9.5,
-        ]);
+        SalaryStructure::where('employee_id', $this->emp1->id)->update(['epf_opt_in_60plus' => true]);
 
         $this->actingHr()->post('/app/payroll/salary', [
             'employee_id' => $this->emp1->id, 'basic_salary' => 5500,
         ])->assertRedirect();
 
-        $structure = SalaryStructure::where('employee_id', $this->emp1->id)->firstOrFail();
-        $this->assertTrue($structure->epf_opt_in_60plus);
-        $this->assertEqualsWithDelta(9.5, (float) $structure->epf_employee_rate_override, 0.001);
+        $this->assertTrue(SalaryStructure::where('employee_id', $this->emp1->id)->firstOrFail()->epf_opt_in_60plus);
     }
 
     public function test_invalid_nationality_is_rejected(): void

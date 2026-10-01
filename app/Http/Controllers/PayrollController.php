@@ -105,10 +105,13 @@ class PayrollController extends Controller
             'epf_no' => ['nullable', 'string', 'max:40'],
             'socso_no' => ['nullable', 'string', 'max:40'],
             'nationality' => ['nullable', Rule::in(['citizen', 'pr', 'foreign'])],
-            // epf_opt_in_60plus/epf_employee_rate_override are NOT validated or written
-            // here on purpose — see the "stored but unwired" comment on SalaryStructure.
-            // They stay off this form entirely so re-saving a structure never blanks
-            // whatever a tenant already has stored in those columns.
+            // Worksy's EPF setup: Custom takes its own rates, Statutory can add extra on top.
+            'epf_employee_rate_override' => ['nullable', 'required_if:epf_scheme,custom', 'numeric', 'min:0', 'max:100'],
+            'epf_employer_rate_override' => ['nullable', 'required_if:epf_scheme,custom', 'numeric', 'min:0', 'max:100'],
+            'epf_additional_by' => ['nullable', Rule::in(array_keys(StatutoryOptions::EPF_ADDITIONAL_BY))],
+            'epf_additional_employee' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            'epf_additional_employer' => ['nullable', 'numeric', 'min:0', 'max:99999'],
+            // epf_opt_in_60plus is not on this form, so a save never blanks it.
             'tax_no' => ['nullable', 'string', 'max:40'],
             'spouse_working' => ['boolean'],
             'children_relief_count' => ['nullable', 'integer', 'min:0', 'max:20'],
@@ -126,6 +129,8 @@ class PayrollController extends Controller
         $data = $validator->validated();
         // A legacy name like "MBB" saves as its list name, so it gets a bank code.
         $bank = StatutoryOptions::bankFor($data['bank_name'] ?? null);
+        $isCustomEpf = ($data['epf_scheme'] ?? null) === 'custom';
+        $hasAdditionalEpf = ! $isCustomEpf && ($data['epf_scheme'] ?? null) !== 'exempt';
 
         SalaryStructure::updateOrCreate(
             ['tenant_id' => $tid, 'employee_id' => $data['employee_id']],
@@ -143,8 +148,6 @@ class PayrollController extends Controller
                 'epf_no' => $data['epf_no'] ?? null,
                 'socso_no' => $data['socso_no'] ?? null,
                 'nationality' => $data['nationality'] ?? 'citizen',
-                // epf_opt_in_60plus/epf_employee_rate_override deliberately absent from
-                // this write — see the comment on the validation rules above.
                 'tax_no' => $data['tax_no'] ?? null,
                 // marital_status/nric live on the Employee record now — see the reconcile
                 // migration 2026_08_25_200300 and PayrollController::buildPcbInputs().
@@ -161,6 +164,13 @@ class PayrollController extends Controller
                 'employee_tax_status' => $data['employee_tax_status'] ?? null,
                 'child_relief_breakdown' => self::childRelief($data['child_relief'] ?? null),
                 'epf_scheme' => $data['epf_scheme'] ?? null,
+                // Only the fields the chosen scheme uses are kept, so a custom rate can't
+                // linger after switching back to statutory (or the other way round).
+                'epf_employee_rate_override' => $isCustomEpf ? $data['epf_employee_rate_override'] : null,
+                'epf_employer_rate_override' => $isCustomEpf ? $data['epf_employer_rate_override'] : null,
+                'epf_additional_by' => $hasAdditionalEpf ? ($data['epf_additional_by'] ?? 'percentage') : null,
+                'epf_additional_employee' => $hasAdditionalEpf ? ($data['epf_additional_employee'] ?? null) : null,
+                'epf_additional_employer' => $hasAdditionalEpf ? ($data['epf_additional_employer'] ?? null) : null,
                 'socso_category' => $data['socso_category'] ?? null,
                 'socso_exempt' => $request->boolean('socso_exempt'),
                 'hrdf_exempt' => $request->boolean('hrdf_exempt'),
@@ -1247,6 +1257,7 @@ class PayrollController extends Controller
                 'unpaid_days' => $pulledUnpaidDays,
                 'statutory_category' => $employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
+                'epf_setup' => $structure->epfSetup(),
                 'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
                 'socso_exempt' => (bool) $structure->socso_exempt,
                 // Spec F7: citizens only, and not when HR has marked the employee exempt.
@@ -1329,6 +1340,7 @@ class PayrollController extends Controller
                 ])->values()->all(),
                 'statutory_category' => $employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
+                'epf_setup' => $structure->epfSetup(),
                 'skbbk_opt_in' => (bool) $structure->skbbk_opt_in,
                 'hrdf_rate' => 0.0,
             ];
@@ -1445,7 +1457,7 @@ class PayrollController extends Controller
 
             return [
                 round(max(0.0, (float) $monthly->gross - (float) $monthly->bonus - (float) $monthly->pcb_exempt_amount), 2),
-                $this->epf->contribution($epfWage, $epfPart)['employee'],
+                $this->epf->contribution($epfWage, $epfPart, $structure !== null ? $structure->epfSetup() : [])['employee'],
             ];
         }
 
@@ -1461,6 +1473,7 @@ class PayrollController extends Controller
                 'hrdf_liable' => (bool) $l['item']->hrdf_liable,
             ])->values()->all(),
             'epf_part' => $epfPart,
+            'epf_setup' => $structure !== null ? $structure->epfSetup() : [],
             'skbbk_opt_in' => (bool) (($structure !== null ? $structure->skbbk_opt_in : null) ?? false),
         ], $catalog));
 
@@ -1567,6 +1580,7 @@ class PayrollController extends Controller
                 'bonus' => $data['bonus'] ?? 0,
                 'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
+                'epf_setup' => $structure?->epfSetup() ?? [],
                 'skbbk_opt_in' => (bool) $structure?->skbbk_opt_in,
                 'socso_exempt' => (bool) $structure?->socso_exempt,
                 // A payslip HR already carried forward keeps that policy across recomputes.
@@ -2089,7 +2103,7 @@ class PayrollController extends Controller
         // assume under-60 Part A and misstate a 60+ citizen's EPF relief).
         $bonus = $comp->bonus;
         $epfWageExclBonus = max(0.0, round($comp->gross - $bonus - $comp->overtimeAmount, 2));
-        $k1 = $this->epf->contribution($epfWageExclBonus, $epfPart)['employee'];
+        $k1 = $this->epf->contribution($epfWageExclBonus, $epfPart, $structure !== null ? $structure->epfSetup() : [])['employee'];
         $kt = max(0.0, round($comp->epfEmployee - $k1, 2));
 
         return $this->pcbInputsFor(

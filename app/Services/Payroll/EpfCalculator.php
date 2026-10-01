@@ -75,18 +75,50 @@ class EpfCalculator
     }
 
     /**
-     * Contribution for one month's wages.
+     * Contribution for one month's wages, with the person's own EPF setup (Worksy's
+     * EPF Category / Additional fields, see SalaryStructure::epfSetup()):
+     *   custom      — employee_rate / employer_rate % of actual wages replace the schedule.
+     *   additional  — schedule amounts plus additional_employee / additional_employer, as a
+     *                 % of actual wages (additional_by = percentage) or a ringgit amount.
+     * Every computed amount rounds up to the ringgit, like the schedule.
      *
      * @param  string|null  $part  Part letter from part(); null means no contribution.
+     * @param  array{scheme?: string|null, employee_rate?: float|null, employer_rate?: float|null, additional_by?: string|null, additional_employee?: float|null, additional_employer?: float|null}  $setup
      * @return array{employee: float, employer: float}
      */
-    public function contribution(float $wages, ?string $part): array
+    public function contribution(float $wages, ?string $part, array $setup = []): array
     {
         $wages = round(max(0.0, $wages), 2);
 
         if ($part === null || ! isset(self::RATES[$part]) || $wages <= self::NIL_WAGE) {
             return ['employee' => 0.0, 'employer' => 0.0];
         }
+
+        if (($setup['scheme'] ?? null) === 'custom') {
+            return [
+                'employee' => $this->ceilToRinggit($wages * (float) ($setup['employee_rate'] ?? 0) / 100),
+                'employer' => $this->ceilToRinggit($wages * (float) ($setup['employer_rate'] ?? 0) / 100),
+            ];
+        }
+
+        $statutory = $this->statutory($wages, $part);
+        $extra = fn (?float $value): float => ($setup['additional_by'] ?? 'percentage') === 'amount'
+            ? round(max(0.0, (float) $value), 2)
+            : $this->ceilToRinggit($wages * max(0.0, (float) $value) / 100);
+
+        return [
+            'employee' => $statutory['employee'] + $extra($setup['additional_employee'] ?? null),
+            'employer' => $statutory['employer'] + $extra($setup['additional_employer'] ?? null),
+        ];
+    }
+
+    /**
+     * The Third Schedule amounts alone.
+     *
+     * @return array{employee: float, employer: float}
+     */
+    private function statutory(float $wages, string $part): array
+    {
 
         // Part F is a plain percentage of actual wages at every wage level — it has no bands.
         $base = $part === 'F' ? $wages : $this->bandUpperLimit($wages);
