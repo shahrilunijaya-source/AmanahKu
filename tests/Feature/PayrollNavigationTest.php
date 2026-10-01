@@ -301,6 +301,18 @@ class PayrollNavigationTest extends TestCase
         $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2019')->assertOk()->assertSee('No payroll runs in this year.');
     }
 
+    /** A finalized run not yet marked paid past its EA s.19 date says so in words, not just red. */
+    public function test_payout_flags_an_unpaid_run_past_its_pay_by_date(): void
+    {
+        $run = $this->finalizedPayslipFor($this->emp, '2026-02')->payrollRun;
+
+        $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2026')->assertOk()
+            ->assertSee('Overdue · pay by')->assertSee($run->payByDate()->format('j M Y'));
+
+        $run->forceFill(['paid_at' => now()])->save();
+        $this->acting($this->hr)->get('/app/payroll-payment?tab=payout&year=2026')->assertOk()->assertDontSee('Overdue · pay by');
+    }
+
     public function test_payment_date_is_saved_at_create_and_shown_on_payout(): void
     {
         // Everyone currently employed needs a structure and identifiers since the spec F2

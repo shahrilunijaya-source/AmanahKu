@@ -10,6 +10,13 @@
     $acct = $s?->bank_account_no;
     $acctShown = $acct ? ($canEdit ? $acct : '•••• '.substr($acct, -4)) : '—';
     $relief = $s?->child_relief_breakdown ?? [];
+    // Worksy shows the rates under the category: Custom's own %, or the Additional on top of statutory.
+    $epfExtra = fn ($x) => $s?->epf_additional_by === 'amount' ? 'RM '.number_format((float) $x, 2) : rtrim(rtrim(number_format((float) $x, 2), '0'), '.').'%';
+    $epfRows = match (true) {
+        $s?->epf_scheme === 'custom' => [['Employee %', 'Pekerja %', $epfExtra($s->epf_employee_rate_override)], ['Employer %', 'Majikan %', $epfExtra($s->epf_employer_rate_override)]],
+        (float) $s?->epf_additional_employee > 0 || (float) $s?->epf_additional_employer > 0 => [['Additional Employee', 'Tambahan Pekerja', $epfExtra($s->epf_additional_employee)], ['Additional Employer', 'Tambahan Majikan', $epfExtra($s->epf_additional_employer)]],
+        default => [],
+    };
     $sections = [
         ['Bank', 'Bank', [
             ['Bank', 'Bank', $v($s?->bank_name)], ['Account No', 'No. Akaun', $acctShown], ['Account Holder', 'Pemegang Akaun', $v($s?->bank_holder_name ?: $p->name)],
@@ -21,7 +28,7 @@
             ['Spouse Working', 'Pasangan Bekerja', $s ? $yn($s->spouse_working) : '—'], ['Child Relief Units', 'Unit Pelepasan Anak', $v($s?->children_relief_count)],
             ['Disabled (self)', 'OKU (sendiri)', $s ? $yn($s->disabled_self) : '—'], ['Disabled (spouse)', 'OKU (pasangan)', $s ? $yn($s->disabled_spouse) : '—'],
         ]],
-        ['EPF', 'KWSP', [['EPF No', 'No. KWSP', $v($s?->epf_no)], ['Scheme', 'Skim', StatutoryOptions::EPF_SCHEMES[$s?->epf_scheme] ?? '—']]],
+        ['EPF', 'KWSP', [['EPF No', 'No. KWSP', $v($s?->epf_no)], ['Scheme', 'Skim', StatutoryOptions::EPF_SCHEMES[$s?->epf_scheme] ?? '—'], ...$epfRows]],
         ['SOCSO / EIS', 'PERKESO / SIP', [
             ['SOCSO No', 'No. PERKESO', $v($s?->socso_no)], ['Category', 'Kategori', StatutoryOptions::SOCSO_CATEGORIES[$s?->socso_category] ?? '—'],
             ['SOCSO exempt', 'Dikecualikan PERKESO', $s ? $yn($s->socso_exempt) : '—'], ['HRD Corp exempt', 'Dikecualikan HRD Corp', $s ? $yn($s->hrdf_exempt) : '—'],
@@ -121,7 +128,27 @@
             <div class="uj-section-head">EPF · SOCSO / EIS</div>
             <div style="{{ $grid }}">
                 <div><label style="{{ $lbl }}">{!! $L('EPF No', 'No. KWSP') !!}</label><input name="epf_no" value="{{ $old('epf_no') }}" maxlength="40" style="{{ $fs }}" /></div>
-                <div><label style="{{ $lbl }}">{!! $L('EPF Scheme', 'Skim KWSP') !!}</label>{!! $sel('epf_scheme', StatutoryOptions::EPF_SCHEMES, $old('epf_scheme'), true) !!}</div>
+                {{-- Worksy's EPF Category block: Custom swaps in its own rates, anything but Exempt can add extra on top. --}}
+                <div x-data="{ scheme: @js((string) $old('epf_scheme')), by: @js($old('epf_additional_by') ?? 'percentage') }" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 16px;">
+                    <div><label style="{{ $lbl }}">{!! $L('EPF Scheme', 'Skim KWSP') !!}</label>
+                        <select name="epf_scheme" x-model="scheme" style="{{ $fs }}"><option value="">—</option>@foreach (StatutoryOptions::EPF_SCHEMES as $k => $o)<option value="{{ $k }}">{{ $o }}</option>@endforeach</select>
+                    </div>
+                    <template x-if="scheme === 'custom'">
+                        <div style="display:contents;">
+                            <div><label style="{{ $lbl }}">{!! $L('Employee %', 'Pekerja %') !!}</label><input name="epf_employee_rate_override" type="number" step="0.01" min="0" max="100" value="{{ $old('epf_employee_rate_override') }}" required style="{{ $fs }}" /></div>
+                            <div><label style="{{ $lbl }}">{!! $L('Employer %', 'Majikan %') !!}</label><input name="epf_employer_rate_override" type="number" step="0.01" min="0" max="100" value="{{ $old('epf_employer_rate_override') }}" required style="{{ $fs }}" /></div>
+                        </div>
+                    </template>
+                    <template x-if="scheme !== 'custom' && scheme !== 'exempt'">
+                        <div style="display:contents;">
+                            <div><label style="{{ $lbl }}">{!! $L('Additional By', 'Tambahan Mengikut') !!}</label>
+                                <select name="epf_additional_by" x-model="by" style="{{ $fs }}">@foreach (StatutoryOptions::EPF_ADDITIONAL_BY as $k => $o)<option value="{{ $k }}">{{ $o }}</option>@endforeach</select>
+                            </div>
+                            <div><label style="{{ $lbl }}">{!! $L('Additional Employee', 'Tambahan Pekerja') !!} <span x-text="by === 'amount' ? '(RM)' : '(%)'"></span></label><input name="epf_additional_employee" type="number" step="0.01" min="0" value="{{ $old('epf_additional_employee') }}" style="{{ $fs }}" /></div>
+                            <div><label style="{{ $lbl }}">{!! $L('Additional Employer', 'Tambahan Majikan') !!} <span x-text="by === 'amount' ? '(RM)' : '(%)'"></span></label><input name="epf_additional_employer" type="number" step="0.01" min="0" value="{{ $old('epf_additional_employer') }}" style="{{ $fs }}" /></div>
+                        </div>
+                    </template>
+                </div>
                 <div><label style="{{ $lbl }}">{!! $L('SOCSO No', 'No. PERKESO') !!}</label><input name="socso_no" value="{{ $old('socso_no') }}" maxlength="40" style="{{ $fs }}" /></div>
                 <div><label style="{{ $lbl }}">{!! $L('SOCSO Category', 'Kategori PERKESO') !!}</label>{!! $sel('socso_category', StatutoryOptions::SOCSO_CATEGORIES, $old('socso_category'), true) !!}</div>
                 <div><label style="{{ $lbl }}">{!! $L('Nationality (statutory)', 'Kewarganegaraan (statutori)') !!}</label>{!! $sel('nationality', ['citizen' => 'Citizen', 'pr' => 'Permanent resident', 'foreign' => 'Foreign'], $old('nationality', 'citizen'), true) !!}</div>

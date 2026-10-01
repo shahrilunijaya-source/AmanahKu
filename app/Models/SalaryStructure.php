@@ -27,14 +27,13 @@ class SalaryStructure extends Model
         'epf_no',
         'socso_no',
         'nationality',
-        // epf_opt_in_60plus/epf_employee_rate_override: stored, and still fillable for
-        // whatever already has a value, but read by no calculation — confirmed when they
-        // were added (EpfCalculator/PayrollCalculator never look at either column). The
-        // payroll form no longer exposes them (a control that looks like it changes a
-        // payslip and doesn't is worse than no control). Do not re-add either to the form
-        // without first wiring them into EpfCalculator.
+        // epf_opt_in_60plus is stored but read by no calculation.
         'epf_opt_in_60plus',
         'epf_employee_rate_override',
+        'epf_employer_rate_override',
+        'epf_additional_by',
+        'epf_additional_employee',
+        'epf_additional_employer',
         'tax_no',
         'spouse_working',
         'children_relief_count',
@@ -64,6 +63,9 @@ class SalaryStructure extends Model
             'effective_from' => 'date',
             'epf_opt_in_60plus' => 'boolean',
             'epf_employee_rate_override' => 'float',
+            'epf_employer_rate_override' => 'float',
+            'epf_additional_employee' => 'float',
+            'epf_additional_employer' => 'float',
             'spouse_working' => 'boolean',
             'children_relief_count' => 'integer',
             'disabled_self' => 'boolean',
@@ -81,5 +83,22 @@ class SalaryStructure extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * This person's EPF setup, in the shape EpfCalculator::contribution() takes.
+     *
+     * @return array{scheme: string|null, employee_rate: float|null, employer_rate: float|null, additional_by: string|null, additional_employee: float|null, additional_employer: float|null}
+     */
+    public function epfSetup(): array
+    {
+        return [
+            'scheme' => $this->epf_scheme,
+            'employee_rate' => $this->epf_employee_rate_override,
+            'employer_rate' => $this->epf_employer_rate_override,
+            'additional_by' => $this->epf_additional_by,
+            'additional_employee' => $this->epf_additional_employee,
+            'additional_employer' => $this->epf_additional_employer,
+        ];
     }
 }

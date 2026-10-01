@@ -54,6 +54,7 @@ class PayrollCalculator
      *     claims_reimbursement?: float|int|string,
      *     statutory_category?: int,
      *     epf_part?: string|null,
+     *     epf_setup?: array<string, mixed>,
      *     skbbk_opt_in?: bool,
      *     socso_exempt?: bool,
      *     lines?: array<int, array{amount?: float|int|string, epf_liable?: bool, perkeso_liable?: bool, hrdf_liable?: bool}>|null,
@@ -192,7 +193,7 @@ class PayrollCalculator
             $socsoWageFromLines = null;
             $hrdfBase = $basic + $allowancesTotal;
         }
-        $epfContribution = $this->epf->contribution($epfWage, $epfPart);
+        $epfContribution = $this->epf->contribution($epfWage, $epfPart, $inputs['epf_setup'] ?? []);
         $epfEmployee = $epfContribution['employee'];
         $epfEmployer = $epfContribution['employer'];
 

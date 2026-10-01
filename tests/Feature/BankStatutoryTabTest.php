@@ -141,4 +141,31 @@ class BankStatutoryTabTest extends TestCase
 
         $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('Bank &amp; Statutory', false);
     }
+
+    /** Worksy's EPF block: Custom keeps its two rates; switching to Statutory drops them and keeps the Additional. */
+    public function test_epf_custom_rate_and_additional_are_saved_for_the_chosen_scheme_only(): void
+    {
+        $this->login('hr');
+        $e = $this->emp('Haryati');
+        $post = fn (array $epf) => $this->post('/app/payroll/salary', ['employee_id' => $e->id] + $epf)->assertSessionHasNoErrors();
+
+        $post(['epf_scheme' => 'custom', 'epf_employee_rate_override' => 20, 'epf_employer_rate_override' => 13, 'epf_additional_employee' => 5]);
+        $s = SalaryStructure::where('employee_id', $e->id)->firstOrFail();
+        $this->assertSame([20.0, 13.0, null], [$s->epf_employee_rate_override, $s->epf_employer_rate_override, $s->epf_additional_employee]);
+
+        $post(['epf_scheme' => 'statutory', 'epf_employee_rate_override' => 20, 'epf_additional_by' => 'amount', 'epf_additional_employee' => 100]);
+        $s->refresh();
+        $this->assertSame([null, null, 'amount', 100.0], [$s->epf_employee_rate_override, $s->epf_employer_rate_override, $s->epf_additional_by, $s->epf_additional_employee]);
+
+        $this->get("/app/profile?emp={$e->id}&tab=bank")->assertOk()->assertSee('Additional Employee')->assertSee('RM 100.00');
+    }
+
+    public function test_a_custom_epf_scheme_needs_both_rates(): void
+    {
+        $this->login('hr');
+        $e = $this->emp('Haryati');
+
+        $this->post('/app/payroll/salary', ['employee_id' => $e->id, 'epf_scheme' => 'custom', 'epf_employee_rate_override' => 20])
+            ->assertSessionHasErrors('epf_employer_rate_override');
+    }
 }
