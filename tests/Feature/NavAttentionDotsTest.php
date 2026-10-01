@@ -190,6 +190,8 @@ class NavAttentionDotsTest extends TestCase
     public function test_your_own_tot_slot_dots_once_it_is_inside_a_fortnight(): void
     {
         $me = $this->member('Me');
+        // Travel before settling, so the knowledge dot is settled for the month the test runs in.
+        $soon = $this->slotInsideAFortnight();
         $this->settleKnowledge($me);
 
         // A slot far out is not yet anybody's problem.
@@ -201,7 +203,6 @@ class NavAttentionDotsTest extends TestCase
         $this->dash($me)->assertOk()->assertDontSee('uj-nav-dot');
 
         // Move it to whichever month holds a first Saturday inside the next fortnight.
-        $soon = $this->slotInsideAFortnight();
         $session->update(['year' => $soon[0], 'month' => $soon[1]]);
         $this->dash($me)->assertOk()->assertSee('uj-nav-dot');
 
@@ -230,9 +231,9 @@ class NavAttentionDotsTest extends TestCase
     {
         $me = $this->member('Me');
         $other = $this->member('Other');
+        $soon = $this->slotInsideAFortnight();
         $this->settleKnowledge($me);
 
-        $soon = $this->slotInsideAFortnight();
         TotSession::create([
             'tenant_id' => $this->tenant->id, 'year' => $soon[0], 'month' => $soon[1],
             'status' => 'planned', 'presenter_employee_id' => $other->id,
