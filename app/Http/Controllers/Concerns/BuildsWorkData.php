@@ -751,7 +751,7 @@ trait BuildsWorkData
      *
      * @param  list<array{employee: Employee, blocking: list<string>, warnings: list<string>}>  $readinessRows
      * @param  EloquentCollection<int, Employee>  $finalPayCandidates
-     * @return array{company: ?string, people: list<array<string, mixed>>, outside: list<array{name: string, blocking: list<string>}>, bonusByPeriod: array<string, list<int>>, leavers: list<array<string, mixed>>}
+     * @return array{company: ?string, defaultPeriod: string, people: list<array<string, mixed>>, outside: list<array{name: string, blocking: list<string>}>, bonusByPeriod: array<string, list<int>>, leavers: list<array<string, mixed>>}
      */
     private function payrollWizardData(array $readinessRows, EloquentCollection $finalPayCandidates, PayrollReadiness $readiness, ?string $company): array
     {
@@ -797,8 +797,14 @@ trait BuildsWorkData
             'warnings' => $gaps['warnings'],
         ];
 
+        // Payroll for a month usually runs early the next month, so until last month has its
+        // Month End run, the period starts on last month rather than the calendar month.
+        $lastMonth = now()->subMonthNoOverflow()->format('Y-m');
+        $hasLastMonthRun = PayrollRun::where('period', $lastMonth)->where('kind', 'monthly')->exists();
+
         return [
             'company' => $company,
+            'defaultPeriod' => $hasLastMonthRun ? now()->format('Y-m') : $lastMonth,
             'people' => array_map(fn (array $r) => $person($r['employee'], $r), $rows),
             // Currently employed but not payable (no salary structure): they never appear in
             // the selection, but their gaps can still trip the server's readiness gate.
