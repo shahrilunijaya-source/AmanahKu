@@ -1511,6 +1511,17 @@ class PayrollController extends Controller
             // Null/blank = go with the computed PCB; a value here overrides it verbatim
             // and survives future recomputes until cleared (see PayrollCalculator).
             'pcb_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Statutory, unpaid-leave and claims overrides from the payslip review. Same
+            // rule as pcb_override, except absent = keep the stored override (it sticks);
+            // only a submitted blank clears it.
+            'epf_employee_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'epf_employer_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'socso_employee_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'socso_employer_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'eis_employee_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'eis_employer_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'unpaid_deduction_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'claims_reimbursement_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             // Blank/absent = keep the generated (possibly prorated) basic; a value here
             // is HR's own figure and sticks until the run is regenerated.
             'basic' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
@@ -1558,8 +1569,13 @@ class PayrollController extends Controller
         $rawBasic = $request->input('basic');
         $basicOverridden = $rawBasic !== null && $rawBasic !== '';
 
+        $overrideInputs = [];
+        foreach (PayslipComputation::OVERRIDE_KEYS as $key) {
+            $overrideInputs[$key] = $request->has($key) ? ($data[$key] ?? null) : $payslip->{$key};
+        }
+
         $comp = DB::transaction(function () use (
-            $request, $data, $payslip, $structure, $epfPart, $periodEnd,
+            $request, $data, $payslip, $overrideInputs, $structure, $epfPart, $periodEnd,
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
             $basicOverridden, $rawBasic,
         ) {
@@ -1577,7 +1593,11 @@ class PayrollController extends Controller
                 'basic' => $basicOverridden ? (float) $rawBasic : $payslip->basic,
                 'allowances_total' => $payslip->allowances_total,
                 'fixed_deductions_total' => $payslip->fixed_deductions_total,
-                'claims_reimbursement' => $payslip->claims_reimbursement,
+                // While an override is stored the column holds HR's figure, so the real
+                // computed amount comes back from the linked claims (needed when it is cleared).
+                'claims_reimbursement' => $payslip->claims_reimbursement_override !== null
+                    ? (float) Claim::whereIn('id', $payslip->claim_ids ?? [])->sum('amount')
+                    : $payslip->claims_reimbursement,
                 'bonus' => $data['bonus'] ?? 0,
                 'statutory_category' => $payslip->employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
@@ -1610,6 +1630,7 @@ class PayrollController extends Controller
             }
             $baseInputs['unpaid_days'] = $unpaidOverridden ? (float) $rawUnpaidDays : $pulledUnpaidDays;
             $baseInputs['days_in_month'] = $payslip->days_in_month;
+            $baseInputs += $overrideInputs;
 
             $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
 

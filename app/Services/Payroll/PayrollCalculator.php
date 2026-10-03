@@ -51,6 +51,14 @@ class PayrollCalculator
      *     zakat?: float|int|string,
      *     cp38?: float|int|string,
      *     pcb_override?: float|int|string|null,
+     *     epf_employee_override?: float|int|string|null,
+     *     epf_employer_override?: float|int|string|null,
+     *     socso_employee_override?: float|int|string|null,
+     *     socso_employer_override?: float|int|string|null,
+     *     eis_employee_override?: float|int|string|null,
+     *     eis_employer_override?: float|int|string|null,
+     *     unpaid_deduction_override?: float|int|string|null,
+     *     claims_reimbursement_override?: float|int|string|null,
      *     other_deductions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     claims_reimbursement?: float|int|string,
      *     statutory_category?: int,
@@ -84,7 +92,14 @@ class PayrollCalculator
         // isset() already excludes null, so no separate !== null check is needed.
         $pcbOverride = isset($inputs['pcb_override']) && $inputs['pcb_override'] !== ''
             ? $this->money($inputs['pcb_override']) : null;
-        $claimsReimbursement = $this->money($inputs['claims_reimbursement'] ?? 0);
+        // HR's hand-typed figures from the payslip review. Each replaces its computed
+        // amount verbatim (null = use the computed one) and is handed back on the
+        // PayslipComputation so the controller can store it for the next recompute.
+        $overrides = [];
+        foreach (PayslipComputation::OVERRIDE_KEYS as $key) {
+            $overrides[$key] = isset($inputs[$key]) && $inputs[$key] !== '' ? $this->money($inputs[$key]) : null;
+        }
+        $claimsReimbursement = $overrides['claims_reimbursement_override'] ?? $this->money($inputs['claims_reimbursement'] ?? 0);
         // Deduction-type Fixed Transactions (e.g. a recurring staff loan instalment) —
         // reduces net pay only, never the EPF/PERKESO wage bases (those are earnings
         // concepts; see the flag-derived $epfBase/$perkesoBase below, which this
@@ -143,7 +158,8 @@ class PayrollCalculator
         // don't know the month fall back to ÷26.
         $daysInMonth = (int) ($inputs['days_in_month'] ?? 0);
         $unpaidDailyRate = $daysInMonth > 0 ? $basic / $daysInMonth : $dailyRate;
-        $unpaidDeduction = round($unpaidDays * $unpaidDailyRate, 2);
+        // An HR override replaces the amount only; it reduces gross and the statutory bases below exactly like the computed one.
+        $unpaidDeduction = $overrides['unpaid_deduction_override'] ?? round($unpaidDays * $unpaidDailyRate, 2);
 
         // Gross floors at zero — unpaid leave can't drive earnings negative.
         $gross = round(max(0.0, $basic + $allowancesTotal + $overtimeAmount + $bonus + $additionsTotal + $individualEarningsTotal - $unpaidDeduction), 2);
@@ -200,8 +216,8 @@ class PayrollCalculator
             $hrdfBase = $basic + $allowancesTotal;
         }
         $epfContribution = $this->epf->contribution($epfWage, $epfPart, $inputs['epf_setup'] ?? []);
-        $epfEmployee = $epfContribution['employee'];
-        $epfEmployer = $epfContribution['employer'];
+        $epfEmployee = $overrides['epf_employee_override'] ?? $epfContribution['employee'];
+        $epfEmployer = $overrides['epf_employer_override'] ?? $epfContribution['employer'];
 
         $socsoWage = $socsoWageFromLines ?? round(max(0.0, $statWage - $bonus), 2);
         $skbbkOptIn = (bool) ($inputs['skbbk_opt_in'] ?? false);
@@ -209,18 +225,22 @@ class PayrollCalculator
         $skbbkEmployee = $socsoContribution['skbbk'];
         // socso_employee is SOCSO proper (Invalidity for category 1) — SKBBK is its own
         // payslip line, not folded into this figure.
-        $socsoEmployee = round($socsoContribution['employee'] - $skbbkEmployee, 2);
-        $socsoEmployer = $socsoContribution['employer'];
+        $socsoEmployee = $overrides['socso_employee_override'] ?? round($socsoContribution['employee'] - $skbbkEmployee, 2);
+        $socsoEmployer = $overrides['socso_employer_override'] ?? $socsoContribution['employer'];
 
         $eisContribution = $this->eis->contribution($socsoWage, $category);
-        $eisEmployee = $eisContribution['employee'];
-        $eisEmployer = $eisContribution['employer'];
+        $eisEmployee = $overrides['eis_employee_override'] ?? $eisContribution['employee'];
+        $eisEmployer = $overrides['eis_employer_override'] ?? $eisContribution['employer'];
 
         // Spec F2: HR has marked this person outside PERKESO coverage (for example a
         // director who is not an employee under the Act), so none of SOCSO, EIS or SKBBK
         // applies. EPF, PCB and the HRD Corp levy are separate regimes and stay.
         if (! empty($inputs['socso_exempt'])) {
-            $socsoEmployee = $socsoEmployer = $eisEmployee = $eisEmployer = $skbbkEmployee = 0.0;
+            $socsoEmployee = $overrides['socso_employee_override'] ?? 0.0;
+            $socsoEmployer = $overrides['socso_employer_override'] ?? 0.0;
+            $eisEmployee = $overrides['eis_employee_override'] ?? 0.0;
+            $eisEmployer = $overrides['eis_employer_override'] ?? 0.0;
+            $skbbkEmployee = 0.0;
         }
 
         // HRD Corp levy (spec F7): a third wage base, employer side only. Unpaid leave
@@ -287,6 +307,7 @@ class PayrollCalculator
             carriedForward: $carriedForward,
             hrdfLevy: $hrdfLevy,
             midMonthAdvance: $midMonthAdvance,
+            overrides: $overrides,
         );
     }
 
