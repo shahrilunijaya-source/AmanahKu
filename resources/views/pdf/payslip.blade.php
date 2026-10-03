@@ -80,8 +80,9 @@
         $dash = fn ($v) => ($v === null || $v === '') ? 'N/A' : $v;
         // Only the two headline entitlements. A granted type (Replacement) does carry a
         // balance now, but it is quota earned by working rest days, not part of the yearly
-        // entitlement a payslip reports.
-        $balances = $emp?->leaveBalances->reject(fn ($b) => $b->leaveType?->is_hr_granted_only)->take(2) ?? collect();
+        // entitlement a payslip reports. Annual then Medical first, whatever the row order.
+        $balances = $emp?->leaveBalances->reject(fn ($b) => $b->leaveType?->is_hr_granted_only)
+            ->sortBy(fn ($b) => match ($b->leaveType?->name) { 'Annual' => 0, 'Medical' => 1, default => 2 })->take(2) ?? collect();
         $statRows = [['EPF', 'epf'], ['SOCSO', 'socso'], ['EIS', 'eis'], ['PCB', 'pcb'], ['HRDF', 'hrdf']];
         if ($s?->skbbk_opt_in) {
             $statRows[] = ['SKBBK', 'skbbk'];

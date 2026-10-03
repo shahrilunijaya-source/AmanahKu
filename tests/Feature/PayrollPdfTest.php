@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\LeaveType;
 use App\Models\PayrollOpeningFigure;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
@@ -388,5 +389,21 @@ class PayrollPdfTest extends TestCase
 
         $html = view('pdf.payslip', ['payslips' => collect([$data])])->render();
         $this->assertStringNotContainsStringIgnoringCase('HRD Corp', $html);
+    }
+
+    /** Annual and Medical are the headline balances, whatever order the rows were created in. */
+    public function test_leave_table_shows_annual_and_medical_first(): void
+    {
+        foreach (['Emergency' => 5, 'Marriage' => 2, 'Medical' => 14, 'Annual' => 12] as $name => $balance) {
+            $type = LeaveType::create(['tenant_id' => $this->tenant->id, 'name' => $name, 'entitlement' => $balance]);
+            $this->emp->leaveBalances()->create(['leave_type_id' => $type->id, 'balance' => $balance]);
+        }
+        $payslip = $this->payslipFor($this->emp);
+
+        $html = view('pdf.payslip', ['payslips' => collect([app(PayslipPdfData::class)->build($payslip->fresh(['lines']))])])->render();
+
+        $this->assertStringContainsString('Annual', $html);
+        $this->assertStringContainsString('Medical', $html);
+        $this->assertStringNotContainsString('Emergency', $html);
     }
 }
