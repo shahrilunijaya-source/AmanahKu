@@ -411,6 +411,11 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
 .uj-link { font-size: 12.5px; color: var(--red); }
 .uj-pill { padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+/* Payslip review rows: description, MYR, amount. */
+.payrow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; color: var(--body); }
+.payrow .cur { font-size: 11px; color: var(--muted); }
+.payrow .amt { min-width: 7rem; text-align: right; font-family: var(--font-mono); color: var(--ink); padding-right: 0.5rem; }
+.mono-dd { margin: 0; text-align: right; font-family: var(--font-mono); color: var(--ink); }
 
 /* ── Stamp: the status marker on banner cards. Replaces the old 3px left stripe —
    a stamped word says what the colour used to only imply. Tone is set with
