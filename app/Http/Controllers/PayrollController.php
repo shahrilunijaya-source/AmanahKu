@@ -799,6 +799,23 @@ class PayrollController extends Controller
     }
 
     /**
+     * The basic a fresh run would give this employee: the employee record's salary, prorated
+     * by calendar days (s.18A) for an incomplete month when the basic item prorates.
+     *
+     * @param  Collection<string, PayrollItem>  $catalog
+     */
+    private function generatedBasicFor(Employee $employee, string $period, Collection $catalog): float
+    {
+        $days = $this->employedDays($employee, $period);
+        // A tenant with no seeded catalogue prorates by default (has() guards the read).
+        $prorateBasic = ! $catalog->has('basic-salary') || (bool) $catalog->get('basic-salary')->prorate_on_incomplete_month;
+
+        return $prorateBasic && $days['employed'] < $days['in_month']
+            ? Proration::prorate((float) ($employee->salary ?? 0), $days['employed'], $days['in_month'])
+            : (float) ($employee->salary ?? 0);
+    }
+
+    /**
      * Calendar days employed within the period (spec F3). Leaving date: the employee
      * record's last_working_day first, then an offboarding case's last_day.
      *
@@ -1219,12 +1236,7 @@ class PayrollController extends Controller
             // Spec F3: an incomplete month of service is paid by calendar days (s.18A),
             // but only for items flagged to prorate.
             $days = $this->employedDays($employee, $period);
-            // A tenant with no seeded catalogue prorates by default (has() guards the
-            // read; PHPStan types Collection::get() as non-null here).
-            $prorateBasic = ! $catalog->has('basic-salary') || (bool) $catalog->get('basic-salary')->prorate_on_incomplete_month;
-            $basic = $prorateBasic && $days['employed'] < $days['in_month']
-                ? Proration::prorate((float) ($employee->salary ?? 0), $days['employed'], $days['in_month'])
-                : (float) ($employee->salary ?? 0);
+            $basic = $this->generatedBasicFor($employee, $period, $catalog);
 
             $inputs = [
                 // Basic salary is the employee record's (Employment tab / Progression), as in
@@ -1485,7 +1497,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
-        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        $this->assertPayslipEditable($payslip);
         // Spec F10: a bonus payslip is nothing but the individual transactions flagged for
         // the bonus run — recomputing it through the monthly path would put SOCSO/EIS and
         // the levy back on it and tax the bonus as normal pay. Change the transaction and
@@ -1566,8 +1578,10 @@ class PayrollController extends Controller
         $rawOvertimeMultiplier = $request->input('overtime_multiplier');
         $rawUnpaidDays = $request->input('unpaid_days');
         $unpaidOverridden = $rawUnpaidDays !== null && $rawUnpaidDays !== '';
+        // Reset to Default sets this attribute: basic goes back to what a fresh run would give.
+        $resetBasic = (bool) $request->attributes->get('reset_basic', false);
         $rawBasic = $request->input('basic');
-        $basicOverridden = $rawBasic !== null && $rawBasic !== '';
+        $basicOverridden = ! $resetBasic && $rawBasic !== null && $rawBasic !== '';
 
         $overrideInputs = [];
         foreach (PayslipComputation::OVERRIDE_KEYS as $key) {
@@ -1577,7 +1591,7 @@ class PayrollController extends Controller
         $comp = DB::transaction(function () use (
             $request, $data, $payslip, $overrideInputs, $structure, $epfPart, $periodEnd,
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
-            $basicOverridden, $rawBasic,
+            $basicOverridden, $rawBasic, $resetBasic,
         ) {
             $overtimeRequests = ! $payslip->payrollRun->pulls('overtime') ? collect() : $this->pullableOvertimeFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
@@ -1633,6 +1647,9 @@ class PayrollController extends Controller
             $baseInputs += $overrideInputs;
 
             $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
+            if ($resetBasic) {
+                $baseInputs['basic'] = $this->generatedBasicFor($payslip->employee, $payslip->payrollRun->period, $catalog);
+            }
 
             // Individual Transactions: adding/editing/removing a one-off here writes into
             // the same individual_transactions table the standalone Individual
@@ -1718,7 +1735,7 @@ class PayrollController extends Controller
                 'unpaid_leave_request_ids' => $unpaidLeaveRequests->pluck('id')->all() ?: null,
                 'pulled_unpaid_days' => $pulledUnpaidDays,
                 'unpaid_days_overridden' => $unpaidOverridden,
-                'basic_overridden' => $basicOverridden || $payslip->basic_overridden,
+                'basic_overridden' => ! $resetBasic && ($basicOverridden || $payslip->basic_overridden),
             ])->save();
             $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
             // A basic override must reach the itemised salary line too, or the payslip
@@ -1743,6 +1760,72 @@ class PayrollController extends Controller
             ->with('ok', 'Payslip updated for '.$payslip->employee->name.' (net RM '.number_format($comp->netPay, 2).').');
     }
 
+    /** A payslip is editable while its run is not finalized and HR has not locked it. */
+    private function assertPayslipEditable(Payslip $payslip): void
+    {
+        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        abort_if($payslip->locked_at !== null, 423, 'This payslip is locked. Unlock it first.');
+    }
+
+    /** Lock a draft payslip: every writer refuses it until it is unlocked. */
+    public function lockPayslip(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+
+        $payslip->forceFill(['locked_at' => now(), 'locked_by_id' => Auth::id()])->save();
+        AuditLog::record('Locked payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
+
+        return back()->with('ok', 'Payslip locked for '.$payslip->employee->name.'.');
+    }
+
+    public function unlockPayslip(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+
+        $payslip->forceFill(['locked_at' => null, 'locked_by_id' => null])->save();
+        AuditLog::record('Unlocked payslip', $payslip->employee->name.' · '.$payslip->payrollRun->label);
+
+        return back()->with('ok', 'Payslip unlocked for '.$payslip->employee->name.'.');
+    }
+
+    /**
+     * Reset to Default: drop every manual override (PCB, statutory, unpaid leave, claims,
+     * basic, overtime hours, unpaid days) and recalculate. Bonus and Individual Transactions
+     * are real one-offs, not overrides, so they stay.
+     */
+    public function resetPayslip(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        $this->assertPayslipEditable($payslip);
+
+        $blank = array_fill_keys([...PayslipComputation::OVERRIDE_KEYS, 'pcb_override', 'overtime_hours', 'overtime_multiplier', 'unpaid_days', 'basic'], '');
+        $request->merge($blank + ['bonus' => $payslip->bonus]);
+        $request->attributes->set('reset_basic', true);
+        $response = $this->updatePayslip($request, $payslip);
+        AuditLog::record('Reset payslip to default', $payslip->employee->name.' · '.$payslip->payrollRun->label);
+
+        return $response;
+    }
+
+    /** The payslip remark, printed in the PDF REMARK box. */
+    public function updatePayslipRemark(Request $request, Payslip $payslip): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($payslip);
+        $this->assertPayslipEditable($payslip);
+
+        $data = $request->validate(['notes' => ['nullable', 'string', 'max:255']]);
+        $payslip->forceFill(['notes' => $data['notes'] ?? null])->save();
+        AuditLog::record('Updated payslip remark', $payslip->employee->name.' · '.$payslip->payrollRun->label);
+
+        return back()->with('ok', 'Remark saved for '.$payslip->employee->name.'.');
+    }
+
     /** Spec F5: the one field that changes after finalize, set only here. */
     public function markPaid(Request $request, PayrollRun $run): RedirectResponse
     {
@@ -1762,7 +1845,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
-        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        $this->assertPayslipEditable($payslip);
 
         $payslip->forceFill(['deduction_consent_confirmed' => ! $payslip->deduction_consent_confirmed])->save();
         AuditLog::record($payslip->deduction_consent_confirmed ? 'Confirmed deduction consent' : 'Withdrew deduction consent', $payslip->employee->name.' · '.$payslip->payrollRun->label);
@@ -1784,6 +1867,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
+        abort_if($payslip->locked_at !== null, 423, 'This payslip is locked. Unlock it first.');
         abort_unless((bool) $payslip->held_for_cp22a, 422, 'This payslip is not being held.');
 
         $data = $request->validate(['reason' => ['required', 'string', 'max:240']]);
@@ -1803,7 +1887,7 @@ class PayrollController extends Controller
     {
         $this->authorizeAdmin($request);
         $this->assertTenant($payslip);
-        abort_unless($payslip->payrollRun->isEditable(), 422, 'This payroll run is finalized and locked.');
+        $this->assertPayslipEditable($payslip);
         abort_if($payslip->payrollRun->isFinal(), 422, 'A final pay run has no next month to carry into. Lower the deductions on this payslip until net pay is zero or more, and recover the rest from the employee directly.');
         abort_unless($payslip->net_pay < 0, 422, 'Net pay is not negative.');
 
@@ -2041,6 +2125,7 @@ class PayrollController extends Controller
             $this->authorizeAdmin($request);
         }
 
+        abort_if($run->payslips()->whereNotNull('locked_at')->exists(), 423, 'A payslip in this run is locked. Unlock it before deleting the run.');
         // Spec F12: once a filing has gone to an agency the run behind it is history.
         $filed = PayrollSubmission::where('payroll_run_id', $run->id)->whereNotNull('submitted_at')->exists();
         abort_if($filed, 422, 'This run has already been filed with an agency; it cannot be deleted.');

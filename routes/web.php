@@ -778,6 +778,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs/{run}/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.runs.mark-paid');
             Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
+            Route::post('/app/payroll/payslips/{payslip}/lock', [PayrollController::class, 'lockPayslip'])->name('payroll.payslips.lock');
+            Route::post('/app/payroll/payslips/{payslip}/unlock', [PayrollController::class, 'unlockPayslip'])->name('payroll.payslips.unlock');
+            Route::post('/app/payroll/payslips/{payslip}/reset', [PayrollController::class, 'resetPayslip'])->name('payroll.payslips.reset');
+            Route::post('/app/payroll/payslips/{payslip}/remark', [PayrollController::class, 'updatePayslipRemark'])->name('payroll.payslips.remark');
             Route::post('/app/payroll/payslips/{payslip}/acknowledge', [PayrollController::class, 'acknowledgePayslip'])->name('payroll.payslips.acknowledge');
             Route::post('/app/payroll/payslips/{payslip}/consent', [PayrollController::class, 'confirmDeductionConsent'])->name('payroll.payslips.consent');
             Route::post('/app/payroll/payslips/{payslip}/release-hold', [PayrollController::class, 'releaseHold'])->name('payroll.payslips.release-hold');

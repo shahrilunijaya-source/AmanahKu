@@ -102,6 +102,7 @@ class Payslip extends Model
             'net_pay' => 'float',
             'employer_cost' => 'float',
             'acknowledged_at' => 'datetime',
+            'locked_at' => 'datetime',
         ];
     }
 
