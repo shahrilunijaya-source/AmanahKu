@@ -274,7 +274,7 @@
                                             aria-haspopup="menu" :aria-expanded="drawer.peopleMenuOpen ? 'true' : 'false'">
                                         <span x-text="$store.ui.lang==='en' ? '+ Add someone' : '+ Tambah orang'"></span>
                                     </button>
-                                    <div class="wd-menu" x-show="drawer.peopleMenuOpen" x-cloak @click.outside="drawer.peopleMenuOpen = false" role="menu" style="top:28px;max-height:220px;overflow:auto;">
+                                    <div class="wd-menu" x-show="drawer.peopleMenuOpen" x-cloak @click.outside="drawer.peopleMenuOpen = false" role="menu" style="top:28px;left:0;right:auto;width:300px;max-width:calc(100vw - 32px);max-height:220px;overflow:auto;transform-origin:top left;">
                                         <input type="search" class="wd-inline" style="margin:0 0 4px;width:100%;" x-ref="peopleSearch" x-model="drawer.peopleQuery"
                                                @keydown.escape.stop="drawer.peopleMenuOpen = false"
                                                :placeholder="$store.ui.lang==='en' ? 'Search name or nickname' : 'Cari nama atau gelaran'"
