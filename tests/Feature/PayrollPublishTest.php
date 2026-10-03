@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
+use App\Models\PayslipLine;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
@@ -200,18 +201,28 @@ class PayrollPublishTest extends TestCase
         $this->assertSame($run->label, $slip->payrollRun->label);
     }
 
-    public function test_daily_and_hourly_rates_appear_once_unpaid_leave_is_on_the_payslip(): void
+    public function test_unpaid_leave_shows_a_calendar_day_rate_and_overtime_shows_the_26_day_rates(): void
     {
         $this->finalizedRun(publishNow: true);
         $slip = $this->slipFor($this->staff);
-        $slip->forceFill(['unpaid_days' => 2, 'unpaid_deduction' => 230.77])->save();
+        $slip->forceFill(['unpaid_days' => 2, 'unpaid_deduction' => 200.0])->save();
 
         $p = app(PayslipPdfData::class)->build($slip->fresh()->load(['employee.salaryStructure', 'payrollRun', 'lines']))['particulars'];
 
-        // Ordinary rate of pay, s.60I: monthly basic ÷ 26, then ÷ 8 for the hourly rate.
+        // Unpaid leave is docked at basic ÷ calendar days in the month (3000 ÷ 30).
+        $this->assertSame(100.0, $p['unpaidDailyRate']);
+        $this->assertSame(2.0, $p['unpaidDays']);
+        // The 26-day ordinary rate (s.60I) is only for overtime, so it stays hidden here.
+        $this->assertNull($p['dailyRate']);
+
+        PayslipLine::forceCreate([
+            'tenant_id' => $slip->tenant_id, 'payslip_id' => $slip->id, 'name' => 'Overtime 1.5×',
+            'type' => 'earning', 'amount' => 100, 'quantity' => 5, 'source' => 'overtime', 'sort_order' => 9,
+        ]);
+        $p = app(PayslipPdfData::class)->build($slip->fresh()->load(['employee.salaryStructure', 'payrollRun', 'lines']))['particulars'];
+
         $this->assertSame(115.38, $p['dailyRate']);
         $this->assertSame(14.42, $p['hourlyRate']);
-        $this->assertSame(2.0, $p['unpaidDays']);
     }
 
     public function test_acknowledgement_is_rejected_while_the_setting_is_off_and_works_when_on(): void

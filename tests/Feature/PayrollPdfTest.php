@@ -210,72 +210,91 @@ class PayrollPdfTest extends TestCase
     }
 
     /**
-     * The payslip's three printed totals must agree: TOTAL EARNINGS − TOTAL DEDUCTIONS +
-     * reimbursement === the NETT WAGE banner. Deductions must fold in EPF/SOCSO/EIS/PCB
-     * (normal + bonus), zakat and CP38 — none of those are PayslipLine rows (see
-     * PayslipPdfData::statutoryRows) — alongside an ordinary line-item deduction, all at
-     * once, exactly the combination that previously left the deductions table at 0.00.
+     * TOTAL EARNINGS - TOTAL DEDUCTIONS must equal the payslip's net pay to the cent, with
+     * claims counted as earnings, unpaid leave as the first deduction (basic stays full on
+     * the earnings side), statutory amounts folded in, and an advance listed. Same maths
+     * as PayrollCalculator: gross = earnings - unpaid, net = gross - totalDeductions + claims.
      */
-    public function test_payslip_totals_reconcile_with_statutory_bonus_pcb_zakat_cp38_and_reimbursement(): void
+    public function test_totals_reconcile_with_unpaid_leave_claim_statutory_and_advance(): void
     {
         $run = PayrollRun::forceCreate([
             'tenant_id' => $this->tenant->id, 'period' => '2026-08', 'label' => 'August 2026', 'status' => 'finalized',
             'finalized_at' => now(),
         ]);
-
-        // Earnings lines: Basic 5000 + Allowance 200 = 5200 TOTAL EARNINGS.
-        // Deductions: statutory 550+25+10+120+80+50+30=865, plus a Staff Loan line of 100
-        // = 965 TOTAL DEDUCTIONS. Reimbursement 150. Nett = 5200 - 965 + 150 = 4385.
+        // Earnings 5000 + 200 + 150 claim = 5350. Unpaid 3 x (5000/31) = 483.87.
+        // Statutory 550+25+10+44+120+80+50+30 = 909, advance 100, mid-month 40.
+        // gross 5200-483.87 = 4716.13; totalDeductions 909+100+40 = 1049;
+        // net = 4716.13 - 1049 + 150 = 3817.13.
         $payslip = Payslip::forceCreate([
             'tenant_id' => $this->tenant->id, 'payroll_run_id' => $run->id, 'employee_id' => $this->emp->id,
-            'basic' => 5000, 'gross' => 5200,
-            'epf_employee' => 550, 'epf_employer' => 650,
-            'socso_employee' => 25, 'socso_employer' => 87.5,
-            'eis_employee' => 10, 'eis_employer' => 10,
+            'basic' => 5000, 'allowances_total' => 200, 'unpaid_days' => 3, 'unpaid_deduction' => 483.87, 'days_in_month' => 31,
+            'gross' => 4716.13,
+            'epf_employee' => 550, 'epf_employer' => 650, 'socso_employee' => 25, 'socso_employer' => 87.5,
+            'eis_employee' => 10, 'eis_employer' => 10, 'skbbk_employee' => 44,
             'pcb' => 120, 'pcb_additional' => 80, 'zakat' => 50, 'cp38' => 30,
-            'claims_reimbursement' => 150,
-            'total_deductions' => 965, 'net_pay' => 4385, 'employer_cost' => 5947.5,
+            'mid_month_advance' => 40, 'claims_reimbursement' => 150,
+            'total_deductions' => 1049, 'net_pay' => 3817.13, 'employer_cost' => 5947.5,
         ]);
-        PayslipLine::forceCreate([
-            'tenant_id' => $this->tenant->id, 'payslip_id' => $payslip->id, 'name' => 'Basic Salary',
-            'type' => 'earning', 'amount' => 5000, 'source' => 'salary', 'sort_order' => 0,
+        $line = fn (string $name, string $type, float $amount, string $source, int $sort, ?float $qty = null) => PayslipLine::forceCreate([
+            'tenant_id' => $this->tenant->id, 'payslip_id' => $payslip->id, 'name' => $name,
+            'type' => $type, 'amount' => $amount, 'quantity' => $qty, 'source' => $source, 'sort_order' => $sort,
         ]);
-        PayslipLine::forceCreate([
-            'tenant_id' => $this->tenant->id, 'payslip_id' => $payslip->id, 'name' => 'Allowance',
-            'type' => 'earning', 'amount' => 200, 'source' => 'fixed-transaction', 'sort_order' => 1,
+        $line('Basic Salary', 'earning', 5000, 'salary', 0);
+        $line('Allowance', 'earning', 200, 'fixed-transaction', 1);
+        $line('Claim Reimbursement', 'earning', 150, 'claim', 2);
+        $line('Staff Advance', 'deduction', 100, 'fixed-transaction', 3);
+        $line('Unpaid Leave Deduction', 'deduction', 483.87, 'leave', 4, 3);
+        $line('Mid-month advance', 'deduction', 40, 'manual', 5);
+
+        $data = app(PayslipPdfData::class)->build($payslip->fresh(['lines']));
+
+        $this->assertEqualsWithDelta(5350.0, $data['totalEarnings'], 0.001);
+        $this->assertEqualsWithDelta(1532.87, $data['totalDeductions'], 0.001);
+        $this->assertEqualsWithDelta(
+            (float) $payslip->net_pay,
+            $data['totalEarnings'] - $data['totalDeductions'],
+            0.001,
+        );
+
+        $earnings = $data['earnings']->pluck('description');
+        $this->assertSame('Salary', $earnings->first());
+        $this->assertContains('Claim Reimbursement (from Claim)', $earnings);
+        $this->assertEqualsWithDelta(5000.0, $data['earnings']->firstWhere('description', 'Salary')['total'], 0.001);
+
+        $deductions = $data['deductions'];
+        $unpaid = $deductions->first();
+        $this->assertSame('Unpaid Leave', $unpaid['description']);
+        $this->assertSame('3.00 D', $unpaid['period']);
+        $this->assertSame('161.29', $unpaid['rate']);
+        $this->assertSame(1, $deductions->where('description', 'Unpaid Leave')->count());
+        foreach (['EPF Employee Contribution', 'SOCSO Employee Contribution', 'EIS Employee Contribution', 'SKBBK', 'PCB', 'PCB additional', 'Zakat', 'CP38', 'Staff Advance', 'Mid-month advance'] as $name) {
+            $this->assertContains($name, $deductions->pluck('description'));
+        }
+    }
+
+    public function test_legacy_payslip_without_lines_still_reconciles(): void
+    {
+        $run = PayrollRun::forceCreate([
+            'tenant_id' => $this->tenant->id, 'period' => '2026-07', 'label' => 'July 2026', 'status' => 'finalized',
+            'finalized_at' => now(),
         ]);
-        PayslipLine::forceCreate([
-            'tenant_id' => $this->tenant->id, 'payslip_id' => $payslip->id, 'name' => 'Staff Loan',
-            'type' => 'deduction', 'amount' => 100, 'source' => 'fixed-transaction', 'sort_order' => 2,
-        ]);
-        // Claim reimbursement must never render as an earning line — it is added after
-        // deductions, not folded into gross (PayrollCalculator::compute).
-        PayslipLine::forceCreate([
-            'tenant_id' => $this->tenant->id, 'payslip_id' => $payslip->id, 'name' => 'Claim Reimbursement',
-            'type' => 'earning', 'amount' => 150, 'source' => 'claim', 'sort_order' => 3,
+        // Earnings 3000 + 100 = 3100; unpaid 1 x 3000/31 = 96.77; gross 3003.23.
+        // totalDeductions 330 + 20 advance = 350; net = 3003.23 - 350 = 2653.23.
+        $payslip = Payslip::forceCreate([
+            'tenant_id' => $this->tenant->id, 'payroll_run_id' => $run->id, 'employee_id' => $this->emp->id,
+            'basic' => 3000, 'allowances_total' => 100, 'unpaid_days' => 1, 'unpaid_deduction' => 96.77, 'days_in_month' => 31,
+            'gross' => 3003.23, 'epf_employee' => 330, 'mid_month_advance' => 20,
+            'total_deductions' => 350, 'net_pay' => 2653.23, 'employer_cost' => 3500,
         ]);
 
         $data = app(PayslipPdfData::class)->build($payslip->fresh(['lines']));
 
-        $this->assertEqualsWithDelta(5200.0, $data['totalEarnings'], 0.001);
-        $this->assertEqualsWithDelta(965.0, $data['totalDeductions'], 0.001);
-        $this->assertEqualsWithDelta(150.0, $data['reimbursement'], 0.001);
         $this->assertEqualsWithDelta(
             (float) $payslip->net_pay,
-            $data['totalEarnings'] - $data['totalDeductions'] + $data['reimbursement'],
+            $data['totalEarnings'] - $data['totalDeductions'],
             0.001,
         );
-
-        $descriptions = $data['deductions']->pluck('description');
-        $this->assertContains('EPF Employee Contribution', $descriptions);
-        $this->assertContains('SOCSO Employee Contribution', $descriptions);
-        $this->assertContains('EIS Employee Contribution', $descriptions);
-        $this->assertContains('PCB (Income Tax)', $descriptions);
-        $this->assertContains('PCB (Bonus / Additional)', $descriptions);
-        $this->assertContains('Zakat', $descriptions);
-        $this->assertContains('CP38', $descriptions);
-        $this->assertContains('Staff Loan', $descriptions);
-        $this->assertNotContains('Claim Reimbursement', $data['earnings']->pluck('description'));
+        $this->assertSame('Unpaid Leave', $data['deductions']->first()['description']);
     }
 
     public function test_single_payslip_pdf_is_exactly_one_page(): void
