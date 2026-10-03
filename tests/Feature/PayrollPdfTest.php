@@ -154,6 +154,29 @@ class PayrollPdfTest extends TestCase
         $this->actingEmployee()->get(route('payroll.payslips.pdf', $payslip))->assertStatus(422);
     }
 
+    public function test_hr_previews_a_draft_inline_with_a_draft_watermark(): void
+    {
+        $payslip = $this->payslipFor($this->emp, 'draft');
+
+        $response = $this->actingHr()->get(route('payroll.payslips.preview', $payslip));
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+        $this->assertStringStartsWith('inline', (string) $response->headers->get('content-disposition'));
+
+        $html = view('pdf.payslip', ['payslips' => collect([app(PayslipPdfData::class)->build($payslip)]), 'draft' => true])->render();
+        $this->assertStringContainsString('DRAFT PREVIEW', $html);
+    }
+
+    public function test_finalized_preview_has_no_watermark_and_employees_cannot_preview(): void
+    {
+        $payslip = $this->payslipFor($this->emp);
+
+        $html = view('pdf.payslip', ['payslips' => collect([app(PayslipPdfData::class)->build($payslip)])])->render();
+        $this->assertStringNotContainsString('DRAFT PREVIEW', $html);
+
+        $this->actingEmployee()->get(route('payroll.payslips.preview', $payslip))->assertForbidden();
+    }
+
     public function test_cannot_download_a_payslip_from_another_tenant(): void
     {
         $other = Tenant::create(['slug' => 'rival', 'name' => 'Rival', 'initials' => 'RV']);

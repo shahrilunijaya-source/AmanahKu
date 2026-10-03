@@ -84,6 +84,11 @@
 </style>
 </head>
 <body>
+@if (! empty($draft))
+    {{-- HR preview of an unissued payslip: fixed, so it repeats on every page. --}}
+    <div style="position:fixed;top:40%;left:0;right:0;text-align:center;transform:rotate(-28deg);color:#d6232b;opacity:0.10;font-weight:bold;font-size:96px;letter-spacing:8px;">DRAFT</div>
+    <div style="position:fixed;top:-12px;left:0;right:0;text-align:center;font-size:8px;color:#d6232b;letter-spacing:1px;">DRAFT PREVIEW · NOT ISSUED · FIGURES MAY CHANGE</div>
+@endif
 @foreach ($payslips as $d)
     @php
         $p = $d['payslip'];

@@ -149,6 +149,7 @@
                             <button type="submit" class="pt-btn" @disabled(! $editable)>@include('partials.payroll.review.icon', ['name' => 'reset']) {!! $t('Reset to Default', 'Set semula') !!}</button>
                         </form>
                         <button type="button" class="pt-btn" :class="mode === 'edit' ? 'is-on' : ''" :aria-pressed="mode === 'edit'" @click="mode = 'edit'" @disabled(! $editable)>@include('partials.payroll.review.icon', ['name' => 'pencil']) {!! $t('Overwrite', 'Tindih') !!}</button>
+                        <a href="{{ route('payroll.payslips.preview', $p) }}" target="_blank" rel="noopener" class="pt-btn" style="text-decoration:none;">@include('partials.payroll.review.icon', ['name' => 'eye']) {!! $t('Preview', 'Pratonton') !!}</a>
                         <div style="position:relative;" @keydown.escape="menuOpen = false" @click.outside="menuOpen = false">
                             <button type="button" class="pt-btn" style="padding:0 8px;" @click="menuOpen = ! menuOpen" :aria-expanded="menuOpen" aria-haspopup="true" :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Lagi tindakan'">@include('partials.payroll.review.icon', ['name' => 'kebab'])</button>
                             <div class="pt-menu" x-show="menuOpen" x-cloak>
