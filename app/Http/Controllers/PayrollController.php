@@ -1255,6 +1255,7 @@ class PayrollController extends Controller
                 // figure that could be double-multiplied later.
                 'overtime_groups' => $pulledOvertimeGroups,
                 'unpaid_days' => $pulledUnpaidDays,
+                'days_in_month' => $days['in_month'],
                 'statutory_category' => $employee->statutoryCategory($periodEnd),
                 'epf_part' => $epfPart,
                 'epf_setup' => $structure->epfSetup(),
@@ -1608,6 +1609,7 @@ class PayrollController extends Controller
                 $baseInputs['overtime_groups'] = $pulledOvertimeGroups;
             }
             $baseInputs['unpaid_days'] = $unpaidOverridden ? (float) $rawUnpaidDays : $pulledUnpaidDays;
+            $baseInputs['days_in_month'] = $payslip->days_in_month;
 
             $catalog = PayrollItem::where('tenant_id', $payslip->tenant_id)->get()->keyBy('code');
 

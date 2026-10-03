@@ -45,6 +45,7 @@ class PayrollCalculator
      *     bonus?: float|int|string,
      *     additions?: array<int, array{name?: string, amount?: float|int|string}>,
      *     unpaid_days?: float|int|string,
+     *     days_in_month?: int|null,
      *     pcb?: float|int|string,
      *     pcb_additional?: float|int|string,
      *     zakat?: float|int|string,
@@ -137,7 +138,12 @@ class PayrollCalculator
         }
         $overtimeHours = round($overtimeHours, 2);
         $overtimeAmount = round($overtimeAmount, 2);
-        $unpaidDeduction = round($unpaidDays * $dailyRate, 2);
+        // Unpaid leave is docked at basic ÷ calendar days in the month (Worksy's rule, and
+        // what HR has always paid), not the ÷26 ordinary rate overtime uses. Callers that
+        // don't know the month fall back to ÷26.
+        $daysInMonth = (int) ($inputs['days_in_month'] ?? 0);
+        $unpaidDailyRate = $daysInMonth > 0 ? $basic / $daysInMonth : $dailyRate;
+        $unpaidDeduction = round($unpaidDays * $unpaidDailyRate, 2);
 
         // Gross floors at zero — unpaid leave can't drive earnings negative.
         $gross = round(max(0.0, $basic + $allowancesTotal + $overtimeAmount + $bonus + $additionsTotal + $individualEarningsTotal - $unpaidDeduction), 2);
