@@ -11,6 +11,7 @@ use App\Models\Payslip;
 use App\Models\SalaryStructure;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\Payroll\PayslipPdfData;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -128,6 +129,16 @@ class PayrollOverridesTest extends TestCase
         $p = $this->save($p, ['bonus' => 0, 'claims_reimbursement_override' => '']);
         $this->assertNull($p->claims_reimbursement_override);
         $this->assertEqualsWithDelta(120.0, $p->claims_reimbursement, 0.001);
+    }
+
+    public function test_basic_override_reaches_the_salary_line_so_the_pdf_has_no_adjustment_row(): void
+    {
+        $p = $this->save($this->payslip(), ['basic' => 4800]);
+
+        $this->assertEqualsWithDelta(4800.0, (float) $p->lines()->where('source', 'salary')->value('amount'), 0.001);
+        $data = app(PayslipPdfData::class)->build($p->fresh(['lines']));
+        $this->assertEqualsWithDelta((float) $p->net_pay, $data['totalEarnings'] - $data['totalDeductions'], 0.001);
+        $this->assertNotContains('Adjustment', $data['deductions']->pluck('description')->all());
     }
 
     public function test_negative_override_is_rejected(): void

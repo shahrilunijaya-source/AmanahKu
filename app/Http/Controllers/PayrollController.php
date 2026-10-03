@@ -1721,6 +1721,9 @@ class PayrollController extends Controller
                 'basic_overridden' => $basicOverridden || $payslip->basic_overridden,
             ])->save();
             $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
+            // A basic override must reach the itemised salary line too, or the payslip
+            // prints the old basic and papers over the gap with an adjustment row.
+            $payslip->lines()->where('source', 'salary')->update(['amount' => round($comp->basic, 2)]);
             // Keep the itemised claim line in step with a claims override (or its clearing).
             $claimLine = $payslip->lines()->where('source', 'claim')->first();
             if ($claimLine !== null) {
