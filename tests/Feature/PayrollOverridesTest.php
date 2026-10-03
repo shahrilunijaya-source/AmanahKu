@@ -101,6 +101,19 @@ class PayrollOverridesTest extends TestCase
         $this->assertGreaterThan(500.0, $p->epf_employee);
     }
 
+    public function test_pcb_override_survives_a_save_that_omits_it(): void
+    {
+        $p = $this->save($this->payslip(), ['pcb_override' => 123.45]);
+
+        // e.g. saving "More adjustments" with Overwrite off, where the PCB field is not sent.
+        $p = $this->save($p, ['bonus' => 50]);
+        $this->assertEqualsWithDelta(123.45, (float) $p->pcb_override, 0.001);
+        $this->assertEqualsWithDelta(123.45, (float) $p->pcb, 0.001);
+
+        $p = $this->save($p, ['bonus' => 50, 'pcb_override' => '']);
+        $this->assertNull($p->pcb_override);
+    }
+
     public function test_unpaid_deduction_override_still_reduces_gross(): void
     {
         $p = $this->save($this->payslip(), ['unpaid_deduction_override' => 200]);

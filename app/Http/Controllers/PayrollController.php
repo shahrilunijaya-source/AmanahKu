@@ -1717,7 +1717,8 @@ class PayrollController extends Controller
                 'zakat' => (float) ($structure->zakat_monthly ?? 0),
                 'cp38' => PayrollCp38Month::amountFor($payslip->employee, $payslip->payrollRun->period),
                 'mid_month_advance' => $this->midMonthAdvanceFor($payslip->employee, $payslip->payrollRun->period),
-                'pcb_override' => $data['pcb_override'] ?? null,
+                // Same rule as the other overrides: absent keeps HR's figure, blank clears it.
+                'pcb_override' => $request->has('pcb_override') ? ($data['pcb_override'] ?? null) : $payslip->pcb_override,
             ]);
 
             // toPayslipAttributes() deliberately omits claim_ids, so the reimbursement
