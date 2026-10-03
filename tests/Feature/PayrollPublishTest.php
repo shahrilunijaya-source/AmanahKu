@@ -225,6 +225,29 @@ class PayrollPublishTest extends TestCase
         $this->assertSame(14.42, $p['hourlyRate']);
     }
 
+    public function test_my_payroll_screen_mirrors_the_pdf_with_unpaid_leave_and_claims(): void
+    {
+        $this->finalizedRun(publishNow: true);
+        $slip = $this->slipFor($this->staff);
+        $deductions = (float) $slip->total_deductions;
+        // Basic 3000 stays whole on the earnings side, 100 unpaid sits in deductions, 50 of claims is earned.
+        $slip->forceFill([
+            'unpaid_days' => 1, 'unpaid_deduction' => 100, 'days_in_month' => 30, 'gross' => 2900,
+            'claims_reimbursement' => 50, 'net_pay' => 3000 + 50 - ($deductions + 100),
+        ])->save();
+
+        $data = app(PayslipPdfData::class)->build($slip->fresh()->load(['employee.salaryStructure', 'payrollRun', 'lines']));
+        $this->assertEqualsWithDelta((float) $slip->net_pay, $data['totalEarnings'] - $data['totalDeductions'], 0.001);
+
+        $html = $this->actingStaff()->get('/app/payroll-my?payslip='.$slip->id)->assertOk()->getContent();
+
+        $this->assertStringContainsString('Unpaid Leave', $html);
+        $this->assertStringContainsString('Claim Reimbursement (from Claim)', $html);
+        $this->assertStringContainsString('MYR '.number_format($data['totalEarnings'], 2), $html);
+        $this->assertStringContainsString('MYR '.number_format($data['totalDeductions'], 2), $html);
+        $this->assertStringContainsString('MYR '.number_format((float) $slip->net_pay, 2), $html);
+    }
+
     public function test_acknowledgement_is_rejected_while_the_setting_is_off_and_works_when_on(): void
     {
         $run = $this->finalizedRun(publishNow: true);
