@@ -54,6 +54,27 @@ class PayrollPdfController extends Controller
         return $pdf->download($this->filename($payslip));
     }
 
+    /**
+     * HR's look at a payslip before it is issued: same PDF, opened in the browser, any run
+     * status. A draft carries a DRAFT watermark so it can never pass for the official one.
+     */
+    public function preview(Request $request, Payslip $payslip): Response
+    {
+        $this->authorizeTenantRole($request, self::ADMIN_ROLES);
+        abort_unless($payslip->tenant_id === app(CurrentTenant::class)->id(), 403);
+
+        $payslip->load(['employee.salaryStructure', 'employee.department', 'employee.employmentType', 'employee.leaveBalances.leaveType', 'payrollRun', 'lines']);
+
+        AuditLog::record('Previewed payslip PDF', $payslip->employee?->name.' · '.$payslip->payrollRun?->label);
+
+        $pdf = Pdf::loadView('pdf.payslip', [
+            'payslips' => collect([$this->pdfData->build($payslip)]),
+            'draft' => $payslip->payrollRun?->status !== 'finalized',
+        ]);
+
+        return $pdf->stream($this->filename($payslip));
+    }
+
     /** Every payslip of a finalized run as one PDF, one payslip per page. HR/management only. */
     public function bulk(Request $request, PayrollRun $run): Response
     {

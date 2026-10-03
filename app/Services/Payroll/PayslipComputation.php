@@ -10,7 +10,16 @@ namespace App\Services\Payroll;
  */
 final readonly class PayslipComputation
 {
+    /** Payslip columns HR can hand-override; the effective value also lands in the matching normal column. */
+    public const OVERRIDE_KEYS = [
+        'epf_employee_override', 'epf_employer_override',
+        'socso_employee_override', 'socso_employer_override',
+        'eis_employee_override', 'eis_employer_override',
+        'unpaid_deduction_override', 'claims_reimbursement_override',
+    ];
+
     /**
+     * @param  array<string, float|null>  $overrides  keyed by OVERRIDE_KEYS
      * @param  array<int, array{name: string, amount: float}>  $additions
      * @param  array<int, array{name: string, amount: float}>  $otherDeductions
      * @param  array<int, array{hours: float, multiplier: float, amount: float}>  $overtimeGroups
@@ -50,6 +59,7 @@ final readonly class PayslipComputation
         public float $carriedForward = 0.0,
         public float $hrdfLevy = 0.0,
         public float $midMonthAdvance = 0.0,
+        public array $overrides = [],
     ) {}
 
     /** Total employee-side statutory contributions (EPF + SOCSO + EIS + SKBBK). */
@@ -103,6 +113,6 @@ final readonly class PayslipComputation
             'carried_forward_amount' => $this->carriedForward,
             'hrdf_levy' => $this->hrdfLevy,
             'mid_month_advance' => $this->midMonthAdvance,
-        ];
+        ] + array_merge(array_fill_keys(self::OVERRIDE_KEYS, null), $this->overrides);
     }
 }
