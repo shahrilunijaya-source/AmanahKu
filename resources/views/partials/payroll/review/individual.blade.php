@@ -35,6 +35,7 @@
             @foreach ($payslipRows as $p)
                 <div x-show="hit(rows[{{ $loop->index }}])"><button type="button" @click="pick = {{ $p->id }}" :style="{ background: pick === {{ $p->id }} ? 'var(--canvas)' : 'none' }" style="display:flex;width:100%;text-align:left;align-items:center;gap:10px;padding:10px 14px;border:0;border-bottom:1px solid var(--hairline-soft);background:none;cursor:pointer;">
                     <div style="min-width:0;flex:1;"><div style="font-size:12.5px;color:var(--ink);font-weight:500;">{{ $p->employee?->name }}</div><div style="font-size:11px;color:var(--muted);">{{ $p->employee?->position }}</div></div>
+                    @if ($p->locked_at)<span style="color:var(--muted);display:inline-flex;" role="img" :aria-label="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">@include('partials.payroll.review.icon', ['name' => 'lock', 'size' => 13])</span>@endif
                     <span style="font-size:12px;font-family:var(--font-mono);color:var(--ink);">{{ $money($p->net_pay) }}</span>
                 </button></div>
             @endforeach
@@ -66,7 +67,9 @@
         @foreach ($payslipRows as $p)
             @php
                 $p->setRelation('payrollRun', $activeRun);
-                $editable = $activeRun->status !== 'finalized' && ! $activeRun->isBonus() && ! $activeRun->isMidMonth();
+                $locked = $p->locked_at !== null;
+                $editable = $activeRun->status !== 'finalized' && ! $activeRun->isBonus() && ! $activeRun->isMidMonth() && ! $locked;
+                $runOpen = $activeRun->status !== 'finalized';
                 $ov = fn (string $col) => $p->{$col} !== null ? number_format((float) $p->{$col}, 2, '.', '') : '';
                 $ytd = $ytdService->forPayslip($p);
                 $fmt = fn ($v) => number_format((float) $v, 2);
@@ -115,6 +118,9 @@
             <div x-show="pick === {{ $p->id }}" x-cloak
                  x-data="{
                     ...@js($state),
+                    initF: @js($state['f']),
+                    mode: 'view', showMore: false, remarkOpen: false, menuOpen: false,
+                    cancel() { this.f = { ...this.initF }; this.mode = 'view'; this.showMore = false; },
                     num(k) { const v = parseFloat(this.f[k]); return isNaN(v) ? this.base[k] : Math.max(0, v); },
                     get totalEarn() { return this.num('basic') + this.num('claims') + this.otherEarn; },
                     get totalDed() { return this.num('unpaid') + this.num('epfE') + this.num('socsoE') + this.num('eisE') + this.num('pcb') + this.otherDed; },
@@ -128,12 +134,49 @@
                         <div style="font-size:14.5px;color:var(--ink);font-weight:600;">{{ $p->employee?->name }}</div>
                         <div style="font-size:12px;color:var(--muted);">{{ $p->employee?->position }}@if ($p->employee?->staff_id) · {{ $p->employee->staff_id }}@endif</div>
                     </div>
-                    @if ($activeRun->status === 'finalized')
-                        <a href="{{ route('payroll.payslips.pdf', $p) }}" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Download PDF' : 'Muat turun PDF'">Download PDF</a>
-                    @endif
+                    {{-- Worksy-style payslip toolbar: remark, lock, reset, overwrite, more. --}}
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;" role="toolbar" :aria-label="$store.ui.lang==='en' ? 'Payslip actions' : 'Tindakan payslip'">
+                        <button type="button" class="pt-btn" @click="remarkOpen = ! remarkOpen" :aria-expanded="remarkOpen" @disabled(! $editable) :aria-label="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" :title="$store.ui.lang==='en' ? 'Remark' : 'Catatan'">@include('partials.payroll.review.icon', ['name' => 'comment'])</button>
+                        <div class="pt-seg" role="group" :aria-label="$store.ui.lang==='en' ? 'Lock payslip' : 'Kunci payslip'">
+                            <form method="post" action="{{ route('payroll.payslips.unlock', $p) }}" style="display:contents;">@csrf
+                                <button type="{{ $locked ? 'submit' : 'button' }}" class="pt-btn {{ $locked ? '' : 'is-on' }}" aria-pressed="{{ $locked ? 'false' : 'true' }}" @disabled(! $runOpen)>@include('partials.payroll.review.icon', ['name' => 'unlock']) {!! $t('Unlock', 'Buka kunci') !!}</button>
+                            </form>
+                            <form method="post" action="{{ route('payroll.payslips.lock', $p) }}" style="display:contents;">@csrf
+                                <button type="{{ $locked ? 'button' : 'submit' }}" class="pt-btn {{ $locked ? 'is-on' : '' }}" aria-pressed="{{ $locked ? 'true' : 'false' }}" @disabled(! $runOpen)>@include('partials.payroll.review.icon', ['name' => 'lock']) {!! $t('Lock', 'Kunci') !!}</button>
+                            </form>
+                        </div>
+                        <form method="post" action="{{ route('payroll.payslips.reset', $p) }}" style="display:contents;" @submit="if (! confirm($store.ui.lang==='en' ? @js('Reset '.$p->employee?->name.' to default? Every manual override is cleared and the payslip is recalculated. One-off transactions stay.') : @js('Set semula '.$p->employee?->name.' kepada lalai? Semua tindihan manual dipadam dan payslip dikira semula. Transaksi sekali kekal.'))) $event.preventDefault()">@csrf
+                            <button type="submit" class="pt-btn" @disabled(! $editable)>@include('partials.payroll.review.icon', ['name' => 'reset']) {!! $t('Reset to Default', 'Set semula') !!}</button>
+                        </form>
+                        <button type="button" class="pt-btn" :class="mode === 'edit' ? 'is-on' : ''" :aria-pressed="mode === 'edit'" @click="mode = 'edit'" @disabled(! $editable)>@include('partials.payroll.review.icon', ['name' => 'pencil']) {!! $t('Overwrite', 'Tindih') !!}</button>
+                        <div style="position:relative;" @keydown.escape="menuOpen = false" @click.outside="menuOpen = false">
+                            <button type="button" class="pt-btn" style="padding:0 8px;" @click="menuOpen = ! menuOpen" :aria-expanded="menuOpen" aria-haspopup="true" :aria-label="$store.ui.lang==='en' ? 'More actions' : 'Lagi tindakan'">@include('partials.payroll.review.icon', ['name' => 'kebab'])</button>
+                            <div class="pt-menu" x-show="menuOpen" x-cloak>
+                                @if ($activeRun->status === 'finalized')
+                                    <a href="{{ route('payroll.payslips.pdf', $p) }}">@include('partials.payroll.review.icon', ['name' => 'download']) {!! $t('Download PDF', 'Muat turun PDF') !!}</a>
+                                @endif
+                                <button type="button" @click="mode = 'edit'; showMore = ! showMore; menuOpen = false" @disabled(! $editable)>@include('partials.payroll.review.icon', ['name' => 'sliders']) {!! $t('More adjustments', 'Pelarasan lain') !!}</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                                {{-- Spec F4 flags: s.24 deduction cap, negative net and the 104-hour overtime limit. --}}
+                                @if ($locked)
+                    <div style="padding:8px 22px;background:var(--canvas);border-bottom:1px solid var(--hairline-soft);font-size:11.5px;color:var(--muted);">{!! $t('This payslip is locked. Unlock it to edit.', 'Payslip ini dikunci. Buka kunci untuk menyunting.') !!}</div>
+                @endif
+                @if ($p->notes)
+                    <div x-show="! remarkOpen" style="padding:8px 22px 0;font-size:12px;color:var(--body);"><strong style="color:var(--ink);">{!! $t('Remark', 'Catatan') !!}:</strong> {{ $p->notes }}</div>
+                @endif
+                @if ($editable)
+                    <form x-show="remarkOpen" x-cloak method="post" action="{{ route('payroll.payslips.remark', $p) }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 22px 0;">@csrf
+                        <label for="remark-{{ $p->id }}" style="font-size:12px;color:var(--muted);">{!! $t('Remark (printed on the payslip)', 'Catatan (dicetak pada payslip)') !!}</label>
+                        <input id="remark-{{ $p->id }}" name="notes" maxlength="255" value="{{ $p->notes }}" style="flex:1;min-width:200px;height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;" class="focus-visible:outline-2 focus-visible:outline-[var(--info)]">
+                        <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Save remark' : 'Simpan catatan'">Save remark</button>
+                        <button type="button" class="uj-btn-ghost" style="height:34px;padding:0 12px;font-size:12px;" @click="remarkOpen = false" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                    </form>
+                @endif
+
+                {{-- Spec F4 flags: s.24 deduction cap, negative net and the 104-hour overtime limit. --}}
                                 @if ($p->deduction_cap_exceeded || $p->net_pay < 0 || $p->carried_forward_amount > 0 || $p->pulled_overtime_hours > \App\Services\Payroll\PayrollCalculator::OVERTIME_HOURS_CAP)
                                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 22px 12px 64px;">
                                         @if ($p->deduction_cap_exceeded)
@@ -251,7 +294,7 @@
                         <span style="font-size:24px;font-weight:700;font-family:var(--font-mono);" :style="{ color: net < 0 ? '#ff9ab0' : '#fff' }">MYR <span x-text="fmt(net)">{{ $fmt($p->net_pay) }}</span></span>
                     </div>
                     @if ($editable)
-                        <div style="padding:6px 22px 0;font-size:11px;color:var(--muted);">{!! $t('Live preview. Save to recalculate EPF, SOCSO, EIS and PCB from the new figures. A typed figure stays until you clear it.', 'Pratonton langsung. Simpan untuk kira semula EPF, PERKESO, SIP dan PCB daripada angka baharu. Angka yang ditaip kekal sehingga anda kosongkannya.') !!}</div>
+                        <div x-show="mode === 'edit'" x-cloak style="padding:6px 22px 0;font-size:11px;color:var(--muted);">{!! $t('Live preview. Save to recalculate EPF, SOCSO, EIS and PCB from the new figures. A typed figure stays until you clear it.', 'Pratonton langsung. Simpan untuk kira semula EPF, PERKESO, SIP dan PCB daripada angka baharu. Angka yang ditaip kekal sehingga anda kosongkannya.') !!}</div>
                     @endif
 
                     {{-- Payroll info and statutory info --}}
@@ -303,8 +346,8 @@
 
                     @if ($editable)
                         {{-- Spec: a bonus payslip is edited through its individual transaction and a mid-month one is regenerated, so those stay read-only above. --}}
-                        <details style="margin:16px 22px 0;border:1px solid var(--hairline);border-radius:10px;background:var(--canvas);">
-                            <summary style="cursor:pointer;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--ink);">{!! $t('More adjustments', 'Pelarasan lain') !!} <small style="color:var(--muted);font-weight:400;">{!! $t('overtime, bonus, unpaid days, one-off transactions', 'OT, bonus, hari tanpa gaji, transaksi sekali') !!}</small></summary>
+                        <div x-show="showMore" x-cloak style="margin:16px 22px 0;border:1px solid var(--hairline);border-radius:10px;background:var(--canvas);">
+                            <div style="padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--ink);">{!! $t('More adjustments', 'Pelarasan lain') !!} <small style="color:var(--muted);font-weight:400;">{!! $t('overtime, bonus, unpaid days, one-off transactions', 'OT, bonus, hari tanpa gaji, transaksi sekali') !!}</small></div>
                             <div style="padding:4px 14px 14px;">
                                             @php
                                                 $otPulled = rtrim(rtrim(number_format($p->pulled_overtime_hours, 2), '0'), '.') ?: '0';
@@ -358,13 +401,13 @@
                                                 @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate. A one-off added elsewhere (another tab, or the Individual transactions screen) since this page loaded is untouched by this save.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula. Transaksi individu yang ditambah di tempat lain (tab lain, atau skrin Transaksi individu) sejak halaman ini dimuatkan tidak akan disentuh oleh simpanan ini.'])
                                             </div>
                             </div>
-                        </details>
-                        <div style="padding:14px 22px 22px;display:flex;gap:10px;align-items:center;">
-                            <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;" x-text="$store.ui.lang==='en' ? 'Save & recalculate' : 'Simpan & kira semula'">Save & recalculate</button>
                         </div>
-                    @else
-                        <div style="height:22px;"></div>
+                        <div x-show="mode === 'edit'" x-cloak style="padding:14px 22px 22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;" x-text="$store.ui.lang==='en' ? 'Save & recalculate' : 'Simpan & kira semula'">Save & recalculate</button>
+                            <button type="button" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;" @click="cancel()" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
+                        </div>
                     @endif
+                    <div x-show="mode !== 'edit'" style="height:22px;"></div>
                 </form>
             </div>
         @endforeach

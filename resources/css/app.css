@@ -6093,3 +6093,17 @@ form.uj-or-fields { padding: 20px; }
 
 /* Profile tab section header: tinted bar separating each block from its rows (Worksy pattern). */
 .uj-section-head{background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:var(--ink);}
+/* Payslip toolbar (review screen): icon + label buttons, a segmented Lock control, a kebab menu. */
+.pt-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 8px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.pt-btn:hover:not(:disabled) { background: var(--canvas); }
+.pt-btn:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.pt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pt-btn.is-on, .pt-btn.is-on:hover:not(:disabled) { background: var(--red); border-color: var(--red); color: #fff; }
+.pt-seg { display: inline-flex; }
+.pt-seg .pt-btn:first-child { border-radius: 8px 0 0 8px; }
+.pt-seg .pt-btn:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.pt-menu { position: absolute; right: 0; top: 38px; z-index: 20; min-width: 190px; padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.pt-menu a, .pt-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: none; color: var(--ink); font-size: 12.5px; text-align: left; text-decoration: none; cursor: pointer; }
+.pt-menu a:hover, .pt-menu button:hover:not(:disabled) { background: var(--canvas); }
+.pt-menu a:focus-visible, .pt-menu button:focus-visible { outline: 2px solid var(--info); }
+.pt-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
