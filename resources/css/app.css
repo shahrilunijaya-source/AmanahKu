@@ -6039,6 +6039,10 @@ form.uj-or-fields { padding: 20px; }
 .uj-award-engage:hover .uj-aw-react-row, .uj-award-engage:focus-within .uj-aw-react-row, .uj-award-engage[data-open] .uj-aw-react-row { display: flex; }
 .uj-aw-react-count { border: 0; background: transparent; padding: 0; font: inherit; font-size: 11.5px; color: var(--muted); cursor: pointer; }
 .uj-aw-react-count:hover { color: var(--ink); }
+.uj-db-band[data-tone] .uj-award-engage .uj-btn-ghost { border:0; background:rgba(255,255,255,.22); color:#fff; }
+.uj-db-band[data-tone] .uj-award-engage .uj-btn-ghost:hover { background:rgba(255,255,255,.32); }
+.uj-db-band[data-tone] .uj-aw-react-count { color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-aw-react-count:hover { color:#fff; opacity:1; }
 
 /* Line bank (Company Settings: dashboard greetings + easter eggs). The list scrolls inside
    the card so a long bank never stretches the page; Alpine only filters server-rendered rows. */
