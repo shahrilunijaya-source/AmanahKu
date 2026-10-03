@@ -26,7 +26,7 @@ use App\Models\Payslip;
 final class PayslipYearToDate
 {
     /**
-     * @return array<string, array{employee: array{month: float, ytd: float}, employer?: array{month: float, ytd: float}}>
+     * @return array<string, array{employee?: array{month: float, ytd: float}, employer?: array{month: float, ytd: float}}>
      */
     public function forPayslip(Payslip $payslip): array
     {

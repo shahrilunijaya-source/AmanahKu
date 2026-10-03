@@ -343,16 +343,16 @@
                                                 @endforelse
                                                 @for ($i = 0; $i < max(2, $individualTxLines->count()); $i++)
                                                     @php $existingTx = $individualTxLines->get($i); @endphp
-                                                    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+                                                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;align-items:center;">
                                                         <input type="hidden" name="tx_id[]" value="{{ $existingTx?->id }}" />
-                                                        <select name="tx_item_id[]" style="flex:2;height:34px;padding:0 7px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;background:#fff;">
+                                                        <select name="tx_item_id[]" style="flex:2 1 200px;min-width:0;max-width:100%;height:34px;padding:0 7px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;background:#fff;">
                                                             <option value="" x-text="$store.ui.lang==='en' ? '— none —' : '— tiada —'">— none —</option>
                                                             @foreach ($fixedTransactionItems as $item)
                                                                 <option value="{{ $item->id }}" @selected($existingTx?->payroll_item_id === $item->id)>{{ $item->name }} ({{ $item->type }})</option>
                                                             @endforeach
                                                         </select>
-                                                        <input name="tx_amount[]" type="number" step="0.01" min="0" value="{{ $existingTx ? number_format($existingTx->amount, 2, '.', '') : '' }}" placeholder="0.00" style="flex:1;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
-                                                        <input name="tx_remark[]" value="{{ $existingTx?->remarks }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
+                                                        <input name="tx_amount[]" type="number" step="0.01" min="0" value="{{ $existingTx ? number_format($existingTx->amount, 2, '.', '') : '' }}" placeholder="0.00" style="flex:1 1 90px;min-width:0;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;font-family:var(--font-mono);outline:none;" />
+                                                        <input name="tx_remark[]" value="{{ $existingTx?->remarks }}" placeholder="Remark" :placeholder="$store.ui.lang==='en' ? 'Remark' : 'Catatan'" style="flex:2 1 140px;min-width:0;height:34px;padding:0 9px;border:1px solid var(--hairline);border-radius:7px;font-size:12.5px;outline:none;" />
                                                     </div>
                                                 @endfor
                                                 @include('partials.hint', ['en' => 'Pick a Payroll Item, an amount, and an optional remark — its own EPF/SOCSO/EIS flags drive the statutory bases, same as a Fixed Transaction. All rows here are re-saved together on Recalculate. A one-off added elsewhere (another tab, or the Individual transactions screen) since this page loaded is untouched by this save.', 'ms' => 'Pilih satu Item Payroll, jumlah, dan catatan pilihan — penanda EPF/SOCSO/EIS item itu sendiri menentukan asas berkanun, sama seperti Transaksi Tetap. Semua baris di sini disimpan semula bersama apabila Kira semula. Transaksi individu yang ditambah di tempat lain (tab lain, atau skrin Transaksi individu) sejak halaman ini dimuatkan tidak akan disentuh oleh simpanan ini.'])
