@@ -123,6 +123,7 @@ class PayrollOverridesTest extends TestCase
         $p = $this->save($p, ['claims_reimbursement_override' => 75]);
         $this->assertEqualsWithDelta(75.0, $p->claims_reimbursement, 0.001);
         $this->assertEqualsWithDelta(4415.35 + 75, $p->net_pay, 0.001);
+        $this->assertEqualsWithDelta(75.0, (float) $p->lines()->where('source', 'claim')->value('amount'), 0.001);
 
         $p = $this->save($p, ['bonus' => 0, 'claims_reimbursement_override' => '']);
         $this->assertNull($p->claims_reimbursement_override);

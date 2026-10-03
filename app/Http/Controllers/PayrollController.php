@@ -1721,6 +1721,13 @@ class PayrollController extends Controller
                 'basic_overridden' => $basicOverridden || $payslip->basic_overridden,
             ])->save();
             $this->refreshVariableLines($payslip, $comp, $individualLines, $catalog);
+            // Keep the itemised claim line in step with a claims override (or its clearing).
+            $claimLine = $payslip->lines()->where('source', 'claim')->first();
+            if ($claimLine !== null) {
+                $claimLine->update(['amount' => round($comp->claimsReimbursement, 2)]);
+            } elseif ($comp->claimsReimbursement > 0) {
+                $payslip->lines()->create($this->lineAttrs($catalog, 'claim-reimbursement', 'Claim Reimbursement', 'earning', $comp->claimsReimbursement, null, 'claim', (int) ($payslip->lines()->max('sort_order') ?? -1) + 1));
+            }
             $this->syncCarriedForward($payslip, $comp);
 
             return $comp;
