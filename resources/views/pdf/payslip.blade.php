@@ -166,6 +166,7 @@
         <div class="sp"></div>
         @php
             $panes = [['Earnings', '#1f8a65', $d['earnings'], 'TOTAL EARNINGS', $d['totalEarnings']], ['Deductions', '#d6232b', $d['deductions'], 'TOTAL DEDUCTIONS', $d['totalDeductions']]];
+            $maxRows = max(count($d['earnings']), count($d['deductions']), 1);
         @endphp
         {{-- Two rows (titles, then boxes) so both boxes are table cells and stretch to the same height. --}}
         <table class="split">
@@ -191,6 +192,10 @@
                             @empty
                                 <tr><td colspan="5" class="muted">-</td></tr>
                             @endforelse
+                            {{-- Blank filler rows so both TOTAL rows land on the same line (dompdf cannot bottom-align). --}}
+                            @for ($i = max(count($rows), 1); $i < $maxRows; $i++)
+                                <tr><td colspan="5">&nbsp;</td></tr>
+                            @endfor
                         </table>
                         <table class="total"><tr>
                             <td>{{ $totalLabel }}</td>
