@@ -183,6 +183,16 @@ class PayrollCalculatorTest extends TestCase
         $this->assertSame(4800.00, $c->gross);
     }
 
+    public function test_unpaid_leave_uses_calendar_days_in_month_when_given(): void
+    {
+        // 30-day month: 4300 / 30 × 0.5 = 71.67 ; 31-day month: 5000 / 31 × 1 = 161.29
+        $this->assertSame(71.67, $this->calc->compute(['basic' => 4300, 'unpaid_days' => 0.5, 'days_in_month' => 30])->unpaidDeduction);
+        $this->assertSame(161.29, $this->calc->compute(['basic' => 5000, 'unpaid_days' => 1, 'days_in_month' => 31])->unpaidDeduction);
+
+        // Overtime keeps the ÷26 ordinary rate: 5200 / 26 / 8 × 1.5 × 2h = 75.00
+        $this->assertSame(75.00, $this->calc->compute(['basic' => 5200, 'overtime_hours' => 2, 'days_in_month' => 30])->overtimeAmount);
+    }
+
     public function test_manual_pcb_and_reimbursement_flow_into_net(): void
     {
         $c = $this->calc->compute([

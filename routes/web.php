@@ -778,6 +778,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs/{run}/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.runs.mark-paid');
             Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
+            Route::post('/app/payroll/payslips/{payslip}/lock', [PayrollController::class, 'lockPayslip'])->name('payroll.payslips.lock');
+            Route::post('/app/payroll/payslips/{payslip}/unlock', [PayrollController::class, 'unlockPayslip'])->name('payroll.payslips.unlock');
+            Route::post('/app/payroll/payslips/{payslip}/reset', [PayrollController::class, 'resetPayslip'])->name('payroll.payslips.reset');
+            Route::post('/app/payroll/payslips/{payslip}/remark', [PayrollController::class, 'updatePayslipRemark'])->name('payroll.payslips.remark');
             Route::post('/app/payroll/payslips/{payslip}/acknowledge', [PayrollController::class, 'acknowledgePayslip'])->name('payroll.payslips.acknowledge');
             Route::post('/app/payroll/payslips/{payslip}/consent', [PayrollController::class, 'confirmDeductionConsent'])->name('payroll.payslips.consent');
             Route::post('/app/payroll/payslips/{payslip}/release-hold', [PayrollController::class, 'releaseHold'])->name('payroll.payslips.release-hold');
@@ -836,6 +840,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/payroll/forms/sip2/pdf', [PayrollStaffFormController::class, 'sip2Pdf'])->name('payroll.sip2.pdf');
         // Payslip PDF — own payslip (finalized only) for anyone, any payslip for HR/management.
         Route::get('/app/payroll/payslips/{payslip}/pdf', [PayrollPdfController::class, 'show'])->name('payroll.payslips.pdf');
+        Route::get('/app/payroll/payslips/{payslip}/preview', [PayrollPdfController::class, 'preview'])->name('payroll.payslips.preview');
         // Bulk payslip PDF for a finalized run — HR/management only.
         Route::get('/app/payroll/runs/{run}/payslips-pdf', [PayrollPdfController::class, 'bulk'])->name('payroll.export.payslips-pdf');
         // Form EA — HR-only on-screen incomplete-box preview, per-employee PDF (own for

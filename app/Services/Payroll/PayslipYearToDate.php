@@ -9,7 +9,7 @@ use App\Models\Payslip;
 
 /**
  * Statutory year-to-date figures for the payslip PDF's STATUTORY SUMMARY table: EPF,
- * SOCSO, EIS, PCB and SKBBK, split employee/employer, each as {month, ytd}.
+ * SOCSO, EIS, PCB, SKBBK and HRDF (employer only), split employee/employer, each as {month, ytd}.
  *
  * Unlike PcbYearToDate (which deliberately ignores PayrollOpeningFigure's socso/eis —
  * that restriction is about the LHDN tax formula only), this service DOES fold opening
@@ -26,7 +26,7 @@ use App\Models\Payslip;
 final class PayslipYearToDate
 {
     /**
-     * @return array<string, array{employee: array{month: float, ytd: float}, employer?: array{month: float, ytd: float}}>
+     * @return array<string, array{employee?: array{month: float, ytd: float}, employer?: array{month: float, ytd: float}}>
      */
     public function forPayslip(Payslip $payslip): array
     {
@@ -85,6 +85,9 @@ final class PayslipYearToDate
                     (float) $openingPcbPaid,
                     (float) $priorPaid->sum(fn (Payslip $p) => $p->pcb + $p->pcb_additional),
                 ),
+            ],
+            'hrdf' => [
+                'employer' => $row((float) $payslip->hrdf_levy, 0.0, (float) $priorPaid->sum('hrdf_levy')),
             ],
             'skbbk' => [
                 'employee' => $row((float) $payslip->skbbk_employee, $line('skbbk'), (float) $priorPaid->sum('skbbk_employee')),

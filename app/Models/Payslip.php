@@ -89,11 +89,20 @@ class Payslip extends Model
             'mid_month_advance' => 'float',
             'pcb_exempt_amount' => 'float',
             'pcb_override' => 'float',
+            'epf_employee_override' => 'float',
+            'epf_employer_override' => 'float',
+            'socso_employee_override' => 'float',
+            'socso_employer_override' => 'float',
+            'eis_employee_override' => 'float',
+            'eis_employer_override' => 'float',
+            'unpaid_deduction_override' => 'float',
+            'claims_reimbursement_override' => 'float',
             'claims_reimbursement' => 'float',
             'total_deductions' => 'float',
             'net_pay' => 'float',
             'employer_cost' => 'float',
             'acknowledged_at' => 'datetime',
+            'locked_at' => 'datetime',
         ];
     }
 

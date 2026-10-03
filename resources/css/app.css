@@ -411,6 +411,47 @@ main.uj-main[data-nav-busy] { opacity: .55; transition: opacity .12s ease .09s; 
 .uj-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
 .uj-link { font-size: 12.5px; color: var(--red); }
 .uj-pill { padding: 2px 9px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+/* Payslip review rows: description, MYR, amount. */
+.payrow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; color: var(--body); }
+.payrow .cur { font-size: 11px; color: var(--muted); }
+.payrow .amt { min-width: 7rem; text-align: right; font-family: var(--font-mono); color: var(--ink); padding-right: 0.5rem; }
+.mono-dd { margin: 0; text-align: right; font-family: var(--font-mono); color: var(--ink); }
+
+/* Payslip detail (employee self-view), mirrors the PDF. Two columns that stack on phones. */
+.slip-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 24px; border-bottom: 1px solid var(--hairline); background: var(--canvas); }
+.slip-pad { padding: 18px 24px; }
+.slip-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.slip-kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+.slip-panel { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; }
+.slip-panel .slip-kicker { margin-bottom: 6px; }
+.slip-kv { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; color: var(--muted); }
+.slip-kv > :last-child { color: var(--ink); text-align: right; }
+.slip-box { border: 1px solid var(--hairline); border-radius: 8px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+.slip-lines { flex: 1; display: flex; flex-direction: column; font-size: 13px; }
+.slip-lh, .slip-lr { display: grid; grid-template-columns: minmax(0, 1fr) 4.2rem 4rem 5.6rem; gap: 8px; padding: 6px 12px; align-items: baseline; }
+.slip-lh { font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--hairline); }
+.slip-lh > :nth-child(n+3) { text-align: right; }
+.slip-lr { border-bottom: 1px solid var(--hairline-soft); color: var(--body); }
+.slip-lr .mut { color: var(--muted); font-size: 12px; }
+.slip-lr > :nth-child(3) { text-align: right; }
+.slip-lt { display: flex; justify-content: space-between; margin-top: auto; padding: 9px 12px; background: var(--canvas); border-top: 1px solid var(--hairline); font-weight: 700; color: var(--ink); }
+.slip-net { padding: 16px 24px; background: var(--ink); color: #fff; }
+.slip-scroll { overflow-x: auto; }
+.slip-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.slip-tbl th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--muted); text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--hairline); }
+.slip-tbl td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--hairline-soft); font-family: var(--font-mono); color: var(--body); }
+.slip-tbl td:first-child { font-family: inherit; text-align: left; }
+@media (max-width: 720px) {
+    .slip-cols { grid-template-columns: 1fr; }
+    .slip-pad, .slip-head { padding-left: 16px; padding-right: 16px; }
+    .slip-net { padding-left: 16px; padding-right: 16px; }
+    .slip-lh { display: none; }
+    .slip-lr { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 6rem; row-gap: 0; }
+    .slip-lr > :first-child { grid-column: 1 / -1; }
+    .slip-lr > :nth-child(2):not(.mut) { display: none; }
+    .slip-lr > :nth-child(3) { text-align: left; }
+    .slip-head > div:first-child { flex-basis: 100%; }
+}
 
 /* ── Stamp: the status marker on banner cards. Replaces the old 3px left stripe —
    a stamped word says what the colour used to only imply. Tone is set with
@@ -5998,6 +6039,10 @@ form.uj-or-fields { padding: 20px; }
 .uj-award-engage:hover .uj-aw-react-row, .uj-award-engage:focus-within .uj-aw-react-row, .uj-award-engage[data-open] .uj-aw-react-row { display: flex; }
 .uj-aw-react-count { border: 0; background: transparent; padding: 0; font: inherit; font-size: 11.5px; color: var(--muted); cursor: pointer; }
 .uj-aw-react-count:hover { color: var(--ink); }
+.uj-db-band[data-tone] .uj-award-engage .uj-btn-ghost { border:0; background:rgba(255,255,255,.22); color:#fff; }
+.uj-db-band[data-tone] .uj-award-engage .uj-btn-ghost:hover { background:rgba(255,255,255,.32); }
+.uj-db-band[data-tone] .uj-aw-react-count { color:#fff; opacity:.85; }
+.uj-db-band[data-tone] .uj-aw-react-count:hover { color:#fff; opacity:1; }
 
 /* Line bank (Company Settings: dashboard greetings + easter eggs). The list scrolls inside
    the card so a long bank never stretches the page; Alpine only filters server-rendered rows. */
@@ -6052,3 +6097,17 @@ form.uj-or-fields { padding: 20px; }
 
 /* Profile tab section header: tinted bar separating each block from its rows (Worksy pattern). */
 .uj-section-head{background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:var(--ink);}
+/* Payslip toolbar (review screen): icon + label buttons, a segmented Lock control, a kebab menu. */
+.pt-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 8px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.pt-btn:hover:not(:disabled) { background: var(--canvas); }
+.pt-btn:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.pt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pt-btn.is-on, .pt-btn.is-on:hover:not(:disabled) { background: var(--red); border-color: var(--red); color: #fff; }
+.pt-seg { display: inline-flex; }
+.pt-seg .pt-btn:first-child { border-radius: 8px 0 0 8px; }
+.pt-seg .pt-btn:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.pt-menu { position: absolute; right: 0; top: 38px; z-index: 20; min-width: 190px; padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.pt-menu a, .pt-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: none; color: var(--ink); font-size: 12.5px; text-align: left; text-decoration: none; cursor: pointer; }
+.pt-menu a:hover, .pt-menu button:hover:not(:disabled) { background: var(--canvas); }
+.pt-menu a:focus-visible, .pt-menu button:focus-visible { outline: 2px solid var(--info); }
+.pt-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
