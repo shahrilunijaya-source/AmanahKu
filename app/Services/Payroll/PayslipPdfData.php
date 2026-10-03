@@ -82,10 +82,11 @@ final class PayslipPdfData
         $employee = $payslip->employee;
         $tenant = $employee?->tenant;
         $run = $payslip->payrollRun;
-        // The contractual monthly rate, not the prorated basic actually paid.
-        $monthly = $employee?->salaryStructure?->basic_salary;
+        // The contractual monthly rate, not the prorated basic actually paid. The employee
+        // record is the salary source; salary_structures.basic_salary is history only.
+        $monthly = $employee?->salary;
         if ($monthly === null || (float) $monthly <= 0) {
-            $monthly = $employee?->salary;
+            $monthly = $employee?->salaryStructure?->basic_salary;
         }
 
         return [

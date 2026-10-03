@@ -406,4 +406,15 @@ class PayrollPdfTest extends TestCase
         $this->assertStringContainsString('Medical', $html);
         $this->assertStringNotContainsString('Emergency', $html);
     }
+
+    /** The employee record is the salary source; a stale structure basic never wins. */
+    public function test_monthly_rate_reads_the_employee_salary_first(): void
+    {
+        Employee::whereKey($this->emp->id)->update(['salary' => 6200]);
+        $payslip = $this->payslipFor($this->emp->fresh());
+
+        $data = app(PayslipPdfData::class)->build($payslip->fresh(['lines', 'employee.salaryStructure']));
+
+        $this->assertSame(6200.0, $data['particulars']['monthlyRate']);
+    }
 }
