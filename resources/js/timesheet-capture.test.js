@@ -25,7 +25,7 @@ registerTimesheetCapture(fakeAlpine);
 /** Builds the raw component object literal and wires up the $store magic property. */
 function makeComponent(cfg) {
     // Unijaya-shaped defaults: Mon–Fri plus the TOT Saturday. Tests override per tenant.
-    const c = capturedFactory({ weekStart: WEEK_START, today: TODAY, earliestWeek: '2026-01-01', categories: CATEGORIES, workDays: [1, 2, 3, 4, 5], totSaturday: true, ...cfg });
+    const c = capturedFactory({ weekStart: WEEK_START, today: TODAY, earliestWeek: '2026-01-01', categories: CATEGORIES, workDays: [1, 2, 3, 4, 5], specialDays: { '2026-08-01': 50 }, ...cfg });
     c.$store = { ui: { lang: 'en' }, tsReview: stores.tsReview, toast: { info: () => {}, success: () => {}, error: () => {} } };
     // Real Alpine defers to next tick and then touches the DOM (focus/$refs) — this suite
     // only asserts on state, so the callback is dropped rather than given a fake DOM.
@@ -818,22 +818,35 @@ test('isoWeekday maps Monday to 1 and Sunday to 7', () => {
     expect(isoWeekday('2026-08-09')).toBe(7);
 });
 
-test('isWorkDayFor follows the listed days and only counts the TOT Saturday when the flag is on', () => {
-    expect(isWorkDayFor(TOT_SATURDAY, [1, 2, 3, 4, 5], true)).toBe(true);
-    expect(isWorkDayFor(TOT_SATURDAY, [1, 2, 3, 4, 5], false)).toBe(false);
-    expect(isWorkDayFor(SATURDAY, [1, 2, 3, 4, 5, 6], false)).toBe(true);
-    expect(isWorkDayFor('2026-08-09', [1, 2, 3, 4, 5, 6], true)).toBe(false);
+test('isWorkDayFor follows the listed days and counts a date in specialDays', () => {
+    const sp = { [TOT_SATURDAY]: 50 };
+    expect(isWorkDayFor(TOT_SATURDAY, [1, 2, 3, 4, 5], sp)).toBe(true);
+    expect(isWorkDayFor(TOT_SATURDAY, [1, 2, 3, 4, 5], {})).toBe(false);
+    expect(isWorkDayFor(SATURDAY, [1, 2, 3, 4, 5], sp)).toBe(false);
+    expect(isWorkDayFor(SATURDAY, [1, 2, 3, 4, 5, 6], {})).toBe(true);
+    expect(isWorkDayFor('2026-08-09', [1, 2, 3, 4, 5, 6], sp)).toBe(false);
 });
 
 test('baseDaysFor runs to the last working day of the week', () => {
-    expect(baseDaysFor(PLAIN_WEEK, [1, 2, 3, 4, 5], true)).toBe(5);
-    expect(baseDaysFor(TOT_WEEK, [1, 2, 3, 4, 5], true)).toBe(6);
-    expect(baseDaysFor(TOT_WEEK, [1, 2, 3, 4, 5], false)).toBe(5);
-    expect(baseDaysFor(PLAIN_WEEK, [1, 2, 3, 4, 5, 6], false)).toBe(6);
+    const sp = { [TOT_SATURDAY]: 50 };
+    expect(baseDaysFor(PLAIN_WEEK, [1, 2, 3, 4, 5], sp)).toBe(5);
+    expect(baseDaysFor(TOT_WEEK, [1, 2, 3, 4, 5], sp)).toBe(6);
+    expect(baseDaysFor(TOT_WEEK, [1, 2, 3, 4, 5], {})).toBe(5);
+    expect(baseDaysFor(PLAIN_WEEK, [1, 2, 3, 4, 5, 6], {})).toBe(6);
+});
+
+test('a special 1st Saturday is a 50% work day, a 2nd Saturday not in the map is off', () => {
+    const first = makeComponent({ weekStart: TOT_WEEK, specialDays: { [TOT_SATURDAY]: 50 } });
+    expect(first.isWorkDay(TOT_SATURDAY)).toBe(true);
+    expect(first.capacityFor(TOT_SATURDAY)).toBe(50);
+
+    const second = makeComponent({ weekStart: PLAIN_WEEK, specialDays: {} });
+    expect(second.isWorkDay(SATURDAY)).toBe(false);
+    expect(second.days).toBe(5);
 });
 
 test('a company without the TOT Saturday treats a first-Saturday week as five ordinary days', () => {
-    const c = makeComponent({ weekStart: TOT_WEEK, totSaturday: false });
+    const c = makeComponent({ weekStart: TOT_WEEK, specialDays: {} });
 
     expect(c.days).toBe(5);
     expect(c.capacityFor(TOT_SATURDAY)).toBe(100);
@@ -841,7 +854,7 @@ test('a company without the TOT Saturday treats a first-Saturday week as five or
 });
 
 test('a Saturday-working company shows six days and ends the week on Saturday', () => {
-    const c = makeComponent({ weekStart: PLAIN_WEEK, workDays: [1, 2, 3, 4, 5, 6], totSaturday: false });
+    const c = makeComponent({ weekStart: PLAIN_WEEK, workDays: [1, 2, 3, 4, 5, 6], specialDays: {} });
 
     expect(c.days).toBe(6);
     expect(c.capacityFor(SATURDAY)).toBe(100);

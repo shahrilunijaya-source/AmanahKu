@@ -14,6 +14,7 @@ use App\Models\PettyCashFloat;
 use App\Models\StaffLevel;
 use App\Models\User;
 use App\Models\UserPermission;
+use App\Models\WorkDayRule;
 use App\Services\FeatureManager;
 use App\Services\Payroll\AccountingJournal;
 use App\Support\Features;
@@ -151,7 +152,8 @@ class AdminController extends Controller
     /**
      * Which ISO weekdays are working days for this company. Forward-only: stored leave
      * day counts, submitted weeks and past attendance reports are not recalculated.
-     * tot_saturday is deliberately not accepted here (Unijaya-only, set by migration).
+     * Weekdays that only work some weeks (a first-Saturday half day) are not set here; they
+     * are special-day rules (work_day_rules), see storeWorkDayRule().
      */
     public function updateWorkWeek(Request $request): RedirectResponse
     {
@@ -171,6 +173,75 @@ class AdminController extends Controller
         CompanySetupProgress::tick('work_week');
 
         return back()->with('ok', count($days).' working day'.(count($days) === 1 ? '' : 's').' saved.');
+    }
+
+    /** Ordinal words for the audit line; -1 is "last". */
+    private const WEEK_WORDS = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', -1 => 'last'];
+
+    /**
+     * Rules for a special work day (one weekday that works only on some weeks, own hours).
+     * One rule per weekday per company.
+     *
+     * @return array<string, mixed>
+     */
+    private function workDayRuleRules(?WorkDayRule $ignore = null): array
+    {
+        return [
+            'weekday' => ['required', 'integer', 'between:1,7', Rule::unique('work_day_rules', 'weekday')
+                ->where('tenant_id', app(CurrentTenant::class)->id())->ignore($ignore?->id)],
+            'weeks' => ['required', 'array', 'min:1'],
+            'weeks.*' => ['integer', 'in:1,2,3,4,-1', 'distinct'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+            'counts' => ['required', 'in:half,full'],
+        ];
+    }
+
+    /** Save a special work day from the validated form data and log it. */
+    private function saveWorkDayRule(Request $request, ?WorkDayRule $rule): RedirectResponse
+    {
+        $data = $request->validate($this->workDayRuleRules($rule));
+        $weeks = array_map('intval', $data['weeks']);
+        usort($weeks, fn (int $a, int $b) => ($a < 0 ? 9 : $a) <=> ($b < 0 ? 9 : $b));
+        $data['weeks'] = $weeks;
+
+        $rule ? $rule->update($data) : $rule = WorkDayRule::create($data + ['tenant_id' => app(CurrentTenant::class)->id()]);
+
+        AuditLog::record(
+            $rule->wasRecentlyCreated ? 'Added special work day' : 'Updated special work day',
+            self::DAY_NAMES[$rule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $weeks)).' '.$rule->startHhmm().'-'.$rule->endHhmm().' ('.$rule->counts.')',
+        );
+
+        return back()->with('ok', 'Special day saved.');
+    }
+
+    /** Add a special work day. */
+    public function storeWorkDayRule(Request $request): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+
+        return $this->saveWorkDayRule($request, null);
+    }
+
+    /** Change a special work day. */
+    public function updateWorkDayRule(Request $request, WorkDayRule $workDayRule): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($workDayRule->tenant_id);
+
+        return $this->saveWorkDayRule($request, $workDayRule);
+    }
+
+    /** Remove a special work day. Past records are not recalculated. */
+    public function destroyWorkDayRule(Request $request, WorkDayRule $workDayRule): RedirectResponse
+    {
+        $this->authorizeAdmin($request);
+        $this->assertTenant($workDayRule->tenant_id);
+
+        $workDayRule->delete();
+        AuditLog::record('Removed special work day', self::DAY_NAMES[$workDayRule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $workDayRule->weeks)));
+
+        return back()->with('ok', 'Special day removed.');
     }
 
     /**

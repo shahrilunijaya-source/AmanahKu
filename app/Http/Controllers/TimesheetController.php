@@ -176,7 +176,7 @@ class TimesheetController extends Controller
             'tsProjects' => $this->projectOptions(),
             'weekStart' => $weekStart->toDateString(),
             'tsWorkDays' => WorkWeek::for()->workingDays(),
-            'tsTotSaturday' => WorkWeek::for()->totSaturday(),
+            'tsSpecialDays' => $this->specialDays($weekStart),
             'weekLabel' => $weekTimesheet?->week_label ?? '',
             'weekStatus' => $weekTimesheet?->status,
             'weekTimesheet' => $weekTimesheet,
@@ -1194,5 +1194,24 @@ class TimesheetController extends Controller
         abort_unless($timesheet->tenant_id === app(CurrentTenant::class)->id(), 403);
         $actor = $request->attributes->get('employee');
         abort_unless($actor && $actor->id === $timesheet->employee_id, 403, 'You can only edit your own timesheets.');
+    }
+
+    /**
+     * Capacity (50 or 100) for each day of the week that matches a special work-day rule.
+     *
+     * @return array<string, int>
+     */
+    private function specialDays(Carbon $weekStart): array
+    {
+        $workWeek = WorkWeek::for();
+        $out = [];
+        for ($i = 0; $i < 7; $i++) {
+            $day = $weekStart->copy()->addDays($i);
+            if ($rule = $workWeek->specialRule($day)) {
+                $out[$day->toDateString()] = $rule->capacity();
+            }
+        }
+
+        return $out;
     }
 }

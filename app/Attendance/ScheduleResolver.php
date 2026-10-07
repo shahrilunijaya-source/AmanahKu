@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\WorkSite;
 use App\Support\Geo;
+use App\Support\WorkWeek;
 use Carbon\CarbonInterface;
 
 /**
@@ -24,7 +25,7 @@ class ScheduleResolver
     {
         $arrangement = $employee->work_arrangement ?: 'office';
 
-        return match ($arrangement) {
+        $site = match ($arrangement) {
             'client' => $this->clientSite($employee),
             'wfh' => $this->homeSite($employee),
             'hybrid' => in_array($date->isoWeekday(), $employee->hybrid_office_days ?? [], true)
@@ -32,6 +33,33 @@ class ScheduleResolver
                 : $this->homeSite($employee),
             default => $this->officeSite($employee),
         };
+
+        return $this->applySpecialDay($employee, $date, $site);
+    }
+
+    /**
+     * On a special work day (e.g. the 1st Saturday, 09:00-13:00) the rule's hours replace the
+     * site's own. The tenant is passed explicitly: resolve() also runs from console jobs where
+     * no tenant is bound.
+     */
+    private function applySpecialDay(Employee $employee, CarbonInterface $date, SiteSpec $site): SiteSpec
+    {
+        $rule = WorkWeek::for($employee->tenant)->specialRule($date);
+
+        if ($rule === null) {
+            return $site;
+        }
+
+        return new SiteSpec(
+            type: $site->type,
+            label: $site->label,
+            latitude: $site->latitude,
+            longitude: $site->longitude,
+            radiusM: $site->radiusM,
+            workStart: $rule->startHhmm(),
+            workEnd: $rule->endHhmm(),
+            minHours: $rule->lengthInHours(),
+        );
     }
 
     /**

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Tenant;
+use App\Models\WorkDayRule;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\DayCapacity;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 
 /**
  * The company's working week: which ISO weekdays (1 = Monday .. 7 = Sunday) are working
@@ -25,6 +27,9 @@ final class WorkWeek
 {
     /** @var list<int> */
     public const DEFAULT_DAYS = [1, 2, 3, 4, 5];
+
+    /** @var Collection<int, WorkDayRule>|null */
+    private ?Collection $rules = null;
 
     public function __construct(private readonly Tenant $tenant) {}
 
@@ -56,28 +61,52 @@ final class WorkWeek
         return (bool) $this->tenant->tot_saturday;
     }
 
-    /** A listed work day, or the TOT half day. Holidays are the caller's job. */
+    /**
+     * The company's special work day rule that covers this date, if any. A rule outranks
+     * everything else: it makes the day a working day and sets its capacity and hours.
+     */
+    public function specialRule(CarbonInterface $day): ?WorkDayRule
+    {
+        // Memoised per instance. An unsaved in-memory tenant has no id, so no rules.
+        $this->rules ??= $this->tenant->getKey()
+            ? WorkDayRule::withoutGlobalScopes()->where('tenant_id', $this->tenant->getKey())->get()
+            : new Collection;
+
+        return $this->rules->first(fn (WorkDayRule $rule) => $rule->matches($day));
+    }
+
+    /** A rule day, a listed work day, or the legacy TOT half day. Holidays are the caller's job. */
     public function isWorkingDay(CarbonInterface $day): bool
     {
-        return $this->isListed($day) || $this->isTotDay($day);
+        return $this->specialRule($day) !== null || $this->isListed($day) || $this->isLegacyTotDay($day);
     }
 
-    /** The TOT half day: flag on, first Saturday of the month, and Saturday not already a full work day. */
+    /** The half day: a matching half rule, or the legacy TOT Saturday. Name kept for existing callers. */
     public function isTotDay(CarbonInterface $day): bool
     {
-        return $this->totSaturday()
-            && DayCapacity::isFirstSaturday($day)
-            && ! in_array(6, $this->workingDays(), true);
+        return $this->isHalfDay($day);
     }
 
-    /** 100 on a listed work day, 50 on the TOT half day, 0 on a day off. */
+    /** A half-capacity working day (rule with counts = half, or the legacy first-Saturday TOT). */
+    public function isHalfDay(CarbonInterface $day): bool
+    {
+        $rule = $this->specialRule($day);
+
+        return $rule !== null ? $rule->capacity() === 50 : $this->isLegacyTotDay($day);
+    }
+
+    /** 100 on a full work day, 50 on a half day, 0 on a day off. A matching rule wins. */
     public function capacity(CarbonInterface $day): int
     {
+        if ($rule = $this->specialRule($day)) {
+            return $rule->capacity();
+        }
+
         if ($this->isListed($day)) {
             return 100;
         }
 
-        return $this->isTotDay($day) ? 50 : 0;
+        return $this->isLegacyTotDay($day) ? 50 : 0;
     }
 
     /** The share of a leave day this date costs: 1.0, 0.5 or 0.0. */
@@ -89,5 +118,14 @@ final class WorkWeek
     private function isListed(CarbonInterface $day): bool
     {
         return in_array((int) $day->dayOfWeekIso, $this->workingDays(), true);
+    }
+
+    /** Flag on, first Saturday of the month, and Saturday not already a full work day. */
+    private function isLegacyTotDay(CarbonInterface $day): bool
+    {
+        // ponytail: legacy tot_saturday fallback, drop the column once nothing sets it
+        return $this->totSaturday()
+            && DayCapacity::isFirstSaturday($day)
+            && ! in_array(6, $this->workingDays(), true);
     }
 }

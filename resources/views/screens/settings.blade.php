@@ -194,15 +194,99 @@
         @endif
 
         @if (!empty($canManageFeatures) && (! $only || $only === 'work_week'))
-        {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days. Read by
-             App\Support\WorkWeek. Forward-only; the TOT flag is Unijaya-only and has no UI. --}}
-        <div class="uj-card" style="padding:20px;"
-             x-data="{
-                days: @js(\App\Support\WorkWeek::for()->workingDays()),
-                names: { en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], ms: ['Isn','Sel','Rab','Kha','Jum','Sab','Ahd'] },
+        {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days, read by
+             App\Support\WorkWeek. Below it, Special days (work_day_rules): a weekday that works
+             only on certain weeks of the month, with its own hours. Each rule save/delete is its
+             own small form post. --}}
+        @php
+            $wwRules = $workDayRules->map(fn ($r) => [
+                'id' => $r->id, 'weekday' => (int) $r->weekday, 'ords' => array_map('intval', (array) $r->weeks),
+                'start' => $r->startHhmm(), 'end' => $r->endHhmm(), 'counts' => $r->counts,
+            ])->values();
+            $wwErr = $errors->hasAny(['weekday', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']);
+            $wwOld = $wwErr ? [
+                'id' => old('_rule_id') ? (int) old('_rule_id') : null, 'weekday' => (int) old('weekday', 6),
+                'ords' => array_map('intval', (array) old('weeks', [])), 'start' => old('start_time', '09:00'),
+                'end' => old('end_time', '13:00'), 'counts' => old('counts', 'half'),
+            ] : null;
+        @endphp
+        <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('workDayRules', (cfg) => ({
+                days: cfg.days, rules: cfg.rules, grace: cfg.grace, base: cfg.base,
+                editing: !!cfg.old, draft: cfg.old || { ords: [] }, view: null, today: new Date(),
+                DN: { en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], ms: ['Isn','Sel','Rab','Kha','Jum','Sab','Ahd'] },
+                DL: { en: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'], ms: ['Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu','Ahad'] },
+                MS_MONTHS: ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'],
+                MS_MON: ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'],
+                init() { this.view = { y: this.today.getFullYear(), m: this.today.getMonth() }; },
+                get ms() { return this.$store.ui.lang !== 'en'; },
+                L(en, msText) { return this.ms ? msText : en; },
+                dn(i) { return this.DN[this.ms ? 'ms' : 'en'][i]; },
+                dl(i) { return this.DL[this.ms ? 'ms' : 'en'][i]; },
                 has(n) { return this.days.includes(n); },
                 toggle(n) { this.has(n) ? this.days = this.days.filter(d => d !== n) : this.days.push(n); },
-             }">
+                ruleOn(n) { return this.rules.some(r => r.weekday === n); },
+                ordLabel(v) { return v === -1 ? this.L('Last', 'Terakhir') : this.L(v + ['st','nd','rd','th'][v - 1], 'Minggu ke-' + v); },
+                takenBy(n) { return this.rules.some(r => r.weekday === n && r.id !== this.draft.id); },
+                startNew() {
+                    const free = [6,7,5,4,3,2,1].find(n => !this.takenBy(n)) || 6;
+                    this.draft = { id: null, weekday: free, ords: [2, 4], start: '09:00', end: '13:00', counts: 'half' };
+                    this.view = { y: this.today.getFullYear(), m: this.today.getMonth() }; this.editing = true;
+                },
+                startEdit(r) { this.draft = JSON.parse(JSON.stringify(r)); this.view = { y: this.today.getFullYear(), m: this.today.getMonth() }; this.editing = true; },
+                toggleOrd(v) { const o = this.draft.ords; o.includes(v) ? this.draft.ords = o.filter(x => x !== v) : o.push(v); },
+                sorted(o) { return o.slice().sort((a, b) => (a < 0 ? 9 : a) - (b < 0 ? 9 : b)); },
+                ordShort(r) { return r.ords.length === 1 ? (r.ords[0] === -1 ? this.L('L', 'T') : r.ords[0]) : r.ords.length + '×'; },
+                ruleTitle(r) {
+                    const w = this.sorted(r.ords), day = this.dl(r.weekday - 1);
+                    if (this.ms) {
+                        const m = { 1: 'pertama', 2: 'kedua', 3: 'ketiga', 4: 'keempat', '-1': 'terakhir' }, p = w.map(v => m[v]);
+                        return day + ' ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' dan ' + p.at(-1) : p[0]) + ' setiap bulan';
+                    }
+                    const m = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', '-1': 'last' }, p = w.map(v => m[v]);
+                    const list = p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p.at(-1) : p[0];
+                    return list.charAt(0).toUpperCase() + list.slice(1) + ' ' + day + ' of the month';
+                },
+                mins(r) { if (!r.start || !r.end) return 0; const [a, b] = r.start.split(':').map(Number), [c, d] = r.end.split(':').map(Number); return (c * 60 + d) - (a * 60 + b); },
+                fmtLen(r) { const m = this.mins(r); return m <= 0 ? '—' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; },
+                addMin(t, n) { if (!t) return '--:--'; const [h, m] = t.split(':').map(Number), x = h * 60 + m + n; return String(Math.floor(x / 60) % 24).padStart(2, '0') + ':' + String(x % 60).padStart(2, '0'); },
+                valid() { return this.draft.ords.length > 0 && this.mins(this.draft) > 0 && !this.takenBy(this.draft.weekday); },
+                matches(r, date) {
+                    if ((date.getDay() + 6) % 7 + 1 !== r.weekday) return false;
+                    const last = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 7).getMonth() !== date.getMonth();
+                    return r.ords.includes(Math.ceil(date.getDate() / 7)) || (last && r.ords.includes(-1));
+                },
+                fmtDate(d) { return this.dn((d.getDay() + 6) % 7) + ' ' + d.getDate() + ' ' + (this.ms ? this.MS_MON[d.getMonth()] : d.toLocaleString('en-GB', { month: 'short' })); },
+                nextDates(r, n) {
+                    const out = [], d = new Date(this.today.getFullYear(), this.today.getMonth(), this.today.getDate());
+                    if (!r.ords || !r.ords.length) return [];
+                    for (let i = 0; i < 400 && out.length < n; i++) { if (this.matches(r, d)) out.push(this.fmtDate(d) + (i === 0 ? ' (' + this.L('today', 'hari ini') + ')' : '')); d.setDate(d.getDate() + 1); }
+                    return out;
+                },
+                shift(k) { let m = this.view.m + k, y = this.view.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } this.view = { y, m }; },
+                monthLabel() { return this.ms ? this.MS_MONTHS[this.view.m] + ' ' + this.view.y : new Date(this.view.y, this.view.m, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' }); },
+                cells() {
+                    const { y, m } = this.view, lead = (new Date(y, m, 1).getDay() + 6) % 7, len = new Date(y, m + 1, 0).getDate(), out = [];
+                    const t = new Date(this.today.getFullYear(), this.today.getMonth(), this.today.getDate()).getTime();
+                    for (let i = 0; i < lead; i++) out.push({ k: 'b' + i, cls: 'blank', d: '', t: '' });
+                    for (let d = 1; d <= len; d++) {
+                        const dt = new Date(y, m, d), iso = (dt.getDay() + 6) % 7 + 1;
+                        let cls = 'off', txt = '';
+                        if (this.editing && this.draft.ords.length && this.matches(this.draft, dt)) { cls = 'special'; txt = this.draft.start + '–' + this.draft.end; }
+                        else {
+                            const r = this.rules.find(x => x.id !== this.draft.id && this.matches(x, dt));
+                            if (r) { cls = this.editing ? 'other' : 'special'; txt = r.start + '–' + r.end; } else if (this.days.includes(iso)) cls = 'work';
+                        }
+                        out.push({ k: 'd' + d, cls: cls + (dt.getTime() === t ? ' today' : ''), d, t: txt });
+                    }
+                    return out;
+                },
+            }));
+        });
+        </script>
+        <div class="uj-card" style="padding:20px;"
+             x-data="workDayRules({ days: @js(\App\Support\WorkWeek::for()->workingDays()), rules: @js($wwRules), grace: {{ (int) $lateGraceMinutes }}, base: @js(route('admin.workdayrules.store')), old: @js($wwOld) })">
             <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Work week' : 'Minggu bekerja'">Work week</h3>
             <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.' : 'Hari mana dikira sebagai hari bekerja. Baki cuti, kapasiti timesheet dan laporan kehadiran semuanya mengikut ini.'">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p>
 
@@ -210,25 +294,146 @@
                 @csrf
                 @if ($errors->has('work_days') || $errors->has('work_days.*'))<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:12px;" x-text="$store.ui.lang==='en' ? 'Pick at least one working day.' : 'Pilih sekurang-kurangnya satu hari bekerja.'">Pick at least one working day.</div>@endif
 
-                <div style="display:flex;gap:6px;margin-bottom:14px;">
+                <div class="uj-ww-days" role="group" :aria-label="L('Working days', 'Hari bekerja')">
                     <template x-for="n in [1,2,3,4,5,6,7]" :key="n">
-                        <button type="button" @click="toggle(n)" :aria-pressed="has(n)"
-                                :style="has(n) ? 'border-color:var(--red);background:var(--red-tint);' : ''"
-                                style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 8px;border:1px solid var(--hairline);border-radius:10px;background:#fff;cursor:pointer;flex:1;min-width:0;user-select:none;">
-                            <span style="font-size:13px;font-weight:600;color:var(--ink);" x-text="names[$store.ui.lang==='en' ? 'en' : 'ms'][n-1]"></span>
-                            <span style="font-size:11px;" :style="has(n) ? 'color:var(--red);' : 'color:var(--muted);'" x-text="has(n) ? ($store.ui.lang==='en' ? 'Work' : 'Kerja') : ($store.ui.lang==='en' ? 'Off' : 'Cuti')"></span>
+                        <button type="button" class="uj-ww-day" :class="{'has-rule': !has(n) && ruleOn(n)}" @click="toggle(n)" :aria-pressed="has(n)">
+                            <span class="d" x-text="dn(n-1)"></span>
+                            <span class="s" x-text="has(n) ? L('Every week','Setiap minggu') : (ruleOn(n) ? L('Some weeks','Minggu tertentu') : L('Off','Cuti'))"></span>
                         </button>
                     </template>
                 </div>
                 <template x-for="d in days" :key="'wd'+d"><input type="hidden" name="work_days[]" :value="d"></template>
 
+                @include('partials.hint', ['en' => 'Hours on these days come from each branch, client site or the WFH policy.', 'ms' => 'Waktu bekerja pada hari-hari ini mengikut cawangan, tapak pelanggan atau polisi WFH.'])
                 @include('partials.hint', ['en' => 'Applies from today. Past records are not recalculated.', 'ms' => 'Berkuat kuasa dari hari ini. Rekod lepas tidak dikira semula.'])
 
-                <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                <div class="uj-ww-savebar" x-show="!editing">
                     <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;" :disabled="days.length === 0"><span x-text="$store.ui.lang==='en' ? 'Save work week' : 'Simpan minggu bekerja'">Save work week</span></button>
                     <span style="font-size:12.5px;color:var(--muted);" x-text="days.length + ' ' + ($store.ui.lang==='en' ? (days.length === 1 ? 'working day' : 'working days') : 'hari bekerja')">5 working days</span>
                 </div>
             </form>
+
+            <div class="uj-ww-sep"></div>
+
+            <div class="uj-ww-sech">
+                <h4 x-text="L('Special days','Hari khas')">Special days</h4>
+                <button type="button" class="uj-btn-ghost uj-ww-add" x-show="!editing" @click="startNew()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    <span x-text="L('Add special day','Tambah hari khas')">Add special day</span>
+                </button>
+            </div>
+            <p style="font-size:13px;color:var(--muted);margin:0;max-width:60ch;" x-text="L('A day that works only on certain weeks of the month, with its own hours. On that date clock in and clock out use these hours instead of the branch\'s.', 'Hari yang bekerja pada minggu tertentu dalam sebulan, dengan waktunya sendiri. Pada tarikh itu, daftar masuk dan keluar guna waktu ini, bukan waktu cawangan.')"></p>
+
+            <div class="uj-ww-rules">
+                <template x-for="r in rules" :key="r.id">
+                    <div class="uj-ww-rule">
+                        <div class="uj-ww-date"><span class="n" x-text="ordShort(r)"></span><span class="w" x-text="dn(r.weekday-1)"></span></div>
+                        <div style="min-width:0;">
+                            <p style="font-size:14px;font-weight:500;margin:0;color:var(--ink);" x-text="ruleTitle(r)"></p>
+                            <p class="uj-ww-meta">
+                                <span class="uj-ww-mono" x-text="r.start + ' – ' + r.end"></span><i></i>
+                                <span class="uj-ww-mono" x-text="fmtLen(r)"></span>
+                                <template x-if="nextDates(r,1)[0]"><i></i></template>
+                                <template x-if="nextDates(r,1)[0]"><span x-text="L('Next ','Akan datang ') + nextDates(r,1)[0]"></span></template>
+                            </p>
+                        </div>
+                        <span class="uj-stamp" :data-tone="r.counts==='half' ? 'amber' : 'success'" x-text="r.counts==='half' ? L('HALF DAY','SEPARUH HARI') : L('FULL DAY','SEHARI PENUH')"></span>
+                        <div class="uj-ww-acts">
+                            <button type="button" class="uj-ww-ico" :aria-label="L('Edit special day','Sunting hari khas')" @click="startEdit(r)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg></button>
+                            <form method="post" :action="base + '/' + r.id" @submit="if (!confirm(L('Remove this special day?','Buang hari khas ini?'))) $event.preventDefault()" style="margin:0;">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="uj-ww-ico" :aria-label="L('Remove special day','Buang hari khas')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+                            </form>
+                        </div>
+                    </div>
+                </template>
+                <div class="uj-ww-empty" x-show="rules.length===0" x-cloak x-text="L('No special days. Every working day uses branch hours.','Tiada hari khas. Setiap hari bekerja guna waktu cawangan.')"></div>
+            </div>
+
+            <div class="uj-ww-ed" :class="{open: editing}">
+                <div>
+                    <form method="post" :action="draft.id ? base + '/' + draft.id : base" class="uj-ww-edin" x-show="editing" x-cloak>
+                        @csrf
+                        <template x-if="draft.id"><input type="hidden" name="_method" value="PUT"></template>
+                        <template x-if="draft.id"><input type="hidden" name="_rule_id" :value="draft.id"></template>
+                        <template x-for="o in draft.ords" :key="'o'+o"><input type="hidden" name="weeks[]" :value="o"></template>
+                        <h4 style="font-size:14px;font-weight:600;margin:0 0 14px;" x-text="draft.id ? L('Edit special day','Sunting hari khas') : L('New special day','Hari khas baharu')"></h4>
+
+                        @if ($wwErr)<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $errors->first() }}</div>@endif
+
+                        <div class="uj-ww-grid">
+                            <div>
+                                <span class="uj-ww-lab" x-text="L('Which week','Minggu yang mana')">Which week</span>
+                                <div class="uj-ww-segw" role="group" :aria-label="L('Which week of the month','Minggu dalam bulan')">
+                                    <template x-for="v in [1,2,3,4,-1]" :key="v">
+                                        <button type="button" :aria-pressed="draft.ords.includes(v)" @click="toggleOrd(v)" x-text="ordLabel(v)"></button>
+                                    </template>
+                                </div>
+                                <div class="uj-ww-err" x-show="draft.ords.length===0" x-cloak x-text="L('Pick at least one week.','Pilih sekurang-kurangnya satu minggu.')"></div>
+                            </div>
+                            <div>
+                                <label class="uj-ww-lab" for="wdr-day" x-text="L('Day','Hari')">Day</label>
+                                <select id="wdr-day" name="weekday" class="uj-ww-inp" x-model.number="draft.weekday">
+                                    <template x-for="n in [1,2,3,4,5,6,7]" :key="n"><option :value="n" x-text="dl(n-1) + (takenBy(n) ? ' · ' + L('has a rule','sudah ada') : '')" :disabled="takenBy(n)" :selected="n===draft.weekday"></option></template>
+                                </select>
+                            </div>
+                            <div class="uj-ww-full">
+                                <span class="uj-ww-lab" x-text="L('Hours','Waktu')">Hours</span>
+                                <div class="uj-ww-times">
+                                    <input type="time" name="start_time" class="uj-ww-inp" :aria-label="L('Start','Mula')" x-model="draft.start" required>
+                                    <span style="color:var(--muted);font-size:12.5px;" x-text="L('to','hingga')">to</span>
+                                    <input type="time" name="end_time" class="uj-ww-inp" :aria-label="L('End','Tamat')" x-model="draft.end" required>
+                                    <div class="uj-ww-len"><b x-text="fmtLen(draft)"></b><span x-text="L('worked','bekerja')">worked</span></div>
+                                </div>
+                                <div class="uj-ww-err" x-show="mins(draft)<=0" x-cloak x-text="L('End time must be after the start time.','Masa tamat mesti selepas masa mula.')"></div>
+                                <div class="uj-ww-note">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                                    <span x-show="!ms">Late after <b class="uj-ww-mono" x-text="addMin(draft.start, grace)"></b> (the <span x-text="grace"></span> min grace). Clocking out before <b class="uj-ww-mono" x-text="draft.end"></b> asks for a reason.</span>
+                                    <span x-show="ms" x-cloak>Dikira lewat selepas <b class="uj-ww-mono" x-text="addMin(draft.start, grace)"></b> (tempoh bertolak ansur <span x-text="grace"></span> minit). Daftar keluar sebelum <b class="uj-ww-mono" x-text="draft.end"></b> perlu alasan.</span>
+                                </div>
+                            </div>
+                            <div class="uj-ww-full">
+                                <span class="uj-ww-lab" x-text="L('Counts as','Dikira sebagai')">Counts as</span>
+                                <div class="uj-ww-segw" role="group" :aria-label="L('Counts as','Dikira sebagai')">
+                                    <button type="button" :aria-pressed="draft.counts==='half'" @click="draft.counts='half'" x-text="L('Half day','Separuh hari')">Half day</button>
+                                    <button type="button" :aria-pressed="draft.counts==='full'" @click="draft.counts='full'" x-text="L('Full day','Sehari penuh')">Full day</button>
+                                </div>
+                                <input type="hidden" name="counts" :value="draft.counts">
+                                <p style="font-size:12.5px;color:var(--muted);margin:6px 0 0;" x-text="draft.counts==='half' ? L('Leave on this day costs 0.5. Timesheet capacity is 50%.','Cuti pada hari ini ditolak 0.5. Kapasiti timesheet 50%.') : L('Leave on this day costs 1. Timesheet capacity is 100%.','Cuti pada hari ini ditolak 1. Kapasiti timesheet 100%.')"></p>
+                            </div>
+                        </div>
+
+                        <div class="uj-ww-cal">
+                            <div class="uj-ww-calh">
+                                <button type="button" class="uj-ww-ico" :aria-label="L('Previous month','Bulan sebelumnya')" @click="shift(-1)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 6-6 6 6 6"/></svg></button>
+                                <strong x-text="monthLabel()"></strong>
+                                <button type="button" class="uj-ww-ico" :aria-label="L('Next month','Bulan seterusnya')" @click="shift(1)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg></button>
+                            </div>
+                            <div class="uj-ww-calg">
+                                <template x-for="i in [0,1,2,3,4,5,6]" :key="'h'+i"><div class="uj-ww-calwd" x-text="dn(i)"></div></template>
+                                <template x-for="c in cells()" :key="c.k">
+                                    <div class="uj-ww-cell" :class="c.cls"><span class="n" x-text="c.d"></span><span class="t" x-text="c.t"></span></div>
+                                </template>
+                            </div>
+                            <div class="uj-ww-legend">
+                                <span><i class="uj-ww-sw" style="background:#fff;"></i><span x-text="L('Working day, branch hours','Hari bekerja, waktu cawangan')"></span></span>
+                                <span><i class="uj-ww-sw" style="background:color-mix(in srgb,var(--amber) 12%,#fff);border-color:color-mix(in srgb,var(--amber) 34%,#fff);"></i><span x-text="L('This special day','Hari khas ini')"></span></span>
+                                <span x-show="rules.some(r => r.id !== draft.id)"><i class="uj-ww-sw" style="background:var(--shelf);border-color:var(--shelf-line);"></i><span x-text="L('Another special day','Hari khas lain')"></span></span>
+                                <span><i class="uj-ww-sw" style="background:transparent;"></i><span x-text="L('Off','Cuti')"></span></span>
+                            </div>
+                            <div class="uj-ww-next"><span style="font-size:12.5px;color:var(--muted);margin-right:2px;" x-text="L('Next:','Akan datang:')"></span><template x-for="d in nextDates(draft,4)" :key="d"><span class="chip" x-text="d"></span></template></div>
+                        </div>
+
+                        <div class="uj-ww-foot">
+                            <span style="font-size:12.5px;color:var(--muted);max-width:44ch;line-height:1.45;" x-text="L('Applies from today. Past attendance and leave are not recalculated.','Berkuat kuasa dari hari ini. Kehadiran dan cuti lepas tidak dikira semula.')"></span>
+                            <div class="acts">
+                                <button type="button" class="uj-btn-ghost uj-ww-btn" @click="editing=false" x-text="L('Cancel','Batal')">Cancel</button>
+                                <button type="submit" class="uj-btn-primary uj-ww-btn" :disabled="!valid()" x-text="draft.id ? L('Save special day','Simpan hari khas') : L('Add special day','Tambah hari khas')"></button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
         @endif
 
