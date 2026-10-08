@@ -12,186 +12,393 @@
         'body'  => 'Tetapan admin untuk seluruh syarikat — nama workspace, pelan langganan, serta senarai cawangan dan jabatan. Perubahan di sini memberi kesan kepada setiap ahli, jadi kemas kini dengan berhati-hati.',
     ],
 ])
-@php $only = request('section'); @endphp
-<div style="{{ $only ? '' : 'display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;' }}">
+@php
+    $only = request('section');
+    // A payroll run can't be created while any of these three is blank (same rule the
+    // readiness bar inside the Statutory card applies live as you type).
+    $statutoryReady = filled($company->employer_tin) && filled($company->epf_employer_no) && filled($company->socso_employer_code);
+    // Section index: [anchor id, EN, BM], grouped. Admin-only cards drop out for everyone else.
+    $manage = ! empty($canManageFeatures);
+    $setIndex = array_values(array_filter([
+        ['en' => 'Company', 'ms' => 'Syarikat', 'items' => [['profile', 'Workspace profile', 'Profil workspace'], ['statutory', 'Statutory & tax', 'Berkanun & cukai']]],
+        ['en' => 'Working time', 'ms' => 'Masa bekerja', 'items' => array_values(array_filter([
+            $manage ? ['work-week', 'Work week', 'Minggu bekerja'] : null,
+            $manage ? ['approvals', 'Approval shortcut', 'Pintasan kelulusan'] : null,
+        ]))],
+        ['en' => 'Organisation', 'ms' => 'Organisasi', 'items' => [['branches', 'Branches', 'Cawangan'], ['departments', 'Departments', 'Jabatan'], ['staff-levels', 'Staff levels', 'Tahap staf'], ['employment-types', 'Employment types', 'Jenis pekerjaan']]],
+        ['en' => 'Modules', 'ms' => 'Modul', 'items' => $manage ? [['features', 'Features', 'Ciri']] : []],
+        ['en' => 'Culture', 'ms' => 'Budaya', 'items' => array_values(array_filter([
+            ['greetings', 'Greetings', 'Ucapan'], ['eggs', 'Easter eggs', 'Telur Paskah'],
+            $manage ? ['reactions', 'Reactions', 'Reaksi'] : null,
+        ]))],
+    ], fn ($g) => $g['items'] !== []));
+    $editIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>';
+    $deleteIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+    $lockIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+@endphp
+<div class="uj-settings {{ $only ? '' : 'uj-cs' }}">
+    @unless ($only)
+    {{-- Section index: sticky beside the cards, a scrolling chip bar on narrower panes.
+         Highlights the card in view; the amber dot means payroll is blocked. --}}
+    <nav class="uj-cs-idx" :aria-label="$store.ui.lang==='en' ? 'Settings sections' : 'Bahagian tetapan'"
+         x-data="{
+            active: 'profile', io: null, root: null, atEnd: null,
+            init() {
+                this.root = document.querySelector('main.uj-main');
+                this.io = new IntersectionObserver((es) => { es.forEach((e) => { if (e.isIntersecting) this.active = e.target.id }); this.atEnd() },
+                    { root: this.root, rootMargin: '-15% 0px -70% 0px' });
+                this.$nextTick(() => document.querySelectorAll('.uj-cs-sec[id]').forEach((s) => this.io.observe(s)));
+                // The last cards are too short to reach the trigger line, so the bottom of the page picks the last link.
+                this.atEnd = () => { const r = this.root; if (r.scrollTop + r.clientHeight >= r.scrollHeight - 4) { this.active = [...this.$el.querySelectorAll('a')].at(-1).hash.slice(1) } };
+                this.root?.addEventListener('scroll', this.atEnd, { passive: true });
+                // Chip-bar mode: keep the current chip in view as the page scrolls.
+                this.$watch('active', (id) => {
+                    const a = this.$el.querySelector('a[href=\'#' + id + '\']');
+                    if (a && this.$el.scrollWidth > this.$el.clientWidth) { this.$el.scrollTo({ left: a.offsetLeft - 28, behavior: 'smooth' }) }
+                });
+            },
+            destroy() { this.io?.disconnect(); this.root?.removeEventListener('scroll', this.atEnd) },
+         }">
+        @foreach ($setIndex as $group)
+            <div class="uj-cs-idx-g">
+                <div class="uj-cs-idx-h" x-text="$store.ui.lang==='en' ? @js($group['en']) : @js($group['ms'])">{{ $group['en'] }}</div>
+                @foreach ($group['items'] as [$anchor, $labelEn, $labelMs])
+                    <a href="#{{ $anchor }}" :aria-current="active === '{{ $anchor }}' ? 'true' : null" @click="active = '{{ $anchor }}'">
+                        <span x-text="$store.ui.lang==='en' ? @js($labelEn) : @js($labelMs)">{{ $labelEn }}</span>
+                        @if ($anchor === 'statutory' && ! $statutoryReady)<i class="uj-cs-dot" :title="$store.ui.lang==='en' ? 'Payroll is blocked' : 'Gaji disekat'"></i>@endif
+                    </a>
+                @endforeach
+            </div>
+        @endforeach
+    </nav>
+    @endunless
+
+    <div class="uj-cs-col">
     @if (! $only || $only === 'profile')
-    <div class="uj-card" style="{{ $only ? 'padding:24px;' : 'flex:1.2;min-width:340px;padding:24px;' }}">
-        <h3 class="uj-card-title" style="margin-bottom:16px;" x-text="$store.ui.lang==='en' ? 'Workspace profile' : 'Profil workspace'">Workspace profile</h3>
-        <form method="post" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data">
+    {{-- Workspace profile. Grouped as Company / Login page / Contact / Payroll journal; the
+         login-page fields sit beside a live preview of what they change. --}}
+    @php
+        $journalSet = count(array_filter((array) ($company->journal_accounts ?? []), 'filled'));
+        $journalTotal = count(\App\Services\Payroll\AccountingJournal::LINES);
+        $journalOpen = $errors->has('journal_accounts') || $errors->has('journal_accounts.*');
+    @endphp
+    <section id="profile" class="uj-card uj-cs-sec"
+             x-data="{
+                name: @js(old('name', $company->name) ?? ''),
+                c1: @js(old('color', $company->color) ?? ''),
+                c2: @js(old('secondary_color', $company->secondary_color) ?? ''),
+                msg: @js(old('welcome_message', $company->welcome_message) ?? ''),
+                logo: @js($company->logo_path ? '/storage/'.$company->logo_path : null),
+                dirty: false, journalOpen: @js($journalOpen),
+                hex(v, fallback) { return /^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback },
+                initials() { return (this.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() },
+                pick(e) { const f = e.target.files[0]; if (f) { this.logo = URL.createObjectURL(f) } },
+             }">
+        <div class="uj-cs-ch">
+            <div>
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Workspace profile' : 'Profil workspace'">Workspace profile</h3>
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'How your company appears inside the app, on documents and on your login page.' : 'Cara syarikat anda dipaparkan dalam aplikasi, pada dokumen dan pada halaman log masuk.'">How your company appears inside the app, on documents and on your login page.</p>
+            </div>
+        </div>
+        {{-- Plan, category, workspace ID and members are set by the platform team
+             (super-admin) and are read-only here — shown for reference only. --}}
+        <dl class="uj-cs-facts">
+            <div><dt x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</dt><dd>{{ $company->companyCategory?->name ?? '—' }}</dd></div>
+            <div><dt x-text="$store.ui.lang==='en' ? 'Plan' : 'Pelan'">Plan</dt><dd>{{ $company->plan }}</dd></div>
+            <div><dt x-text="$store.ui.lang==='en' ? 'Workspace ID' : 'ID workspace'">Workspace ID</dt><dd class="uj-ww-mono">{{ $company->slug }}</dd></div>
+            <div><dt x-text="$store.ui.lang==='en' ? 'Members' : 'Ahli'">Members</dt><dd class="uj-ww-mono">{{ $company->users()->count() }}</dd></div>
+        </dl>
+        <p class="uj-cs-facts-note">{!! $lockIcon !!}<span x-text="$store.ui.lang==='en' ? 'Set by the platform team. Ask them to change your plan or category.' : 'Ditetapkan oleh pasukan platform. Minta mereka untuk menukar pelan atau kategori.'">Set by the platform team. Ask them to change your plan or category.</span></p>
+
+        <form method="post" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data" @input="dirty = true" @change="dirty = true">
             @csrf
-            @if ($errors->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:14px;">{{ $errors->first() }}</div>@endif
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;" x-text="$store.ui.lang==='en' ? 'Company name' : 'Nama syarikat'">Company name</label>
-            <input name="name" value="{{ old('name', $company->name) }}" required style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;margin-bottom:6px;outline:none;" />
-            @include('partials.hint', ['en' => 'The name shown to everyone across the app and on documents. Changing it updates it for all members.', 'ms' => 'Nama yang dipaparkan kepada semua orang di seluruh aplikasi dan pada dokumen. Menukarnya akan mengemas kini untuk semua ahli.'])
+            <div class="uj-cs-cb">
+                @if ($errors->any() && ! $errors->hasAny(['work_days', 'work_days.*', 'approval_escalation_days', 'weekday', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']))<div class="uj-alert" data-tone="error"><span class="uj-alert-msg">{{ $errors->first() }}</span></div>@endif
 
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Industry' : 'Industri'">Industry</label>
-            <input name="industry" value="{{ old('industry', $company->industry) }}" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Welcome message' : 'Mesej alu-aluan'">Welcome message</label>
-            <input name="welcome_message" value="{{ old('welcome_message', $company->welcome_message) }}" placeholder="Shown on your company login page" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-            @include('partials.hint', ['en' => 'Greeting shown on your company-branded login page.', 'ms' => 'Ucapan yang dipaparkan pada halaman log masuk berjenama syarikat anda.'])
-
-            <div style="display:flex;gap:12px;">
-                <div style="flex:1;">
-                    <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Brand colour' : 'Warna jenama'">Brand colour</label>
-                    <input name="color" value="{{ old('color', $company->color) }}" placeholder="#d6232b" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Secondary colour' : 'Warna sekunder'">Secondary colour</label>
-                    <input name="secondary_color" value="{{ old('secondary_color', $company->secondary_color) }}" placeholder="#1f1e1a" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-                </div>
-            </div>
-
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Company logo' : 'Logo syarikat'">Company logo</label>
-            @if ($company->logo_path)
-                <img src="/storage/{{ $company->logo_path }}" alt="logo" style="height:40px;border-radius:8px;margin-bottom:8px;display:block;">
-            @endif
-            <input type="file" name="logo" accept="image/*" style="width:100%;font-size:13px;margin-bottom:6px;" />
-            @include('partials.hint', ['en' => 'PNG or JPG up to 2 MB. Appears on your company login page.', 'ms' => 'PNG atau JPG sehingga 2 MB. Dipaparkan pada halaman log masuk syarikat anda.'])
-
-            <div style="display:flex;gap:12px;">
-                <div style="flex:1;">
-                    <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Contact number' : 'Nombor telefon'">Contact number</label>
-                    <input name="contact_number" value="{{ old('contact_number', $company->contact_number) }}" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</label>
-                    <input type="email" name="email" value="{{ old('email', $company->email) }}" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
-                </div>
-            </div>
-
-            <details style="margin-top:14px;" @if ($errors->has('journal_accounts') || $errors->has('journal_accounts.*')) open @endif>
-                <summary style="font-size:13px;font-weight:500;color:var(--ink);cursor:pointer;" x-text="$store.ui.lang==='en' ? 'Payroll journal account codes' : 'Kod akaun jurnal gaji'">Payroll journal account codes</summary>
-                <div style="font-size:12px;color:var(--muted);margin:6px 0 10px;" x-text="$store.ui.lang==='en' ? 'Codes from your accounting software. Left blank, the journal CSV leaves the code empty.' : 'Kod daripada perisian perakaunan anda. Jika kosong, CSV jurnal membiarkan kod kosong.'">Codes from your accounting software. Left blank, the journal CSV leaves the code empty.</div>
-                {{-- Laid out like the journal itself: what is charged on the left, what is owed on the right. --}}
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px 28px;">
-                    @foreach (['debit' => ['Debit', 'Debit'], 'credit' => ['Credit', 'Kredit']] as $journalSide => [$sideEn, $sideMs])
+                <div class="uj-cs-grp">
+                    <div class="uj-cs-grp-h"><h4 x-text="$store.ui.lang==='en' ? 'Company' : 'Syarikat'">Company</h4></div>
+                    <div class="uj-cs-fg">
                         <div>
-                            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px;border-bottom:1px solid var(--hairline);" x-text="$store.ui.lang==='en' ? '{{ $sideEn }}' : '{{ $sideMs }}'">{{ $sideEn }}</div>
-                            @foreach (\App\Services\Payroll\AccountingJournal::LINES as $key => [$lineName, $side])
-                                @continue($side !== $journalSide)
-                                <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px;color:var(--ink);">
-                                    <span>{{ $lineName }}</span>
-                                    <input name="journal_accounts[{{ $key }}]" value="{{ old('journal_accounts.'.$key, $company->journal_accounts[$key] ?? '') }}" maxlength="40" placeholder="—" style="width:112px;height:32px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;font-family:var(--font-mono);font-variant-numeric:tabular-nums;outline:none;flex-shrink:0;" />
-                                </label>
-                            @endforeach
+                            <label class="uj-cs-lab" for="set-name" x-text="$store.ui.lang==='en' ? 'Company name' : 'Nama syarikat'">Company name</label>
+                            <input id="set-name" name="name" x-model="name" value="{{ old('name', $company->name) }}" required class="uj-cs-inp" />
+                            <p class="uj-cs-hint" x-text="$store.ui.lang==='en' ? 'Shown to everyone in the app and on documents.' : 'Dipaparkan kepada semua orang dalam aplikasi dan pada dokumen.'">Shown to everyone in the app and on documents.</p>
                         </div>
-                    @endforeach
+                        <div>
+                            <label class="uj-cs-lab" for="set-industry"><span x-text="$store.ui.lang==='en' ? 'Industry' : 'Industri'">Industry</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Optional' : 'Pilihan'">Optional</span></label>
+                            <input id="set-industry" name="industry" value="{{ old('industry', $company->industry) }}" class="uj-cs-inp" />
+                        </div>
+                    </div>
                 </div>
-            </details>
 
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Website' : 'Laman web'">Website</label>
-            <input name="website" value="{{ old('website', $company->website) }}" placeholder="https://" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
+                <div class="uj-cs-grp">
+                    <div class="uj-cs-grp-h"><h4 x-text="$store.ui.lang==='en' ? 'Login page' : 'Halaman log masuk'">Login page</h4><span x-text="$store.ui.lang==='en' ? 'What your staff see before they sign in' : 'Apa yang staf lihat sebelum log masuk'">What your staff see before they sign in</span></div>
+                    <div class="uj-cs-brand">
+                        <div class="uj-cs-fg">
+                            <div class="uj-cs-full">
+                                <span class="uj-cs-lab" x-text="$store.ui.lang==='en' ? 'Company logo' : 'Logo syarikat'">Company logo</span>
+                                <div class="uj-cs-logo">
+                                    <div class="uj-cs-logo-box" :class="{ 'has': logo }">
+                                        <template x-if="logo"><img :src="logo" :alt="$store.ui.lang==='en' ? 'Current company logo' : 'Logo syarikat semasa'" x-on:error="logo = null"></template>
+                                        <template x-if="! logo"><span class="uj-cs-mark" :style="'background:' + hex(c1, '#d6232b')" x-text="initials()"></span></template>
+                                    </div>
+                                    <div class="uj-cs-logo-meta">
+                                        <label class="uj-btn-ghost uj-cs-upload">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+                                            <span x-text="logo ? ($store.ui.lang==='en' ? 'Replace logo' : 'Tukar logo') : ($store.ui.lang==='en' ? 'Upload logo' : 'Muat naik logo')">Upload logo</span>
+                                            <input type="file" name="logo" accept="image/png,image/jpeg" class="uj-sr-only" @change="pick($event)" />
+                                        </label>
+                                        <p class="uj-cs-hint" x-text="$store.ui.lang==='en' ? 'PNG or JPG, up to 2 MB. Square works best.' : 'PNG atau JPG, sehingga 2 MB. Bentuk segi empat sama paling sesuai.'">PNG or JPG, up to 2 MB. Square works best.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="uj-cs-lab" for="set-color" x-text="$store.ui.lang==='en' ? 'Brand colour' : 'Warna jenama'">Brand colour</label>
+                                <div class="uj-cs-clr">
+                                    <input type="color" :value="hex(c1, '#d6232b')" @input="c1 = $event.target.value" :aria-label="$store.ui.lang==='en' ? 'Pick brand colour' : 'Pilih warna jenama'" />
+                                    <input id="set-color" name="color" x-model="c1" value="{{ old('color', $company->color) }}" placeholder="#d6232b" maxlength="7" spellcheck="false" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="uj-cs-lab" for="set-color2" x-text="$store.ui.lang==='en' ? 'Secondary colour' : 'Warna sekunder'">Secondary colour</label>
+                                <div class="uj-cs-clr">
+                                    <input type="color" :value="hex(c2, '#1f1e1a')" @input="c2 = $event.target.value" :aria-label="$store.ui.lang==='en' ? 'Pick secondary colour' : 'Pilih warna sekunder'" />
+                                    <input id="set-color2" name="secondary_color" x-model="c2" value="{{ old('secondary_color', $company->secondary_color) }}" placeholder="#1f1e1a" maxlength="7" spellcheck="false" />
+                                </div>
+                            </div>
+                            <div class="uj-cs-full">
+                                <label class="uj-cs-lab" for="set-welcome"><span x-text="$store.ui.lang==='en' ? 'Welcome message' : 'Mesej alu-aluan'">Welcome message</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Optional' : 'Pilihan'">Optional</span></label>
+                                <input id="set-welcome" name="welcome_message" x-model="msg" value="{{ old('welcome_message', $company->welcome_message) }}" :placeholder="$store.ui.lang==='en' ? 'A line to greet your team' : 'Satu baris untuk menyambut pasukan anda'" class="uj-cs-inp" />
+                            </div>
+                        </div>
 
-            <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;" x-text="$store.ui.lang==='en' ? 'Address' : 'Alamat'">Address</label>
-            <input name="address" value="{{ old('address', $company->address) }}" style="width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;" />
+                        <div class="uj-cs-pv" aria-hidden="true">
+                            <div class="uj-cs-pv-cap"><span x-text="$store.ui.lang==='en' ? 'Preview' : 'Pratonton'">Preview</span></div>
+                            <div class="uj-cs-pv-stage">
+                                <div class="uj-cs-pv-band" :style="'background:' + hex(c2, '#1f1e1a')">
+                                    <span class="uj-cs-pv-mk" :style="'color:' + hex(c1, '#d6232b')">
+                                        <template x-if="logo"><img :src="logo" alt=""></template>
+                                        <template x-if="! logo"><span x-text="initials()"></span></template>
+                                    </span>
+                                    <b x-text="name || ($store.ui.lang==='en' ? 'Company name' : 'Nama syarikat')"></b>
+                                </div>
+                                <p class="uj-cs-pv-msg" :class="{ 'empty': ! msg }" x-text="msg || ($store.ui.lang==='en' ? 'No welcome message. The login page shows just the form.' : 'Tiada mesej alu-aluan. Halaman log masuk hanya memaparkan borang.')"></p>
+                                <i class="uj-cs-pv-f"></i><i class="uj-cs-pv-f"></i>
+                                <i class="uj-cs-pv-b" :style="'background:' + hex(c1, '#d6232b')"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            {{-- Plan, category, subscription, status and slug are set by the platform team
-                 (super-admin) and are read-only here — shown for reference only. --}}
-            <div style="display:flex;gap:24px;flex-wrap:wrap;margin:20px 0;padding:14px 16px;background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;">
-                <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;" x-text="$store.ui.lang==='en' ? 'Category' : 'Kategori'">Category</div><div style="font-size:14px;color:var(--ink);margin-top:3px;">{{ $company->companyCategory?->name ?? '—' }}</div></div>
-                <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;" x-text="$store.ui.lang==='en' ? 'Plan' : 'Pelan'">Plan</div><div style="font-size:14px;color:var(--ink);margin-top:3px;">{{ $company->plan }}</div></div>
-                <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;" x-text="$store.ui.lang==='en' ? 'Workspace ID' : 'ID workspace'">Workspace ID</div><div style="font-size:14px;color:var(--ink);font-family:var(--font-mono);margin-top:3px;">{{ $company->slug }}</div></div>
-                <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;" x-text="$store.ui.lang==='en' ? 'Members' : 'Ahli'">Members</div><div style="font-size:14px;color:var(--ink);font-family:var(--font-mono);margin-top:3px;">{{ $company->users()->count() }}</div></div>
+                <div class="uj-cs-grp">
+                    <div class="uj-cs-grp-h"><h4 x-text="$store.ui.lang==='en' ? 'Contact' : 'Hubungan'">Contact</h4><span x-text="$store.ui.lang==='en' ? 'Address and phone are also printed on CP21, CP22 and PCB II' : 'Alamat dan telefon juga dicetak pada CP21, CP22 dan PCB II'">Address and phone are also printed on CP21, CP22 and PCB II</span></div>
+                    <div class="uj-cs-fg">
+                        <div>
+                            <label class="uj-cs-lab" for="set-phone" x-text="$store.ui.lang==='en' ? 'Contact number' : 'Nombor telefon'">Contact number</label>
+                            <input id="set-phone" type="tel" name="contact_number" value="{{ old('contact_number', $company->contact_number) }}" class="uj-cs-inp" />
+                        </div>
+                        <div>
+                            <label class="uj-cs-lab" for="set-email" x-text="$store.ui.lang==='en' ? 'Email' : 'Emel'">Email</label>
+                            <input id="set-email" type="email" name="email" value="{{ old('email', $company->email) }}" class="uj-cs-inp" />
+                        </div>
+                        <div class="uj-cs-full">
+                            <label class="uj-cs-lab" for="set-address" x-text="$store.ui.lang==='en' ? 'Address' : 'Alamat'">Address</label>
+                            <input id="set-address" name="address" value="{{ old('address', $company->address) }}" class="uj-cs-inp" />
+                        </div>
+                        <div class="uj-cs-full">
+                            <label class="uj-cs-lab" for="set-website"><span x-text="$store.ui.lang==='en' ? 'Website' : 'Laman web'">Website</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Optional' : 'Pilihan'">Optional</span></label>
+                            <input id="set-website" name="website" value="{{ old('website', $company->website) }}" placeholder="https://" class="uj-cs-inp" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="uj-cs-grp">
+                    <div class="uj-cs-disc" :class="{ 'open': journalOpen }">
+                        <button type="button" class="uj-cs-disc-btn" @click="journalOpen = ! journalOpen" :aria-expanded="journalOpen ? 'true' : 'false'" aria-controls="set-journal">
+                            <span class="t">
+                                <b x-text="$store.ui.lang==='en' ? 'Payroll journal account codes' : 'Kod akaun jurnal gaji'">Payroll journal account codes</b>
+                                <span x-text="$store.ui.lang==='en' ? 'Codes from your accounting software for the journal CSV' : 'Kod daripada perisian perakaunan anda untuk CSV jurnal'">Codes from your accounting software for the journal CSV</span>
+                            </span>
+                            <span class="uj-stamp" x-text="$store.ui.lang==='en' ? @js($journalSet.' of '.$journalTotal.' set') : @js($journalSet.' daripada '.$journalTotal.' diisi')">{{ $journalSet }} of {{ $journalTotal }} set</span>
+                            <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                        </button>
+                        <div class="uj-cs-disc-p" id="set-journal"><div>
+                            {{-- Laid out like the journal itself: what is charged on the left, what is owed on the right. --}}
+                            <div class="uj-cs-jr">
+                                @foreach (['debit' => ['Debit', 'Debit'], 'credit' => ['Credit', 'Kredit']] as $journalSide => [$sideEn, $sideMs])
+                                    <div>
+                                        <h5 x-text="$store.ui.lang==='en' ? '{{ $sideEn }}' : '{{ $sideMs }}'">{{ $sideEn }}</h5>
+                                        @foreach (\App\Services\Payroll\AccountingJournal::LINES as $key => [$lineName, $side])
+                                            @continue($side !== $journalSide)
+                                            <label>
+                                                <span>{{ $lineName }}</span>
+                                                <input name="journal_accounts[{{ $key }}]" value="{{ old('journal_accounts.'.$key, $company->journal_accounts[$key] ?? '') }}" maxlength="40" placeholder="—" class="uj-cs-inp uj-ww-mono" />
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p class="uj-cs-hint uj-cs-jr-hint" x-text="$store.ui.lang==='en' ? 'Left blank, the journal CSV leaves that code empty.' : 'Jika kosong, CSV jurnal membiarkan kod itu kosong.'">Left blank, the journal CSV leaves that code empty.</p>
+                        </div></div>
+                    </div>
+                </div>
             </div>
 
-            <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
+            <div class="uj-cs-cf">
+                <span class="uj-cs-state"><i x-show="dirty" x-cloak></i><span x-text="dirty ? ($store.ui.lang==='en' ? 'Unsaved changes' : 'Perubahan belum disimpan') : ''"></span></span>
+                <button type="submit" class="uj-btn-primary uj-cs-save"><span x-text="$store.ui.lang==='en' ? 'Save changes' : 'Simpan perubahan'">Save changes</span></button>
+            </div>
         </form>
-    </div>
+    </section>
     @endif
 
-    <div style="{{ $only ? '' : 'flex:1;min-width:280px;display:flex;flex-direction:column;gap:16px;' }}">
+    @if (! $only || $only === 'statutory')
+    {{-- Statutory & tax: every KWSP, PERKESO, LHDN, HRD Corp and zakat file is keyed on
+         these numbers. Saved on its own so a profile save can't blank them. Shapes are
+         only warned about: older registrations don't all follow today's format. --}}
+    @php $sb = $errors->statutory; @endphp
+    <section id="statutory" class="uj-card uj-cs-sec"
+         x-data="{
+            tin: @js(old('employer_tin', $company->employer_tin) ?? ''),
+            epf: @js(old('epf_employer_no', $company->epf_employer_no) ?? ''),
+            socso: @js(old('socso_employer_code', $company->socso_employer_code) ?? ''),
+            dirty: false,
+            clean(v) { return (v || '').replace(/\s+/g, '').toUpperCase(); },
+            missing() {
+                const en = this.$store.ui.lang === 'en', m = [];
+                if (! this.clean(this.tin)) { m.push(en ? 'the E number' : 'nombor E') }
+                if (! this.clean(this.epf)) { m.push(en ? 'the KWSP number' : 'nombor KWSP') }
+                if (! this.clean(this.socso)) { m.push(en ? 'the PERKESO code' : 'kod PERKESO') }
+                return m;
+            },
+            readyText() {
+                const en = this.$store.ui.lang === 'en', m = this.missing();
+                if (! m.length) { return en ? 'Ready for payroll. All three required numbers are filled in.' : 'Sedia untuk gaji. Ketiga-tiga nombor wajib sudah diisi.' }
+                const list = m.length > 1 ? m.slice(0, -1).join(', ') + (en ? ' and ' : ' dan ') + m.at(-1) : m[0];
+                return en ? 'Payroll runs are blocked until ' + list + (m.length > 1 ? ' are' : ' is') + ' filled in.' : 'Run gaji disekat sehingga ' + list + ' diisi.';
+            },
+         }">
+        <div class="uj-cs-ch">
+            <div>
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Statutory & tax' : 'Berkanun & cukai'">Statutory &amp; tax</h3>
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers. Saved on its own, so a profile save never blanks them.' : 'Setiap fail KWSP, PERKESO, LHDN, HRD Corp dan zakat membawa nombor ini. Disimpan berasingan, jadi simpanan profil tidak mengosongkannya.'">Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers.</p>
+            </div>
+        </div>
+        <div class="uj-cs-ready" :data-ok="missing().length === 0 ? 'true' : 'false'" data-ok="{{ $statutoryReady ? 'true' : 'false' }}" role="status">
+            <svg x-show="missing().length === 0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+            <svg x-show="missing().length > 0" x-cloak width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg>
+            <span class="msg" x-text="readyText()"></span>
+            <span class="chips">
+                <span class="uj-stamp" :data-tone="clean(tin) ? 'success' : 'amber'" x-text="$store.ui.lang==='en' ? 'E number' : 'Nombor E'">E number</span>
+                <span class="uj-stamp" :data-tone="clean(epf) ? 'success' : 'amber'">KWSP</span>
+                <span class="uj-stamp" :data-tone="clean(socso) ? 'success' : 'amber'">PERKESO</span>
+            </span>
+        </div>
+        <form method="post" action="{{ route('admin.settings.statutory') }}" @input="dirty = true" @change="dirty = true">
+            @csrf
+            <div class="uj-cs-cb">
+                @if ($sb->any())<div class="uj-alert" data-tone="error"><span class="uj-alert-msg">{{ $sb->first() }}</span></div>@endif
 
-        @if (! $only || $only === 'statutory')
-        {{-- Statutory & tax: every KWSP, PERKESO, LHDN, HRD Corp and zakat file is keyed on
-             these numbers. Saved on its own so a profile save can't blank them. Shapes are
-             only warned about: older registrations don't all follow today's format. --}}
-        @php
-            $inp = 'width:100%;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;outline:none;';
-            $lab = 'display:block;font-size:13px;font-weight:500;color:var(--ink);margin:14px 0 6px;';
-            $blockHead = 'font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--hairline);';
-            $warn = 'font-size:12px;color:#9a6700;margin-top:4px;';
-            $sb = $errors->statutory;
-        @endphp
-        <div id="statutory" class="uj-card" style="padding:20px;"
-             x-data="{
-                tin: @js(old('employer_tin', $company->employer_tin) ?? ''),
-                epf: @js(old('epf_employer_no', $company->epf_employer_no) ?? ''),
-                socso: @js(old('socso_employer_code', $company->socso_employer_code) ?? ''),
-                clean(v) { return (v || '').replace(/\s+/g, '').toUpperCase(); },
-             }">
-            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Statutory & tax' : 'Berkanun & cukai'">Statutory &amp; tax</h3>
-            <p style="font-size:12.5px;color:var(--muted);margin:0 0 6px;" x-text="$store.ui.lang==='en' ? 'Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers. A payroll run can\'t be created while the KWSP number, PERKESO code or E number is blank.' : 'Setiap fail KWSP, PERKESO, LHDN, HRD Corp dan zakat membawa nombor ini. Run gaji tidak boleh dibuat selagi nombor KWSP, kod PERKESO atau nombor E kosong.'">Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers.</p>
-            <form method="post" action="{{ route('admin.settings.statutory') }}">
-                @csrf
-                @if ($sb->any())<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin:10px 0;">{{ $sb->first() }}</div>@endif
-
-                <div style="{{ $blockHead }}">LHDN</div>
-                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number (E)' : 'Nombor majikan (E)'">Employer number (E)</label>
-                <div style="display:flex;align-items:stretch;">
-                    <span style="display:flex;align-items:center;padding:0 12px;border:1px solid var(--hairline);border-right:0;border-radius:8px 0 0 8px;background:var(--canvas);font-family:var(--font-mono);font-size:14px;color:var(--muted);">E</span>
-                    <input name="employer_tin" x-model="tin" maxlength="20" style="{{ $inp }}border-radius:0 8px 8px 0;font-family:var(--font-mono);" />
+                <div class="uj-cs-agency">
+                    <div><h4>LHDN</h4><p x-text="$store.ui.lang==='en' ? 'Form E, CP21, CP22, PCB' : 'Borang E, CP21, CP22, PCB'">Form E, CP21, CP22, PCB</p></div>
+                    <div class="uj-cs-fg">
+                        <div class="uj-cs-full">
+                            <label class="uj-cs-lab" for="set-tin"><span x-text="$store.ui.lang==='en' ? 'Employer number (E)' : 'Nombor majikan (E)'">Employer number (E)</span> <span class="uj-cs-req" x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'">Required</span></label>
+                            <div class="uj-cs-pre">
+                                <span>E</span>
+                                <input id="set-tin" name="employer_tin" x-model="tin" maxlength="20" class="uj-cs-inp uj-ww-mono" />
+                            </div>
+                            <p x-show="clean(tin) && !/^E?\d{10}$/.test(clean(tin))" x-cloak class="uj-cs-warn" x-text="$store.ui.lang==='en' ? 'An E number is usually 10 digits. Check it against your LHDN letter.' : 'Nombor E biasanya 10 digit. Semak dengan surat LHDN anda.'"></p>
+                        </div>
+                        <div>
+                            <label class="uj-cs-lab" for="set-ecat"><span x-text="$store.ui.lang==='en' ? 'Employer category' : 'Kategori majikan'">Employer category</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Form E item 3' : 'Borang E item 3'">Form E item 3</span></label>
+                            <select id="set-ecat" name="employer_category" class="uj-cs-inp"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_CATEGORIES as $k => $v)<option value="{{ $k }}" @selected(old('employer_category', $company->employer_category) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select>
+                        </div>
+                        <div>
+                            <label class="uj-cs-lab" for="set-estatus"><span x-text="$store.ui.lang==='en' ? 'Employer status' : 'Status majikan'">Employer status</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Form E item 4' : 'Borang E item 4'">Form E item 4</span></label>
+                            <select id="set-estatus" name="employer_status" class="uj-cs-inp"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_STATUSES as $k => $v)<option value="{{ $k }}" @selected(old('employer_status', $company->employer_status) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select>
+                        </div>
+                    </div>
                 </div>
-                <div x-show="clean(tin) && !/^E?\d{10}$/.test(clean(tin))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'An E number is usually 10 digits. Check it against your LHDN letter.' : 'Nombor E biasanya 10 digit. Semak dengan surat LHDN anda.'"></div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer category (Form E item 3)' : 'Kategori majikan (Borang E item 3)'">Employer category (Form E item 3)</label>
-                        <select name="employer_category" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_CATEGORIES as $k => $v)<option value="{{ $k }}" @selected(old('employer_category', $company->employer_category) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer status (Form E item 4)' : 'Status majikan (Borang E item 4)'">Employer status (Form E item 4)</label>
-                        <select name="employer_status" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::EMPLOYER_STATUSES as $k => $v)<option value="{{ $k }}" @selected(old('employer_status', $company->employer_status) === $k)>{{ $k }} · {{ $v }}</option>@endforeach</select></div>
+
+                <div class="uj-cs-agency">
+                    <div><h4>KWSP</h4><p x-text="$store.ui.lang==='en' ? 'Monthly contribution file' : 'Fail caruman bulanan'">Monthly contribution file</p></div>
+                    <div>
+                        <label class="uj-cs-lab" for="set-epf"><span x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</span> <span class="uj-cs-req" x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'">Required</span></label>
+                        <input id="set-epf" name="epf_employer_no" x-model="epf" class="uj-cs-inp uj-cs-narrow uj-ww-mono" />
+                        <p x-show="clean(epf) && !/^\d{9}$/.test(clean(epf).replace(/-/g, ''))" x-cloak class="uj-cs-warn" x-text="$store.ui.lang==='en' ? 'A KWSP employer number is usually 9 digits.' : 'Nombor majikan KWSP biasanya 9 digit.'"></p>
+                    </div>
                 </div>
 
-                <div style="{{ $blockHead }}">KWSP</div>
-                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</label>
-                <input name="epf_employer_no" x-model="epf" style="{{ $inp }}font-family:var(--font-mono);" />
-                <div x-show="clean(epf) && !/^\d{9}$/.test(clean(epf).replace(/-/g, ''))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'A KWSP employer number is usually 9 digits.' : 'Nombor majikan KWSP biasanya 9 digit.'"></div>
-
-                <div style="{{ $blockHead }}">PERKESO</div>
-                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer code (SOCSO & EIS)' : 'Kod majikan (PERKESO & SIP)'">Employer code (SOCSO &amp; EIS)</label>
-                <input name="socso_employer_code" x-model="socso" placeholder="A3100000000Z" style="{{ $inp }}font-family:var(--font-mono);" />
-                <div x-show="clean(socso) && !/^[A-Z][A-Z0-9]{11}$/.test(clean(socso))" x-cloak style="{{ $warn }}" x-text="$store.ui.lang==='en' ? 'A PERKESO employer code is usually 12 characters starting with a letter.' : 'Kod majikan PERKESO biasanya 12 aksara bermula dengan huruf.'"></div>
+                <div class="uj-cs-agency">
+                    <div><h4>PERKESO</h4><p x-text="$store.ui.lang==='en' ? 'SOCSO and EIS' : 'PERKESO dan SIP'">SOCSO and EIS</p></div>
+                    <div>
+                        <label class="uj-cs-lab" for="set-socso"><span x-text="$store.ui.lang==='en' ? 'Employer code (SOCSO & EIS)' : 'Kod majikan (PERKESO & SIP)'">Employer code (SOCSO &amp; EIS)</span> <span class="uj-cs-req" x-text="$store.ui.lang==='en' ? 'Required' : 'Wajib'">Required</span></label>
+                        <input id="set-socso" name="socso_employer_code" x-model="socso" placeholder="A3100000000Z" class="uj-cs-inp uj-cs-narrow uj-ww-mono" />
+                        <p x-show="clean(socso) && !/^[A-Z][A-Z0-9]{11}$/.test(clean(socso))" x-cloak class="uj-cs-warn" x-text="$store.ui.lang==='en' ? 'A PERKESO employer code is usually 12 characters starting with a letter.' : 'Kod majikan PERKESO biasanya 12 aksara bermula dengan huruf.'"></p>
+                    </div>
+                </div>
 
                 @if ($hrdfOn)
-                    <div style="{{ $blockHead }}">HRD Corp</div>
-                    <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Registration number / MyCoID' : 'Nombor pendaftaran / MyCoID'">Registration number / MyCoID</label>
-                    <input name="hrdf_registration_no" value="{{ old('hrdf_registration_no', $company->hrdf_registration_no) }}" style="{{ $inp }}font-family:var(--font-mono);" />
+                    <div class="uj-cs-agency">
+                        <div><h4>HRD Corp</h4><p x-text="$store.ui.lang==='en' ? 'Training levy' : 'Levi latihan'">Training levy</p></div>
+                        <div>
+                            <label class="uj-cs-lab" for="set-hrdf" x-text="$store.ui.lang==='en' ? 'Registration number / MyCoID' : 'Nombor pendaftaran / MyCoID'">Registration number / MyCoID</label>
+                            <input id="set-hrdf" name="hrdf_registration_no" value="{{ old('hrdf_registration_no', $company->hrdf_registration_no) }}" class="uj-cs-inp uj-cs-narrow uj-ww-mono" />
+                        </div>
+                    </div>
                 @else
                     {{-- Kept so a save while the levy is off doesn't wipe a number entered earlier. --}}
                     <input type="hidden" name="hrdf_registration_no" value="{{ $company->hrdf_registration_no }}" />
                 @endif
 
-                <div style="{{ $blockHead }}">Zakat</div>
-                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</label>
-                <input name="zakat_employer_no" value="{{ old('zakat_employer_no', $company->zakat_employer_no) }}" style="{{ $inp }}font-family:var(--font-mono);" />
-
-                <div style="{{ $blockHead }}" x-text="$store.ui.lang==='en' ? 'Forms' : 'Borang'">Forms</div>
-                <label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Signatory' : 'Penandatangan'">Signatory</label>
-                <select name="statutory_signatory_employee_id" style="{{ $inp }}">
-                    <option value="">-</option>
-                    @foreach ($signatoryOptions as $person)
-                        <option value="{{ $person->id }}" @selected((string) old('statutory_signatory_employee_id', $company->statutory_signatory_employee_id) === (string) $person->id)>{{ $person->name }}{{ $person->position ? ' · '.$person->position : '' }}</option>
-                    @endforeach
-                </select>
-                @include('partials.hint', ['en' => 'Name and designation printed on CP21, CP22, CP22A and PCB II.', 'ms' => 'Nama dan jawatan yang dicetak pada CP21, CP22, CP22A dan PCB II.'])
-                <div style="margin-top:12px;padding:12px 14px;background:var(--canvas);border:1px solid var(--hairline-soft);border-radius:10px;font-size:13px;color:var(--ink);">
-                    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;" x-text="$store.ui.lang==='en' ? 'Employer address and phone on the forms' : 'Alamat dan telefon majikan pada borang'">Employer address and phone on the forms</div>
-                    <div style="margin-top:4px;">{{ $company->address ?: '-' }}</div>
-                    <div>{{ $company->contact_number ?: '-' }}</div>
-                    <a href="{{ route('app.screen', ['screen' => 'settings', 'section' => 'profile']) }}" style="display:inline-block;margin-top:6px;font-size:12.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Edit in Workspace profile' : 'Sunting di Profil workspace'">Edit in Workspace profile</a>
+                <div class="uj-cs-agency">
+                    <div><h4>Zakat</h4><p x-text="$store.ui.lang==='en' ? 'Salary deduction file' : 'Fail potongan gaji'">Salary deduction file</p></div>
+                    <div>
+                        <label class="uj-cs-lab" for="set-zakat"><span x-text="$store.ui.lang==='en' ? 'Employer number' : 'Nombor majikan'">Employer number</span> <span class="uj-cs-opt" x-text="$store.ui.lang==='en' ? 'Optional' : 'Pilihan'">Optional</span></label>
+                        <input id="set-zakat" name="zakat_employer_no" value="{{ old('zakat_employer_no', $company->zakat_employer_no) }}" class="uj-cs-inp uj-cs-narrow uj-ww-mono" />
+                    </div>
                 </div>
 
-                <div style="{{ $blockHead }}" x-text="$store.ui.lang==='en' ? 'Payment' : 'Pembayaran'">Payment</div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying bank' : 'Bank pembayar'">Paying bank</label>
-                        <select name="paying_bank_code" style="{{ $inp }}"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::BANK_CODES as $name => $code)<option value="{{ $code }}" @selected(old('paying_bank_code', $company->paying_bank_code) === $code)>{{ $name }}</option>@endforeach</select></div>
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Paying account number' : 'No. akaun pembayar'">Paying account number</label><input name="paying_bank_account_no" value="{{ old('paying_bank_account_no', $company->paying_bank_account_no) }}" style="{{ $inp }}" /></div>
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact name' : 'Nama pegawai gaji'">Payroll contact name</label><input name="payroll_contact_name" value="{{ old('payroll_contact_name', $company->payroll_contact_name) }}" style="{{ $inp }}" /></div>
-                    <div><label style="{{ $lab }}" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" style="{{ $inp }}" /></div>
+                <div class="uj-cs-agency">
+                    <div><h4 x-text="$store.ui.lang==='en' ? 'Forms' : 'Borang'">Forms</h4><p x-text="$store.ui.lang==='en' ? 'Who signs, and the address printed' : 'Siapa menandatangan, dan alamat yang dicetak'">Who signs, and the address printed</p></div>
+                    <div class="uj-cs-fg">
+                        <div class="uj-cs-full">
+                            <label class="uj-cs-lab" for="set-signatory" x-text="$store.ui.lang==='en' ? 'Signatory' : 'Penandatangan'">Signatory</label>
+                            <select id="set-signatory" name="statutory_signatory_employee_id" class="uj-cs-inp">
+                                <option value="">-</option>
+                                @foreach ($signatoryOptions as $person)
+                                    <option value="{{ $person->id }}" @selected((string) old('statutory_signatory_employee_id', $company->statutory_signatory_employee_id) === (string) $person->id)>{{ $person->name }}{{ $person->position ? ' · '.$person->position : '' }}</option>
+                                @endforeach
+                            </select>
+                            <p class="uj-cs-hint" x-text="$store.ui.lang==='en' ? 'Name and designation printed on CP21, CP22, CP22A and PCB II.' : 'Nama dan jawatan yang dicetak pada CP21, CP22, CP22A dan PCB II.'">Name and designation printed on CP21, CP22, CP22A and PCB II.</p>
+                        </div>
+                        <div class="uj-cs-full uj-cs-addr">
+                            <div>{{ $company->address ?: '-' }}</div>
+                            <div class="uj-ww-mono">{{ $company->contact_number ?: '-' }}</div>
+                            <a href="{{ $only ? route('app.screen', ['screen' => 'settings', 'section' => 'profile']) : '#profile' }}" x-text="$store.ui.lang==='en' ? 'Change in Workspace profile' : 'Tukar di Profil workspace'">Change in Workspace profile</a>
+                        </div>
+                    </div>
                 </div>
 
-                <button type="submit" class="uj-btn-primary" style="margin-top:18px;height:42px;padding:0 20px;font-size:13.5px;"><span x-text="$store.ui.lang==='en' ? 'Save statutory details' : 'Simpan butiran berkanun'">Save statutory details</span></button>
-            </form>
-        </div>
-        @endif
+                <div class="uj-cs-agency">
+                    <div><h4 x-text="$store.ui.lang==='en' ? 'Payment' : 'Pembayaran'">Payment</h4><p x-text="$store.ui.lang==='en' ? 'Bank file and payroll contact' : 'Fail bank dan pegawai gaji'">Bank file and payroll contact</p></div>
+                    <div class="uj-cs-fg">
+                        <div><label class="uj-cs-lab" for="set-bank" x-text="$store.ui.lang==='en' ? 'Paying bank' : 'Bank pembayar'">Paying bank</label>
+                            <select id="set-bank" name="paying_bank_code" class="uj-cs-inp"><option value="">-</option>@foreach (\App\Support\StatutoryOptions::BANK_CODES as $name => $code)<option value="{{ $code }}" @selected(old('paying_bank_code', $company->paying_bank_code) === $code)>{{ $name }}</option>@endforeach</select></div>
+                        <div><label class="uj-cs-lab" for="set-bankacc" x-text="$store.ui.lang==='en' ? 'Paying account number' : 'No. akaun pembayar'">Paying account number</label><input id="set-bankacc" name="paying_bank_account_no" value="{{ old('paying_bank_account_no', $company->paying_bank_account_no) }}" class="uj-cs-inp uj-ww-mono" /></div>
+                        <div><label class="uj-cs-lab" for="set-pcname" x-text="$store.ui.lang==='en' ? 'Payroll contact name' : 'Nama pegawai gaji'">Payroll contact name</label><input id="set-pcname" name="payroll_contact_name" value="{{ old('payroll_contact_name', $company->payroll_contact_name) }}" class="uj-cs-inp" /></div>
+                        <div><label class="uj-cs-lab" for="set-pcphone" x-text="$store.ui.lang==='en' ? 'Payroll contact phone' : 'Telefon pegawai gaji'">Payroll contact phone</label><input id="set-pcphone" type="tel" name="payroll_contact_phone" value="{{ old('payroll_contact_phone', $company->payroll_contact_phone) }}" class="uj-cs-inp" /></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="uj-cs-cf">
+                <span class="uj-cs-state"><i x-show="dirty" x-cloak></i><span x-text="dirty ? ($store.ui.lang==='en' ? 'Unsaved changes' : 'Perubahan belum disimpan') : ''"></span></span>
+                <button type="submit" class="uj-btn-primary uj-cs-save"><span x-text="$store.ui.lang==='en' ? 'Save statutory details' : 'Simpan butiran berkanun'">Save statutory details</span></button>
+            </div>
+        </form>
+    </section>
+    @endif
 
         @if (!empty($canManageFeatures) && (! $only || $only === 'work_week'))
         {{-- Work week: which ISO weekdays (1 = Mon .. 7 = Sun) are working days, read by
@@ -285,7 +492,7 @@
             }));
         });
         </script>
-        <div class="uj-card" style="padding:20px;"
+        <div id="work-week" class="uj-card uj-cs-sec" style="padding:20px;"
              x-data="workDayRules({ days: @js(\App\Support\WorkWeek::for()->workingDays()), rules: @js($wwRules), grace: {{ (int) $lateGraceMinutes }}, base: @js(route('admin.workdayrules.store')), old: @js($wwOld) })">
             <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Work week' : 'Minggu bekerja'">Work week</h3>
             <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.' : 'Hari mana dikira sebagai hari bekerja. Baki cuti, kapasiti timesheet dan laporan kehadiran semuanya mengikut ini.'">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p>
@@ -437,47 +644,65 @@
         </div>
         @endif
 
-        @if (!empty($canManageFeatures) && (! $only || $only === 'approvals'))
-        {{-- Approval shortcut: after this many days unverified, HR / a director may approve a
-             leave or claim request directly (RoutesApprovalsByReportingLine). Blank = off. --}}
-        <div class="uj-card" style="padding:20px;">
-            <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Approval shortcut' : 'Pintasan kelulusan'">Approval shortcut</h3>
-            <p style="font-size:13px;color:var(--muted);margin:0 0 14px;" x-text="$store.ui.lang==='en' ? 'When a manager has not verified a leave or claim request after this many days, HR or a director can approve it directly.' : 'Jika pengurus belum mengesahkan permohonan cuti atau tuntutan selepas bilangan hari ini, HR atau pengarah boleh meluluskannya terus.'">When a manager has not verified a leave or claim request after this many days, HR or a director can approve it directly.</p>
-
-            <form method="post" action="{{ route('admin.approval-escalation.update') }}">
-                @csrf
-                @error('approval_escalation_days')<div style="background:var(--red-tint);border:1px solid var(--red);color:var(--red);font-size:12.5px;border-radius:8px;padding:9px 12px;margin-bottom:12px;">{{ $message }}</div>@enderror
-                <label style="display:block;font-size:13px;font-weight:500;color:var(--ink);margin-bottom:6px;" for="approval_escalation_days" x-text="$store.ui.lang==='en' ? 'Days to wait' : 'Hari menunggu'">Days to wait</label>
-                <input id="approval_escalation_days" name="approval_escalation_days" type="number" min="1" max="60" value="{{ old('approval_escalation_days', $company->approval_escalation_days) }}" placeholder="3" style="width:110px;height:42px;padding:0 14px;border:1px solid var(--hairline);border-radius:8px;font-size:14px;margin-bottom:6px;outline:none;" />
-                @include('partials.hint', ['en' => 'Calendar days from when the request was sent. Leave blank to turn this off.', 'ms' => 'Hari kalendar dari masa permohonan dihantar. Biarkan kosong untuk mematikannya.'])
-
-                <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;margin-top:6px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
-            </form>
-        </div>
-        @endif
-
-        @if (! $only || $only === 'branches')
-        {{-- Branches: name + state CRUD. Geofence/hours live on the Attendance Setup screen. --}}
-        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Branches' : 'Cawangan'">Branches</h3>
-                @if ($canManageFeatures)
-                    <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
-                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
-                    </button>
-                @endif
+    @if (!empty($canManageFeatures) && (! $only || $only === 'approvals'))
+    {{-- Approval shortcut: after this many days unverified, HR / a director may approve a
+         leave or claim request directly (RoutesApprovalsByReportingLine). Blank = off, which
+         the switch submits as an empty value. --}}
+    @php $escDays = old('approval_escalation_days', $company->approval_escalation_days); @endphp
+    <section id="approvals" class="uj-card uj-cs-sec" x-data="{ on: @js(filled($escDays)), days: @js(filled($escDays) ? (string) $escDays : '3') }">
+        <form method="post" action="{{ route('admin.approval-escalation.update') }}">
+            @csrf
+            <div class="uj-cs-ch">
+                <div>
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Approval shortcut' : 'Pintasan kelulusan'">Approval shortcut</h3>
+                    <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'For leave and claim requests stuck with a manager who has not verified them.' : 'Untuk permohonan cuti dan tuntutan yang tersekat pada pengurus yang belum mengesahkannya.'">For leave and claim requests stuck with a manager who has not verified them.</p>
+                </div>
+                <label class="uj-switch"><input type="checkbox" x-model="on" :aria-label="$store.ui.lang==='en' ? 'Approval shortcut' : 'Pintasan kelulusan'"><i></i></label>
             </div>
-            @include('partials.coachmark', [
-                'key' => 'guide-branches',
-                'when' => "\$store.guide.current === 'branches'",
-                'anchor' => 'button.uj-btn-ghost',
-                'en' => ['title' => 'Add your first branch', 'body' => 'Click + Add, give the branch a name and address, then click Add branch. The map pin can wait; it comes up in the attendance step.'],
-                'ms' => ['title' => 'Tambah cawangan pertama anda', 'body' => 'Klik + Tambah, beri nama dan alamat cawangan, kemudian klik Tambah cawangan. Pin peta boleh ditunggu; ia muncul dalam langkah kehadiran.'],
-            ])
+            <div class="uj-cs-cb">
+                @error('approval_escalation_days')<div class="uj-alert" data-tone="error"><span class="uj-alert-msg">{{ $message }}</span></div>@enderror
+                <div class="uj-cs-sentence" :class="{ 'off': ! on }">
+                    <span x-text="$store.ui.lang==='en' ? 'When a request has waited' : 'Apabila permohonan sudah menunggu'">When a request has waited</span>
+                    <input id="approval_escalation_days" type="number" min="1" max="60" x-model="days" :name="on ? 'approval_escalation_days' : null" :disabled="! on" class="uj-cs-inp uj-ww-mono" :aria-label="$store.ui.lang==='en' ? 'Days to wait' : 'Hari menunggu'" />
+                    <span x-text="$store.ui.lang==='en' ? 'calendar days without a manager check, HR or a director can approve it directly.' : 'hari kalendar tanpa semakan pengurus, HR atau pengarah boleh meluluskannya terus.'">calendar days without a manager check, HR or a director can approve it directly.</span>
+                </div>
+                <template x-if="! on"><input type="hidden" name="approval_escalation_days" value=""></template>
+                <p class="uj-cs-hint" x-text="on ? ($store.ui.lang==='en' ? 'Counted from when the request was sent.' : 'Dikira dari masa permohonan dihantar.') : ($store.ui.lang==='en' ? 'Off. Every request waits for its manager first.' : 'Dimatikan. Setiap permohonan menunggu pengurusnya dahulu.')"></p>
+            </div>
+            <div class="uj-cs-cf">
+                <span></span>
+                <button type="submit" class="uj-btn-primary uj-cs-save"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
+            </div>
+        </form>
+    </section>
+    @endif
 
+    @if (! $only || $only === 'branches')
+    {{-- Branches: name + state CRUD, plus the geofence and hours the attendance clock checks. --}}
+    <section id="branches" class="uj-card uj-cs-sec" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+        <div class="uj-cs-ch">
+            <div>
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Branches' : 'Cawangan'">Branches</h3>
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Each branch carries its own clock-in geofence and working hours.' : 'Setiap cawangan ada geofence daftar masuk dan waktu bekerjanya sendiri.'">Each branch carries its own clock-in geofence and working hours.</p>
+            </div>
+            @if ($canManageFeatures)
+                <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost uj-cs-add-btn">
+                    <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                </button>
+            @endif
+        </div>
+        @include('partials.coachmark', [
+            'key' => 'guide-branches',
+            'when' => "\$store.guide.current === 'branches'",
+            'anchor' => 'button.uj-btn-ghost',
+            'en' => ['title' => 'Add your first branch', 'body' => 'Click + Add, give the branch a name and address, then click Add branch. The map pin can wait; it comes up in the attendance step.'],
+            'ms' => ['title' => 'Tambah cawangan pertama anda', 'body' => 'Klik + Tambah, beri nama dan alamat cawangan, kemudian klik Tambah cawangan. Pin peta boleh ditunggu; ia muncul dalam langkah kehadiran.'],
+        ])
+
+        <div class="uj-cs-cb">
             @if ($canManageFeatures)
                 @php $bfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
-                <form x-show="adding" x-cloak method="post" action="{{ route('admin.branches.store') }}" style="margin-bottom:14px;">
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.branches.store') }}" class="uj-cs-panel">
                     @csrf
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">
                         <input name="name" required :placeholder="$store.ui.lang==='en'?'Branch name *':'Nama cawangan *'" style="{{ $bfs }}" />
@@ -494,7 +719,7 @@
                     <div style="display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:8px;">
                         <input id="lat-newbranch" name="latitude" placeholder="Latitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
                         <input id="lng-newbranch" name="longitude" placeholder="Longitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
-                        <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-newbranch', lngId: 'lng-newbranch', title: 'New branch' } }))" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
+                        <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-newbranch', lngId: 'lng-newbranch', title: 'New branch' } }))" class="uj-btn-ghost uj-cs-map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg><span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
                         <input name="radius_m" type="number" min="20" max="5000" value="200" placeholder="Radius (m)" style="{{ $bfs }}width:96px;font-family:var(--font-mono);" />
                         <input name="work_start" type="time" style="{{ $bfs }}width:118px;" />
                         <input name="work_end" type="time" style="{{ $bfs }}width:118px;" />
@@ -504,20 +729,28 @@
                 </form>
             @endif
 
+            <div class="uj-cs-list">
             @forelse ($branches as $b)
-                <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
-                    <div @if ($canManageFeatures) x-show="editId !== {{ $b->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                        <span style="font-size:13px;color:var(--ink);">{{ $b->name }}@if ($b->type || $b->code)<span style="color:var(--muted);font-size:11.5px;"> · {{ $b->type ?: 'Branch' }}@if ($b->code) ({{ $b->code }})@endif</span>@endif</span>
-                        <div style="display:flex;align-items:center;gap:12px;">
-                            <span style="font-size:12px;color:var(--muted);">{{ $b->state }}</span>
-                            @if ($canManageFeatures)
-                                <button type="button" @click="editId={{ $b->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
-                                <button type="submit" form="del-branch-{{ $b->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
-                            @endif
-                        </div>
+                <div class="uj-cs-item">
+                    <div @if ($canManageFeatures) x-show="editId !== {{ $b->id }}" @endif class="uj-cs-row">
+                        <span class="uj-cs-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></span>
+                        <span class="uj-cs-nm">{{ $b->name }}
+                            <small>{{ collect([$b->state, $b->type ? $b->type.($b->code ? ' ('.$b->code.')' : '') : ($b->code ?: null)])->filter()->implode(' · ') }}@if ($b->work_start && $b->work_end)<span class="uj-ww-mono"> · {{ substr($b->work_start, 0, 5) }}–{{ substr($b->work_end, 0, 5) }}</span>@endif</small>
+                        </span>
+                        @if (filled($b->latitude) && filled($b->longitude))
+                            <span class="uj-stamp" data-tone="success">Geofence {{ $b->radius_m ?? 200 }} m</span>
+                        @else
+                            <span class="uj-stamp" data-tone="amber" x-text="$store.ui.lang==='en' ? 'No geofence' : 'Tiada geofence'">No geofence</span>
+                        @endif
+                        @if ($canManageFeatures)
+                            <span class="uj-cs-acts">
+                                <button type="button" class="uj-ww-ico" @click="editId={{ $b->id }};adding=false" :aria-label="$store.ui.lang==='en' ? 'Edit {{ e(addslashes($b->name)) }}' : 'Sunting {{ e(addslashes($b->name)) }}'">{!! $editIcon !!}</button>
+                                <button type="submit" form="del-branch-{{ $b->id }}" class="uj-ww-ico uj-cs-del" :aria-label="$store.ui.lang==='en' ? 'Delete {{ e(addslashes($b->name)) }}' : 'Padam {{ e(addslashes($b->name)) }}'">{!! $deleteIcon !!}</button>
+                            </span>
+                        @endif
                     </div>
                     @if ($canManageFeatures)
-                        <form x-show="editId === {{ $b->id }}" x-cloak method="post" action="{{ route('admin.branches.update', $b) }}">
+                        <form x-show="editId === {{ $b->id }}" x-cloak method="post" action="{{ route('admin.branches.update', $b) }}" class="uj-cs-panel">
                             @csrf
                             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;">
                                 <input name="name" value="{{ $b->name }}" required style="{{ $bfs }}" />
@@ -534,22 +767,23 @@
                             <div style="display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:8px;">
                                 <input id="lat-branch-{{ $b->id }}" name="latitude" value="{{ $b->latitude }}" placeholder="Latitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
                                 <input id="lng-branch-{{ $b->id }}" name="longitude" value="{{ $b->longitude }}" placeholder="Longitude" style="{{ $bfs }}width:120px;font-family:var(--font-mono);" />
-                                <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-branch-{{ $b->id }}', lngId: 'lng-branch-{{ $b->id }}', title: @js($b->name) } }))" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;white-space:nowrap;">📍 <span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
+                                <button type="button" x-data @click="window.dispatchEvent(new CustomEvent('open-map-picker', { detail: { latId: 'lat-branch-{{ $b->id }}', lngId: 'lng-branch-{{ $b->id }}', title: @js($b->name) } }))" class="uj-btn-ghost uj-cs-map"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg><span x-text="$store.ui.lang==='en'?'Map':'Peta'">Map</span></button>
                                 <input name="radius_m" type="number" min="20" max="5000" value="{{ $b->radius_m ?? 200 }}" placeholder="Radius (m)" style="{{ $bfs }}width:96px;font-family:var(--font-mono);" />
                                 <input name="work_start" type="time" value="{{ $b->work_start ? substr($b->work_start, 0, 5) : '' }}" style="{{ $bfs }}width:118px;" />
                                 <input name="work_end" type="time" value="{{ $b->work_end ? substr($b->work_end, 0, 5) : '' }}" style="{{ $bfs }}width:118px;" />
                                 <input name="min_hours" type="number" step="0.5" min="0" max="24" value="{{ $b->min_hours }}" placeholder="Min hrs" style="{{ $bfs }}width:88px;font-family:var(--font-mono);" />
                             </div>
-                            <div style="display:flex;gap:8px;margin-top:8px;">
+                            <div class="uj-cs-panel-acts">
                                 <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
-                                <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                                <button type="button" @click="editId=null" class="uj-cs-cancel" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                             </div>
                         </form>
                     @endif
                 </div>
             @empty
-                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No branches yet.':'Tiada cawangan lagi.'">No branches yet.</p>
+                <p class="uj-cs-empty" x-text="$store.ui.lang==='en'?'No branches yet.':'Tiada cawangan lagi.'">No branches yet.</p>
             @endforelse
+            </div>
 
             @if ($canManageFeatures)
                 @foreach ($branches as $b)
@@ -561,59 +795,70 @@
         @if ($canManageFeatures)
             @include('partials.map-picker')
         @endif
-        @endif
+    </section>
+    @endif
 
-        @if (! $only || $only === 'departments')
-        {{-- Departments: name CRUD. employees_count is shown for context; delete is blocked while in use. --}}
-        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    @if (! $only || in_array($only, ['departments', 'staff-levels'], true))
+    <div class="{{ $only ? '' : 'uj-cs-duo' }}">
+    @if (! $only || $only === 'departments')
+    {{-- Departments: name CRUD. employees_count is shown for context; delete is blocked while in use. --}}
+    <section id="departments" class="uj-card uj-cs-sec" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+        <div class="uj-cs-ch">
+            <div>
                 <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Departments' : 'Jabatan'">Departments</h3>
-                @if ($canManageFeatures)
-                    <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
-                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
-                    </button>
-                @endif
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Staff are grouped under these.' : 'Staf dikumpulkan di bawah ini.'">Staff are grouped under these.</p>
             </div>
-            @include('partials.coachmark', [
-                'key' => 'guide-departments',
-                'when' => "\$store.guide.current === 'departments'",
-                'anchor' => 'button.uj-btn-ghost',
-                'en' => ['title' => 'Add a department', 'body' => 'Click + Add, type the department name and click Add. One is enough to start; staff are grouped under these.'],
-                'ms' => ['title' => 'Tambah jabatan', 'body' => 'Klik + Tambah, taip nama jabatan dan klik Tambah. Satu sudah cukup untuk mula; staf dikumpulkan di bawah ini.'],
-            ])
-
             @if ($canManageFeatures)
-                <form x-show="adding" x-cloak method="post" action="{{ route('admin.departments.store') }}" style="display:flex;gap:8px;margin-bottom:14px;">
+                <button type="button" @click="adding=!adding;editId=null" class="uj-btn-ghost uj-cs-add-btn">
+                    <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                </button>
+            @endif
+        </div>
+        @include('partials.coachmark', [
+            'key' => 'guide-departments',
+            'when' => "\$store.guide.current === 'departments'",
+            'anchor' => 'button.uj-btn-ghost',
+            'en' => ['title' => 'Add a department', 'body' => 'Click + Add, type the department name and click Add. One is enough to start; staff are grouped under these.'],
+            'ms' => ['title' => 'Tambah jabatan', 'body' => 'Klik + Tambah, taip nama jabatan dan klik Tambah. Satu sudah cukup untuk mula; staf dikumpulkan di bawah ini.'],
+        ])
+
+        <div class="uj-cs-cb">
+            @if ($canManageFeatures)
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.departments.store') }}" class="uj-cs-panel uj-cs-inline">
                     @csrf
-                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Department name':'Nama jabatan'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
+                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Department name':'Nama jabatan'" class="uj-cs-inp" style="flex:1;" />
+                    <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
             @endif
 
+            <div class="uj-cs-list">
             @forelse ($departments as $d)
-                <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
-                    <div @if ($canManageFeatures) x-show="editId !== {{ $d->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                        <span style="font-size:13px;color:var(--ink);">{{ $d->name }}</span>
-                        <div style="display:flex;align-items:center;gap:12px;">
-                            <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);" title="{{ $d->employees_count }} {{ __('employees') }}">{{ $d->employees_count }}</span>
-                            @if ($canManageFeatures)
-                                <button type="button" @click="editId={{ $d->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
-                                <button type="submit" form="del-dept-{{ $d->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
-                            @endif
-                        </div>
+                <div class="uj-cs-item">
+                    <div @if ($canManageFeatures) x-show="editId !== {{ $d->id }}" @endif class="uj-cs-row">
+                        <span class="uj-cs-nm">{{ $d->name }}</span>
+                        <span class="uj-cs-num" title="{{ $d->employees_count }} {{ __('employees') }}">{{ $d->employees_count }}</span>
+                        @if ($canManageFeatures)
+                            <span class="uj-cs-acts">
+                                <button type="button" class="uj-ww-ico" @click="editId={{ $d->id }};adding=false" :aria-label="$store.ui.lang==='en' ? 'Edit {{ e(addslashes($d->name)) }}' : 'Sunting {{ e(addslashes($d->name)) }}'">{!! $editIcon !!}</button>
+                                <button type="submit" form="del-dept-{{ $d->id }}" class="uj-ww-ico uj-cs-del" @disabled($d->employees_count > 0)
+                                        @if ($d->employees_count > 0) :title="$store.ui.lang==='en' ? 'Move its staff to another department first' : 'Pindahkan stafnya ke jabatan lain dahulu'" @endif
+                                        :aria-label="$store.ui.lang==='en' ? 'Delete {{ e(addslashes($d->name)) }}' : 'Padam {{ e(addslashes($d->name)) }}'">{!! $deleteIcon !!}</button>
+                            </span>
+                        @endif
                     </div>
                     @if ($canManageFeatures)
-                        <form x-show="editId === {{ $d->id }}" x-cloak method="post" action="{{ route('admin.departments.update', $d) }}" style="display:flex;gap:8px;align-items:center;">
+                        <form x-show="editId === {{ $d->id }}" x-cloak method="post" action="{{ route('admin.departments.update', $d) }}" class="uj-cs-panel uj-cs-inline">
                             @csrf
-                            <input name="name" value="{{ $d->name }}" required style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
-                            <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                            <input name="name" value="{{ $d->name }}" required class="uj-cs-inp" style="flex:1;" />
+                            <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
+                            <button type="button" @click="editId=null" class="uj-cs-cancel" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>
                     @endif
                 </div>
             @empty
-                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No departments yet.':'Tiada jabatan lagi.'">No departments yet.</p>
+                <p class="uj-cs-empty" x-text="$store.ui.lang==='en'?'No departments yet.':'Tiada jabatan lagi.'">No departments yet.</p>
             @endforelse
+            </div>
 
             @if ($canManageFeatures)
                 @foreach ($departments as $d)
@@ -621,277 +866,315 @@
                 @endforeach
             @endif
         </div>
-        @endif
+    </section>
+    @endif
 
-        @if (! $only || $only === 'staff-levels')
-        {{-- Staff levels (grades): name + optional code. Blocked from delete while in use. --}}
-        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    @if (! $only || $only === 'staff-levels')
+    {{-- Staff levels (grades): name + optional code, ordered by rank. Blocked from delete while in use. --}}
+    <section id="staff-levels" class="uj-card uj-cs-sec" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+        <div class="uj-cs-ch">
+            <div>
                 <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Staff levels' : 'Tahap staf'">Staff levels</h3>
-                @if ($canManageFeatures)
-                    <button type="button" @click="adding=!adding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
-                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
-                    </button>
-                @endif
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Ordered by seniority, 1 first.' : 'Disusun mengikut kekananan, 1 dahulu.'">Ordered by seniority, 1 first.</p>
             </div>
             @if ($canManageFeatures)
-                <form x-show="adding" x-cloak method="post" action="{{ route('admin.staff-levels.store') }}" style="display:flex;gap:8px;margin-bottom:14px;">
-                    @csrf
-                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Level (e.g. L3)':'Tahap (cth. L3)'" style="flex:2;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <input name="rank" type="number" min="0" max="65535" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
-                </form>
-                <p x-show="adding" x-cloak style="font-size:11.5px;color:var(--muted);margin:-8px 0 14px;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
+                <button type="button" @click="adding=!adding" class="uj-btn-ghost uj-cs-add-btn">
+                    <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                </button>
             @endif
+        </div>
+        <div class="uj-cs-cb">
+            @if ($canManageFeatures)
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.staff-levels.store') }}" class="uj-cs-panel uj-cs-inline">
+                    @csrf
+                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Level (e.g. L3)':'Tahap (cth. L3)'" class="uj-cs-inp" style="flex:2;" />
+                    <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" class="uj-cs-inp" style="flex:1;" />
+                    <input name="rank" type="number" min="0" max="65535" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" class="uj-cs-inp" style="flex:1.4;" />
+                    <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
+                </form>
+                <p x-show="adding" x-cloak class="uj-cs-hint" style="margin:-4px 0 12px;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
+            @endif
+            <div class="uj-cs-list">
             @forelse ($staffLevels as $lv)
-                <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
-                    <div @if ($canManageFeatures) x-show="editId !== {{ $lv->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                        <span style="font-size:13px;color:var(--ink);">{{ $lv->name }}@if ($lv->code)<span style="color:var(--muted);font-size:12px;"> · {{ $lv->code }}</span>@endif</span>
+                <div class="uj-cs-item">
+                    <div @if ($canManageFeatures) x-show="editId !== {{ $lv->id }}" @endif class="uj-cs-row">
+                        <span class="uj-cs-rank uj-ww-mono" title="{{ __('Seniority') }}">{{ $lv->rank ?? '–' }}</span>
+                        <span class="uj-cs-nm">{{ $lv->name }}@if ($lv->code)<small class="uj-ww-mono">{{ $lv->code }}</small>@endif</span>
                         @if ($canManageFeatures)
-                            <div style="display:flex;align-items:center;gap:12px;">
-                                <button type="button" @click="editId={{ $lv->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
-                                <button type="submit" form="del-lv-{{ $lv->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
-                            </div>
+                            <span class="uj-cs-acts">
+                                <button type="button" class="uj-ww-ico" @click="editId={{ $lv->id }};adding=false" :aria-label="$store.ui.lang==='en' ? 'Edit {{ e(addslashes($lv->name)) }}' : 'Sunting {{ e(addslashes($lv->name)) }}'">{!! $editIcon !!}</button>
+                                <button type="submit" form="del-lv-{{ $lv->id }}" class="uj-ww-ico uj-cs-del" :aria-label="$store.ui.lang==='en' ? 'Delete {{ e(addslashes($lv->name)) }}' : 'Padam {{ e(addslashes($lv->name)) }}'">{!! $deleteIcon !!}</button>
+                            </span>
                         @endif
                     </div>
                     @if ($canManageFeatures)
-                        <form x-show="editId === {{ $lv->id }}" x-cloak method="post" action="{{ route('admin.staff-levels.update', $lv) }}" style="display:flex;gap:8px;align-items:center;">
+                        <form x-show="editId === {{ $lv->id }}" x-cloak method="post" action="{{ route('admin.staff-levels.update', $lv) }}" class="uj-cs-panel uj-cs-inline">
                             @csrf
-                            <input name="name" value="{{ $lv->name }}" required style="flex:2;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <input name="code" value="{{ $lv->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <input name="rank" type="number" min="0" max="65535" value="{{ $lv->rank }}" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
-                            <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                            <input name="name" value="{{ $lv->name }}" required class="uj-cs-inp" style="flex:2;" />
+                            <input name="code" value="{{ $lv->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" class="uj-cs-inp" style="flex:1;" />
+                            <input name="rank" type="number" min="0" max="65535" value="{{ $lv->rank }}" :placeholder="$store.ui.lang==='en'?'Seniority (1=most senior)':'Kekananan (1=paling kanan)'" class="uj-cs-inp" style="flex:1.4;" />
+                            <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
+                            <button type="button" @click="editId=null" class="uj-cs-cancel" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>
-                        <p x-show="editId === {{ $lv->id }}" x-cloak style="font-size:11.5px;color:var(--muted);margin:6px 0 0;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
+                        <p x-show="editId === {{ $lv->id }}" x-cloak class="uj-cs-hint" style="margin:-4px 0 8px;" x-text="$store.ui.lang==='en'?'A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.':'Nombor lebih kecil bermaksud lebih kanan. Staf boleh membuka profil penuh sesiapa di tahap yang lebih rendah.'">A smaller number means more senior. Staff can open the full profile of anyone on a more junior level.</p>
                     @endif
                 </div>
             @empty
-                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No staff levels yet.':'Tiada tahap staf lagi.'">No staff levels yet.</p>
+                <p class="uj-cs-empty" x-text="$store.ui.lang==='en'?'No staff levels yet.':'Tiada tahap staf lagi.'">No staff levels yet.</p>
             @endforelse
+            </div>
             @if ($canManageFeatures)
                 @foreach ($staffLevels as $lv)
                     <form id="del-lv-{{ $lv->id }}" method="post" action="{{ route('admin.staff-levels.delete', $lv) }}" onsubmit="return confirm('Delete {{ addslashes($lv->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
-        @endif
+    </section>
+    @endif
+    </div>
+    @endif
 
-        @if (! $only || $only === 'employment-types')
-        {{-- Employment types: Full-time, Contract, Part-time, etc. --}}
-        <div class="uj-card" style="padding:20px;" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    @if (! $only || $only === 'employment-types')
+    {{-- Employment types: Full-time, Contract, Part-time, etc. No clock-in types skip reminders and late/absent. --}}
+    <section id="employment-types" class="uj-card uj-cs-sec" @if ($canManageFeatures) x-data="{ adding:false, editId:null }" @endif>
+        <div class="uj-cs-ch">
+            <div>
                 <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Employment types' : 'Jenis pekerjaan'">Employment types</h3>
-                @if ($canManageFeatures)
-                    <button type="button" @click="adding=!adding" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12.5px;">
-                        <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
-                    </button>
-                @endif
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Permanent, contract, intern and so on.' : 'Tetap, kontrak, pelatih dan sebagainya.'">Permanent, contract, intern and so on.</p>
             </div>
             @if ($canManageFeatures)
-                <form x-show="adding" x-cloak method="post" action="{{ route('admin.employment-types.store') }}" style="display:flex;gap:8px;margin-bottom:14px;">
+                <button type="button" @click="adding=!adding" class="uj-btn-ghost uj-cs-add-btn">
+                    <span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en'?'+ Add':'+ Tambah')">+ Add</span>
+                </button>
+            @endif
+        </div>
+        <div class="uj-cs-cb">
+            @if ($canManageFeatures)
+                <form x-show="adding" x-cloak method="post" action="{{ route('admin.employment-types.store') }}" class="uj-cs-panel uj-cs-inline">
                     @csrf
-                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Type (e.g. Full-time)':'Jenis (cth. Sepenuh masa)'" style="flex:2;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);flex-shrink:0;" :title="$store.ui.lang==='en'?'Staff on this type keep their own hours: no clock-in reminders, never late or absent':'Staf jenis ini ikut masa sendiri: tiada peringatan, tidak dikira lewat atau tidak hadir'"><input type="checkbox" name="clock_exempt" value="1" /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
-                    <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
+                    <input name="name" required :placeholder="$store.ui.lang==='en'?'Type (e.g. Full-time)':'Jenis (cth. Sepenuh masa)'" class="uj-cs-inp" style="flex:2;" />
+                    <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" class="uj-cs-inp" style="flex:1;" />
+                    <label class="uj-cs-check" :title="$store.ui.lang==='en'?'Staff on this type keep their own hours: no clock-in reminders, never late or absent':'Staf jenis ini ikut masa sendiri: tiada peringatan, tidak dikira lewat atau tidak hadir'"><input type="checkbox" name="clock_exempt" value="1" /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
+                    <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
             @endif
+            <div class="uj-cs-list">
             @forelse ($employmentTypes as $et)
-                <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
-                    <div @if ($canManageFeatures) x-show="editId !== {{ $et->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                        <span style="font-size:13px;color:var(--ink);">{{ $et->name }}@if ($et->code)<span style="color:var(--muted);font-size:12px;"> · {{ $et->code }}</span>@endif @if ($et->clock_exempt)<span style="color:var(--muted);font-size:12px;" x-text="$store.ui.lang==='en'?'· no clock-in':'· tiada clock-in'">· no clock-in</span>@endif</span>
+                <div class="uj-cs-item">
+                    <div @if ($canManageFeatures) x-show="editId !== {{ $et->id }}" @endif class="uj-cs-row">
+                        <span class="uj-cs-nm">{{ $et->name }}@if ($et->code)<small class="uj-ww-mono">{{ $et->code }}</small>@endif</span>
+                        @if ($et->clock_exempt)<span class="uj-stamp" :title="$store.ui.lang==='en'?'No clock-in reminders, never late or absent':'Tiada peringatan, tidak dikira lewat atau tidak hadir'" x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span>@endif
                         @if ($canManageFeatures)
-                            <div style="display:flex;align-items:center;gap:12px;">
-                                <button type="button" @click="editId={{ $et->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
-                                <button type="submit" form="del-et-{{ $et->id }}" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Delete':'Padam'">Delete</button>
-                            </div>
+                            <span class="uj-cs-acts">
+                                <button type="button" class="uj-ww-ico" @click="editId={{ $et->id }};adding=false" :aria-label="$store.ui.lang==='en' ? 'Edit {{ e(addslashes($et->name)) }}' : 'Sunting {{ e(addslashes($et->name)) }}'">{!! $editIcon !!}</button>
+                                <button type="submit" form="del-et-{{ $et->id }}" class="uj-ww-ico uj-cs-del" :aria-label="$store.ui.lang==='en' ? 'Delete {{ e(addslashes($et->name)) }}' : 'Padam {{ e(addslashes($et->name)) }}'">{!! $deleteIcon !!}</button>
+                            </span>
                         @endif
                     </div>
                     @if ($canManageFeatures)
-                        <form x-show="editId === {{ $et->id }}" x-cloak method="post" action="{{ route('admin.employment-types.update', $et) }}" style="display:flex;gap:8px;align-items:center;">
+                        <form x-show="editId === {{ $et->id }}" x-cloak method="post" action="{{ route('admin.employment-types.update', $et) }}" class="uj-cs-panel uj-cs-inline">
                             @csrf
-                            <input name="name" value="{{ $et->name }}" required style="flex:2;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <input name="code" value="{{ $et->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
-                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);flex-shrink:0;"><input type="checkbox" name="clock_exempt" value="1" @checked($et->clock_exempt) /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
-                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
-                            <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
+                            <input name="name" value="{{ $et->name }}" required class="uj-cs-inp" style="flex:2;" />
+                            <input name="code" value="{{ $et->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" class="uj-cs-inp" style="flex:1;" />
+                            <label class="uj-cs-check"><input type="checkbox" name="clock_exempt" value="1" @checked($et->clock_exempt) /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
+                            <button type="submit" class="uj-btn-primary uj-cs-inline-btn"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
+                            <button type="button" @click="editId=null" class="uj-cs-cancel" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>
                     @endif
                 </div>
             @empty
-                <p style="font-size:12.5px;color:var(--muted);margin:4px 0 0;" x-text="$store.ui.lang==='en'?'No employment types yet.':'Tiada jenis pekerjaan lagi.'">No employment types yet.</p>
+                <p class="uj-cs-empty" x-text="$store.ui.lang==='en'?'No employment types yet.':'Tiada jenis pekerjaan lagi.'">No employment types yet.</p>
             @endforelse
+            </div>
             @if ($canManageFeatures)
                 @foreach ($employmentTypes as $et)
                     <form id="del-et-{{ $et->id }}" method="post" action="{{ route('admin.employment-types.delete', $et) }}" onsubmit="return confirm('Delete {{ addslashes($et->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
-        @endif
+    </section>
+    @endif
 
-        @if (! $only || $only === 'greetings')
-        {{-- CR-33: rotating dashboard greeting bank. HR approves/edits/deletes; any
-             employee can suggest a line from the dashboard picker. --}}
-        @include('partials.line-bank', [
-            'title_en' => 'Dashboard greetings', 'title_ms' => 'Ucapan papan pemuka',
-            'hint_en' => 'These lines rotate on everyone\'s dashboard greeting. Use {name} where the person\'s first name should go.',
-            'hint_ms' => 'Baris ini berputar pada ucapan papan pemuka semua orang. Guna {name} di tempat nama pertama orang itu patut muncul.',
-            'empty_en' => 'No greeting lines yet.', 'empty_ms' => 'Tiada ucapan lagi.',
-            'field' => 'trigger', 'routes' => 'admin.greetings',
-            'lines' => $greetingLines, 'pending' => $greetingPending, 'categories' => $greetingTriggers,
-            'buckets' => ['personal' => ['Personal', 'Peribadi'], 'situation' => ['Situation', 'Situasi'], 'day' => ['Day', 'Hari'], 'time' => ['Time', 'Masa']],
-            'defaultBucket' => 'situation', 'canManage' => $canManageFeatures,
-        ])
-        @endif
 
-        @if (! $only || $only === 'eggs')
-        {{-- CR-31: dashboard/board easter-egg bank, same card as the greetings above. --}}
-        @php
-            $eggKindLabels = [
-                'friday_late' => ['Friday after 5', 'Jumaat selepas 5'], 'inbox_zero' => ['Inbox zero', 'Inbox kosong'],
-                'late_night' => ['Late night', 'Lewat malam'], 'tab_collector' => ['Tab collector', 'Pengumpul tab'], 'holiday_eve' => ['Holiday eve', 'Malam cuti'],
-            ];
-        @endphp
-        @include('partials.line-bank', [
-            'title_en' => 'Dashboard easter eggs', 'title_ms' => 'Telur Paskah papan pemuka',
-            'hint_en' => 'Small surprises shown on the dashboard or board, at most once a day per person. Never blocks anything.',
-            'hint_ms' => 'Kejutan kecil yang dipapar pada papan pemuka atau board, paling banyak sekali sehari bagi setiap orang. Tidak menyekat apa-apa.',
-            'empty_en' => 'No easter eggs yet.', 'empty_ms' => 'Tiada telur Paskah lagi.',
-            'field' => 'kind', 'routes' => 'admin.eggs', 'lines' => $easterEggs,
-            'categories' => collect($easterEggKinds)->mapWithKeys(fn ($k) => [$k => ['label_en' => $eggKindLabels[$k][0] ?? $k, 'label_ms' => $eggKindLabels[$k][1] ?? $k]])->all(),
-            'canManage' => $canManageFeatures,
-        ])
-        @endif
-
-        @if (!empty($canManageFeatures) && (! $only || $only === 'reactions'))
-        {{-- CR-30: the tenant's reaction set. Add or retire, never rename, ten active at most. --}}
-        @php $reactionSet = \App\Models\Reaction::set(); $activeReactions = $reactionSet->whereNull('retired_at')->count(); @endphp
-        <div class="uj-card" style="padding:20px;" x-data="{ adding:false }">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Reactions' : 'Reaksi'">Reactions</h3>
-                @if ($activeReactions < \App\Models\Reaction::MAX_ACTIVE)
-                    <button type="button" @click="adding=!adding" style="font-size:12.5px;color:var(--red);" x-text="$store.ui.lang==='en' ? '+ Add reaction' : '+ Tambah reaksi'">+ Add reaction</button>
-                @endif
+    @if (!empty($canManageFeatures) && (! $only || $only === 'features'))
+    <section id="features" class="uj-card uj-cs-sec">
+        <form method="post" action="{{ route('admin.features.update') }}">
+            @csrf
+            <input type="hidden" name="features_present" value="1">
+            <div class="uj-cs-ch">
+                <div>
+                    <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Features' : 'Ciri'">Features</h3>
+                    <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Turn modules on or off for this company and tune how they behave. Locked ones are set by the platform team.' : 'Hidup atau matikan modul untuk syarikat ini dan laras tingkah lakunya. Yang dikunci ditetapkan oleh pasukan platform.'">Turn modules on or off for this company and tune how they behave. Locked ones are set by the platform team.</p>
+                </div>
             </div>
-            <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">
-                <span x-show="$store.ui.lang==='en'">Up to ten active. Retiring one keeps it on the items it was already given; nothing is ever renamed. {{ $activeReactions }} of {{ \App\Models\Reaction::MAX_ACTIVE }} active.</span>
-                <span x-show="$store.ui.lang!=='en'" x-cloak>Sehingga sepuluh aktif. Reaksi yang dibersarakan kekal pada item lama; tiada yang dinamakan semula. {{ $activeReactions }} daripada {{ \App\Models\Reaction::MAX_ACTIVE }} aktif.</span>
-            </p>
+            <div class="uj-cs-cb">
+                @include('partials.hint', ['en' => 'Disabling a module hides it from the menu for everyone and blocks its screens. Locked features are controlled centrally by the platform team.', 'ms' => 'Mematikan modul akan menyembunyikannya dari menu untuk semua orang dan menyekat skrinnya. Ciri yang dikunci dikawal secara berpusat oleh pasukan platform.'])
+
+                {{-- Grouped by sidebar section so each toggle maps to where it lives in the
+                     nav. Section heading + the per-toggle "Controls:" caption come from
+                     AppController::navScreenIndex(). --}}
+                @foreach ($featureRows['modules'] as $group)
+                    <h4 class="uj-cs-modg" x-text="$store.ui.lang==='en' ? @js($group['section']) : @js($group['section_ms'])">{{ $group['section'] }}</h4>
+                    <div class="uj-cs-mods">
+                        @foreach ($group['rows'] as $row)
+                            @php
+                                $navEn = implode(' · ', array_map(fn ($n) => $n['en'], $row['nav_items']));
+                                $navMs = implode(' · ', array_map(fn ($n) => $n['ms'], $row['nav_items']));
+                                $showNav = count($row['nav_items']) > 1;
+                            @endphp
+                            <label class="uj-cs-mod" style="cursor:{{ $row['locked'] ? 'not-allowed' : 'pointer' }};">
+                                <span class="t">
+                                    <b>
+                                        <span x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
+                                        @if ($row['locked'])<span class="uj-stamp">{!! $lockIcon !!}<span x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span></span>@endif
+                                    </b>
+                                    @if ($showNav)
+                                        <span x-text="$store.ui.lang==='en' ? @js('Controls: '.$navEn) : @js('Mengawal: '.$navMs)">Controls: {{ $navEn }}</span>
+                                    @endif
+                                </span>
+                                <span class="uj-switch">
+                                    <input type="checkbox" name="features[{{ $row['key'] }}]" value="1"
+                                        @checked(\App\Support\Features::asBool($row['value']))
+                                        @disabled($row['locked'])><i></i>
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                @endforeach
+
+                <h4 class="uj-cs-modg uj-cs-modg--settings" x-text="$store.ui.lang==='en' ? 'Settings' : 'Tetapan'">Settings</h4>
+                @foreach ($featureRows['settings'] as $row)
+                    <div class="uj-cs-setr">
+                        <div>
+                            <b>
+                                <span x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
+                                @if ($row['locked'])<span class="uj-stamp">{!! $lockIcon !!}<span x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span></span>@endif
+                            </b>
+                            @if (!empty($row['help']))<span x-text="$store.ui.lang==='en' ? @js($row['help']) : @js($row['help_ms'])">{{ $row['help'] }}</span>@endif
+                        </div>
+                        <div>
+                            @if ($row['type'] === 'enum')
+                                <select name="features[{{ $row['key'] }}]" @disabled($row['locked']) class="uj-cs-inp uj-cs-inp--sm" :aria-label="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">
+                                    @foreach ($row['options'] as $val => $optLabel)
+                                        <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val) x-text="$store.ui.lang==='en' ? @js($optLabel) : @js($row['options_ms'][$val] ?? $optLabel)">{{ $optLabel }}</option>
+                                    @endforeach
+                                </select>
+                            @elseif ($row['type'] === 'number')
+                                <input type="number" name="features[{{ $row['key'] }}]" value="{{ $row['value'] }}" @disabled($row['locked'])
+                                    step="1" min="{{ $row['min'] ?? 0 }}" @if (! is_null($row['max']))max="{{ $row['max'] }}"@endif
+                                    class="uj-cs-inp uj-cs-inp--sm uj-ww-mono" :aria-label="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">
+                            @else
+                                <label class="uj-cs-check" style="cursor:{{ $row['locked'] ? 'not-allowed' : 'pointer' }};">
+                                    <span class="uj-switch">
+                                        <input type="checkbox" name="features[{{ $row['key'] }}]" value="1"
+                                            @checked(\App\Support\Features::asBool($row['value']))
+                                            @disabled($row['locked'])><i></i>
+                                    </span>
+                                    <span x-text="$store.ui.lang==='en' ? 'Enabled' : 'Dihidupkan'">Enabled</span>
+                                </label>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="uj-cs-cf">
+                <span></span>
+                <button type="submit" class="uj-btn-primary uj-cs-save"><span x-text="$store.ui.lang==='en' ? 'Save features' : 'Simpan ciri'">Save features</span></button>
+            </div>
+            @include('partials.coachmark', [
+                'key' => 'guide-modules',
+                'when' => "\$store.guide.current === 'modules'",
+                'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company uses, then click Save features. Untick the ones you don\'t need.'],
+                'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Buang tanda pada modul yang tidak perlu.'],
+            ])
+        </form>
+    </section>
+    @endif
+
+    @if (! $only || $only === 'greetings')
+    {{-- CR-33: rotating dashboard greeting bank. HR approves/edits/deletes; any
+         employee can suggest a line from the dashboard picker. --}}
+    <div id="greetings" class="uj-cs-sec">
+    @include('partials.line-bank', [
+        'title_en' => 'Dashboard greetings', 'title_ms' => 'Ucapan papan pemuka',
+        'hint_en' => 'These lines rotate on everyone\'s dashboard greeting. Use {name} where the person\'s first name should go.',
+        'hint_ms' => 'Baris ini berputar pada ucapan papan pemuka semua orang. Guna {name} di tempat nama pertama orang itu patut muncul.',
+        'empty_en' => 'No greeting lines yet.', 'empty_ms' => 'Tiada ucapan lagi.',
+        'field' => 'trigger', 'routes' => 'admin.greetings',
+        'lines' => $greetingLines, 'pending' => $greetingPending, 'categories' => $greetingTriggers,
+        'buckets' => ['personal' => ['Personal', 'Peribadi'], 'situation' => ['Situation', 'Situasi'], 'day' => ['Day', 'Hari'], 'time' => ['Time', 'Masa']],
+        'defaultBucket' => 'situation', 'canManage' => $canManageFeatures,
+    ])
+    </div>
+    @endif
+
+    @if (! $only || $only === 'eggs')
+    {{-- CR-31: dashboard/board easter-egg bank, same card as the greetings above. --}}
+    @php
+        $eggKindLabels = [
+            'friday_late' => ['Friday after 5', 'Jumaat selepas 5'], 'inbox_zero' => ['Inbox zero', 'Inbox kosong'],
+            'late_night' => ['Late night', 'Lewat malam'], 'tab_collector' => ['Tab collector', 'Pengumpul tab'], 'holiday_eve' => ['Holiday eve', 'Malam cuti'],
+        ];
+    @endphp
+    <div id="eggs" class="uj-cs-sec">
+    @include('partials.line-bank', [
+        'title_en' => 'Dashboard easter eggs', 'title_ms' => 'Telur Paskah papan pemuka',
+        'hint_en' => 'Small surprises shown on the dashboard or board, at most once a day per person. Never blocks anything.',
+        'hint_ms' => 'Kejutan kecil yang dipapar pada papan pemuka atau board, paling banyak sekali sehari bagi setiap orang. Tidak menyekat apa-apa.',
+        'empty_en' => 'No easter eggs yet.', 'empty_ms' => 'Tiada telur Paskah lagi.',
+        'field' => 'kind', 'routes' => 'admin.eggs', 'lines' => $easterEggs,
+        'categories' => collect($easterEggKinds)->mapWithKeys(fn ($k) => [$k => ['label_en' => $eggKindLabels[$k][0] ?? $k, 'label_ms' => $eggKindLabels[$k][1] ?? $k]])->all(),
+        'canManage' => $canManageFeatures,
+    ])
+    </div>
+    @endif
+
+    @if (!empty($canManageFeatures) && (! $only || $only === 'reactions'))
+    {{-- CR-30: the tenant's reaction set. Add or retire, never rename, ten active at most. --}}
+    @php
+        $reactionSet = \App\Models\Reaction::set();
+        $activeReactions = $reactionSet->whereNull('retired_at')->count();
+        $maxReactions = \App\Models\Reaction::MAX_ACTIVE;
+    @endphp
+    <section id="reactions" class="uj-card uj-cs-sec" x-data="{ adding:false }">
+        <div class="uj-cs-ch">
+            <div>
+                <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Reactions' : 'Reaksi'">Reactions</h3>
+                <p class="uj-cs-sub" x-text="$store.ui.lang==='en' ? 'Retiring one keeps it on the items it was already given. Nothing is ever renamed.' : 'Reaksi yang dibersarakan kekal pada item lama. Tiada yang dinamakan semula.'">Retiring one keeps it on the items it was already given. Nothing is ever renamed.</p>
+            </div>
+            @if ($activeReactions < $maxReactions)
+                <button type="button" @click="adding=!adding" class="uj-btn-ghost uj-cs-add-btn"><span x-text="adding ? ($store.ui.lang==='en'?'Cancel':'Batal') : ($store.ui.lang==='en' ? '+ Add reaction' : '+ Tambah reaksi')">+ Add reaction</span></button>
+            @endif
+        </div>
+        <div class="uj-cs-cb">
+            <div class="uj-cs-meter">
+                <span class="bar" aria-hidden="true">@for ($i = 0; $i < $maxReactions; $i++)<i class="{{ $i < $activeReactions ? 'on' : '' }}"></i>@endfor</span>
+                <span><span class="uj-ww-mono" style="color:var(--ink);">{{ $activeReactions }}</span> <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span> <span class="uj-ww-mono">{{ $maxReactions }}</span> <span x-text="$store.ui.lang==='en' ? 'active' : 'aktif'">active</span></span>
+            </div>
             @php $rfs = 'height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;outline:none;background:#fff;color:var(--ink);min-width:0;'; @endphp
-            <form x-show="adding" x-cloak method="post" action="{{ route('admin.reactions.store') }}" style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:8px;">
+            <form x-show="adding" x-cloak method="post" action="{{ route('admin.reactions.store') }}" class="uj-cs-panel uj-cs-inline">
                 @csrf
                 <input name="icon" required maxlength="16" placeholder="Icon (emoji or 1-2 letters)" style="{{ $rfs }}width:200px;" />
                 <input name="label" required maxlength="60" placeholder="Label, e.g. GOAT" style="{{ $rfs }}width:200px;" />
                 <input name="key" required maxlength="40" pattern="[a-z][a-z0-9_]*" placeholder="key, e.g. goat" style="{{ $rfs }}width:160px;" />
                 <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 16px;font-size:12.5px;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
             </form>
-            @foreach ($reactionSet as $r)
-                <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--hairline-soft);" data-reaction-row="{{ $r->key }}">
-                    <span style="font-size:18px;line-height:1;width:24px;text-align:center;" aria-hidden="true">{{ $r->icon }}</span>
-                    <span style="font-size:12.5px;color:{{ $r->retired_at ? 'var(--muted)' : 'var(--ink)' }};min-width:0;flex:1;">{{ $r->label }} <span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">{{ $r->key }}</span></span>
-                    @if ($r->retired_at)
-                        <span style="font-size:11px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Retired' : 'Bersara'">Retired</span>
-                    @else
-                        <form method="post" action="{{ route('admin.reactions.retire', $r->key) }}" onsubmit="return confirm('Retire {{ addslashes($r->label) }}? Old items keep showing it.')">@csrf<button type="submit" style="font-size:12px;color:var(--red);" x-text="$store.ui.lang==='en'?'Retire':'Bersarakan'">Retire</button></form>
-                    @endif
-                </div>
-            @endforeach
-        </div>
-        @endif
-    </div>
-</div>
-
-@if (!empty($canManageFeatures) && (! $only || $only === 'features'))
-<div class="uj-card" style="margin-top:16px;padding:24px;">
-    <h3 class="uj-card-title" style="margin-bottom:4px;" x-text="$store.ui.lang==='en' ? 'Features' : 'Ciri'">Features</h3>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 16px;"><span x-text="$store.ui.lang==='en' ? 'Turn modules on or off for this company and tune behavioural settings. Features marked' : 'Hidup atau matikan modul untuk syarikat ini dan laras tetapan tingkah laku. Ciri yang ditanda'">Turn modules on or off for this company and tune behavioural settings. Features marked</span> <span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span> <span x-text="$store.ui.lang==='en' ? 'are set by the platform and cannot be changed here.' : 'ditetapkan oleh platform dan tidak boleh diubah di sini.'">are set by the platform and cannot be changed here.</span></p>
-    @include('partials.hint', ['en' => 'Disabling a module hides it from the menu for everyone and blocks its screens. Locked features are controlled centrally by the platform team.', 'ms' => 'Mematikan modul akan menyembunyikannya dari menu untuk semua orang dan menyekat skrinnya. Ciri yang dikunci dikawal secara berpusat oleh pasukan platform.'])
-
-    <form method="post" action="{{ route('admin.features.update') }}">
-        @csrf
-        <input type="hidden" name="features_present" value="1">
-
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:18px 0 10px;" x-text="$store.ui.lang==='en' ? 'Modules' : 'Modul'">Modules</div>
-        {{-- Grouped by sidebar section so each toggle maps to where it lives in the
-             nav. Section heading + the per-toggle "Controls:" caption come from
-             AppController::navScreenIndex(). --}}
-        @foreach ($featureRows['modules'] as $group)
-            <div style="margin-bottom:16px;">
-                <div style="font-size:12px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--hairline-soft);padding-bottom:6px;margin-bottom:6px;"
-                     x-text="$store.ui.lang==='en' ? @js($group['section']) : @js($group['section_ms'])">{{ $group['section'] }}</div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 20px;">
-                    @foreach ($group['rows'] as $row)
-                        @php
-                            $navEn = implode(' · ', array_map(fn ($n) => $n['en'], $row['nav_items']));
-                            $navMs = implode(' · ', array_map(fn ($n) => $n['ms'], $row['nav_items']));
-                            $showNav = count($row['nav_items']) > 1;
-                        @endphp
-                        <label style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;cursor:{{ $row['locked'] ? 'not-allowed' : 'pointer' }};">
-                            <input type="checkbox" name="features[{{ $row['key'] }}]" value="1" style="margin-top:2px;flex-shrink:0;"
-                                @checked(\App\Support\Features::asBool($row['value']))
-                                @disabled($row['locked'])>
-                            <span style="flex:1;min-width:0;">
-                                <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                    <span style="font-size:13.5px;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
-                                    @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
-                                </span>
-                                @if ($showNav)
-                                    <span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;line-height:1.4;"
-                                          x-text="$store.ui.lang==='en' ? @js('Controls: '.$navEn) : @js('Mengawal: '.$navMs)">Controls: {{ $navEn }}</span>
-                                @endif
-                            </span>
-                        </label>
-                    @endforeach
-                </div>
-            </div>
-        @endforeach
-
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:24px 0 10px;" x-text="$store.ui.lang==='en' ? 'Settings' : 'Tetapan'">Settings</div>
-        <div style="display:flex;flex-direction:column;gap:16px;max-width:560px;">
-            @foreach ($featureRows['settings'] as $row)
-                <div style="display:flex;align-items:flex-start;gap:14px;">
-                    <div style="flex:1;">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:13.5px;font-weight:500;color:var(--ink);" x-text="$store.ui.lang==='en' ? @js($row['label']) : @js($row['label_ms'])">{{ $row['label'] }}</span>
-                            @if ($row['locked'])<span style="font-size:11px;font-weight:600;color:#a81820;background:#fbeaeb;border:1px solid #f3c6c8;padding:1px 7px;border-radius:9999px;" x-text="$store.ui.lang==='en' ? 'Locked' : 'Dikunci'">Locked</span>@endif
-                        </div>
-                        @if (!empty($row['help']))<div style="font-size:12px;color:var(--muted);margin-top:2px;" x-text="$store.ui.lang==='en' ? @js($row['help']) : @js($row['help_ms'])">{{ $row['help'] }}</div>@endif
-                    </div>
-                    <div style="width:200px;flex-shrink:0;">
-                        @if ($row['type'] === 'enum')
-                            <select name="features[{{ $row['key'] }}]" @disabled($row['locked'])
-                                style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;background:{{ $row['locked'] ? 'var(--hairline-soft)' : '#fff' }};color:var(--ink);">
-                                @foreach ($row['options'] as $val => $optLabel)
-                                    <option value="{{ $val }}" @selected((string) $row['value'] === (string) $val) x-text="$store.ui.lang==='en' ? @js($optLabel) : @js($row['options_ms'][$val] ?? $optLabel)">{{ $optLabel }}</option>
-                                @endforeach
-                            </select>
-                        @elseif ($row['type'] === 'number')
-                            <input type="number" name="features[{{ $row['key'] }}]" value="{{ $row['value'] }}" @disabled($row['locked'])
-                                step="1" min="{{ $row['min'] ?? 0 }}" @if (! is_null($row['max']))max="{{ $row['max'] }}"@endif
-                                style="width:100%;height:38px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13.5px;font-family:var(--font-mono);background:{{ $row['locked'] ? 'var(--hairline-soft)' : '#fff' }};color:var(--ink);">
+            <div class="uj-cs-react">
+                @foreach ($reactionSet as $r)
+                    <div class="uj-cs-rc {{ $r->retired_at ? 'retired' : '' }}" data-reaction-row="{{ $r->key }}">
+                        <span class="e" aria-hidden="true">{{ $r->icon }}</span>
+                        <span class="t">{{ $r->label }}<small>{{ $r->key }}</small></span>
+                        @if ($r->retired_at)
+                            <span class="uj-stamp" x-text="$store.ui.lang==='en' ? 'Retired' : 'Bersara'">Retired</span>
                         @else
-                            <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);cursor:{{ $row['locked'] ? 'not-allowed' : 'pointer' }};">
-                                <input type="checkbox" name="features[{{ $row['key'] }}]" value="1"
-                                    @checked(\App\Support\Features::asBool($row['value']))
-                                    @disabled($row['locked'])>
-                                <span x-text="$store.ui.lang==='en' ? 'Enabled' : 'Dihidupkan'">Enabled</span>
-                            </label>
+                            <form method="post" action="{{ route('admin.reactions.retire', $r->key) }}" onsubmit="return confirm('Retire {{ addslashes($r->label) }}? Old items keep showing it.')" style="margin:0;">@csrf<button type="submit" class="uj-ww-ico" :title="$store.ui.lang==='en' ? 'Retire' : 'Bersarakan'" :aria-label="($store.ui.lang==='en' ? 'Retire ' : 'Bersarakan ') + @js($r->label)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg></button></form>
                         @endif
                     </div>
-                </div>
-            @endforeach
+                @endforeach
+            </div>
         </div>
-
-        <button type="submit" class="uj-btn-primary" style="height:42px;padding:0 20px;font-size:13.5px;margin-top:22px;"><span x-text="$store.ui.lang==='en' ? 'Save features' : 'Simpan ciri'">Save features</span></button>
-        @include('partials.coachmark', [
-            'key' => 'guide-modules',
-            'when' => "\$store.guide.current === 'modules'",
-            'en' => ['title' => 'Switch on what you use', 'body' => 'Tick the modules your company uses, then click Save features. Untick the ones you don\'t need.'],
-            'ms' => ['title' => 'Hidupkan yang anda guna', 'body' => 'Tandakan modul yang syarikat anda guna, kemudian klik Simpan ciri. Buang tanda pada modul yang tidak perlu.'],
-        ])
-    </form>
+    </section>
+    @endif
+    </div>
 </div>
-@endif
 @endsection
