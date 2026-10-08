@@ -131,7 +131,7 @@
          x-data="timesheetCapture({
             weekStart: @js($weekStart),
             workDays: @js($tsWorkDays),
-            totSaturday: @js($tsTotSaturday),
+            specialDays: @js((object) $tsSpecialDays),
             today: @js($tsToday),
             earliestWeek: @js($tsEarliestWeek),
             locked: @js($tsLocked),

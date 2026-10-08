@@ -985,7 +985,7 @@ trait BuildsDashboardWidgets
             return ['counts' => [], 'people' => []];
         }
 
-        $team = Employee::active()->whereIn('id', $this->dashboardTeamIds($employee))->orderBy('name')->get();
+        $team = Employee::active()->with('employmentType')->whereIn('id', $this->dashboardTeamIds($employee))->orderBy('name')->get();
         if ($team->isEmpty()) {
             return ['counts' => [], 'people' => []];
         }
@@ -994,6 +994,9 @@ trait BuildsDashboardWidgets
             ->onDate($when)
             ->get()
             ->keyBy('employee_id');
+
+        // Clock-exempt staff (Freelance) with no punch that day are not absent, so they drop out.
+        $team = $team->reject(fn (Employee $e) => ! $e->mustClock() && $records->get($e->id)?->clock_in === null)->values();
 
         $onLeave = LeaveRequest::whereIn('employee_id', $team->pluck('id'))
             ->where('status', 'approved')

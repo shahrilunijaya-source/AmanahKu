@@ -13,6 +13,7 @@ use App\Models\EmploymentType;
 use App\Models\GreetingLine;
 use App\Models\StaffLevel;
 use App\Models\Tenant;
+use App\Models\WorkDayRule;
 use App\Services\FeatureManager;
 use App\Support\EasterEggBank;
 use App\Support\Features;
@@ -44,6 +45,9 @@ trait BuildsSettingsData
             'signatoryOptions' => Employee::active()->orderBy('name')->get(['id', 'name', 'position']),
             'hrdfOn' => (string) (app(FeatureManager::class)->value($tenant, 'payroll.hrdf') ?? 'off') !== 'off',
             'canManageFeatures' => $canManage,
+            // Work week card: special-day rules + the grace minutes the editor's late hint quotes.
+            'workDayRules' => $canManage ? WorkDayRule::orderBy('weekday')->get() : collect(),
+            'lateGraceMinutes' => (int) ($tenant->late_grace_minutes ?? 0),
             'featureRows' => $canManage ? $this->featureRows($tenant) : [],
             'greetingLines' => $canManage ? $this->greetingLinesOrdered() : collect(),
             'greetingPending' => $canManage ? GreetingLine::whereNull('approved_at')->orderBy('created_at')->get() : collect(),

@@ -24,6 +24,7 @@ use App\Support\DashboardPrefs;
 use App\Support\DashboardWidgets;
 use App\Support\Permissions;
 use App\Support\ProfileCompletion;
+use App\Support\WorkWeek;
 use App\Tenancy\CurrentTenant;
 use App\Timesheet\DayCapacity;
 use App\Timesheet\DayRules;
@@ -534,12 +535,49 @@ class AppController extends Controller
             'qaShow' => true,
             'qaCi' => $today?->clock_in,
             'qaCo' => $today?->clock_out,
+            'qaSpecial' => $this->todaySpecialLine($tenant),
             'qaTsEnabled' => $tsEnabled,
             'qaTsPct' => $tsPct,
             'qaTsOverdue' => $tsOverdue,
             // Unlocks the "See all" company-wide links under each dock row.
             'qaCanSeeAll' => Permissions::canSeeAll($employee, $role),
         ];
+    }
+
+    /**
+     * The sidebar dock's "special work day" line for today, or null when no rule matches.
+     *
+     * @return array{en: string, ms: string, hours: string}|null
+     */
+    private function todaySpecialLine(?Tenant $tenant): ?array
+    {
+        $rule = WorkWeek::for($tenant)->specialRule(now());
+        if (! $rule) {
+            return null;
+        }
+
+        $ordinals = [
+            'en' => [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', -1 => 'Last'],
+            'ms' => [1 => 'pertama', 2 => 'kedua', 3 => 'ketiga', 4 => 'keempat', -1 => 'terakhir'],
+        ];
+        $days = [
+            'en' => [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'],
+            'ms' => [1 => 'Isnin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Khamis', 5 => 'Jumaat', 6 => 'Sabtu', 7 => 'Ahad'],
+        ];
+        $weeks = collect($rule->weeks)->sortBy(fn ($w) => $w === -1 ? 9 : $w)->values();
+
+        $title = [];
+        foreach (['en', 'ms'] as $lang) {
+            $names = $weeks->map(fn ($w) => $ordinals[$lang][$w])->all();
+            $joined = count($names) > 1
+                ? implode(', ', array_slice($names, 0, -1)).($lang === 'en' ? ' and ' : ' dan ').end($names)
+                : $names[0];
+            $title[$lang] = $lang === 'en'
+                ? "{$joined} {$days['en'][$rule->weekday]}"
+                : "{$days['ms'][$rule->weekday]} {$joined}";
+        }
+
+        return $title + ['hours' => $rule->startHhmm().'–'.$rule->endHhmm()];
     }
 
     /** Build only the data the requested screen needs. */

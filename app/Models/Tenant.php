@@ -118,6 +118,11 @@ class Tenant extends Model
         return $this->hasMany(Employee::class);
     }
 
+    public function workDayRules(): HasMany
+    {
+        return $this->hasMany(WorkDayRule::class);
+    }
+
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);

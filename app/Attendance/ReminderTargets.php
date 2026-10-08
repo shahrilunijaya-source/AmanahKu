@@ -16,9 +16,9 @@ use Illuminate\Support\Collection;
  * Works out who deserves a clock-in / clock-out nudge right now, within the active tenant.
  *
  * Deliberately quiet. Weekends, tenant public holidays, approved leave, staff with no
- * login account, and staff whose site has no configured hours are all skipped, so the
- * reminder never fires at someone with nothing to clock. Read-only: the caller decides
- * how to deliver.
+ * login account, clock-exempt staff (Freelance), and staff whose site has no configured
+ * hours are all skipped, so the reminder never fires at someone with nothing to clock.
+ * Read-only: the caller decides how to deliver.
  */
 class ReminderTargets
 {
@@ -44,6 +44,7 @@ class ReminderTargets
             ->pluck('employee_id');
 
         return Employee::active()
+            ->clockRequired()
             ->whereNotNull('user_id')
             ->whereNotIn('id', $this->employeeIdsOnLeave($now))
             ->whereNotIn('id', $clockedIn)
@@ -74,6 +75,7 @@ class ReminderTargets
             ->pluck('employee_id');
 
         return Employee::active()
+            ->clockRequired()
             ->whereNotNull('user_id')
             ->whereNotIn('id', $this->employeeIdsOnLeave($now))
             ->whereNotIn('id', $clockedIn)

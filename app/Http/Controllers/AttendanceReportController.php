@@ -90,7 +90,7 @@ class AttendanceReportController extends Controller
             ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))
             ->where(fn ($b) => $b->whereDate('last_working_day', '>=', $period->from->toDateString())
                 ->orWhere(fn ($b) => $b->whereNull('last_working_day')->where('status', '!=', 'resigned')))
-            ->with(['department:id,name'])
+            ->with(['department:id,name', 'employmentType'])
             ->get();
 
         $employeeIds = $employees->pluck('id')->all();
@@ -346,7 +346,7 @@ class AttendanceReportController extends Controller
         // active() so a crafted ?emp=<archived> can't open an archived person's detail.
         // Route-model binding resolves across every tenant (SubstituteBindings runs before
         // ResolveTenant), so this lookup goes through the tenant-scoped model instead.
-        $employee = Employee::active()->with('department:id,name')->find($id);
+        $employee = Employee::active()->with(['department:id,name', 'employmentType'])->find($id);
         if ($employee === null) {
             return null;
         }
