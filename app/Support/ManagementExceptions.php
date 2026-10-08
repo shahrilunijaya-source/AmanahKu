@@ -32,7 +32,7 @@ class ManagementExceptions
     {
         $today = Carbon::now()->toDateString();
 
-        $employees = Employee::query()->active()
+        $employees = Employee::query()->active()->clockRequired()
             ->when($employeeIds !== null, fn ($q) => $q->whereIn('id', $employeeIds))
             ->get();
 

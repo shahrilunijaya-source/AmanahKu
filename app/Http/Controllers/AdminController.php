@@ -695,13 +695,18 @@ class AdminController extends Controller
         return back()->with('ok', $name.' deleted.');
     }
 
-    /** @return array{name:string,code:?string} */
+    /** @return array{name:string,code:?string,clock_exempt:bool} */
     private function validateEmploymentType(Request $request, ?int $ignoreId = null): array
     {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:80', Rule::unique('employment_types', 'name')->where('tenant_id', app(CurrentTenant::class)->id())->ignore($ignoreId)],
-            'code' => ['nullable', 'string', 'max:20'],
-        ]);
+        return [
+            ...$request->validate([
+                'name' => ['required', 'string', 'max:80', Rule::unique('employment_types', 'name')->where('tenant_id', app(CurrentTenant::class)->id())->ignore($ignoreId)],
+                'code' => ['nullable', 'string', 'max:20'],
+                'clock_exempt' => ['nullable', 'boolean'],
+            ]),
+            // An unticked checkbox posts nothing, which has to mean "off", not "leave it".
+            'clock_exempt' => $request->boolean('clock_exempt'),
+        ];
     }
 
     private function authorizeAdmin(Request $request): void

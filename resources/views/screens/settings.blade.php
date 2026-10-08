@@ -694,13 +694,14 @@
                     @csrf
                     <input name="name" required :placeholder="$store.ui.lang==='en'?'Type (e.g. Full-time)':'Jenis (cth. Sepenuh masa)'" style="flex:2;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                     <input name="code" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);flex-shrink:0;" :title="$store.ui.lang==='en'?'Staff on this type keep their own hours: no clock-in reminders, never late or absent':'Staf jenis ini ikut masa sendiri: tiada peringatan, tidak dikira lewat atau tidak hadir'"><input type="checkbox" name="clock_exempt" value="1" /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
                     <button type="submit" class="uj-btn-primary" style="height:38px;padding:0 14px;font-size:12.5px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Add':'Tambah'">Add</span></button>
                 </form>
             @endif
             @forelse ($employmentTypes as $et)
                 <div style="padding:8px 0;border-bottom:1px solid var(--hairline-soft);">
                     <div @if ($canManageFeatures) x-show="editId !== {{ $et->id }}" @endif style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                        <span style="font-size:13px;color:var(--ink);">{{ $et->name }}@if ($et->code)<span style="color:var(--muted);font-size:12px;"> · {{ $et->code }}</span>@endif</span>
+                        <span style="font-size:13px;color:var(--ink);">{{ $et->name }}@if ($et->code)<span style="color:var(--muted);font-size:12px;"> · {{ $et->code }}</span>@endif @if ($et->clock_exempt)<span style="color:var(--muted);font-size:12px;" x-text="$store.ui.lang==='en'?'· no clock-in':'· tiada clock-in'">· no clock-in</span>@endif</span>
                         @if ($canManageFeatures)
                             <div style="display:flex;align-items:center;gap:12px;">
                                 <button type="button" @click="editId={{ $et->id }};adding=false" style="font-size:12px;color:var(--ink);" x-text="$store.ui.lang==='en'?'Edit':'Sunting'">Edit</button>
@@ -713,6 +714,7 @@
                             @csrf
                             <input name="name" value="{{ $et->name }}" required style="flex:2;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
                             <input name="code" value="{{ $et->code }}" :placeholder="$store.ui.lang==='en'?'Code':'Kod'" style="flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;outline:none;" />
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink);flex-shrink:0;"><input type="checkbox" name="clock_exempt" value="1" @checked($et->clock_exempt) /> <span x-text="$store.ui.lang==='en'?'No clock-in':'Tiada clock-in'">No clock-in</span></label>
                             <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 12px;font-size:12px;flex-shrink:0;"><span x-text="$store.ui.lang==='en'?'Save':'Simpan'">Save</span></button>
                             <button type="button" @click="editId=null" style="font-size:12px;color:var(--muted);flex-shrink:0;" x-text="$store.ui.lang==='en'?'Cancel':'Batal'">Cancel</button>
                         </form>

@@ -90,6 +90,11 @@ final class LedgerBuilder
                 if ($lastDay !== null && $date > $lastDay) {
                     continue;
                 }
+                // Clock-exempt staff (Freelance) only show on days they chose to punch:
+                // a day without one is not an absence for them.
+                if (! $emp->mustClock() && ! isset($byEmployeeDate[$emp->id][$date])) {
+                    continue;
+                }
                 $rows[] = $this->row(
                     $emp,
                     $byEmployeeDate[$emp->id][$date] ?? null,
@@ -152,7 +157,7 @@ final class LedgerBuilder
 
         $status = match (true) {
             $missing => 'miss',
-            $r->clock_out !== null && $minutes > 0 && $minutes < self::HALF_DAY_MINUTES => 'half',
+            $emp->mustClock() && $r->clock_out !== null && $minutes > 0 && $minutes < self::HALF_DAY_MINUTES => 'half',
             $r->status === 'late' => 'late',
             default => 'ontime',
         };
