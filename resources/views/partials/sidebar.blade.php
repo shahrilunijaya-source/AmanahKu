@@ -52,6 +52,13 @@
                 </span>
             </div>
 
+            @if (! empty($qaSpecial))
+                <div class="uj-sb-hide" style="display:flex;align-items:center;gap:6px;font-size:12px;line-height:1.3;color:color-mix(in srgb, var(--amber) 45%, #fff);">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+                    <span><span x-text="$store.ui.lang==='en' ? @js($qaSpecial['en']) : @js($qaSpecial['ms'])">{{ $qaSpecial['en'] }}</span> · <span style="font-family:var(--font-mono);font-variant-numeric:tabular-nums;">{{ $qaSpecial['hours'] }}</span></span>
+                </div>
+            @endif
+
             <div class="uj-sb-hide" style="display:flex;gap:6px;">
                 <a href="{{ route('app.screen', 'attendance') }}" class="uj-sb-ghost" style="text-decoration:none;">
                     @if ($qco)

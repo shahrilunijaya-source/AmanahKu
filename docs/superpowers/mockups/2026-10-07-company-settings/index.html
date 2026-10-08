@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup · Company settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<style>
+:root{
+  --font-sans:'Poppins',ui-sans-serif,system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --red:#d6232b;--red-active:#b01b22;--red-tint:#fcebec;
+  --canvas:#f6f6f3;--card:#fff;--shelf:#ece9e1;--shelf-line:#ddd9cf;
+  --sidebar:#1f1e1a;--sidebar-text:#b8b6ad;
+  --ink:#26251e;--body:#5a5852;--muted:#6f6c61;--muted-soft:#8b887e;--hairline:#e6e5e0;--hairline-soft:#efeee8;
+  --success:#1f8a65;--success-ink:#14614a;--amber:#c08532;--amber-ink:#7a5210;--error:#cf2d56;--info:#3a6ea5;
+  --ease:cubic-bezier(.23,1,.32,1);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;font-family:var(--font-sans);font-size:14px;line-height:1.5;color:var(--ink);background:var(--canvas)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+::selection{background:var(--red-tint);color:var(--ink)}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:5px}
+[x-cloak]{display:none!important}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+p{margin:0}
+
+/* ---------- mockup frame ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:40px 20px 90px}
+.brief{max-width:780px;margin:0 0 36px}
+.brief h1{font-size:22px;font-weight:500;letter-spacing:-.025em;margin:0 0 8px;text-wrap:balance}
+.brief p{color:var(--body);margin:0 0 8px}
+.brief ul{margin:8px 0 0;padding-left:18px;color:var(--body)}
+.brief li{margin-bottom:5px}
+.brief b{color:var(--ink);font-weight:600}
+.screen{background:var(--canvas);border-radius:14px;box-shadow:0 8px 30px rgba(31,30,26,.12);overflow:clip}
+.screen-in{padding:32px 28px 64px;max-width:976px;margin:0 auto}
+
+/* ---------- shared bits (mirror app.css) ---------- */
+.card{background:var(--card);border:1px solid var(--hairline);border-radius:12px}
+.btn-p{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:7px;background:var(--red);color:#fff;font-weight:500;font-size:13.5px;transition:background .15s,transform 160ms var(--ease)}
+.btn-p:hover{background:var(--red-active)}.btn-p:active{transform:scale(.97)}
+.btn-p:disabled{background:var(--hairline);color:var(--muted-soft);cursor:not-allowed;transform:none}
+.btn-g{display:inline-flex;white-space:nowrap;flex-shrink:0;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:7px;background:#fff;border:1px solid var(--hairline);color:var(--ink);font-weight:500;font-size:12.5px;transition:border-color .15s,transform 160ms var(--ease)}
+.btn-g:hover{border-color:var(--muted-soft)}.btn-g:active{transform:scale(.97)}
+.stamp{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:.05em;padding:3px 8px;border-radius:5px;background:var(--hairline-soft);color:var(--muted);white-space:nowrap;text-transform:uppercase}
+.stamp[data-tone=success]{background:color-mix(in srgb,var(--success) 13%,#fff);color:var(--success-ink)}
+.stamp[data-tone=amber]{background:color-mix(in srgb,var(--amber) 13%,#fff);color:var(--amber-ink)}
+.stamp svg{width:11px;height:11px}
+
+/* ---------- page head ---------- */
+.pagehead{padding:0 0 22px}
+.pagehead h1{font-size:22px;font-weight:500;letter-spacing:-.025em;margin:0;text-wrap:balance}
+.pagehead p{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+/* ---------- layout: section index + one content column ---------- */
+.set{display:grid;grid-template-columns:184px minmax(0,1fr);gap:28px;align-items:start}
+.idx{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px}
+.idx-g{display:flex;flex-direction:column;gap:1px}
+.idx-h{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px}
+.idx a{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:7px;font-size:13px;color:var(--body);text-decoration:none;transition:background .12s,color .12s}
+.idx a:hover{background:color-mix(in srgb,var(--ink) 5%,transparent);color:var(--ink)}
+.idx a[aria-current=true]{background:#fff;color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(31,30,26,.08),inset 0 0 0 1px var(--hairline)}
+.idx .dot{width:7px;height:7px;border-radius:999px;background:var(--amber);flex-shrink:0}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+.sec{scroll-margin-top:20px}
+
+/* ---------- card anatomy ---------- */
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px 0}
+.ch h2{font-size:16px;font-weight:600;margin:0;letter-spacing:-.005em}
+.ch .sub{font-size:12.5px;color:var(--muted);margin-top:3px;max-width:62ch;line-height:1.45}
+.cb{padding:18px 22px 22px}
+.cf{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid var(--hairline-soft);background:color-mix(in srgb,var(--canvas) 55%,#fff);border-radius:0 0 12px 12px}
+.cf .state{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.cf .state i{width:7px;height:7px;border-radius:999px;background:var(--amber)}
+
+/* group: a heading row with a hairline, fields under it */
+.grp{padding-top:20px;margin-top:20px;border-top:1px solid var(--hairline-soft)}
+.grp:first-child{padding-top:0;margin-top:0;border-top:0}
+.grp-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.grp-h h3{white-space:nowrap;font-size:14px;font-weight:600;margin:0}
+.grp-h span{font-size:12.5px;color:var(--muted)}
+
+/* fields */
+.fg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px}
+.fg .full{grid-column:1/-1}
+.f label,.lab{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.f label.btn-g{display:inline-flex;margin:0;font-size:12.5px;font-weight:500}
+.f label .opt{font-weight:400;color:var(--muted);margin-left:4px}
+.inp{width:100%;height:42px;padding:0 13px;border:1px solid var(--hairline);border-radius:9px;background:#fff;font-size:14px;color:var(--ink);outline:none;transition:border-color .12s,box-shadow .12s}
+.inp::placeholder{color:var(--muted)}
+.inp:hover{border-color:color-mix(in srgb,var(--muted-soft) 55%,var(--hairline))}
+.inp:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+select.inp{appearance:none;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%236f6c61' stroke-width='2' stroke-linecap='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center}
+.inp.mono{font-size:13.5px;letter-spacing:.01em}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+.warn{font-size:12px;color:var(--amber-ink);margin-top:6px;display:flex;gap:6px;align-items:flex-start}
+.warn svg{flex-shrink:0;margin-top:2px}
+.pre{display:flex}
+.pre span{display:grid;place-items:center;padding:0 12px;border:1px solid var(--hairline);border-right:0;border-radius:9px 0 0 9px;background:var(--canvas);font-family:var(--font-mono);color:var(--muted);font-size:13.5px}
+.pre .inp{border-radius:0 9px 9px 0}
+
+/* read-only facts strip */
+.facts{display:grid;grid-template-columns:1.4fr .8fr 1.7fr .6fr;border:1px solid var(--hairline-soft);border-radius:10px;background:var(--canvas);margin:16px 22px 0}
+.facts div{padding:11px 14px;min-width:0}
+.facts div+div{border-left:1px solid var(--hairline-soft)}
+.facts dt{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.facts dd{margin:3px 0 0;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere;line-height:1.35}
+.facts-note{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:8px 22px 0}
+
+/* login page brand group: fields + live preview */
+.brand{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:20px;align-items:start}
+.logo-up{display:flex;align-items:center;gap:14px}
+.logo-box{width:64px;height:64px;border-radius:12px;border:1px dashed var(--shelf-line);background:var(--canvas);display:grid;place-items:center;overflow:hidden;flex-shrink:0;color:var(--muted-soft)}
+.logo-box.has{border-style:solid;border-color:var(--hairline);background:#fff}
+.logo-box .mark{width:40px;height:40px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:16px}
+.logo-up .meta{display:flex;flex-direction:column;gap:6px;min-width:0}
+.logo-up .lacts{display:flex;gap:8px;flex-wrap:wrap}
+.clr{display:flex;align-items:center;height:42px;border:1px solid var(--hairline);border-radius:9px;background:#fff;padding:0 6px 0 5px;gap:8px;transition:border-color .12s,box-shadow .12s}
+.clr:focus-within{border-color:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+.clr input[type=color]{appearance:none;width:30px;height:30px;border:0;padding:0;border-radius:7px;background:none;cursor:pointer;flex-shrink:0}
+.clr input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.clr input[type=color]::-webkit-color-swatch{border:1px solid rgba(31,30,26,.12);border-radius:7px}
+.clr input[type=color]::-moz-color-swatch{border:1px solid rgba(31,30,26,.12);border-radius:7px}
+.clr input[type=text]{border:0;outline:none;flex:1;min-width:0;font-family:var(--font-mono);font-size:13.5px;text-transform:lowercase;height:100%}
+.pv{border:1px solid var(--hairline);border-radius:12px;overflow:hidden;background:var(--canvas)}
+.pv-cap{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--hairline-soft);background:#fff}
+.pv-stage{padding:16px;display:grid;gap:10px}
+.pv-band{height:46px;border-radius:9px;display:flex;align-items:center;gap:9px;padding:0 11px;color:#fff;transition:background .2s}
+.pv-band .mk{width:26px;height:26px;border-radius:7px;background:#fff;display:grid;place-items:center;font-weight:700;font-size:11px}
+.pv-band b{font-size:12.5px;font-weight:600;line-height:1.2}
+.pv-msg{font-size:12px;color:var(--body);line-height:1.45;min-height:34px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pv-f{height:24px;border-radius:5px;border:1px solid var(--hairline);background:#fff}
+.pv-b{height:26px;border-radius:5px;transition:background .2s}
+
+/* disclosure row (DESIGN.md "the recurring interaction") */
+.disc{border:1px solid var(--hairline);border-radius:10px;overflow:hidden}
+.disc-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;text-align:left}
+.disc-btn:hover{background:color-mix(in srgb,var(--canvas) 60%,#fff)}
+.disc-btn .t{flex:1;min-width:0}
+.disc-btn .t b{display:block;font-size:13.5px;font-weight:600}
+.disc-btn .t span{font-size:12.5px;color:var(--muted)}
+.disc-btn .chev{transition:transform .2s var(--ease);color:var(--muted)}
+.disc[data-open=true] .chev{transform:rotate(90deg)}
+.disc-p{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s var(--ease)}
+.disc[data-open=true] .disc-p{grid-template-rows:1fr}
+.disc-p>div{overflow:hidden}
+.jr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;padding:4px 14px 14px;border-top:1px solid var(--hairline-soft)}
+.jr h4{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:12px 0 2px}
+.jr label{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px}
+.jr .inp{width:112px;height:32px;font-size:12.5px;padding:0 10px}
+
+/* statutory readiness bar */
+.ready{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 22px 0;padding:12px 14px;border-radius:10px;border:1px solid var(--hairline);transition:background .2s,border-color .2s}
+.ready[data-ok=true]{background:color-mix(in srgb,var(--success) 7%,#fff);border-color:color-mix(in srgb,var(--success) 28%,var(--hairline))}
+.ready[data-ok=false]{background:color-mix(in srgb,var(--amber) 8%,#fff);border-color:color-mix(in srgb,var(--amber) 30%,var(--hairline))}
+.ready .msg{flex:1;min-width:200px;font-size:13px;font-weight:500}
+.ready[data-ok=true] .msg{color:var(--success-ink)}
+.ready[data-ok=false] .msg{color:var(--amber-ink)}
+.ready .chips{display:flex;gap:6px;flex-wrap:wrap}
+.agency{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:18px 0;border-top:1px solid var(--hairline-soft)}
+.agency:first-child{border-top:0;padding-top:0}
+.agency h3{font-size:14px;font-weight:600;margin:0}
+.agency p{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.45}
+.req{font-size:11px;font-weight:600;color:var(--muted);margin-left:4px;letter-spacing:.02em}
+.addr{padding:11px 13px;border-radius:9px;background:var(--canvas);border:1px solid var(--hairline-soft);font-size:13px}
+.addr a{font-size:12.5px;color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--muted-soft)}
+
+/* work week (as shipped 2026-10-03, compact) */
+.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.day{border:1px solid var(--hairline);border-radius:9px;background:#fff;padding:9px 4px;text-align:center;transition:border-color .12s,background .12s}
+.day b{display:block;font-size:13px;font-weight:600}
+.day span{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.day[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.day.rule{background:color-mix(in srgb,var(--amber) 9%,#fff);border-color:color-mix(in srgb,var(--amber) 34%,#fff)}
+.rule-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--hairline);border-radius:10px;margin-top:10px}
+.rule-date{width:42px;height:42px;border-radius:9px;background:var(--shelf);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;flex-shrink:0}
+.rule-date .n{font-family:var(--font-mono);font-weight:600;font-size:14px}
+.rule-date .w{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+/* switch */
+.sw{position:relative;width:36px;height:21px;flex-shrink:0;display:inline-block}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:999px;background:#d8d5cc;transition:background .16s var(--ease)}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(31,30,26,.25);transition:transform .2s var(--ease)}
+.sw input:checked+i{background:var(--ink)}
+.sw input:checked+i::after{transform:translateX(15px)}
+.sw input:focus-visible+i{outline:2px solid var(--red);outline-offset:2px}
+.sw input:disabled{cursor:not-allowed}
+.sw input:disabled+i{opacity:.45}
+
+/* approval shortcut sentence */
+.sentence{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:14px;color:var(--body);padding:14px;border-radius:10px;background:var(--canvas);border:1px solid var(--hairline-soft);transition:opacity .2s}
+.sentence[data-off=true]{opacity:.5}
+.sentence .inp{width:72px;height:36px;text-align:center}
+
+/* lists (org structure) */
+.list{border-top:1px solid var(--hairline-soft)}
+.row{display:flex;align-items:center;gap:12px;min-height:46px;padding:7px 0;border-bottom:1px solid var(--hairline-soft)}
+.row:last-child{border-bottom:0}
+.row .nm{flex:1;min-width:0;font-size:13.5px;color:var(--ink)}
+.row .nm small{display:block;font-size:12px;color:var(--muted);line-height:1.35}
+.row .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted);min-width:24px;text-align:right}
+.acts{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+.row:hover .acts,.row:focus-within .acts{opacity:1}
+@media (hover:none){.acts{opacity:1}}
+.ico{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:var(--muted);transition:background .12s,color .12s}
+.ico:hover{background:var(--hairline-soft);color:var(--ink)}
+.ico.del:hover{background:color-mix(in srgb,var(--error) 9%,#fff);color:var(--error)}
+.rank{width:26px;height:26px;border-radius:7px;background:var(--hairline-soft);display:grid;place-items:center;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--body);flex-shrink:0}
+.add-row{display:flex;gap:8px;padding:12px;margin-bottom:12px;border-radius:10px;background:var(--canvas);border:1px solid var(--hairline-soft);flex-wrap:wrap}
+.add-row .inp{height:38px;font-size:13px;flex:1;min-width:120px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.empty{font-size:12.5px;color:var(--muted);padding:14px 0 2px}
+
+/* features */
+.mods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+.mod{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)}
+.mod .t{min-width:0}
+.mod .t b{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;flex-wrap:wrap}
+.mod .t span{display:block;font-size:12px;color:var(--muted);line-height:1.4;margin-top:1px}
+.mod-g{font-size:13px;font-weight:600;margin:18px 0 2px}
+.mod-g:first-child{margin-top:0}
+.setr{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--hairline-soft)}
+.setr b{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500}
+.setr span{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+
+/* culture */
+.react{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rc{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid var(--hairline);border-radius:10px;min-width:0}
+.rc .e{font-size:16px;line-height:1;width:22px;text-align:center}
+.rc .t{flex:1;min-width:0;font-size:12.5px}
+.rc .t small{display:block;font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.rc.retired{background:var(--canvas);border-style:dashed}
+.rc.retired .t{color:var(--muted)}
+.meter{display:flex;gap:3px;align-items:center}
+.meter i{width:10px;height:6px;border-radius:999px;background:var(--hairline)}
+.meter i.on{background:var(--ink)}
+.lb{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px}
+.lb:last-child{border-bottom:0}
+.lb .q{flex:1;min-width:0;color:var(--ink)}
+
+.notes{max-width:780px;margin:40px 0 0;color:var(--body);font-size:13px}
+.notes h2{font-size:16px;font-weight:600;color:var(--ink);margin:0 0 8px}
+.notes li{margin-bottom:5px}
+
+/* ---------- responsive ---------- */
+@media (max-width:860px){
+  .set{grid-template-columns:1fr;gap:16px}
+  .idx{position:sticky;top:0;z-index:5;flex-direction:row;overflow-x:auto;gap:4px;margin:0 -16px;padding:8px 16px;background:color-mix(in srgb,var(--canvas) 88%,transparent);backdrop-filter:blur(8px);scrollbar-width:none;border-bottom:1px solid var(--hairline-soft)}
+  .idx::-webkit-scrollbar{display:none}
+  .idx-g{flex-direction:row;gap:4px}
+  .idx-h{display:none}
+  .idx a{white-space:nowrap;padding:6px 11px}
+  .sec{scroll-margin-top:64px}
+  .brand{grid-template-columns:1fr}
+  .duo,.mods{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  .wrap{padding:24px 10px 60px}
+  .screen-in{padding:22px 16px 48px}
+  .fg{grid-template-columns:1fr}
+  .facts{grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 16px 0}
+  .facts div:nth-child(3){border-left:0}
+  .facts div:nth-child(n+3){border-top:1px solid var(--hairline-soft)}
+  .facts-note{margin:8px 16px 0}
+  .ch{padding:18px 16px 0}.cb{padding:16px 16px 18px}.cf{padding:12px 16px}
+  .ready{margin:14px 16px 0}
+  .agency{grid-template-columns:1fr;gap:10px}
+  .jr{grid-template-columns:1fr}
+  .setr{grid-template-columns:1fr;gap:8px}
+  .days{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="brief">
+  <h1>Company settings, polished</h1>
+  <p>Same screen, same fields, same save endpoints. What changes is how it is arranged and how each part tells you its state.</p>
+  <ul>
+    <li><b>One column with a section index.</b> Today one tall card sits on the left and eleven cards squeeze into a 380px column on the right, so branch forms wrap into three lines and the left side goes blank halfway down. Now every card gets the full width and a sticky index jumps between them (a scrolling chip bar on phones). The amber dot flags a section that needs attention.</li>
+    <li><b>Workspace profile is grouped.</b> Plan, category, ID and members move to the top as a read-only strip. Fields fall into Company, Login page, Contact and Payroll journal. The journal codes used to sit between Email and Website.</li>
+    <li><b>Login page gets a live preview.</b> Logo, brand colour, secondary colour and welcome message all feed the login page, so they sit next to a small preview that updates as you type. Colours get a real picker next to the hex field. The broken logo image and the raw "Choose File" input are replaced by an upload tile.</li>
+    <li><b>Statutory says if payroll is blocked.</b> The three numbers a payroll run needs (E number, KWSP, PERKESO) show as a readiness bar at the top. Each agency gets its own row.</li>
+    <li><b>Approval shortcut reads as a sentence</b> with an on/off switch, instead of "leave blank to turn this off".</li>
+    <li><b>Lists are quieter.</b> Edit and Delete become icon buttons that show on hover (always on touch), so the red Delete links stop competing with the Save buttons. Staff levels show their seniority number as a badge, employment types show the No clock-in stamp.</li>
+    <li><b>Features use switches</b> and the Locked badge becomes a neutral stamp with a lock, since red is only for actions.</li>
+    <li><b>Every field gets a focus ring.</b> Most inputs today set <code>outline:none</code> with nothing in its place, so a keyboard user cannot see where they are.</li>
+  </ul>
+</section>
+
+<div class="screen" x-data="page()" x-init="spy()">
+<div class="screen-in">
+
+  <div class="pagehead">
+    <h1>Company Settings</h1>
+    <p>Workspace profile, statutory numbers, branches and departments.</p>
+  </div>
+
+  <div class="set">
+    <!-- ============ section index ============ -->
+    <nav class="idx" aria-label="Settings sections">
+      <template x-for="g in groups" :key="g.h">
+        <div class="idx-g">
+          <div class="idx-h" x-text="g.h"></div>
+          <template x-for="s in g.items" :key="s.id">
+            <a :href="'#'+s.id" :aria-current="active===s.id" @click="active=s.id">
+              <span x-text="s.t"></span>
+              <i class="dot" x-show="s.id==='statutory' && !ready()" x-cloak :title="'Payroll is blocked'"></i>
+            </a>
+          </template>
+        </div>
+      </template>
+    </nav>
+
+    <div class="col">
+
+      <!-- ============ Workspace profile ============ -->
+      <section id="profile" class="sec card" x-data="{ dirty:false }" @input="dirty=true" @change="dirty=true">
+        <div class="ch">
+          <div>
+            <h2>Workspace profile</h2>
+            <p class="sub">How your company appears inside the app, on documents and on your login page.</p>
+          </div>
+        </div>
+        <dl class="facts">
+          <div><dt>Category</dt><dd>Stage 2 · HR Operations</dd></div>
+          <div><dt>Plan</dt><dd>Enterprise</dd></div>
+          <div><dt>Workspace ID</dt><dd class="mono">unijaya-resources-sdn-bhd</dd></div>
+          <div><dt>Members</dt><dd class="mono">37</dd></div>
+        </dl>
+        <p class="facts-note">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Set by the platform team. Ask them to change your plan or category.
+        </p>
+
+        <div class="cb">
+          <div class="grp">
+            <div class="grp-h"><h3>Company</h3></div>
+            <div class="fg">
+              <div class="f"><label for="p-name">Company name</label><input id="p-name" class="inp" value="Unijaya Resources Sdn Bhd" x-model="brand.name" required>
+                <p class="hint">Shown to everyone in the app and on documents.</p></div>
+              <div class="f"><label for="p-ind">Industry <span class="opt">Optional</span></label><input id="p-ind" class="inp" value="Software Development"></div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="grp-h"><h3>Login page</h3><span>What your staff see before they sign in</span></div>
+            <div class="brand">
+              <div class="fg" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                <div class="f full">
+                  <span class="lab">Company logo</span>
+                  <div class="logo-up">
+                    <div class="logo-box" :class="{has: logo}">
+                      <template x-if="logo"><img :src="logo" alt="Current company logo" style="width:100%;height:100%;object-fit:contain"></template>
+                      <template x-if="!logo"><div class="mark" :style="'background:'+brand.c1" x-text="initials()"></div></template>
+                    </div>
+                    <div class="meta">
+                      <div class="lacts">
+                        <label class="btn-g" style="cursor:pointer">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+                          <span x-text="logo ? 'Replace logo' : 'Upload logo'"></span>
+                          <input type="file" accept="image/png,image/jpeg" hidden @change="pick($event)">
+                        </label>
+                        <button type="button" class="btn-g" x-show="logo" x-cloak @click="logo=null">Remove</button>
+                      </div>
+                      <p class="hint" style="margin:0">PNG or JPG, up to 2 MB. Square works best.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="f">
+                  <label for="p-c1">Brand colour</label>
+                  <div class="clr"><input type="color" x-model="brand.c1" aria-label="Pick brand colour"><input id="p-c1" type="text" x-model="brand.c1" maxlength="7" spellcheck="false"></div>
+                </div>
+                <div class="f">
+                  <label for="p-c2">Secondary colour</label>
+                  <div class="clr"><input type="color" x-model="brand.c2" aria-label="Pick secondary colour"><input id="p-c2" type="text" x-model="brand.c2" maxlength="7" spellcheck="false"></div>
+                </div>
+                <div class="f full">
+                  <label for="p-wel">Welcome message <span class="opt">Optional</span></label>
+                  <input id="p-wel" class="inp" x-model="brand.msg" placeholder="A line to greet your team">
+                </div>
+              </div>
+
+              <div class="pv" aria-hidden="true">
+                <div class="pv-cap"><span>Preview</span><span style="letter-spacing:.04em;text-transform:none;font-weight:500">Login page</span></div>
+                <div class="pv-stage">
+                  <div class="pv-band" :style="'background:'+brand.c2">
+                    <span class="mk" :style="'color:'+brand.c1">
+                      <template x-if="logo"><img :src="logo" alt="" style="width:20px;height:20px;object-fit:contain"></template>
+                      <template x-if="!logo"><span x-text="initials()"></span></template>
+                    </span>
+                    <b x-text="brand.name || 'Company name'"></b>
+                  </div>
+                  <p class="pv-msg" x-text="brand.msg || 'No welcome message. The login page shows just the form.'" :style="brand.msg ? '' : 'color:var(--muted);font-style:italic'"></p>
+                  <div class="pv-f"></div><div class="pv-f"></div>
+                  <div class="pv-b" :style="'background:'+brand.c1"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="grp-h"><h3>Contact</h3><span>Also printed on CP21, CP22 and PCB II</span></div>
+            <div class="fg">
+              <div class="f"><label for="p-ph">Phone</label><input id="p-ph" class="inp mono" type="tel" value="0321666558"></div>
+              <div class="f"><label for="p-em">Email</label><input id="p-em" class="inp" type="email" value="info@unijaya.com"></div>
+              <div class="f full"><label for="p-ad">Address</label><input id="p-ad" class="inp" value="D-6-8 Megan Avenue 1, 189 Jalan Tun Razak"></div>
+              <div class="f full"><label for="p-web">Website <span class="opt">Optional</span></label><input id="p-web" class="inp" type="url" value="https://www.unijaya.com" placeholder="https://"></div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="disc" :data-open="jOpen" x-data="{ jOpen:false }">
+              <button type="button" class="disc-btn" @click="jOpen=!jOpen" :aria-expanded="jOpen">
+                <span class="t"><b>Payroll journal account codes</b><span>Codes from your accounting software for the journal CSV</span></span>
+                <span class="stamp">4 of 9 set</span>
+                <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+              </button>
+              <div class="disc-p"><div>
+                <div class="jr">
+                  <div>
+                    <h4>Debit</h4>
+                    <label>Gross salary<input class="inp mono" value="6100" maxlength="40"></label>
+                    <label>Employer KWSP<input class="inp mono" value="6110" maxlength="40"></label>
+                    <label>Employer PERKESO<input class="inp mono" value="6120" maxlength="40"></label>
+                    <label>Employer EIS<input class="inp mono" placeholder="—" maxlength="40"></label>
+                    <label>HRD levy<input class="inp mono" placeholder="—" maxlength="40"></label>
+                  </div>
+                  <div>
+                    <h4>Credit</h4>
+                    <label>Net salary payable<input class="inp mono" value="2100" maxlength="40"></label>
+                    <label>KWSP payable<input class="inp mono" placeholder="—" maxlength="40"></label>
+                    <label>PERKESO payable<input class="inp mono" placeholder="—" maxlength="40"></label>
+                    <label>PCB payable<input class="inp mono" placeholder="—" maxlength="40"></label>
+                  </div>
+                </div>
+                <p class="hint" style="padding:0 14px 14px;margin:0">Left blank, the journal CSV leaves that code empty.</p>
+              </div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cf">
+          <span class="state"><template x-if="dirty"><i></i></template><span x-text="dirty ? 'Unsaved changes' : 'All changes saved'"></span></span>
+          <button class="btn-p" :disabled="!dirty" @click="dirty=false">Save profile</button>
+        </div>
+      </section>
+
+      <!-- ============ Statutory & tax ============ -->
+      <section id="statutory" class="sec card" x-data="{ dirty:false }" @input="dirty=true">
+        <div class="ch">
+          <div>
+            <h2>Statutory &amp; tax</h2>
+            <p class="sub">Every KWSP, PERKESO, LHDN, HRD Corp and zakat file carries these numbers. Saved on its own, so a profile save never blanks them.</p>
+          </div>
+        </div>
+        <div class="ready" :data-ok="String(ready())">
+          <svg x-show="ready()" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
+          <svg x-show="!ready()" x-cloak width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/></svg>
+          <span class="msg" x-text="ready() ? 'Ready for payroll. All three required numbers are filled in.' : 'Payroll runs are blocked until ' + missing().join(', ') + (missing().length > 1 ? ' are' : ' is') + ' filled in.'"></span>
+          <span class="chips">
+            <span class="stamp" :data-tone="st.tin.trim() ? 'success' : 'amber'">E number</span>
+            <span class="stamp" :data-tone="st.epf.trim() ? 'success' : 'amber'">KWSP</span>
+            <span class="stamp" :data-tone="st.socso.trim() ? 'success' : 'amber'">PERKESO</span>
+          </span>
+        </div>
+
+        <div class="cb">
+          <div class="agency">
+            <div><h3>LHDN</h3><p>Form E, CP21, CP22, PCB</p></div>
+            <div class="fg">
+              <div class="f full"><label for="s-tin">Employer number (E)<span class="req">REQUIRED</span></label>
+                <div class="pre"><span>E</span><input id="s-tin" class="inp mono" x-model="st.tin" maxlength="20"></div>
+                <p class="warn" x-show="st.tin.trim() && !/^E?\d{10}$/.test(st.tin.replace(/\s/g,'').toUpperCase())" x-cloak><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>An E number is usually 10 digits. Check it against your LHDN letter.</p>
+              </div>
+              <div class="f"><label for="s-cat">Employer category <span class="opt">Form E item 3</span></label>
+                <select id="s-cat" class="inp"><option value="">Not set</option><option>1 · Government</option><option selected>2 · Statutory</option><option>3 · Private sector</option></select></div>
+              <div class="f"><label for="s-sta">Employer status <span class="opt">Form E item 4</span></label>
+                <select id="s-sta" class="inp"><option value="">Not set</option><option>1 · Still operating</option><option>2 · Dormant</option></select></div>
+            </div>
+          </div>
+          <div class="agency">
+            <div><h3>KWSP</h3><p>Monthly Borang A</p></div>
+            <div class="f"><label for="s-epf">Employer number<span class="req">REQUIRED</span></label><input id="s-epf" class="inp mono" x-model="st.epf" style="max-width:280px"></div>
+          </div>
+          <div class="agency">
+            <div><h3>PERKESO</h3><p>SOCSO and EIS</p></div>
+            <div class="f"><label for="s-soc">Employer code<span class="req">REQUIRED</span></label><input id="s-soc" class="inp mono" x-model="st.socso" placeholder="A3100000000Z" style="max-width:280px"></div>
+          </div>
+          <div class="agency">
+            <div><h3>Zakat</h3><p>Salary deduction file</p></div>
+            <div class="f"><label for="s-zk">Employer number <span class="opt">Optional</span></label><input id="s-zk" class="inp mono" value="C8211" style="max-width:280px"></div>
+          </div>
+          <div class="agency">
+            <div><h3>Forms</h3><p>Who signs, and the address printed</p></div>
+            <div class="fg">
+              <div class="f full"><label for="s-sig">Signatory</label>
+                <select id="s-sig" class="inp"><option>Nur Hidayah Suffiah Binti Ramlan · Jr Admin Exec</option></select>
+                <p class="hint">Name and designation printed on CP21, CP22, CP22A and PCB II.</p></div>
+              <div class="full addr">
+                <div>D-6-8 Megan Avenue 1, 189 Jalan Tun Razak</div>
+                <div class="mono" style="font-size:12.5px;color:var(--body)">0321666558</div>
+                <a href="#profile" @click="active='profile'">Change in Workspace profile</a>
+              </div>
+            </div>
+          </div>
+          <div class="agency">
+            <div><h3>Payment</h3><p>Bank file and payroll contact</p></div>
+            <div class="fg">
+              <div class="f"><label for="s-bank">Paying bank</label><select id="s-bank" class="inp"><option>Maybank</option><option>CIMB</option></select></div>
+              <div class="f"><label for="s-acc">Account number</label><input id="s-acc" class="inp mono" value="514011223344"></div>
+              <div class="f"><label for="s-pcn">Payroll contact name</label><input id="s-pcn" class="inp" value="Nur Hidayah"></div>
+              <div class="f"><label for="s-pcp">Payroll contact phone</label><input id="s-pcp" class="inp mono" type="tel" value="0123456789"></div>
+            </div>
+          </div>
+        </div>
+        <div class="cf">
+          <span class="state"><template x-if="dirty"><i></i></template><span x-text="dirty ? 'Unsaved changes' : 'All changes saved'"></span></span>
+          <button class="btn-p" :disabled="!dirty" @click="dirty=false">Save statutory details</button>
+        </div>
+      </section>
+
+      <!-- ============ Work week ============ -->
+      <section id="work-week" class="sec card">
+        <div class="ch"><div><h2>Work week</h2><p class="sub">Which days count as working days. Leave balances, timesheet capacity and attendance reports all follow this.</p></div></div>
+        <div class="cb">
+          <div class="days">
+            <template x-for="(d,i) in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']" :key="d">
+              <button type="button" class="day" :class="{rule: i===5 && !days[i]}" :aria-pressed="days[i]" @click="days[i]=!days[i]">
+                <b x-text="d"></b><span x-text="days[i] ? 'Every week' : (i===5 ? 'Some weeks' : 'Off')"></span>
+              </button>
+            </template>
+          </div>
+          <p class="hint">Hours on these days come from each branch, client site or the WFH policy. Applies from today; past records are not recalculated.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px">
+            <h3 style="font-size:14px;font-weight:600;margin:0">Special days</h3>
+            <button class="btn-g"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add special day</button>
+          </div>
+          <div class="rule-row">
+            <div class="rule-date"><span class="n">2×</span><span class="w">Sat</span></div>
+            <div style="flex:1;min-width:0"><p style="font-size:13.5px;font-weight:500">2nd and 4th Saturday of the month</p><p style="font-size:12px;color:var(--muted)"><span class="mono">09:00 – 13:00</span> · <span class="mono">4h 00m</span> · Next Sat 10 Oct</p></div>
+            <span class="stamp" data-tone="amber">Half day</span>
+          </div>
+        </div>
+        <div class="cf">
+          <span class="state" x-text="days.filter(Boolean).length + ' working days'"></span>
+          <button class="btn-p">Save work week</button>
+        </div>
+      </section>
+
+      <!-- ============ Approval shortcut ============ -->
+      <section id="approvals" class="sec card">
+        <div class="ch">
+          <div><h2>Approval shortcut</h2><p class="sub">For requests stuck with a manager who hasn't verified them.</p></div>
+          <label class="sw" title="Turn the shortcut on or off"><input type="checkbox" x-model="esc.on" aria-label="Approval shortcut"><i></i></label>
+        </div>
+        <div class="cb">
+          <div class="sentence" :data-off="!esc.on">
+            <span>When a leave or claim request has waited</span>
+            <input class="inp mono" type="number" min="1" max="60" x-model="esc.days" :disabled="!esc.on" aria-label="Days to wait">
+            <span>calendar days without a manager's check, HR or a director can approve it directly.</span>
+          </div>
+          <p class="hint" x-text="esc.on ? 'Counted from when the request was sent.' : 'Off. Every request waits for its manager first.'"></p>
+        </div>
+        <div class="cf"><span class="state"></span><button class="btn-p">Save</button></div>
+      </section>
+
+      <!-- ============ Branches ============ -->
+      <section id="branches" class="sec card" x-data="{ adding:false }">
+        <div class="ch">
+          <div><h2>Branches</h2><p class="sub">Each branch carries its own clock-in geofence and working hours.</p></div>
+          <button class="btn-g" @click="adding=!adding" x-text="adding ? 'Cancel' : '+ Add branch'"></button>
+        </div>
+        <div class="cb">
+          <div class="add-row" x-show="adding" x-cloak>
+            <input class="inp" placeholder="Branch name" aria-label="Branch name">
+            <input class="inp" placeholder="State" aria-label="State" style="max-width:160px">
+            <button class="btn-p" style="height:38px">Add branch</button>
+            <p class="hint" style="flex-basis:100%;margin:0">Geofence, hours and contact details can be set after it is added.</p>
+          </div>
+          <div class="list">
+            <div class="row">
+              <span style="width:34px;height:34px;border-radius:9px;background:var(--shelf);display:grid;place-items:center;color:var(--body);flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></span>
+              <span class="nm">Unijaya Resources Sdn Bhd<small>Kuala Lumpur · HQ · <span class="mono">09:00–18:00</span></small></span>
+              <span class="stamp" data-tone="success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>Geofence 200 m</span>
+              <span class="acts"><button class="ico" aria-label="Edit branch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="ico del" aria-label="Delete branch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></span>
+            </div>
+            <div class="row">
+              <span style="width:34px;height:34px;border-radius:9px;background:var(--shelf);display:grid;place-items:center;color:var(--body);flex-shrink:0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></span>
+              <span class="nm">Penang client site<small>Pulau Pinang · Client site · hours not set</small></span>
+              <span class="stamp" data-tone="amber">No geofence</span>
+              <span class="acts"><button class="ico" aria-label="Edit branch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="ico del" aria-label="Delete branch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></span>
+            </div>
+          </div>
+          <p class="hint" style="margin-top:10px">Second branch is sample data to show the "No geofence" state.</p>
+        </div>
+      </section>
+
+      <!-- ============ Departments + Staff levels ============ -->
+      <div class="duo">
+        <section id="departments" class="sec card">
+          <div class="ch"><div><h2>Departments</h2><p class="sub">Staff are grouped under these.</p></div><button class="btn-g">+ Add</button></div>
+          <div class="cb">
+            <div class="list">
+              <template x-for="d in depts" :key="d[0]">
+                <div class="row">
+                  <span class="nm" x-text="d[0]"></span>
+                  <span class="num" :title="d[1] + ' staff'" x-text="d[1]"></span>
+                  <span class="acts"><button class="ico" aria-label="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg></button><button class="ico del" aria-label="Delete" :disabled="d[1]>0" :title="d[1]>0 ? 'Move its staff first' : 'Delete'" :style="d[1]>0 ? 'opacity:.35;cursor:not-allowed' : ''"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </section>
+
+        <section id="staff-levels" class="sec card">
+          <div class="ch"><div><h2>Staff levels</h2><p class="sub">1 is most senior. Staff can open full profiles of anyone below them.</p></div><button class="btn-g">+ Add</button></div>
+          <div class="cb">
+            <div class="list">
+              <template x-for="(l,i) in levels" :key="l">
+                <div class="row">
+                  <span class="rank" x-text="i+1"></span>
+                  <span class="nm" x-text="l"></span>
+                  <span class="acts"><button class="ico" aria-label="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg></button><button class="ico del" aria-label="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ============ Employment types ============ -->
+      <section id="employment-types" class="sec card" x-data="{ adding:false }">
+        <div class="ch"><div><h2>Employment types</h2><p class="sub">Full-time, contract, intern and so on.</p></div><button class="btn-g" @click="adding=!adding" x-text="adding ? 'Cancel' : '+ Add'"></button></div>
+        <div class="cb">
+          <div class="add-row" x-show="adding" x-cloak>
+            <input class="inp" placeholder="Type, e.g. Part-time" aria-label="Type name">
+            <input class="inp" placeholder="Code" aria-label="Code" style="max-width:110px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px"><span class="sw"><input type="checkbox"><i></i></span>No clock-in</label>
+            <button class="btn-p" style="height:38px">Add</button>
+            <p class="hint" style="flex-basis:100%;margin:0">No clock-in: staff on this type keep their own hours. No reminders, never counted late or absent.</p>
+          </div>
+          <div class="list">
+            <template x-for="t in types" :key="t[0]">
+              <div class="row">
+                <span class="nm" x-text="t[0]"></span>
+                <span class="stamp" x-show="t[1]">No clock-in</span>
+                <span class="acts"><button class="ico" aria-label="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></svg></button><button class="ico del" aria-label="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Features ============ -->
+      <section id="features" class="sec card">
+        <div class="ch"><div><h2>Features</h2><p class="sub">Turning a module off hides it from the menu for everyone and blocks its screens.</p></div></div>
+        <div class="cb">
+          <div class="mod-g">People</div>
+          <div class="mods">
+            <div class="mod"><span class="t"><b>Leave</b><span>Controls: Leave · Leave calendar</span></span><label class="sw"><input type="checkbox" checked aria-label="Leave"><i></i></label></div>
+            <div class="mod"><span class="t"><b>Claims</b></span><label class="sw"><input type="checkbox" checked aria-label="Claims"><i></i></label></div>
+            <div class="mod"><span class="t"><b>Overtime</b></span><label class="sw"><input type="checkbox" aria-label="Overtime"><i></i></label></div>
+            <div class="mod"><span class="t"><b>Payroll <span class="stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Locked</span></b><span>Set by the platform team</span></span><label class="sw"><input type="checkbox" checked disabled aria-label="Payroll (locked)"><i></i></label></div>
+          </div>
+          <div class="mod-g">Work</div>
+          <div class="mods">
+            <div class="mod"><span class="t"><b>Attendance</b><span>Controls: Clock in · Attendance report</span></span><label class="sw"><input type="checkbox" checked aria-label="Attendance"><i></i></label></div>
+            <div class="mod"><span class="t"><b>Timesheets</b></span><label class="sw"><input type="checkbox" checked aria-label="Timesheets"><i></i></label></div>
+          </div>
+          <div class="mod-g" style="margin-top:24px">Settings</div>
+          <div class="setr"><div><b>Late grace period</b><span>Minutes after start before a clock-in counts as late.</span></div><input class="inp mono" type="number" value="15" style="height:38px"></div>
+          <div class="setr"><div><b>Week starts on</b></div><select class="inp" style="height:38px"><option>Monday</option><option>Sunday</option></select></div>
+        </div>
+        <div class="cf"><span class="state"></span><button class="btn-p">Save features</button></div>
+      </section>
+
+      <!-- ============ Culture ============ -->
+      <section id="greetings" class="sec card">
+        <div class="ch"><div><h2>Dashboard greetings</h2><p class="sub">These rotate on everyone's dashboard. Use {name} for the person's first name.</p></div><button class="btn-g">+ Add</button></div>
+        <div class="cb">
+          <p class="hint" style="margin:0 0 8px">The greeting bank card (tabs, search, pending suggestions) stays as it is today. Only its spacing joins the new rhythm.</p>
+          <div class="list">
+            <div class="lb"><span class="stamp">Morning</span><span class="q">Selamat pagi, {name}. Coffee first, then conquer.</span></div>
+            <div class="lb"><span class="stamp">Friday</span><span class="q">Hari Jumaat, {name}. Finish strong.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="eggs" class="sec card">
+        <div class="ch"><div><h2>Dashboard easter eggs</h2><p class="sub">Small surprises, at most once a day per person. Never blocks anything.</p></div><button class="btn-g">+ Add</button></div>
+        <div class="cb"><p class="hint" style="margin:0">Same card as greetings, unchanged.</p></div>
+      </section>
+
+      <section id="reactions" class="sec card">
+        <div class="ch">
+          <div><h2>Reactions</h2><p class="sub">Retiring one keeps it on the items it was already given. Nothing is ever renamed.</p></div>
+          <button class="btn-g">+ Add reaction</button>
+        </div>
+        <div class="cb">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;color:var(--muted)">
+            <span class="meter" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></span>
+            <span><span class="mono" style="color:var(--ink)">6</span> of <span class="mono">10</span> active</span>
+          </div>
+          <div class="react">
+            <template x-for="r in reactions" :key="r[2]">
+              <div class="rc" :class="{retired: r[3]}">
+                <span class="e" x-text="r[0]"></span>
+                <span class="t"><span x-text="r[1]"></span><small x-text="r[2]"></small></span>
+                <button class="ico" x-show="!r[3]" :aria-label="'Retire ' + r[1]" title="Retire"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg></button>
+                <span class="stamp" x-show="r[3]">Retired</span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<section class="notes">
+  <h2>Not in this mockup</h2>
+  <ul>
+    <li>BM copy. Every label keeps its EN/BM pair in the real build.</li>
+    <li>The work week editor, special-day calendar and branch edit form keep their current behaviour. Branch edit still opens inline with geofence and hours.</li>
+    <li>The <code>?section=</code> deep links (used by the setup guide and the payroll "missing number" chips) keep working: they show one card on its own, without the index.</li>
+  </ul>
+</section>
+
+</div>
+
+<script>
+function page(){
+  return {
+    active:'profile',
+    groups:[
+      {h:'Company',items:[{id:'profile',t:'Workspace profile'},{id:'statutory',t:'Statutory & tax'}]},
+      {h:'Working time',items:[{id:'work-week',t:'Work week'},{id:'approvals',t:'Approval shortcut'}]},
+      {h:'Organisation',items:[{id:'branches',t:'Branches'},{id:'departments',t:'Departments'},{id:'staff-levels',t:'Staff levels'},{id:'employment-types',t:'Employment types'}]},
+      {h:'Modules',items:[{id:'features',t:'Features'}]},
+      {h:'Culture',items:[{id:'greetings',t:'Greetings'},{id:'eggs',t:'Easter eggs'},{id:'reactions',t:'Reactions'}]},
+    ],
+    brand:{name:'Unijaya Resources Sdn Bhd',c1:'#d6232b',c2:'#1f1e1a',msg:'Good Better Best, Never let it rest until your good is better than your better is best.'},
+    logo:null,
+    st:{tin:'9013568509',epf:'014826360',socso:''},
+    esc:{on:true,days:3},
+    days:[true,true,true,true,true,false,false],
+    depts:[['Human Resources',0],['Administration',6],['Sales & Marketing',0],['Operation',31]],
+    levels:['Director','Sr Manager','Manager','Exec','Jr Exec','Intern'],
+    types:[['Permanent',false],['Contract',false],['Probation',false],['Intern',false],['Freelance consultant',true]],
+    reactions:[['👍','Like','like',0],['❤️','Love','love',0],['🎉','Celebrate','celebrate',0],['🙏','Thanks','thanks',0],['🔥','On fire','fire',0],['🐐','GOAT','goat',0],['😂','Haha','haha',1]],
+    initials(){return (this.brand.name||'?').split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase()},
+    pick(e){const f=e.target.files[0]; if(f) this.logo=URL.createObjectURL(f)},
+    missing(){const m=[]; if(!this.st.tin.trim()) m.push('the E number'); if(!this.st.epf.trim()) m.push('the KWSP number'); if(!this.st.socso.trim()) m.push('the PERKESO code'); return m},
+    ready(){return this.missing().length===0},
+    spy(){
+      const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting) this.active=e.target.id})},{rootMargin:'-20% 0px -70% 0px'});
+      this.$nextTick(()=>document.querySelectorAll('.sec').forEach(s=>io.observe(s)));
+    },
+  };
+}
+</script>
+</body>
+</html>

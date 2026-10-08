@@ -23,13 +23,7 @@ class SettingsAlpineCopyTest extends TestCase
 
     public function test_every_x_text_on_company_settings_has_balanced_quotes(): void
     {
-        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
-        $hr = User::create(['name' => 'HR', 'email' => 'hr@example.com', 'password' => Hash::make('password')]);
-        $hr->tenants()->attach($tenant->id, ['role' => 'hr']);
-        Employee::create(['tenant_id' => $tenant->id, 'user_id' => $hr->id, 'name' => 'HR', 'status' => 'active', 'workload' => 'green']);
-
-        $html = $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
-            ->get('/app/settings')->assertOk()->getContent();
+        $html = $this->settingsPage('/app/settings');
 
         preg_match_all('/\sx-text="([^"]*)"/', $html, $m);
         $this->assertNotEmpty($m[1]);
@@ -41,5 +35,46 @@ class SettingsAlpineCopyTest extends TestCase
         }));
 
         $this->assertSame([], $broken, 'x-text with an unbalanced quote: '.implode(' | ', $broken));
+    }
+
+    /**
+     * The full page gets a section index whose every link lands on a card, and the
+     * statutory link carries the "payroll blocked" dot while the numbers are blank.
+     */
+    public function test_full_page_has_a_section_index_that_points_at_real_cards(): void
+    {
+        $html = $this->settingsPage('/app/settings');
+
+        $this->assertStringContainsString('class="uj-cs-idx"', $html);
+        preg_match_all('/<nav class="uj-cs-idx".*?<\/nav>/s', $html, $nav);
+        preg_match_all('/href="#([a-z-]+)"/', $nav[0][0], $anchors);
+
+        $this->assertContains('profile', $anchors[1]);
+        $this->assertContains('statutory', $anchors[1]);
+        $this->assertContains('employment-types', $anchors[1]);
+        foreach ($anchors[1] as $anchor) {
+            $this->assertStringContainsString('id="'.$anchor.'"', $html, "Index link #{$anchor} has no card");
+        }
+        $this->assertStringContainsString('uj-cs-dot', $nav[0][0]);
+    }
+
+    public function test_single_section_view_has_no_section_index(): void
+    {
+        $html = $this->settingsPage('/app/settings?section=branches');
+
+        $this->assertStringNotContainsString('class="uj-cs-idx"', $html);
+        $this->assertStringContainsString('id="branches"', $html);
+        $this->assertStringNotContainsString('id="profile"', $html);
+    }
+
+    private function settingsPage(string $url): string
+    {
+        $tenant = Tenant::create(['slug' => 'acme', 'name' => 'Acme', 'initials' => 'AC']);
+        $hr = User::create(['name' => 'HR', 'email' => 'hr@example.com', 'password' => Hash::make('password')]);
+        $hr->tenants()->attach($tenant->id, ['role' => 'hr']);
+        Employee::create(['tenant_id' => $tenant->id, 'user_id' => $hr->id, 'name' => 'HR', 'status' => 'active', 'workload' => 'green']);
+
+        return $this->actingAs($hr)->withSession(['current_tenant' => $tenant->id])
+            ->get($url)->assertOk()->getContent();
     }
 }

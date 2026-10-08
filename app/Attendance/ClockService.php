@@ -70,7 +70,9 @@ class ClockService
             return ['status' => 'needs_justification', 'message' => 'You appear to be outside '.$site->label.'. Add a reason to clock in.'];
         }
 
-        $late = $this->isLate($site->workStart, $site->workEnd, $now, $employee->tenant->late_grace_minutes ?? 0);
+        // Clock-exempt staff (Freelance) keep their own hours: nothing to be late for.
+        $mustClock = $employee->mustClock();
+        $late = $mustClock && $this->isLate($site->workStart, $site->workEnd, $now, $employee->tenant->late_grace_minutes ?? 0);
 
         // Lateness was the one anomaly recorded in silence: the flag told HR that somebody
         // was late but never why, and gave the employee no moment to say so. It now costs
@@ -117,9 +119,11 @@ class ClockService
             'latitude' => $lat,
             'longitude' => $lng,
             'expected_site_type' => $site->type,
-            'expected_start' => $site->workStart,
-            'expected_end' => $site->workEnd,
-            'expected_min_hours' => $site->minHours,
+            // No shift stamped for clock-exempt staff, so the clock-out side has nothing to
+            // judge either: no early/short flag, no clock-out reminder, no auto-close.
+            'expected_start' => $mustClock ? $site->workStart : null,
+            'expected_end' => $mustClock ? $site->workEnd : null,
+            'expected_min_hours' => $mustClock ? $site->minHours : null,
             'in_radius' => $inRadius,
             'work_mode' => $siteVisit ? 'site_visit' : 'office_home',
             'clock_in_justification' => $this->filled($justification) ? $justification : null,

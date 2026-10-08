@@ -237,6 +237,21 @@ class Employee extends Model
     }
 
     /**
+     * Staff expected to clock in: everyone except those on a clock-exempt employment
+     * type (Freelance). Staff with no employment type set still have to clock.
+     */
+    public function scopeClockRequired(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('employmentType', fn (Builder $type) => $type->where('clock_exempt', true));
+    }
+
+    /** The per-row twin of scopeClockRequired(). */
+    public function mustClock(): bool
+    {
+        return ! $this->employmentType?->clock_exempt;
+    }
+
+    /**
      * PERKESO contribution category as of $asOf: 2 if the employee is 60 or older
      * (SOCSO Employment-Injury only, no EIS), otherwise 1. Defaults to 1 when DOB is
      * unknown — the payroll run flags missing DOBs separately so this is never silent.

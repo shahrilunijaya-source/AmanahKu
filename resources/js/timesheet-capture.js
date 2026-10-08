@@ -57,24 +57,26 @@ export function isoWeekday(iso) {
     return day === 0 ? 7 : day;
 }
 
-/** True when $iso is the tenant's TOT half day: first Saturday of the month, only for a
- *  tenant with tot_saturday on whose week does not already list Saturday. */
-export function isTotDayFor(iso, workDays, totSaturday) {
-    return Boolean(totSaturday) && isFirstSaturday(iso) && !workDays.includes(6);
+/** True when $iso is a special-rule half day: a date the server listed in specialDays at
+ *  under 100% capacity (a WorkDayRule match, e.g. every 1st Saturday). */
+export function isTotDayFor(iso, workDays, specialDays) {
+    const cap = (specialDays || {})[iso];
+
+    return cap !== undefined && cap < 100;
 }
 
-/** True when $iso is a working day for a tenant: listed in its work week, or its TOT day.
+/** True when $iso is a working day: a special-rule date, or listed in the tenant's work week.
  *  Mirrors App\Support\WorkWeek::isWorkingDay() on the server. */
-export function isWorkDayFor(iso, workDays, totSaturday) {
-    return workDays.includes(isoWeekday(iso)) || isTotDayFor(iso, workDays, totSaturday);
+export function isWorkDayFor(iso, workDays, specialDays) {
+    return (specialDays || {})[iso] !== undefined || workDays.includes(isoWeekday(iso));
 }
 
 /** Columns shown with the weekend hidden: Monday through the week's last working day
  *  (5 for Mon–Fri, 6 for a Saturday-working company or a TOT week). */
-export function baseDaysFor(weekStart, workDays, totSaturday) {
+export function baseDaysFor(weekStart, workDays, specialDays) {
     let last = 5;
     for (let i = 0; i < 7; i++) {
-        if (isWorkDayFor(addDaysIso(weekStart, i), workDays, totSaturday)) last = i + 1;
+        if (isWorkDayFor(addDaysIso(weekStart, i), workDays, specialDays)) last = i + 1;
     }
 
     return last;
@@ -120,11 +122,11 @@ export function registerTimesheetCapture(Alpine) {
         weekStart: cfg.weekStart,
         // The tenant's work week (ISO 1..7) and its TOT-Saturday flag, from tenants.work_days.
         workDays: cfg.workDays || [1, 2, 3, 4, 5],
-        totSaturday: Boolean(cfg.totSaturday),
+        specialDays: cfg.specialDays || {},
         // Monday through the week's last working day (6 on a TOT week or for a Saturday-
         // working company), so staff can fill every work day without hunting for the
         // "Show weekend" toggle. cfg.days still wins when the caller passes one (tests).
-        days: cfg.days || baseDaysFor(cfg.weekStart, cfg.workDays || [1, 2, 3, 4, 5], Boolean(cfg.totSaturday)),
+        days: cfg.days || baseDaysFor(cfg.weekStart, cfg.workDays || [1, 2, 3, 4, 5], cfg.specialDays || {}),
         // Kept in sync with the "Show weekend" toggle, which flips between this and 7.
         today: cfg.today,
         earliestWeek: cfg.earliestWeek,
@@ -258,13 +260,13 @@ export function registerTimesheetCapture(Alpine) {
         // The week's own day count with the weekend hidden: Monday through the last working
         // day of the tenant's week. The "Show weekend" toggle returns here.
         baseDays() {
-            return baseDaysFor(this.weekStart, this.workDays, this.totSaturday);
+            return baseDaysFor(this.weekStart, this.workDays, this.specialDays);
         },
         isTotDay(iso) {
-            return isTotDayFor(iso, this.workDays, this.totSaturday);
+            return isTotDayFor(iso, this.workDays, this.specialDays);
         },
         isWorkDay(iso) {
-            return isWorkDayFor(iso, this.workDays, this.totSaturday);
+            return isWorkDayFor(iso, this.workDays, this.specialDays);
         },
         dayDates() {
             const out = [];
@@ -306,11 +308,11 @@ export function registerTimesheetCapture(Alpine) {
             }
             return parseFloat(day.percentage) || 0;
         },
-        // How much this day asks to be filled: 50% on the tenant's TOT half day, 100% on
+        // How much this day asks to be filled: the special rule's capacity (50 on a half day), 100% on
         // every other day (a day off shown via "Show weekend" is optional, so it keeps 100
         // as its ceiling). Mirrors App\Timesheet\DayCapacity, which the submit gate enforces.
         capacityFor(iso) {
-            return this.isTotDay(iso) ? 50 : 100;
+            return this.specialDays[iso] ?? 100;
         },
         isFullyLocked(iso) {
             // A public holiday is never fully locked: unlike whole-day leave, the staffer
