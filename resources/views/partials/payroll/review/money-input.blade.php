@@ -1,8 +1,7 @@
 {{-- One editable money cell on the payslip review. Blank = use the calculated figure (shown as the placeholder); a typed value is HR's override. $key is the Alpine state key on the payslip's `f`; $name is the form field (null = a mirror of a field named elsewhere on the same panel). --}}
 <span class="inline-flex items-center justify-end gap-1.5">
-    <span x-show="f.{{ $key }} !== ''" x-cloak class="uj-pill" style="background:var(--red-tint);color:var(--info);font-size:10px;" x-text="$store.ui.lang==='en' ? 'edited' : 'disunting'">edited</span>
     {{-- Read-only figure until Overwrite switches the panel to edit mode. --}}
-    <span x-show="mode !== 'edit'" class="amt" style="font-family:var(--font-mono);font-size:13px;color:var(--ink);min-width:7rem;text-align:right;padding-right:0.5rem;">{{ number_format((float) $effective, 2) }}</span>
+    <span x-show="mode !== 'edit'" class="amt inline-flex items-center justify-end gap-1.5 whitespace-nowrap" style="font-family:var(--font-mono);font-size:13px;color:var(--ink);min-width:7rem;padding-right:0.5rem;" :style="{ color: f.{{ $key }} !== '' ? 'var(--info)' : '' }">{{-- The hand-typed marker sits inside the fixed-width amount box, so it never pushes the MYR column sideways. --}}<span x-show="f.{{ $key }} !== ''" x-cloak class="inline-flex" role="img" :aria-label="$store.ui.lang==='en' ? 'Typed by hand' : 'Ditaip sendiri'" :title="$store.ui.lang==='en' ? 'Typed by hand. Clear it to go back to the calculated figure.' : 'Ditaip sendiri. Kosongkan untuk kembali kepada angka yang dikira.'">@include('partials.payroll.review.icon', ['name' => 'pencil', 'size' => 12])</span>{{ number_format((float) $effective, 2) }}</span>
     <input type="number" x-show="mode === 'edit'" x-cloak :disabled="mode !== 'edit'" step="0.01" min="0" inputmode="decimal"
         @if ($name) name="{{ $name }}" @endif
         x-model="f.{{ $key }}"

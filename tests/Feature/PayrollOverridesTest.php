@@ -60,6 +60,32 @@ class PayrollOverridesTest extends TestCase
         return $p->fresh();
     }
 
+    public function test_review_sets_zakat_and_skbbk_on_the_staff_setting(): void
+    {
+        $p = $this->payslip();
+        $this->assertEqualsWithDelta(0.0, $p->zakat + $p->skbbk_employee, 0.001);
+
+        $p = $this->save($p, ['zakat_monthly' => 100, 'skbbk_opt_in' => 1]);
+        $structure = $this->emp->salaryStructure()->first();
+        $this->assertEqualsWithDelta(100.0, $p->zakat, 0.001);
+        $this->assertGreaterThan(0, $p->skbbk_employee);
+        $this->assertEqualsWithDelta(100.0, $structure->zakat_monthly, 0.001);
+        $this->assertTrue($structure->skbbk_opt_in);
+
+        // Blank or absent leaves the staff setting alone.
+        $p = $this->save($p, ['zakat_monthly' => '']);
+        $this->assertEqualsWithDelta(100.0, $p->zakat, 0.001);
+        $this->assertGreaterThan(0, $p->skbbk_employee);
+
+        // 0 and an unticked box remove them.
+        $p = $this->save($p, ['zakat_monthly' => 0, 'skbbk_opt_in' => 0]);
+        $this->assertEqualsWithDelta(0.0, $p->zakat + $p->skbbk_employee, 0.001);
+        $this->assertFalse($this->emp->salaryStructure()->first()->skbbk_opt_in);
+
+        $this->get('/app/payroll-review?tab=individual&run='.$p->payroll_run_id)
+            ->assertSee('name="zakat_monthly"', false)->assertSee('name="skbbk_opt_in"', false);
+    }
+
     public function test_statutory_overrides_replace_computed_amounts_and_totals_follow(): void
     {
         $p = $this->payslip();

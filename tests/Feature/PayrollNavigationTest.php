@@ -275,7 +275,9 @@ class PayrollNavigationTest extends TestCase
         $slip = $this->finalizedPayslipFor($this->emp, '2026-02');
 
         $html = $this->acting($this->hr)->get('/app/payroll-review?tab=individual&run='.$slip->payroll_run_id)->assertOk()->getContent();
-        $this->assertStringContainsString('name="run"', $html);
+        // The run picker: a link to this run, marked current, with its status stamp.
+        $this->assertStringContainsString(e(route('app.screen', ['screen' => 'payroll-review', 'tab' => 'individual', 'run' => $slip->payroll_run_id])).'" aria-current="true"', $html);
+        $this->assertStringContainsString('data-tone="success"', $html);
         $this->assertStringContainsString('Worker', $html);
         $this->assertStringContainsString(route('payroll.export.ea-forms', ['year' => 2026]), $html);
         $this->assertStringContainsString(route('payroll.ea-form.show', ['employee' => $this->emp->id, 'year' => 2026]), $html);
