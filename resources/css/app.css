@@ -6111,6 +6111,30 @@ form.uj-or-fields { padding: 20px; }
 .pt-menu a:hover, .pt-menu button:hover:not(:disabled) { background: var(--canvas); }
 .pt-menu a:focus-visible, .pt-menu button:focus-visible { outline: 2px solid var(--info); }
 .pt-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Run picker (payroll review + payment tabs): the run on show with its status stamp, and
+   a menu of the others. Opens from the left edge because it sits at the start of the row. */
+.pt-run-pop { position: relative; min-width: 0; }
+.pt-run { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.pt-run-label { font-size: 12.5px; color: var(--muted); }
+.pt-run-btn { gap: 10px; padding: 0 10px 0 12px; font-size: 12.5px; min-width: 0; transition: border-color 140ms var(--ease), background 140ms var(--ease); }
+.pt-run-btn:hover:not(:disabled) { background: #fff; border-color: var(--muted-soft); }
+.pt-run-value { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.pt-run-value > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.pt-run-chev { color: var(--muted); flex-shrink: 0; transition: transform 160ms var(--ease); }
+.pt-run-chev.is-open { transform: rotate(180deg); }
+.pt-run .pt-menu {
+    left: 0; right: auto; top: calc(100% + 6px); width: max-content; min-width: max(100%, 240px); max-width: calc(100vw - 32px); max-height: 320px; overflow-y: auto;
+    box-shadow: var(--shadow-menu); transform-origin: top left;
+    opacity: 1; transform: scale(1); transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+    @starting-style { opacity: 0; transform: scale(.97); }
+}
+.pt-run .pt-menu a { gap: 8px; padding: 8px 10px 8px 8px; }
+.pt-run .pt-menu a:focus-visible { outline-offset: -2px; }
+.pt-run-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-run-check { flex-shrink: 0; color: var(--ink); visibility: hidden; }
+.pt-run .pt-menu a[aria-current] { font-weight: 600; }
+.pt-run .pt-menu a[aria-current] .pt-run-check { visibility: visible; }
+@media (prefers-reduced-motion: reduce) { .pt-run .pt-menu, .pt-run-chev { transition: none; } }
 
 /* ── Work week card: weekday toggles + Special days (work_day_rules) ──
    Selected weekday is ink so the card's one red stays the primary button. A weekday that
