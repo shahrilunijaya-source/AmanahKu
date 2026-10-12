@@ -1534,6 +1534,10 @@ class PayrollController extends Controller
             'eis_employer_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'unpaid_deduction_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             'claims_reimbursement_override' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            // Not overrides: these two save to the staff's own standing setting, so next
+            // month carries them. Blank/absent = leave the setting alone; 0 removes zakat.
+            'zakat_monthly' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'skbbk_opt_in' => ['nullable', 'boolean'],
             // Blank/absent = keep the generated (possibly prorated) basic; a value here
             // is HR's own figure and sticks until the run is regenerated.
             'basic' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
@@ -1593,6 +1597,17 @@ class PayrollController extends Controller
             $overtimeOverridden, $rawOvertimeHours, $rawOvertimeMultiplier, $unpaidOverridden, $rawUnpaidDays,
             $basicOverridden, $rawBasic, $resetBasic,
         ) {
+            if ($structure !== null) {
+                $structure->fill(array_filter([
+                    'zakat_monthly' => $data['zakat_monthly'] ?? null,
+                    'skbbk_opt_in' => isset($data['skbbk_opt_in']) ? (bool) $data['skbbk_opt_in'] : null,
+                ], fn ($v) => $v !== null));
+                if ($structure->isDirty()) {
+                    $structure->save();
+                    AuditLog::record('Updated salary structure', $payslip->employee->name.' · zakat / SKBBK from payslip review');
+                }
+            }
+
             $overtimeRequests = ! $payslip->payrollRun->pulls('overtime') ? collect() : $this->pullableOvertimeFor(
                 $payslip->employee, $payslip->payrollRun->period, $this->usedOvertimeIds($payslip->id)
             );

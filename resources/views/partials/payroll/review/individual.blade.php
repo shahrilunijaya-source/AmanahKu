@@ -6,15 +6,7 @@
     $payslipRows = $activeRun ? $activeRun->payslips->sortBy('employee.name')->values() : collect();
     $openSlip = (int) request('payslip', $payslipRows->first()?->id ?? 0);
 @endphp
-<form method="get" action="{{ route('app.screen', 'payroll-review') }}" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-    <input type="hidden" name="tab" value="individual">
-    <label style="font-size:12.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Run' : 'Run'">Run</label>
-    <select name="run" onchange="this.form.submit()" style="height:34px;padding:0 10px;border:1px solid var(--hairline);border-radius:8px;font-size:12.5px;">
-        @foreach ($runs as $r)
-            <option value="{{ $r->id }}" @selected($activeRun?->id === $r->id)>{{ $r->label }} · {{ $r->status }}</option>
-        @endforeach
-    </select>
-</form>
+@include('partials.payroll.run-picker', ['screen' => 'payroll-review', 'tab' => 'individual'])
 
 @if (!$activeRun)
     <div class="uj-card" style="padding:22px;color:var(--muted);font-size:13px;" x-text="$store.ui.lang==='en' ? 'No payroll run yet. Create one under Process.' : 'Belum ada run gaji. Buat satu di bawah Proses.'">No payroll run yet. Create one under Process.</div>
@@ -104,15 +96,16 @@
                         'unpaid' => $ov('unpaid_deduction_override'),
                         'epfE' => $ov('epf_employee_override'), 'socsoE' => $ov('socso_employee_override'), 'eisE' => $ov('eis_employee_override'),
                         'pcb' => $ov('pcb_override'),
+                        'zakat' => '', 'skbbk' => (bool) $ss?->skbbk_opt_in,
                         'epfR' => $ov('epf_employer_override'), 'socsoR' => $ov('socso_employer_override'), 'eisR' => $ov('eis_employer_override'),
                     ],
                     'base' => [
                         'basic' => (float) $p->basic, 'claims' => (float) $p->claims_reimbursement, 'unpaid' => (float) $p->unpaid_deduction,
                         'epfE' => (float) $p->epf_employee, 'socsoE' => (float) $p->socso_employee, 'eisE' => (float) $p->eis_employee,
-                        'pcb' => (float) $p->pcb,
+                        'pcb' => (float) $p->pcb, 'zakat' => (float) $p->zakat,
                     ],
                     'otherEarn' => round($p->gross + $p->unpaid_deduction - $p->basic, 2),
-                    'otherDed' => round($p->total_deductions - $p->epf_employee - $p->socso_employee - $p->eis_employee - $p->pcb, 2),
+                    'otherDed' => round($p->total_deductions - $p->epf_employee - $p->socso_employee - $p->eis_employee - $p->pcb - $p->zakat, 2),
                 ];
             @endphp
             <div x-show="pick === {{ $p->id }}" x-cloak
@@ -123,7 +116,7 @@
                     cancel() { this.f = { ...this.initF }; this.mode = 'view'; this.showMore = false; },
                     num(k) { const v = parseFloat(this.f[k]); return isNaN(v) ? this.base[k] : Math.max(0, v); },
                     get totalEarn() { return this.num('basic') + this.num('claims') + this.otherEarn; },
-                    get totalDed() { return this.num('unpaid') + this.num('epfE') + this.num('socsoE') + this.num('eisE') + this.num('pcb') + this.otherDed; },
+                    get totalDed() { return this.num('unpaid') + this.num('epfE') + this.num('socsoE') + this.num('eisE') + this.num('pcb') + this.num('zakat') + this.otherDed; },
                     get net() { return this.totalEarn - this.totalDed; },
                     fmt(v) { return v.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
                  }">
@@ -257,17 +250,22 @@
                                 @include('partials.payroll.review.money-input', ['key' => 'socsoE', 'name' => 'socso_employee_override', 'effective' => $p->socso_employee, 'editable' => $editable, 'en' => 'SOCSO employee contribution', 'ms' => 'Caruman PERKESO pekerja'])</div>
                             <div class="payrow"><span>{!! $t('EIS Employee Contribution', 'Caruman SIP Pekerja') !!}</span><span class="cur">MYR</span>
                                 @include('partials.payroll.review.money-input', ['key' => 'eisE', 'name' => 'eis_employee_override', 'effective' => $p->eis_employee, 'editable' => $editable, 'en' => 'EIS employee contribution', 'ms' => 'Caruman SIP pekerja'])</div>
-                            @if ($p->skbbk_employee > 0)
-                                <div class="payrow"><span>SKBBK</span><span class="cur">MYR</span><span class="amt">{{ $fmt($p->skbbk_employee) }}</span></div>
-                            @endif
+                            {{-- SKBBK and Zakat always show; in edit mode they save to the staff's standing setting, not this payslip only. --}}
+                            <div class="payrow"><span>SKBBK</span><span class="cur">MYR</span>
+                                <span class="inline-flex items-center justify-end gap-1.5">
+                                    @if ($editable && $ss)
+                                        <input type="hidden" name="skbbk_opt_in" :value="f.skbbk ? 1 : 0" :disabled="mode !== 'edit'">
+                                        <label x-show="mode === 'edit'" x-cloak class="inline-flex items-center gap-1.5 text-[12px] text-[var(--muted)]"><input type="checkbox" x-model="f.skbbk"> {!! $t('Deduct', 'Potong') !!}</label>
+                                    @endif
+                                    <span class="amt" style="min-width:7rem;text-align:right;padding-right:0.5rem;">{{ $fmt($p->skbbk_employee) }}</span>
+                                </span></div>
                             <div class="payrow"><span>PCB</span><span class="cur">MYR</span>
                                 @include('partials.payroll.review.money-input', ['key' => 'pcb', 'name' => 'pcb_override', 'effective' => $p->pcb, 'editable' => $editable, 'en' => 'PCB (income tax)', 'ms' => 'PCB (cukai pendapatan)'])</div>
                             @if ($p->pcb_additional > 0)
                                 <div class="payrow"><span>{!! $t('PCB (bonus / additional)', 'PCB (bonus / tambahan)') !!}</span><span class="cur">MYR</span><span class="amt">{{ $fmt($p->pcb_additional) }}</span></div>
                             @endif
-                            @if ($p->zakat > 0)
-                                <div class="payrow"><span>Zakat</span><span class="cur">MYR</span><span class="amt">{{ $fmt($p->zakat) }}</span></div>
-                            @endif
+                            <div class="payrow"><span>Zakat</span><span class="cur">MYR</span>
+                                @include('partials.payroll.review.money-input', ['key' => 'zakat', 'name' => 'zakat_monthly', 'effective' => $p->zakat, 'editable' => $editable && $ss, 'en' => 'Monthly zakat (0 removes it)', 'ms' => 'Zakat bulanan (0 untuk buang)'])</div>
                             @if ($p->cp38 > 0)
                                 <div class="payrow"><span>{!! $t('CP38 instalment', 'Ansuran CP38') !!}</span><span class="cur">MYR</span><span class="amt">{{ $fmt($p->cp38) }}</span></div>
                             @endif
@@ -295,7 +293,7 @@
                         <span style="font-size:24px;font-weight:700;font-family:var(--font-mono);" :style="{ color: net < 0 ? '#ff9ab0' : '#fff' }">MYR <span x-text="fmt(net)">{{ $fmt($p->net_pay) }}</span></span>
                     </div>
                     @if ($editable)
-                        <div x-show="mode === 'edit'" x-cloak style="padding:6px 22px 0;font-size:11px;color:var(--muted);">{!! $t('Live preview. Save to recalculate EPF, SOCSO, EIS and PCB from the new figures. A typed figure stays until you clear it.', 'Pratonton langsung. Simpan untuk kira semula EPF, PERKESO, SIP dan PCB daripada angka baharu. Angka yang ditaip kekal sehingga anda kosongkannya.') !!}</div>
+                        <div x-show="mode === 'edit'" x-cloak style="padding:6px 22px 0;font-size:11px;color:var(--muted);">{!! $t('Live preview. Save to recalculate EPF, SOCSO, EIS and PCB from the new figures. A typed figure stays until you clear it. Zakat and SKBBK save to the staff setting, so next month follows.', 'Pratonton langsung. Simpan untuk kira semula EPF, PERKESO, SIP dan PCB daripada angka baharu. Angka yang ditaip kekal sehingga anda kosongkannya. Zakat dan SKBBK disimpan pada tetapan staf, jadi bulan depan ikut sama.') !!}</div>
                     @endif
 
                     {{-- Payroll info and statutory info --}}
