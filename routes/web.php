@@ -59,8 +59,6 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\OfficeRequestController;
 use App\Http\Controllers\OidcController;
-use App\Http\Controllers\OnboardingContentController;
-use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
@@ -392,13 +390,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/progression/{employee}/rehire', [ProgressionController::class, 'rehire'])->whereNumber('employee')->name('progression.rehire');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
-        Route::post('/app/onboarding/tasks/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.toggle');
-        Route::post('/app/onboarding/start', [OnboardingController::class, 'start'])->name('onboarding.start');
-        Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');
-        Route::post('/app/onboarding/tasks/{task}/remove', [OnboardingController::class, 'removeTask'])->name('onboarding.tasks.remove');
-        // Company onboarding content library (privileged): text/video/file/ack per checklist item.
-        Route::post('/app/onboarding/content', [OnboardingContentController::class, 'save'])->middleware('throttle:30,1,onboarding-content')->name('onboarding.content.save');
-        Route::get('/app/onboarding/content/{resource}/file', [OnboardingContentController::class, 'download'])->name('onboarding.content.file');
         Route::post('/app/kpi/{kpiItem}', [KpiController::class, 'update'])->name('kpi.update');
         Route::post('/app/training', [TrainingController::class, 'store'])->name('training.store');
         Route::post('/app/training/{training}/complete', [TrainingController::class, 'complete'])->name('training.complete');

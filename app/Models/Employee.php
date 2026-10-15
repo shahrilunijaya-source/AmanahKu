@@ -488,11 +488,6 @@ class Employee extends Model
         return $this->hasMany(EmployeeProgression::class)->orderByDesc('effective_on')->orderByDesc('id');
     }
 
-    public function onboardingProfile(): HasOne
-    {
-        return $this->hasOne(OnboardingProfile::class);
-    }
-
     public function profileTestResult(): HasOne
     {
         return $this->hasOne(ProfileTestResult::class);

@@ -33,7 +33,7 @@ class AllScreensRenderTest extends TestCase
         'payroll-my', 'payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form',
         'loans', 'pettycash', 'benefits', 'wellness',
         'kpi', 'achievements', 'reviews', 'goals', 'skills',
-        'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
+        'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook', 'tot',
         'documents', 'claims', 'expenses', 'helpdesk', 'travel', 'assets', 'shared-resources',
         'reports', 'surveys', 'ideas', 'messages',
