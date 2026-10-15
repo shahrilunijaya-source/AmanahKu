@@ -146,6 +146,18 @@
                 </div>
             @endforeach
 
+            @if ($r->status === 'finalized' && $r->paid_at === null)
+                <div x-data="{ unlocking: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                    <button type="button" @click="unlocking = !unlocking" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;" x-text="$store.ui.lang==='en' ? (unlocking ? 'Cancel' : 'Unlock to edit…') : (unlocking ? 'Batal' : 'Buka kunci untuk sunting…')">Unlock to edit…</button>
+                    <div x-show="unlocking" x-cloak><form method="post" action="{{ route('payroll.runs.unlock', $r) }}" style="display:flex;align-items:center;gap:6px;">
+                        @csrf
+                        <input name="reason" required maxlength="240" :placeholder="$store.ui.lang==='en' ? 'Reason, e.g. fix EPF for Fatin' : 'Sebab, cth. betulkan EPF Fatin'" style="height:28px;width:240px;padding:0 8px;border:1px solid var(--hairline);border-radius:6px;font-size:11.5px;" />
+                        <button type="submit" class="uj-btn-primary" style="height:28px;padding:0 10px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Unlock' : 'Buka kunci'">Unlock</button>
+                    </form></div>
+                </div>
+                @include('partials.hint', ['tone' => 'warn', 'en' => 'Unlocking puts this run back to draft so you can edit the payslips. Staff stop seeing them, and claims/OT/unpaid leave go back to unpaid, until you finalize and publish again.', 'ms' => 'Buka kunci mengembalikan run ini ke draf supaya payslip boleh disunting. Staf tidak nampak payslip, dan tuntutan/OT/cuti tanpa gaji kembali belum dibayar, sehingga anda finalize dan terbitkan semula.'])
+            @endif
+
             @if ($r->status === 'finalized')
                 <div x-data="{ deleting: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;">
                     <button type="button" @click="deleting = !deleting" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? (deleting ? 'Cancel' : 'Delete finalized run…') : (deleting ? 'Batal' : 'Padam run difinalize…')">Delete finalized run…</button>

@@ -2156,22 +2156,7 @@ class PayrollController extends Controller
             $payslips = $run->payslips()->get();
 
             if ($wasFinalized) {
-                // Reverse every consumption finalizeRun() made, so each source record is
-                // free to be picked up by a future run again — mirrors finalizeRun()'s
-                // three consumption blocks exactly, in reverse.
-                $claimIds = $payslips->flatMap(fn ($p) => $p->claim_ids ?? [])->unique()->values();
-                if ($claimIds->isNotEmpty()) {
-                    Claim::whereIn('id', $claimIds)->where('status', 'paid')
-                        ->update(['status' => 'approved', 'paid_at' => null]);
-                }
-                $overtimeIds = $payslips->flatMap(fn ($p) => $p->overtime_request_ids ?? [])->unique()->values();
-                if ($overtimeIds->isNotEmpty()) {
-                    OvertimeRequest::whereIn('id', $overtimeIds)->update(['paid_at' => null]);
-                }
-                $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
-                if ($unpaidLeaveIds->isNotEmpty()) {
-                    LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
-                }
+                $this->releaseConsumedRecords($payslips);
             }
 
             foreach ($payslips as $payslip) {
@@ -2190,6 +2175,79 @@ class PayrollController extends Controller
         );
 
         return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout'])->with('ok', $label.' payroll run deleted.');
+    }
+
+    /**
+     * Put a finalized run back to draft so HR can correct its payslips and finalize it
+     * again, instead of deleting the whole run (Worksy's Payroll Control "unlock").
+     * Finalize is the re-lock. The payslips stay, but everything finalize consumed is
+     * released: the draft editor re-pulls overtime and unpaid leave on every save and
+     * only sees requests with no paid_at, so leaving them marked paid would silently
+     * drop those lines from the first edit.
+     *
+     * Refused once the money or the filing has gone out (marked paid, or a submission
+     * sent), and while any later month is finalized — that month's PCB was worked out
+     * from this one's year-to-date, so it would quietly go stale.
+     */
+    public function unlockRun(Request $request, PayrollRun $run): RedirectResponse
+    {
+        $this->assertTenant($run);
+        $this->authorizeTenantRole($request, array_unique([...self::ADMIN_ROLES, ...Permissions::MANAGEMENT_TIER]));
+        $data = $request->validate(['reason' => ['required', 'string', 'max:240']]);
+
+        abort_unless($run->status === 'finalized', 422, 'Only a finalized run can be unlocked.');
+        abort_if($run->paid_at !== null, 422, 'This run is marked paid. Put the correction in next month\'s payroll instead.');
+        $filed = PayrollSubmission::where('payroll_run_id', $run->id)->whereNotNull('submitted_at')->exists();
+        abort_if($filed, 422, 'This run has already been filed with an agency; it cannot be unlocked.');
+        abort_if($run->isMidMonth() && PayrollRun::where('tenant_id', $run->tenant_id)->where('period', $run->period)->where('kind', 'monthly')->exists(),
+            422, 'The '.$run->period.' month-end run already deducts this mid-month advance. Unlock or delete the month-end run first.');
+        $later = PayrollRun::where('tenant_id', $run->tenant_id)->where('period', '>', $run->period)
+            ->where('status', 'finalized')->orderBy('period')->first();
+        abort_if($later !== null, 422, $later?->label.' is already finalized and its PCB used this month\'s figures. Unlock '.$later?->label.' first.');
+
+        DB::transaction(function () use ($run) {
+            $payslips = $run->payslips()->get();
+            $this->releaseConsumedRecords($payslips);
+
+            // A final-pay run stamps the leaver as paid out for good; finalize stamps it again.
+            if ($run->isFinal()) {
+                Employee::where('final_pay_run_id', $run->id)->update(['final_pay_run_id' => null]);
+            }
+
+            // status/finalized_at are lifecycle columns outside $fillable. Unpublished so
+            // staff don't see figures that are about to change; publish again after.
+            $run->forceFill(['status' => 'draft', 'finalized_at' => null, 'approved_by_id' => null, 'published_at' => null])->save();
+        });
+
+        AuditLog::record('UNLOCKED FINALIZED PAYROLL RUN', $run->label.' ('.$run->period.') · '.$data['reason']);
+
+        return redirect()->route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'payout', 'run' => $run->id])
+            ->with('ok', $run->label.' unlocked. Edit the payslips, then finalize and publish it again.');
+    }
+
+    /**
+     * Undo what finalizeRun() consumed for these payslips — claims back to approved,
+     * overtime and unpaid-leave requests back to unpaid — so a draft run (or a future
+     * run, after a delete) can pull them again. Mirrors finalizeRun()'s three
+     * consumption blocks exactly, in reverse.
+     *
+     * @param  Collection<int, Payslip>  $payslips
+     */
+    private function releaseConsumedRecords(Collection $payslips): void
+    {
+        $claimIds = $payslips->flatMap(fn ($p) => $p->claim_ids ?? [])->unique()->values();
+        if ($claimIds->isNotEmpty()) {
+            Claim::whereIn('id', $claimIds)->where('status', 'paid')
+                ->update(['status' => 'approved', 'paid_at' => null]);
+        }
+        $overtimeIds = $payslips->flatMap(fn ($p) => $p->overtime_request_ids ?? [])->unique()->values();
+        if ($overtimeIds->isNotEmpty()) {
+            OvertimeRequest::whereIn('id', $overtimeIds)->update(['paid_at' => null]);
+        }
+        $unpaidLeaveIds = $payslips->flatMap(fn ($p) => $p->unpaid_leave_request_ids ?? [])->unique()->values();
+        if ($unpaidLeaveIds->isNotEmpty()) {
+            LeaveRequest::whereIn('id', $unpaidLeaveIds)->update(['paid_at' => null]);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────
