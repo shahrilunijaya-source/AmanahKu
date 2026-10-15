@@ -2124,8 +2124,8 @@ class PayrollController extends Controller
      * records (claims marked paid, overtime/unpaid-leave requests marked paid_at), so
      * deleting it must undo every one of those consumptions or they are lost for good —
      * see the reversal block below, which mirrors finalizeRun()'s consumption line for
-     * line. Restricted to Permissions::MANAGEMENT_TIER and gated behind typing the exact
-     * period back, on top of the browser confirm() every destructive action here already
+     * line. Open to HR (it is their job, not the director's) as well as the management
+     * tier, and gated behind typing the exact period back, on top of the browser confirm() every destructive action here already
      * gets — see payroll.blade.php.
      */
     public function destroyRun(Request $request, PayrollRun $run): RedirectResponse
@@ -2134,7 +2134,7 @@ class PayrollController extends Controller
         $wasFinalized = $run->status === 'finalized';
 
         if ($wasFinalized) {
-            $this->authorizeTenantRole($request, Permissions::MANAGEMENT_TIER);
+            $this->authorizeTenantRole($request, array_unique([...self::ADMIN_ROLES, ...Permissions::MANAGEMENT_TIER]));
             $data = $request->validate(['confirm_period' => ['required', 'string']]);
             abort_unless($data['confirm_period'] === $run->period, 422, 'Type the period exactly ('.$run->period.') to confirm deleting a finalized run.');
         } else {

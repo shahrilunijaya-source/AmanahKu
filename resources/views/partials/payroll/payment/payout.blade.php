@@ -146,7 +146,7 @@
                 </div>
             @endforeach
 
-            @if ($r->status === 'finalized' && $isManagementTier)
+            @if ($r->status === 'finalized')
                 <div x-data="{ deleting: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;">
                     <button type="button" @click="deleting = !deleting" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? (deleting ? 'Cancel' : 'Delete finalized run…') : (deleting ? 'Batal' : 'Padam run difinalize…')">Delete finalized run…</button>
                     <div x-show="deleting" x-cloak><form method="post" action="{{ route('payroll.runs.delete', $r) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam run yang telah difinalize? Ini akan menyahtandakan tuntutan yang dibayar dan permintaan OT/cuti tanpa gaji sebagai belum dibayar, supaya ia boleh diambil semula oleh run akan datang. Tidak boleh dibatalkan.') : @js('Delete a FINALIZED run? This un-marks paid claims and OT/unpaid-leave requests as unpaid again so a future run can pick them up. Cannot be undone.'));" style="display:flex;align-items:center;gap:6px;">
