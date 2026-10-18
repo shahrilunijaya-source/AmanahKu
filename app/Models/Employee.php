@@ -207,6 +207,7 @@ class Employee extends Model
             'hybrid_office_days' => 'array',
             'archived_at' => 'datetime',
             'birthday_private' => 'boolean',
+            'payroll_only' => 'boolean',
         ];
     }
 
@@ -231,6 +232,25 @@ class Employee extends Model
         return $query->whereNotNull('archived_at');
     }
 
+    /**
+     * Staff who show up in attendance, timesheets and reports: everyone except those HR
+     * marked "payroll only". Payroll deliberately does NOT use this, so they are still paid.
+     * Chain it after active() on attendance/timesheet/report rosters, never on payroll.
+     */
+    public function scopeAttendanceTracked(Builder $query): Builder
+    {
+        return $query->where('payroll_only', false);
+    }
+
+    /**
+     * The directory roster for a viewer: HR (and director) see everyone, anyone else
+     * does not see payroll-only staff.
+     */
+    public function scopeListedFor(Builder $query, bool $seesPayrollOnly): Builder
+    {
+        return $seesPayrollOnly ? $query : $query->attendanceTracked();
+    }
+
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
@@ -238,17 +258,18 @@ class Employee extends Model
 
     /**
      * Staff expected to clock in: everyone except those on a clock-exempt employment
-     * type (Freelance). Staff with no employment type set still have to clock.
+     * type (Freelance) and payroll-only staff. Staff with no employment type set still
+     * have to clock.
      */
     public function scopeClockRequired(Builder $query): Builder
     {
-        return $query->whereDoesntHave('employmentType', fn (Builder $type) => $type->where('clock_exempt', true));
+        return $query->attendanceTracked()->whereDoesntHave('employmentType', fn (Builder $type) => $type->where('clock_exempt', true));
     }
 
     /** The per-row twin of scopeClockRequired(). */
     public function mustClock(): bool
     {
-        return ! $this->employmentType?->clock_exempt;
+        return ! $this->payroll_only && ! $this->employmentType?->clock_exempt;
     }
 
     /**

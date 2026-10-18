@@ -85,7 +85,7 @@
                                 <div style="display:flex;gap:10px;align-items:center;">
                                     <template x-if="p.photo"><img :src="p.photo" alt="" width="34" height="34" style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;"></template><template x-if="! p.photo"><span class="pw-av" x-text="initials(p.name)"></span></template>
                                     <div>
-                                        <div style="font-weight:500;color:var(--ink);" x-text="p.name"></div>
+                                        <div style="font-weight:500;color:var(--ink);"><span x-text="p.name"></span> <span x-show="p.payroll_only" class="uj-stamp" data-tone="amber" :title="t('Hidden from attendance, timesheets and reports', 'Disembunyikan daripada kehadiran, lembaran masa dan laporan')" x-text="t('Payroll only', 'Gaji sahaja')"></span></div>
                                         <div style="font-size:11.5px;color:var(--muted);" x-text="p.position || ''"></div>
                                         <div>{!! $gapPills !!}</div>
                                     </div>
@@ -129,7 +129,7 @@
                             <div style="display:flex;gap:10px;align-items:center;">
                                 <template x-if="p.photo"><img :src="p.photo" alt="" width="34" height="34" style="width:34px;height:34px;border-radius:50%;object-fit:cover;flex-shrink:0;"></template><template x-if="! p.photo"><span class="pw-av" x-text="initials(p.name)"></span></template>
                                 <div>
-                                    <div style="font-weight:500;color:var(--ink);" x-text="p.name"></div>
+                                    <div style="font-weight:500;color:var(--ink);"><span x-text="p.name"></span> <span x-show="p.payroll_only" class="uj-stamp" data-tone="amber" :title="t('Hidden from attendance, timesheets and reports', 'Disembunyikan daripada kehadiran, lembaran masa dan laporan')" x-text="t('Payroll only', 'Gaji sahaja')"></span></div>
                                     <div style="font-size:11.5px;color:var(--muted);" x-text="p.position || ''"></div>
                                     <div>{!! $gapPills !!}</div>
                                 </div>

@@ -69,7 +69,7 @@ final class ApprovalQueue
     /** @return Collection<int, TimesheetDay> */
     private function waitingDays(Employee $manager): Collection
     {
-        $reportIds = Employee::active()
+        $reportIds = Employee::active()->attendanceTracked()
             ->whereKeyNot($manager->id)
             ->where(fn ($q) => $q->where('reports_to_id', $manager->id)
                 ->orWhereHas('additionalManagers', fn ($m) => $m->whereKey($manager->id)))

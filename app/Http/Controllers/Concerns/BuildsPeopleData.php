@@ -51,7 +51,7 @@ trait BuildsPeopleData
         // never get it, so a crafted ?view=archived is silently ignored for them.
         $canArchive = $this->hasTenantRole($request, ['management', 'hr']);
         $archived = $canArchive && $request->query('view') === 'archived';
-        $listScope = fn () => $archived ? Employee::archived() : Employee::active();
+        $listScope = fn () => $archived ? Employee::archived() : Employee::active()->listedFor($this->hasTenantRole($request, ['director', 'hr']));
 
         // Apply the member's data scope: a manager scoped to their branch/department
         // only sees those staff. Default 'company' is a no-op (full visibility).
@@ -83,6 +83,8 @@ trait BuildsPeopleData
             'departments' => Department::orderBy('name')->pluck('name'),
             'filters' => ['q' => $q, 'dept' => $dept, 'status' => $status],
             'canSeeSalary' => $canSeeSalary,
+            // Same gate as EmployeeController::payrollOnly (HR/director).
+            'canSetPayrollOnly' => $canSeeSalary,
             'archived' => $archived,
             'canArchive' => $canArchive,
         ], $this->orgOptions());
@@ -306,6 +308,7 @@ trait BuildsPeopleData
             // management role can edit everyone without seeing or changing pay (same rule as
             // the directory column and the server-side write guard in EmployeeController).
             'canSeeSalary' => $this->hasTenantRole($request, ['director', 'hr']),
+            'canSetPayrollOnly' => $this->hasTenantRole($request, ['director', 'hr']),
             'canSeeMoney' => $canSeeMoney,
             'assignedTasks' => $assignedTasks,
             // CR-31: "Keep it plain" also lives on the profile screen, same prefs key as
@@ -484,20 +487,20 @@ trait BuildsPeopleData
 
     private function reportsData(): array
     {
-        $total = max(Employee::active()->count(), 1);
+        $total = max(Employee::active()->attendanceTracked()->count(), 1);
 
         return [
-            'headcount' => Employee::active()->count(),
+            'headcount' => Employee::active()->attendanceTracked()->count(),
             'byDept' => $this->departmentCapacity(),
             'byStatus' => [
-                ['k' => 'Active', 'v' => Employee::active()->where('status', 'active')->count(), 'c' => 'green'],
-                ['k' => 'Probation', 'v' => Employee::active()->where('status', 'probation')->count(), 'c' => 'amber'],
-                ['k' => 'On leave', 'v' => Employee::active()->where('status', 'on_leave')->count(), 'c' => 'grey'],
+                ['k' => 'Active', 'v' => Employee::active()->attendanceTracked()->where('status', 'active')->count(), 'c' => 'green'],
+                ['k' => 'Probation', 'v' => Employee::active()->attendanceTracked()->where('status', 'probation')->count(), 'c' => 'amber'],
+                ['k' => 'On leave', 'v' => Employee::active()->attendanceTracked()->where('status', 'on_leave')->count(), 'c' => 'grey'],
             ],
             // Live workload split — grouped by the Employee accessor (open work-item count),
             // not the frozen column, so these tiles agree with the workload screen and recs.
             'workload' => (function () {
-                $byLoad = Employee::active()
+                $byLoad = Employee::active()->attendanceTracked()
                     ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
                     ->get()->groupBy(fn ($e) => $e->workload);
 

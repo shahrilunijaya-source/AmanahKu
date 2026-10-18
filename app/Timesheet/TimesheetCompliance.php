@@ -142,7 +142,7 @@ final class TimesheetCompliance
         $start = CarbonImmutable::parse($weekStart)->startOfDay();
         $pastDeadline = CarbonImmutable::now()->greaterThanOrEqualTo($this->deadline($start));
 
-        $employees = Employee::active()->where('tenant_id', $tenant->id)
+        $employees = Employee::active()->attendanceTracked()->where('tenant_id', $tenant->id)
             ->where('status', 'active')
             ->where(fn ($q) => $q->whereNull('joined_at')->orWhereDate('joined_at', '<=', $start->toDateString()))
             ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))

@@ -84,7 +84,7 @@ class AttendanceReportController extends Controller
 
         // active() only clears the archive, so leavers still need excluding by hand: a leaver
         // shows for any period that includes their last working day or earlier, never after.
-        $employees = Employee::active()
+        $employees = Employee::active()->attendanceTracked()
             ->when($visibleIds !== null, fn ($b) => $b->whereIn('id', $visibleIds))
             ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
             ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))
@@ -346,7 +346,7 @@ class AttendanceReportController extends Controller
         // active() so a crafted ?emp=<archived> can't open an archived person's detail.
         // Route-model binding resolves across every tenant (SubstituteBindings runs before
         // ResolveTenant), so this lookup goes through the tenant-scoped model instead.
-        $employee = Employee::active()->with(['department:id,name', 'employmentType'])->find($id);
+        $employee = Employee::active()->attendanceTracked()->with(['department:id,name', 'employmentType'])->find($id);
         if ($employee === null) {
             return null;
         }
