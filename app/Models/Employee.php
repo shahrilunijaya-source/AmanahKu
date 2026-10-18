@@ -248,7 +248,7 @@ class Employee extends Model
      */
     public function scopeListedFor(Builder $query, bool $seesPayrollOnly): Builder
     {
-        return $seesPayrollOnly ? $query : $query->attendanceTracked();
+        return $seesPayrollOnly ? $query : $this->scopeAttendanceTracked($query);
     }
 
     public function isArchived(): bool
@@ -263,7 +263,7 @@ class Employee extends Model
      */
     public function scopeClockRequired(Builder $query): Builder
     {
-        return $query->attendanceTracked()->whereDoesntHave('employmentType', fn (Builder $type) => $type->where('clock_exempt', true));
+        return $this->scopeAttendanceTracked($query)->whereDoesntHave('employmentType', fn (Builder $type) => $type->where('clock_exempt', true));
     }
 
     /** The per-row twin of scopeClockRequired(). */
