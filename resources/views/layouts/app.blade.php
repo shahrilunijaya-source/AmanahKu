@@ -629,6 +629,7 @@
 </script>
 @include('partials.toast-host')
 @include('partials.notice-host')
+@include('partials.ask-host')
 {{-- CR-31 tab_collector: 20+ Amanahku tabs open (this browser only — it can't see other
      sites), the line shows once a day, via a localStorage heartbeat. Never under Keep it
      plain, never with sound. Human check (CR31Test item 6). --}}

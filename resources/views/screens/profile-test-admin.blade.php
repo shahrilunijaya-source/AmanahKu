@@ -73,7 +73,7 @@
             <span style="width:26px;height:26px;border-radius:7px;background:var(--canvas);border:1px solid var(--hairline);color:var(--muted);font-size:12px;font-weight:600;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $q->position }}</span>
             <p style="flex:1;min-width:0;font-size:13.5px;color:var(--ink);font-weight:500;margin:2px 0 0;">{{ $q->prompt_en }}</p>
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
-            <form method="post" action="{{ route('profile-test.questions.destroy', $q) }}" onsubmit="return confirm('Delete this question?')">
+            <form method="post" action="{{ route('profile-test.questions.destroy', $q) }}" onsubmit="return ujAsk(this, 'Delete this question?')">
                 @csrf
                 <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
             </form>
@@ -111,7 +111,7 @@
             <span style="width:26px;height:26px;border-radius:7px;background:var(--canvas);border:1px solid var(--hairline);color:var(--muted);font-size:12px;font-weight:600;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $q->position }}</span>
             <p style="flex:1;min-width:0;font-size:13.5px;color:var(--ink);font-weight:500;margin:2px 0 0;">{{ $q->prompt_en }}</p>
             <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
-            <form method="post" action="{{ route('profile-test.questions.destroy', $q) }}" onsubmit="return confirm('Delete this question?')">
+            <form method="post" action="{{ route('profile-test.questions.destroy', $q) }}" onsubmit="return ujAsk(this, 'Delete this question?')">
                 @csrf
                 <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
             </form>

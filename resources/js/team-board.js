@@ -728,7 +728,7 @@ export function registerTeamBoard(Alpine) {
             const existing = this.drawer.comments.find((c) => c.id === id);
             let reason = null;
             if (existing?.pushed) {
-                reason = window.prompt(this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'));
+                reason = await Alpine.store('ask').ask({ title: this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'), input: true, required: true });
                 if (!reason || !reason.trim()) return;
             }
             try {
@@ -820,7 +820,7 @@ export function registerTeamBoard(Alpine) {
         // Untick after the fact: withdraw from Track with a reason. The comment stays
         // on the card, Track shows it as withdrawn.
         async withdrawComment(c) {
-            const reason = window.prompt(this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'));
+            const reason = await Alpine.store('ask').ask({ title: this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'), input: true, required: true });
             if (!reason || !reason.trim()) return;
             try {
                 const { comment } = await this.api(`/app/board/comments/${c.id}`, {

@@ -121,7 +121,7 @@
                                         <td style="white-space:nowrap;text-align:right;">
                                             @unless ($itxCycleLocked)
                                                 <button type="button" class="tx-tool" @click="editing = editing === {{ $itx->id }} ? null : {{ $itx->id }}; adding = false" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
-                                                <form method="post" action="{{ route('payroll.individual-transactions.delete', $itx) }}" style="display:inline;" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam transaksi individu ini?' : 'Delete this individual transaction?');">@csrf<button type="submit" class="tx-tool danger" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
+                                                <form method="post" action="{{ route('payroll.individual-transactions.delete', $itx) }}" style="display:inline;" onsubmit="return ujAsk(this, window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam transaksi individu ini?' : 'Delete this individual transaction?')">@csrf<button type="submit" class="tx-tool danger" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button></form>
                                             @endunless
                                         </td>
                                     </tr>

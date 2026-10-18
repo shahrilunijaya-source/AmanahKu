@@ -56,7 +56,7 @@
                 @if ($canEdit)
                     <div x-show="open" x-cloak style="margin-top:12px;">
                         @include('partials.profile.experience-form', ['type' => $type, 'r' => $r, 'action' => route('employees.experience.update', [$type, $r->id])])
-                        <form method="post" action="{{ route('employees.experience.destroy', [$type, $r->id]) }}" onsubmit="return confirm('Remove this record?')" style="margin-top:6px;">@csrf<button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;color:var(--red);">{!! $L('Remove', 'Buang') !!}</button></form>
+                        <form method="post" action="{{ route('employees.experience.destroy', [$type, $r->id]) }}" onsubmit="return ujAsk(this, 'Remove this record?')" style="margin-top:6px;">@csrf<button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;color:var(--red);">{!! $L('Remove', 'Buang') !!}</button></form>
                     </div>
                 @endif
             </div>

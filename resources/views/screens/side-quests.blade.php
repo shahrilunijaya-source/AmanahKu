@@ -76,7 +76,7 @@
                     <button type="button" class="uj-btn-primary" :aria-expanded="open" @click="open = !open" data-tip-start data-tip="Post a one-liner or photo">I did this</button>
                 @endif
                 @if ($canCurate)
-                    <form method="POST" action="{{ route('side-quests.retire', $quest) }}" onsubmit="return confirm('Retire this quest? It leaves the board; posts and badges stay.')">
+                    <form method="POST" action="{{ route('side-quests.retire', $quest) }}" onsubmit="return ujAsk(this, 'Retire this quest? It leaves the board; posts and badges stay.')">
                         @csrf
                         <button type="submit" class="retire" data-tip-end data-tip="Take it off the board">Retire</button>
                     </form>

@@ -308,7 +308,7 @@
                                 <div class="uj-set-row-title">{{ $pk->name }}</div>
                                 <div class="uj-set-row-sub">{{ $bi('Added', 'Ditambah') }} {{ $pk->created_at?->diffForHumans() }}@if ($pk->last_used_at) · {{ $bi('last used', 'guna terakhir') }} {{ $pk->last_used_at->diffForHumans() }}@endif</div>
                             </div>
-                            <form method="post" action="{{ url('/user/passkeys/'.$pk->id) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this passkey?' : 'Buang passkey ini?')) $event.preventDefault()">
+                            <form method="post" action="{{ url('/user/passkeys/'.$pk->id) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? 'Remove this passkey?' : 'Buang passkey ini?' })">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="uj-btn-ghost uj-set-copy uj-set-danger">{{ $bi('Remove', 'Buang') }}</button>
                             </form>
@@ -465,7 +465,7 @@
                     </dl>
                 </div>
                 <div class="uj-set-foot" x-show="! replace">
-                    <form method="post" action="{{ route('security.ai-key.revoke') }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Revoke your AI access key?' : 'Batalkan kunci akses AI anda?')) $event.preventDefault()">
+                    <form method="post" action="{{ route('security.ai-key.revoke') }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? 'Revoke your AI access key?' : 'Batalkan kunci akses AI anda?' })">
                         @csrf
                         <button type="submit" class="uj-btn-ghost uj-set-btn uj-set-danger">{{ $bi('Revoke key', 'Batalkan kunci') }}</button>
                     </form>

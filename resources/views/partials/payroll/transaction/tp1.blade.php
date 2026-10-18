@@ -56,7 +56,7 @@
                     <td style="padding:9px 8px;">RM {{ number_format($c->amount, 2) }}</td>
                     <td style="padding:9px 8px;">RM {{ number_format($c->zakat_amount, 2) }}</td>
                     <td style="padding:9px 22px;text-align:right;">
-                        <form method="post" action="{{ route('payroll.tp1.delete', $c) }}" onsubmit="return confirm('Remove this TP1 claim?')">@csrf
+                        <form method="post" action="{{ route('payroll.tp1.delete', $c) }}" onsubmit="return ujAsk(this, 'Remove this TP1 claim?')">@csrf
                             <button type="submit" class="uj-btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">{!! $L('Remove', 'Buang') !!}</button>
                         </form>
                     </td>

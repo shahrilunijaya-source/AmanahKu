@@ -295,7 +295,7 @@
                                 </label>
                                 <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
                             </form>
-                            <form method="post" action="{{ route('position.destroy', $p) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Delete this position? Staff on it become unassigned.' : 'Padam jawatan ini? Staf padanya menjadi belum ditetapkan.')) $event.preventDefault()" style="margin-top:8px;">
+                            <form method="post" action="{{ route('position.destroy', $p) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? 'Delete this position? Staff on it become unassigned.' : 'Padam jawatan ini? Staf padanya menjadi belum ditetapkan.' })" style="margin-top:8px;">
                                 @csrf
                                 <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 12px;font-size:12px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
                             </form>

@@ -82,7 +82,7 @@
                     @endif
                 </button>
             </form>
-            <form method="post" action="{{ route('projects.delete', $project) }}" onsubmit="return confirm('Delete or deactivate this project?')">
+            <form method="post" action="{{ route('projects.delete', $project) }}" onsubmit="return ujAsk(this, 'Delete or deactivate this project?')">
                 @csrf
                 <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
             </form>

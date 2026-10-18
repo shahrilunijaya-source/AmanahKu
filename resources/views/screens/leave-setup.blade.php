@@ -120,7 +120,7 @@
                     </div>
                 </div>
                 <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
-                <form method="post" action="{{ route('leave.types.delete', $lt) }}" onsubmit="return confirm('Delete this leave type?')">
+                <form method="post" action="{{ route('leave.types.delete', $lt) }}" onsubmit="return ujAsk(this, 'Delete this leave type?')">
                     @csrf
                     <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
                 </form>
@@ -198,7 +198,7 @@
                             @if ($h->greeting_en || $h->greeting_ms)<span style="display:block;color:var(--muted);font-size:11.5px;">“{{ $h->greeting_en ?: $h->greeting_ms }}”</span>@endif
                         </span>
                         <button type="button" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;" @click="greet = ! greet"><span x-text="$store.ui.lang==='en' ? 'Greeting' : 'Ucapan'">Greeting</span></button>
-                        <form method="post" action="{{ route('holiday.delete', $h) }}" onsubmit="return confirm('Delete this holiday?')">
+                        <form method="post" action="{{ route('holiday.delete', $h) }}" onsubmit="return ujAsk(this, 'Delete this holiday?')">
                             @csrf
                             <button type="submit" class="uj-btn-ghost" style="height:28px;font-size:11.5px;padding:0 10px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
                         </form>
