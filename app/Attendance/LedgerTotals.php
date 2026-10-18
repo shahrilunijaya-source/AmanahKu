@@ -54,6 +54,7 @@ final class LedgerTotals
             'absent' => $scopedRows->where('status', 'absent')->count(),
             'short' => $scopedRows->filter(fn (array $r) => in_array('short', $r['flags'], true))->count(),
             'late' => $scopedRows->where('status', 'late')->count(),
+            'remark' => $scopedRows->filter(fn (array $r) => self::hasRemark($r))->count(),
         ];
     }
 
@@ -68,7 +69,14 @@ final class LedgerTotals
             'absent' => $rows->where('status', 'absent')->values(),
             'late' => $rows->where('status', 'late')->values(),
             'short' => $rows->filter(fn (array $r) => in_array('short', $r['flags'], true))->values(),
+            'remark' => $rows->filter(fn (array $r) => self::hasRemark($r))->values(),
             default => $rows->values(),
         };
+    }
+
+    /** @param  array<string, mixed>  $row */
+    private static function hasRemark(array $row): bool
+    {
+        return ($row['noteIn'] ?? null) !== null || ($row['noteOut'] ?? null) !== null;
     }
 }

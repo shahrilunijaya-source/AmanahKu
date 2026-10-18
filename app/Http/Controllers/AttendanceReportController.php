@@ -43,7 +43,7 @@ class AttendanceReportController extends Controller
     private const LOCATION_ROLES = [...Permissions::OVERSIGHT_ROLES, 'director'];
 
     /** The exception chips above the table. Anything else means "show everything". */
-    private const LENSES = ['miss', 'absent', 'short', 'late'];
+    private const LENSES = ['miss', 'absent', 'short', 'late', 'remark'];
 
     /** The caption the totals block wears, keyed by ReportPeriod::captionKey(). */
     private const CAPTIONS = [

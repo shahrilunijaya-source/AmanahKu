@@ -155,6 +155,30 @@ class AttendanceReportScreenTest extends TestCase
         $this->assertSame($plain->viewData('totals'), $lensed->viewData('totals'));
     }
 
+    public function test_remarks_show_under_their_punch_and_have_their_own_lens(): void
+    {
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-13', 'clock_in' => '08:31:00', 'clock_out' => '17:44:00',
+            'status' => 'on_time', 'flags' => [], 'clock_in_justification' => 'PNM',
+            'clock_out_justification' => 'from KDN',
+        ]);
+        // A whitespace-only reason is not a remark: it must not count or show.
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->hrEmployee->id,
+            'date' => '2026-07-14', 'clock_in' => '08:20:00', 'clock_out' => '17:30:00',
+            'status' => 'on_time', 'flags' => [], 'clock_in_justification' => '   ',
+        ]);
+
+        $plain = $this->actAsHr()->get('/app/attendance-report?gran=week');
+        $plain->assertSee('PNM')->assertSee('from KDN')->assertSee('lens=remark', false);
+        $this->assertSame(1, $plain->viewData('counts')['remark']);
+
+        $lensed = $this->actAsHr()->get('/app/attendance-report?gran=week&lens=remark');
+        $this->assertSame(1, substr_count($lensed->getContent(), 'uj-ar-cols uj-ar-row'));
+        $this->assertSame($plain->viewData('totals'), $lensed->viewData('totals'));
+    }
+
     public function test_on_a_single_day_the_date_column_is_dropped(): void
     {
         // All 34 rows would otherwise repeat the same date. The CSS keys off this.

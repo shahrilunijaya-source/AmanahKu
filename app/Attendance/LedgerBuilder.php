@@ -128,6 +128,8 @@ final class LedgerBuilder
             'out' => null,
             'hours' => null,
             'flags' => [],
+            'noteIn' => null,
+            'noteOut' => null,
             'leaveType' => null,
             'recordId' => $r?->id,
             'points' => [],
@@ -170,6 +172,10 @@ final class LedgerBuilder
             'hours' => $r->clock_out !== null && $minutes > 0 ? round($minutes / 60, 2) : null,
             'status' => $status,
             'flags' => $this->flags($r),
+            // The reason the employee typed when the punch needed one (late, off-site, no
+            // location, site visit). Blank is stored as null so "has a remark" stays one check.
+            'noteIn' => trim((string) $r->clock_in_justification) ?: null,
+            'noteOut' => trim((string) $r->clock_out_justification) ?: null,
             'points' => $points,
             'hasPoint' => $points !== [],
             // Only resolved when there is a point to measure — an off-site punch is rare,
