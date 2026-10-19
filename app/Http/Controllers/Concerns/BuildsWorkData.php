@@ -516,9 +516,14 @@ trait BuildsWorkData
         }
 
         if ($privileged) {
-            // Company-wide claims view, management/hr only. The claim list is capped at
-            // the latest 50 rows on purpose so this screen doesn't grow heavier forever.
-            $data['allClaims'] = Claim::with('employee')->latest('date')->take(50)->get();
+            // Company-wide claims view, management/hr only. One month at a time (this month
+            // unless ?claims_month= says otherwise), every claim in it, so its totals are real.
+            $month = (string) $request->query('claims_month');
+            $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month) === 1 ? $month : now()->format('Y-m');
+            $start = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfDay();
+            $data['claimsMonth'] = $month;
+            $data['allClaims'] = Claim::with('employee')->whereBetween('date', [$start, $start->copy()->endOfMonth()])
+                ->latest('date')->get();
         }
 
         return $data;

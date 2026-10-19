@@ -434,6 +434,31 @@ class ClaimApprovalRoutingTest extends TestCase
             ->assertSee('Company claims');
     }
 
+    public function test_company_ledger_loads_one_whole_month_and_defaults_to_this_month(): void
+    {
+        $this->travelTo('2026-06-25');
+        $hr = $this->member('hr', 'HR Person');
+        $someone = $this->member('employee', 'Someone');
+        // 60 June claims: more than the old 50-row cap, so the month total covers them all.
+        for ($i = 0; $i < 60; $i++) {
+            $this->claim($someone);
+        }
+        Claim::create(['tenant_id' => $this->tenant->id, 'employee_id' => $someone->id, 'type' => 'travel', 'title' => 'May trip',
+            'amount' => 80, 'date' => '2026-05-31', 'status' => 'approved']);
+
+        $this->actingAsEmployee($hr)->get('/app/claim-approvals?tab=all')->assertOk()
+            ->assertViewHas('claimsMonth', '2026-06')
+            ->assertViewHas('allClaims', fn ($claims) => $claims->count() === 60)
+            ->assertSee('<option value="2026-06"', false);
+
+        $this->actingAsEmployee($hr)->get('/app/claim-approvals?tab=all&claims_month=2026-05')
+            ->assertViewHas('allClaims', fn ($claims) => $claims->pluck('title')->all() === ['May trip']);
+
+        // A malformed month falls back to this month instead of erroring.
+        $this->actingAsEmployee($hr)->get('/app/claim-approvals?tab=all&claims_month=2026-13')
+            ->assertViewHas('claimsMonth', '2026-06');
+    }
+
     public function test_hr_sees_the_company_wide_claims_section(): void
     {
         $hr = $this->member('hr', 'HR Person');
