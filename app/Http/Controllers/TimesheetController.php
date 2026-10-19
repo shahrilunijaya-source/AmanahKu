@@ -512,7 +512,7 @@ class TimesheetController extends Controller
             ->whereBetween('entry_date', [$from->toDateString(), $to->toDateString()])
             ->whereHas('timesheet', fn ($t) => $t->where('status', 'submitted')
                 // archived owners' entries drop from RM totals
-                ->whereHas('employee', fn ($e) => $e->active()
+                ->whereHas('employee', fn ($e) => $e->active()->attendanceTracked()
                     ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
                     ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%')))
                 ->when($visibleIds !== null, fn ($t2) => $t2->whereIn('employee_id', $visibleIds)))
@@ -550,7 +550,7 @@ class TimesheetController extends Controller
         $periodWeeksCount = count($periodWeeks);
         $periodWeekStarts = array_map(fn (Carbon $w) => $w->toDateString(), $periodWeeks);
 
-        $visibleEmployees = Employee::active()
+        $visibleEmployees = Employee::active()->attendanceTracked()
             ->when($visibleIds !== null, fn ($b) => $b->whereIn('id', $visibleIds))
             ->when($dept, fn ($b) => $b->whereHas('department', fn ($d) => $d->where('name', $dept)))
             ->when($q !== '', fn ($b) => $b->where('name', 'like', '%'.$q.'%'))

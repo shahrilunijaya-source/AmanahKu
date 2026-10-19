@@ -33,7 +33,7 @@ class OrgController extends Controller
      */
     public function screenData(Request $request, ?Employee $employee): array
     {
-        $all = Employee::active()->with(['department', 'additionalManagers:id,name'])->get();
+        $all = Employee::active()->listedFor($this->hasTenantRole($request, ['director', 'hr']))->with(['department', 'additionalManagers:id,name'])->get();
 
         // Optional department lens. When a valid department is selected, the tree is built
         // from that department's members only — anyone whose manager sits outside the

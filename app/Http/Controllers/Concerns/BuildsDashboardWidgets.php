@@ -716,7 +716,7 @@ trait BuildsDashboardWidgets
      */
     private function summaryWidget(?Employee $employee): array
     {
-        $staff = Employee::active()->whereIn('id', $this->dashboardTeamIds($employee))->pluck('id')->all();
+        $staff = Employee::active()->attendanceTracked()->whereIn('id', $this->dashboardTeamIds($employee))->pluck('id')->all();
 
         return [
             'tiles' => $this->monthTiles($employee ? [$employee->id] : []),
@@ -985,7 +985,7 @@ trait BuildsDashboardWidgets
             return ['counts' => [], 'people' => []];
         }
 
-        $team = Employee::active()->with('employmentType')->whereIn('id', $this->dashboardTeamIds($employee))->orderBy('name')->get();
+        $team = Employee::active()->attendanceTracked()->with('employmentType')->whereIn('id', $this->dashboardTeamIds($employee))->orderBy('name')->get();
         if ($team->isEmpty()) {
             return ['counts' => [], 'people' => []];
         }

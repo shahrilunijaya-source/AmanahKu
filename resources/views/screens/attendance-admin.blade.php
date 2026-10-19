@@ -160,7 +160,7 @@
                 </div>
             </div>
         </form>
-        <form id="delete-site-{{ $s->id }}" method="post" action="{{ route('attendance.admin.sites.delete', $s) }}" onsubmit="return confirm('Remove {{ $s->name }}?')">@csrf</form>
+        <form id="delete-site-{{ $s->id }}" method="post" action="{{ route('attendance.admin.sites.delete', $s) }}" onsubmit="return ujAsk(this, 'Remove {{ $s->name }}?')">@csrf</form>
     @endforeach
 
     {{-- Add new site --}}

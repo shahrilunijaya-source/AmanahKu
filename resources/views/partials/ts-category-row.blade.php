@@ -14,7 +14,7 @@
             </div>
         </div>
         <button @click="edit = ! edit" type="button" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;"><span x-text="edit ? ($store.ui.lang==='en' ? 'Close' : 'Tutup') : ($store.ui.lang==='en' ? 'Edit' : 'Sunting')">Edit</span></button>
-        <form method="post" action="{{ route('timesheet.admin.categories.delete', $cat) }}" onsubmit="return confirm('Delete or deactivate this category?')">
+        <form method="post" action="{{ route('timesheet.admin.categories.delete', $cat) }}" onsubmit="return ujAsk(this, 'Delete or deactivate this category?')">
             @csrf
             <button type="submit" class="uj-btn-ghost" style="height:32px;font-size:12px;padding:0 13px;color:var(--error);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
         </form>

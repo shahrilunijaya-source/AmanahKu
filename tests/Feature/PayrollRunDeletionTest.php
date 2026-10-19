@@ -30,8 +30,6 @@ class PayrollRunDeletionTest extends TestCase
 
     private User $hr;
 
-    private User $management;
-
     private Employee $emp1;
 
     protected function setUp(): void
@@ -44,9 +42,6 @@ class PayrollRunDeletionTest extends TestCase
         $this->hr = User::create(['name' => 'Boss', 'email' => 'boss@example.com', 'password' => Hash::make('password')]);
         $this->hr->tenants()->attach($this->tenant->id, ['role' => 'hr']);
 
-        $this->management = User::create(['name' => 'Director', 'email' => 'director@example.com', 'password' => Hash::make('password')]);
-        $this->management->tenants()->attach($this->tenant->id, ['role' => 'management']);
-
         $this->emp1 = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Worker', 'status' => 'active', 'workload' => 'green',
             'nric' => '900101-14-5501', 'date_of_birth' => '1990-01-01', 'joined_at' => '2020-01-01']);
         SalaryStructure::forceCreate(['tenant_id' => $this->tenant->id, 'employee_id' => $this->emp1->id, 'basic_salary' => 5200,
@@ -57,13 +52,6 @@ class PayrollRunDeletionTest extends TestCase
     private function actingHr(): self
     {
         $this->actingAs($this->hr)->withSession(['current_tenant' => $this->tenant->id]);
-
-        return $this;
-    }
-
-    private function actingManagement(): self
-    {
-        $this->actingAs($this->management)->withSession(['current_tenant' => $this->tenant->id]);
 
         return $this;
     }
@@ -122,24 +110,51 @@ class PayrollRunDeletionTest extends TestCase
 
     // ── Finalized run ────────────────────────────────────────────
 
-    public function test_hr_alone_cannot_delete_a_finalized_run(): void
+    public function test_hr_can_delete_a_finalized_run(): void
     {
         $run = $this->createRun();
         $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
 
-        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertForbidden();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->assertDatabaseMissing('payroll_runs', ['id' => $run->id]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'DELETED FINALIZED PAYROLL RUN', 'user_id' => $this->hr->id]);
+    }
+
+    public function test_director_can_still_delete_a_finalized_run(): void
+    {
+        $run = $this->createRun();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+
+        $director = User::create(['name' => 'Dir', 'email' => 'dir@example.com', 'password' => Hash::make('password')]);
+        $director->tenants()->attach($this->tenant->id, ['role' => 'director']);
+
+        $this->actingAs($director)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->assertDatabaseMissing('payroll_runs', ['id' => $run->id]);
+    }
+
+    public function test_employee_cannot_delete_a_finalized_run(): void
+    {
+        $run = $this->createRun();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+
+        $employeeUser = User::create(['name' => 'Rank and file', 'email' => 'rankandfile@example.com', 'password' => Hash::make('password')]);
+        $employeeUser->tenants()->attach($this->tenant->id, ['role' => 'employee']);
+
+        $this->actingAs($employeeUser)->withSession(['current_tenant' => $this->tenant->id])
+            ->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertForbidden();
         $this->assertDatabaseHas('payroll_runs', ['id' => $run->id]);
     }
 
-    public function test_management_deleting_a_finalized_run_must_type_the_exact_period(): void
+    public function test_hr_deleting_a_finalized_run_must_type_the_exact_period(): void
     {
         $run = $this->createRun();
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
 
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => '2026-07'])->assertStatus(422);
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => '2026-07'])->assertStatus(422);
         $this->assertDatabaseHas('payroll_runs', ['id' => $run->id]);
 
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
         $this->assertDatabaseMissing('payroll_runs', ['id' => $run->id]);
     }
 
@@ -151,11 +166,11 @@ class PayrollRunDeletionTest extends TestCase
         ]);
 
         $run = $this->createRun();
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
         $this->assertSame('paid', $claim->fresh()->status);
         $this->assertNotNull($claim->fresh()->paid_at);
 
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
 
         $fresh = $claim->fresh();
         $this->assertSame('approved', $fresh->status);
@@ -182,11 +197,11 @@ class PayrollRunDeletionTest extends TestCase
         ]);
 
         $run = $this->createRun();
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
         $this->assertNotNull($ot->fresh()->paid_at);
         $this->assertNotNull($leave->fresh()->paid_at);
 
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
 
         $this->assertNull($ot->fresh()->paid_at);
         $this->assertNull($leave->fresh()->paid_at);
@@ -205,8 +220,8 @@ class PayrollRunDeletionTest extends TestCase
         $payslipId = $payslip->id;
         $this->assertGreaterThan(0, $payslip->lines()->count());
 
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
-        $this->actingManagement()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/finalize")->assertRedirect();
+        $this->actingHr()->post("/app/payroll/runs/{$run->id}/delete", ['confirm_period' => $run->period])->assertRedirect();
 
         $this->assertDatabaseMissing('payroll_runs', ['id' => $run->id]);
         $this->assertDatabaseMissing('payslips', ['id' => $payslipId]);

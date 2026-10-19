@@ -59,8 +59,6 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OffboardingController;
 use App\Http\Controllers\OfficeRequestController;
 use App\Http\Controllers\OidcController;
-use App\Http\Controllers\OnboardingContentController;
-use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
@@ -378,6 +376,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/assets/{asset}/details', [AssetController::class, 'updateDetails'])->name('assets.details');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
+        Route::post('/app/employees/{employee}/payroll-only', [EmployeeController::class, 'payrollOnly'])->name('employees.payroll-only');
         // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
         Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');
         Route::post('/app/employees/{employee}/cover/delete', [EmployeeCoverController::class, 'destroy'])->name('employees.cover.destroy');
@@ -392,13 +391,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/progression/{employee}/rehire', [ProgressionController::class, 'rehire'])->whereNumber('employee')->name('progression.rehire');
         Route::post('/app/org/move', [OrgController::class, 'move'])->name('org.move');
         Route::post('/app/org/verifiers/{employee}', [OrgController::class, 'setVerifiers'])->name('org.verifiers');
-        Route::post('/app/onboarding/tasks/{task}/toggle', [OnboardingController::class, 'toggleTask'])->name('onboarding.toggle');
-        Route::post('/app/onboarding/start', [OnboardingController::class, 'start'])->name('onboarding.start');
-        Route::post('/app/onboarding/{profile}/tasks', [OnboardingController::class, 'addTask'])->name('onboarding.tasks.add');
-        Route::post('/app/onboarding/tasks/{task}/remove', [OnboardingController::class, 'removeTask'])->name('onboarding.tasks.remove');
-        // Company onboarding content library (privileged): text/video/file/ack per checklist item.
-        Route::post('/app/onboarding/content', [OnboardingContentController::class, 'save'])->middleware('throttle:30,1,onboarding-content')->name('onboarding.content.save');
-        Route::get('/app/onboarding/content/{resource}/file', [OnboardingContentController::class, 'download'])->name('onboarding.content.file');
         Route::post('/app/kpi/{kpiItem}', [KpiController::class, 'update'])->name('kpi.update');
         Route::post('/app/training', [TrainingController::class, 'store'])->name('training.store');
         Route::post('/app/training/{training}/complete', [TrainingController::class, 'complete'])->name('training.complete');
@@ -780,6 +772,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/app/payroll/runs/{run}/publish', [PayrollController::class, 'publishRun'])->name('payroll.runs.publish');
             Route::post('/app/payroll/runs/{run}/mark-paid', [PayrollController::class, 'markPaid'])->name('payroll.runs.mark-paid');
             Route::post('/app/payroll/runs/{run}/delete', [PayrollController::class, 'destroyRun'])->name('payroll.runs.delete');
+            Route::post('/app/payroll/runs/{run}/unlock', [PayrollController::class, 'unlockRun'])->name('payroll.runs.unlock');
             Route::post('/app/payroll/payslips/{payslip}', [PayrollController::class, 'updatePayslip'])->name('payroll.payslips.update');
             Route::post('/app/payroll/payslips/{payslip}/lock', [PayrollController::class, 'lockPayslip'])->name('payroll.payslips.lock');
             Route::post('/app/payroll/payslips/{payslip}/unlock', [PayrollController::class, 'unlockPayslip'])->name('payroll.payslips.unlock');

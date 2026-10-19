@@ -254,8 +254,8 @@ function officeRequests() {
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
             }).then(r => r.ok ? r.json().then(d => { this.votes[id] = d.votes; }) : this.settle(r));
         },
-        promptNote(id) {
-            const note = prompt(this.$store.ui.lang === 'en' ? 'Note for the requester:' : 'Nota untuk pemohon:');
+        async promptNote(id) {
+            const note = await this.$store.ask.ask({ title: this.$store.ui.lang === 'en' ? 'Note for the requester' : 'Nota untuk pemohon', input: true, required: true });
             if (!note) return;
             fetch(`/app/office-requests/${id}/admin-note`, {
                 method: 'POST',
@@ -263,8 +263,8 @@ function officeRequests() {
                 body: JSON.stringify({ note }),
             }).then(r => this.settle(r));
         },
-        promptDone(id) {
-            const note = prompt(this.$store.ui.lang === 'en' ? 'Closing note:' : 'Nota penutup:');
+        async promptDone(id) {
+            const note = await this.$store.ask.ask({ title: this.$store.ui.lang === 'en' ? 'Closing note' : 'Nota penutup', input: true, required: true });
             if (!note) return;
             fetch(`/app/office-requests/${id}/done`, {
                 method: 'POST',

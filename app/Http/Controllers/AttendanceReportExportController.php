@@ -20,7 +20,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AttendanceReportExportController extends Controller
 {
     /** @var list<string> */
-    private const HEADER = ['Date', 'Staff', 'Department', 'Clock in', 'Clock out', 'Hours', 'Status', 'Flags'];
+    private const HEADER = ['Date', 'Staff', 'Department', 'Clock in', 'Clock out', 'Hours', 'Status', 'Flags', 'Remark in', 'Remark out'];
 
     private const STATUS_LABEL = [
         'ontime' => 'On time', 'late' => 'Late', 'miss' => 'Missing clock-out',
@@ -77,7 +77,7 @@ class AttendanceReportExportController extends Controller
                     $flags[] = $row['leaveType'];
                 }
 
-                // Staff names are user-controlled — neutralise formula injection (CWE-1236).
+                // Staff names and remarks are user-controlled — neutralise formula injection (CWE-1236).
                 fputcsv($out, Csv::safeRow([
                     $row['date'],
                     $row['name'],
@@ -87,6 +87,8 @@ class AttendanceReportExportController extends Controller
                     $row['hours'] !== null ? number_format($row['hours'], 2, '.', '') : '',
                     self::STATUS_LABEL[$row['status']] ?? $row['status'],
                     implode('; ', $flags),
+                    $row['noteIn'] ?? '',
+                    $row['noteOut'] ?? '',
                 ]), ',', '"', '');
             }
 

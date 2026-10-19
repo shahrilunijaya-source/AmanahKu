@@ -475,12 +475,6 @@ parameters:
 			path: app/Http/Controllers/OfficeRequestController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 2
-			path: app/Http/Controllers/OnboardingController.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\OrgController\:\:headcountByDept\(\) should return Illuminate\\Support\\Collection\<string, int\> but returns Illuminate\\Support\\Collection\<\(int\|string\), int\<0, max\>\>\.$#'
 			identifier: return.type
 			count: 1

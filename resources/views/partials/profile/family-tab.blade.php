@@ -35,7 +35,7 @@
                 @if ($canEdit)
                     <div x-show="open" x-cloak style="margin-top:12px;">
                         @include('partials.profile.family-form', ['action' => route('employees.family.update', $m), 'm' => $m, 'relations' => $relations])
-                        <form method="post" action="{{ route('employees.family.destroy', $m) }}" onsubmit="return confirm('Remove this family member?')" style="margin-top:6px;">@csrf<button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;color:var(--red);">{!! $L('Remove', 'Buang') !!}</button></form>
+                        <form method="post" action="{{ route('employees.family.destroy', $m) }}" onsubmit="return ujAsk(this, 'Remove this family member?')" style="margin-top:6px;">@csrf<button type="submit" class="uj-btn-ghost" style="height:32px;padding:0 12px;font-size:12px;color:var(--red);">{!! $L('Remove', 'Buang') !!}</button></form>
                     </div>
                 @endif
             </div>

@@ -264,6 +264,39 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Turn "payroll only" on or off: the person stays in every payroll run but drops out
+     * of attendance, timesheets, reports and (for non-HR viewers) the directory.
+     *
+     * HR or director only, never the management role that can post to update(). A
+     * super-admin observer seat is refused too, because AuditLog skips observers and
+     * this change must always leave an audit row. Turning it on needs a reason.
+     */
+    public function payrollOnly(Request $request, Employee $employee): RedirectResponse
+    {
+        $tenant = app(CurrentTenant::class)->get();
+        abort_unless($employee->tenant_id === $tenant?->id, 403);
+        abort_unless($this->hasTenantRole($request, ['director', 'hr']), 403);
+        abort_if((bool) $request->user()?->isObserverIn($tenant), 403);
+
+        $data = $request->validate([
+            'payroll_only' => ['required', 'boolean'],
+            'reason' => ['required_if_accepted:payroll_only', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $on = (bool) $data['payroll_only'];
+        if ($employee->payroll_only !== $on) {
+            DB::transaction(function () use ($employee, $on, $data) {
+                $employee->update(['payroll_only' => $on]);
+                AuditLog::change($employee, 'payroll_only', ! $on, $on, $data['reason'] ?? null);
+            });
+        }
+
+        return back()->with('ok', $on
+            ? $employee->name.' is now payroll only.'
+            : $employee->name.' is back in attendance and reports.');
+    }
+
+    /**
      * Permanently delete an ARCHIVED staff member (HR/management, staff.delete).
      *
      * Guarded hard delete — the terminal step after archive, never a shortcut past it.

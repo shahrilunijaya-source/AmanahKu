@@ -44,6 +44,7 @@
         'absent' => ['no punch', 'tiada clock in'],
         'short' => ['short hours', 'jam kurang'],
         'late' => ['clocked in late', 'clock in lewat'],
+        'remark' => ['with remark', 'ada catatan'],
     ];
 
     /* Every filter is a link carrying the rest of the query, so the screen works
@@ -245,7 +246,7 @@
     </button>
     <div class="uj-ar-chips" role="group"
          :aria-label="$store.ui.lang==='en' ? 'Filter rows' : 'Tapis baris'">
-        @foreach (['all', 'miss', 'absent', 'short', 'late'] as $key)
+        @foreach (['all', 'miss', 'absent', 'short', 'late', 'remark'] as $key)
             <a class="uj-ar-chip" data-t="{{ $key }}"
                href="{{ $url(['lens' => $key === 'all' ? null : $key]) }}"
                @if(($lens ?? 'all') === $key) data-on aria-current="true" @endif>
@@ -287,8 +288,8 @@
     <div class="uj-ar-cols uj-ar-thead uj-ar-desktop-only">
         <span class="c-date" x-text="$store.ui.lang==='en' ? 'Date' : 'Tarikh'">Date</span>
         <span x-text="$store.ui.lang==='en' ? 'Staff' : 'Staf'">Staff</span>
-        <span class="uj-ar-num" x-text="$store.ui.lang==='en' ? 'In' : 'Masuk'">In</span>
-        <span class="uj-ar-num" x-text="$store.ui.lang==='en' ? 'Out' : 'Keluar'">Out</span>
+        <span x-text="$store.ui.lang==='en' ? 'In' : 'Masuk'">In</span>
+        <span x-text="$store.ui.lang==='en' ? 'Out' : 'Keluar'">Out</span>
         <span class="uj-ar-num" x-text="$store.ui.lang==='en' ? 'Hours' : 'Jam'">Hours</span>
         <span x-text="$store.ui.lang==='en' ? 'Status' : 'Status'">Status</span>
         <span x-text="$store.ui.lang==='en' ? 'Flags' : 'Tanda'">Flags</span>
@@ -323,17 +324,36 @@
                         <span class="nm"><b title="{{ $row['name'] }}">{{ $row['name'] }}</b><span>{{ $row['dept'] ?? '—' }}</span></span>
                     </a>
                 </span>
-                <span class="c-in uj-ar-t uj-ar-num" @if(! $row['in']) data-nil @endif>{{ $row['in'] ?? '—' }}</span>
-                <span class="c-out uj-ar-num">
+                {{-- Each remark sits under the punch it explains. On a phone the two times
+                     share one line, so the remarks move to their own row (c-notes). --}}
+                <span class="c-in">
+                    <span class="uj-ar-t uj-ar-num" @if(! $row['in']) data-nil @endif>{{ $row['in'] ?? '—' }}</span>
+                    @if ($row['noteIn'])
+                        <span class="uj-ar-note-inline uj-ar-desktop-only" title="{{ $row['noteIn'] }}">{{ $row['noteIn'] }}</span>
+                    @endif
+                </span>
+                <span class="c-out">
                     @if ($row['out'])
-                        <span class="uj-ar-t">{{ $row['out'] }}</span>
+                        <span class="uj-ar-t uj-ar-num">{{ $row['out'] }}</span>
                     @elseif ($row['status'] === 'miss')
                         <span class="uj-ar-stamp" data-t="miss"><i></i><span
                             x-text="$store.ui.lang==='en' ? 'Missing' : 'Tiada'">Missing</span></span>
                     @else
-                        <span class="uj-ar-t" data-nil>—</span>
+                        <span class="uj-ar-t uj-ar-num" data-nil>—</span>
+                    @endif
+                    @if ($row['noteOut'])
+                        <span class="uj-ar-note-inline uj-ar-desktop-only" title="{{ $row['noteOut'] }}">{{ $row['noteOut'] }}</span>
                     @endif
                 </span>
+                @if ($row['noteIn'] || $row['noteOut'])
+                    <span class="c-notes uj-ar-mobile-only">
+                        @foreach (['In' => [$row['noteIn'], 'Masuk'], 'Out' => [$row['noteOut'], 'Keluar']] as $slotEn => [$note, $slotMs])
+                            @if ($note)
+                                <span class="uj-ar-note-line"><em x-text="$store.ui.lang==='en' ? @js($slotEn) : @js($slotMs)">{{ $slotEn }}</em>{{ $note }}</span>
+                            @endif
+                        @endforeach
+                    </span>
+                @endif
                 <span class="c-hours uj-ar-hrs uj-ar-num"
                       @if($row['hours'] === null) data-nil @elseif(in_array('short', $row['flags'], true)) data-short @endif>{{ $row['hours'] !== null ? number_format($row['hours'], 2) : '—' }}</span>
                 <span class="c-status">

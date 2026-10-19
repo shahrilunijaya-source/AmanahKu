@@ -40,7 +40,7 @@ class AttendanceAdminController extends Controller
     {
         return [
             'sites' => WorkSite::orderBy('name')->get(),
-            'staff' => Employee::active()->with(['branch', 'workSite'])->orderBy('name')->get(),
+            'staff' => Employee::active()->attendanceTracked()->with(['branch', 'workSite'])->orderBy('name')->get(),
             'wfhPolicy' => app(CurrentTenant::class)->get(),
         ];
     }

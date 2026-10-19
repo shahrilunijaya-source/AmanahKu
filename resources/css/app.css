@@ -2794,6 +2794,8 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 .uj-ar-chips{
   display:inline-flex;background:var(--hairline-soft);
   border-radius:10px;padding:3px;gap:2px;max-width:100%;
+  /* Six lenses no longer fit beside each other on a mid-width window; wrap rather than scroll the page. */
+  flex-wrap:wrap;
 }
 .uj-ar-chip{
   display:inline-flex;align-items:baseline;gap:7px;
@@ -2898,7 +2900,7 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 
 .uj-ar-cols{
   display:grid;
-  grid-template-columns:104px minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
+  grid-template-columns:104px minmax(168px,1.2fr) minmax(62px,1.3fr) minmax(96px,1.3fr) 72px 104px minmax(116px,1.1fr) 76px;
   gap:12px;align-items:center;padding:0 18px;
 }
 .uj-ar-thead{
@@ -2919,7 +2921,7 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 /* Single day: the date is in the period control above, not repeated per row. */
 .uj-ar-ledger[data-gran="day"] .c-date{display:none}
 .uj-ar-ledger[data-gran="day"] .uj-ar-cols{
-  grid-template-columns:minmax(168px,1.5fr) 62px 96px 72px 104px minmax(116px,1.1fr) 76px;
+  grid-template-columns:minmax(168px,1.2fr) minmax(62px,1.3fr) minmax(96px,1.3fr) 72px 104px minmax(116px,1.1fr) 76px;
 }
 
 .uj-ar-row{
@@ -2970,6 +2972,18 @@ button.uj-dw-cal-day[data-today][data-sel] { background:var(--red-tint); box-sha
 }
 .uj-ar-t{font-size:var(--t-sm);color:var(--ink);font-weight:500}
 .uj-ar-t[data-nil]{color:var(--muted);font-weight:400}
+/* The remark typed at the punch, under the time it explains. */
+.uj-ar-cols .c-in,.uj-ar-cols .c-out{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.uj-ar-note-inline{
+  font-size:12.5px;line-height:1.35;color:var(--ink);overflow-wrap:break-word;max-width:100%;
+  /* A rare long reason must not make one row five times taller; the full text is in title. */
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;
+}
+.uj-ar-note-line{font-size:12.5px;line-height:1.4;color:var(--ink);overflow-wrap:break-word}
+.uj-ar-note-line em{
+  font-style:normal;font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;
+  color:var(--muted);background:var(--hairline-soft);border-radius:5px;padding:2px 5px;margin-right:6px;
+}
 .uj-ar-hrs{font-size:var(--t-sm);color:var(--ink);font-weight:500}
 .uj-ar-hrs[data-nil]{color:var(--muted);font-weight:400}
 .uj-ar-hrs[data-short]{color:var(--info)}
@@ -3308,6 +3322,7 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
       "date  date  status"
       "who   who   who"
       "tin   tout  hours"
+      "notes notes notes"
       "flags flags flags"
       "fix   fix   fix";
   }
@@ -3316,6 +3331,7 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
     grid-template-areas:
       "who   who   status"
       "tin   tout  hours"
+      "notes notes notes"
       "flags flags flags"
       "fix   fix   fix";
   }
@@ -3338,6 +3354,7 @@ button.uj-ar-flag svg{opacity:.75;flex-shrink:0}
   }
   .uj-ar-cols .c-out{grid-area:tout;text-align:left}
   .uj-ar-cols .c-hours{grid-area:hours;text-align:right}
+  .uj-ar-cols .c-notes{grid-area:notes;flex-direction:column;gap:3px;margin-top:6px}
   .uj-ar-cols .c-flags{grid-area:flags}
   .uj-ar-cols .c-flags:not(:empty){margin-top:6px}
   .uj-ar-cols .c-fix{grid-area:fix;justify-self:stretch}

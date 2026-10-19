@@ -43,7 +43,8 @@ class SalaryStructure extends Model
         'zakat_authority',
         'cp38_monthly',
         'skbbk_opt_in',
-        // Worksy Bank & Statutory tab (2026-09-28). Read by no calculation; reference data only.
+        // Worksy Bank & Statutory tab (2026-09-28). epf_scheme, socso_exempt and hrdf_exempt drive
+        // payroll; the rest (socso_category, tax and bank-holder fields) is reference data only.
         'bank_holder_name',
         'tax_resident',
         'tax_category',

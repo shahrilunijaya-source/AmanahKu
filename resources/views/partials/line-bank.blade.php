@@ -63,7 +63,7 @@
                         </div>
                         <div class="uj-lb-acts">
                             <form method="post" action="{{ route($routes.'.update', $p) }}">@csrf<input type="hidden" name="approve" value="1"><button type="submit" class="uj-btn-ghost uj-lb-btn" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button></form>
-                            <form method="post" action="{{ route($routes.'.delete', $p) }}" onsubmit="return confirm('Delete this suggestion?')">@csrf
+                            <form method="post" action="{{ route($routes.'.delete', $p) }}" onsubmit="return ujAsk(this, 'Delete this suggestion?')">@csrf
                                 <button type="submit" class="uj-lb-icon uj-lb-del" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
                             </form>
                         </div>
@@ -122,7 +122,7 @@
                     @if ($canManage)
                         <div class="uj-lb-acts">
                             <button type="button" class="uj-lb-icon" title="Edit" aria-label="Edit" @click="editId = {{ $l->id }}; adding = false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
-                            <form method="post" action="{{ route($routes.'.delete', $l) }}" onsubmit="return confirm('Delete this line?')">@csrf
+                            <form method="post" action="{{ route($routes.'.delete', $l) }}" onsubmit="return ujAsk(this, 'Delete this line?')">@csrf
                                 <button type="submit" class="uj-lb-icon uj-lb-del" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
                             </form>
                         </div>

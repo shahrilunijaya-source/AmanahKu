@@ -24,7 +24,7 @@ class ReportController extends Controller
         // the roster, not the whole company (AK-AUTHZ-01).
         $scope = $request->attributes->get('tenantScope', 'company');
         $self = $request->attributes->get('employee');
-        $roster = app(DataScope::class)->applyToEmployees(Employee::active(), $scope, $self);
+        $roster = app(DataScope::class)->applyToEmployees(Employee::active()->attendanceTracked(), $scope, $self);
 
         return response()->streamDownload(function () use ($roster) {
             $out = fopen('php://output', 'w');

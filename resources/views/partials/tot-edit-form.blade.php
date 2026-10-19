@@ -105,7 +105,7 @@
         </form>
 
         @if ($canManage)
-            <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit="if (! confirm($store.ui.lang==='en' ? 'Remove this session? This cannot be undone.' : 'Buang sesi ini? Tindakan ini tidak boleh dibatalkan.')) $event.preventDefault();">
+            <form method="post" action="{{ route('tot.destroy', $session) }}" style="margin-top:10px;" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? 'Remove this session? This cannot be undone.' : 'Buang sesi ini? Tindakan ini tidak boleh dibatalkan.' })">
                 @csrf
                 <button type="submit" class="tot-btn-g" style="color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete session' : 'Padam sesi'">Delete session</button>
             </form>

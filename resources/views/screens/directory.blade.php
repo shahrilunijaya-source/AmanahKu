@@ -60,9 +60,22 @@
         @if ($isArchived)
         <div style="{{ $rowStyle }}">
         @else
-        <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" class="uj-row" style="text-decoration:none;{{ $rowStyle }}">
+        <a href="{{ route('app.screen', ['screen' => 'profile', 'emp' => $e->id]) }}" class="uj-row group" style="text-decoration:none;{{ $rowStyle }}">
         @endif
-            <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div style="width:34px;height:34px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div><div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->display_name }}</div><div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($isArchived && $e->archived_at)<span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkib'">Archived</span> {{ $e->archived_at->format('d M Y') }}@else{{ $e->email }}@endif</div></div></div>
+            <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div style="width:34px;height:34px;border-radius:50%;background:{{ $e->avatar_color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">{{ $e->initials }}</div><div style="min-width:0;"><div style="font-size:13.5px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $e->display_name }}@if ($e->payroll_only) <span class="uj-stamp" data-tone="amber" x-text="$store.ui.lang==='en'?'Payroll only':'Gaji sahaja'">Payroll only</span>@endif</div><div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@if ($isArchived && $e->archived_at)<span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkib'">Archived</span> {{ $e->archived_at->format('d M Y') }}@else{{ $e->email }}@endif</div></div>@if (($canSetPayrollOnly ?? false) && ! $isArchived)
+                {{-- Payroll-only eye: shows on row hover (always when hidden). Posts through the shared form below the list. --}}
+                <button type="button" @click.prevent.stop="$dispatch('payroll-only', { url: @js(route('employees.payroll-only', $e)), name: @js($e->name), on: {{ $e->payroll_only ? 'false' : 'true' }} })"
+                        class="{{ $e->payroll_only ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100' }}"
+                        style="margin-left:auto;flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:transparent;cursor:pointer;color:{{ $e->payroll_only ? 'var(--amber-ink)' : 'var(--muted)' }};"
+                        :title="$store.ui.lang==='en' ? {{ $e->payroll_only ? "'Show in attendance, timesheets and reports again'" : "'Hide from attendance, timesheets and reports (still paid)'" }} : {{ $e->payroll_only ? "'Papar semula dalam kehadiran, lembaran masa dan laporan'" : "'Sembunyikan daripada kehadiran, lembaran masa dan laporan (masih dibayar)'" }}"
+                        :aria-label="$store.ui.lang==='en' ? {{ $e->payroll_only ? "'Show again'" : "'Hide (payroll only)'" }} : {{ $e->payroll_only ? "'Papar semula'" : "'Sembunyikan (gaji sahaja)'" }}">
+                    @if ($e->payroll_only)
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c7 0 10 7 10 7a13.2 13.2 0 0 1-1.7 2.7"/><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                    @else
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    @endif
+                </button>
+            @endif</div>
             <span style="font-size:13px;color:var(--body);">{{ $e->positionBand?->title ?? '—' }}</span>
             <span style="font-size:13px;color:var(--body);">{{ $e->department?->name }}</span>
             <span style="font-size:13px;color:var(--body);">{{ $e->branch?->name }}</span>
@@ -70,12 +83,12 @@
             <span style="font-size:12px;font-weight:600;color:{{ $stColor }};">{{ $stLabel }}</span>
             @if ($isArchived)
             <div style="display:flex;gap:8px;align-items:center;">
-                <form method="post" action="{{ route('employees.restore', $e) }}" @submit="if (! confirm($store.ui.lang==='en' ? 'Restore this staff member to the directory?' : 'Pulihkan staf ini ke direktori?')) $event.preventDefault();">
+                <form method="post" action="{{ route('employees.restore', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Restore '.$e->name.'?') : @js('Pulihkan '.$e->name.'?'), body: $store.ui.lang==='en' ? 'They go back into the directory and every staff picker.' : 'Mereka kembali ke direktori dan setiap pemilih staf.', ok: $store.ui.lang==='en' ? 'Restore' : 'Pulihkan' })">
                     @csrf
                     <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Restore' : 'Pulihkan'">Restore</span></button>
                 </form>
                 {{-- Permanent delete: type-to-confirm because it is irreversible and cascades history. The server refuses if the person has payroll records. --}}
-                <form method="post" action="{{ route('employees.force-delete', $e) }}" @submit="if (prompt($store.ui.lang==='en' ? @js('Permanently delete '.$e->name.'? This cannot be undone. Type the name to confirm:') : @js('Padam '.$e->name.' secara kekal? Tindakan ini tidak boleh dibuat asal. Taip nama untuk sahkan:')) !== @js($e->name)) $event.preventDefault();">
+                <form method="post" action="{{ route('employees.force-delete', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Permanently delete '.$e->name.'?') : @js('Padam '.$e->name.' secara kekal?'), body: $store.ui.lang==='en' ? 'This cannot be undone. Type the full name to confirm.' : 'Tindakan ini tidak boleh dibuat asal. Taip nama penuh untuk sahkan.', ok: $store.ui.lang==='en' ? 'Delete' : 'Padam', match: @js($e->name) })">
                     @csrf
                     <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 14px;font-size:12px;color:var(--red);border-color:var(--red);"><span x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</span></button>
                 </form>
@@ -91,6 +104,39 @@
     @empty
         <div style="padding:48px 24px;text-align:center;font-size:13.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? ({{ $isArchived ? "'No archived staff.'" : "'No employees match your search.'" }}) : ({{ $isArchived ? "'Tiada staf diarkibkan.'" : "'Tiada pekerja sepadan dengan carian anda.'" }})"></span></div>
     @endforelse
+
+    {{-- Payroll-only eye handler (a <form> can't sit inside the row's <a>, so the rows dispatch
+         an event here). Hiding opens an in-page dialog for the reason, which
+         EmployeeController::payrollOnly writes to the audit log; native prompt() is avoided
+         because embedded browsers (VS Code's) refuse it. Showing again posts straight away. --}}
+    @if (($canSetPayrollOnly ?? false) && ! $isArchived)
+        <div x-data="{ open: false, url: '', name: '' }"
+             @payroll-only.window="url = $event.detail.url; name = $event.detail.name;
+                 if ($event.detail.on) { open = true; $nextTick(() => $refs.reason.focus()); } else { $nextTick(() => $refs.show.submit()); }">
+            <form x-ref="show" method="post" :action="url" style="display:none;">
+                @csrf
+                <input type="hidden" name="payroll_only" value="0" />
+            </form>
+            <template x-teleport="body">
+                <div x-show="open" x-cloak @click.self="open = false" @keydown.escape.window="open = false"
+                     style="position:fixed;inset:0;z-index:120;display:flex;padding:40px 16px;background:rgba(18,18,30,.42);overflow-y:auto;">
+                    <form method="post" :action="url" class="uj-card" style="width:100%;max-width:440px;margin:auto;padding:20px;display:flex;flex-direction:column;gap:12px;">
+                        @csrf
+                        <input type="hidden" name="payroll_only" value="1" />
+                        <b style="font-size:14px;color:var(--ink);" x-text="($store.ui.lang==='en' ? 'Hide ' : 'Sembunyikan ') + name + '?'"></b>
+                        <p style="font-size:12.5px;color:var(--muted);margin:0;" x-text="$store.ui.lang==='en' ? 'They stay in payroll and are still paid, but drop out of attendance, timesheets and reports.' : 'Mereka kekal dalam gaji dan masih dibayar, tetapi tidak lagi dipaparkan dalam kehadiran, lembaran masa dan laporan.'"></p>
+                        <input x-ref="reason" name="reason" type="text" required maxlength="255"
+                               :placeholder="$store.ui.lang==='en' ? 'Reason (goes into the audit log)' : 'Sebab (direkod dalam log audit)'"
+                               :aria-label="$store.ui.lang==='en' ? 'Reason' : 'Sebab'" style="display:block;height:38px;padding:0 11px;border:1px solid var(--hairline);border-radius:8px;font-size:13px;background:#fff;color:var(--ink);width:100%;" />
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button type="button" @click="open = false" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</span></button>
+                            <button type="submit" class="uj-btn-primary" style="height:36px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? 'Hide' : 'Sembunyikan'">Hide</span></button>
+                        </div>
+                    </form>
+                </div>
+            </template>
+        </div>
+    @endif
 
     <div style="padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
         <span style="font-size:12.5px;color:var(--muted);"><span x-text="$store.ui.lang==='en' ? 'Showing' : 'Memaparkan'">Showing</span> {{ $employees->count() }} <span x-text="$store.ui.lang==='en' ? 'of' : 'daripada'">of</span> {{ $total }} <span x-text="$store.ui.lang==='en' ? 'employees' : 'pekerja'">employees</span></span>

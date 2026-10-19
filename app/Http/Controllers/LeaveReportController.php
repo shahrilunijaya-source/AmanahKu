@@ -79,7 +79,7 @@ class LeaveReportController extends Controller
         // Denominator for "avg days / head" and "staff who took leave". Without the
         // department clause a filtered view divided one team's days by company headcount,
         // which is not a quantity at all.
-        $headcount = Employee::active()
+        $headcount = Employee::active()->attendanceTracked()
             ->when($visibleIds !== null, fn ($q) => $q->whereIn('id', $visibleIds))
             ->when($dept, fn ($q) => $q->whereHas('department', fn ($d) => $d->where('name', $dept)))
             ->where('status', '!=', 'resigned')

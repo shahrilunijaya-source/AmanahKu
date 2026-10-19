@@ -1,9 +1,7 @@
 <?php
 
-use App\Services\OnboardingService;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -39,15 +37,8 @@ return new class extends Migration
         Schema::table('onboarding_tasks', function (Blueprint $table) {
             $table->string('item_key')->nullable()->after('title');
         });
-
-        // Backfill item_key on tasks seeded before this column existed, by matching the
-        // standard checklist title. Custom/renamed tasks stay NULL and simply carry no content.
-        foreach (OnboardingService::standardItems() as $key => $meta) {
-            DB::table('onboarding_tasks')
-                ->where('title', $meta['title'])
-                ->whereNull('item_key')
-                ->update(['item_key' => $key]);
-        }
+        // The item_key backfill that lived here was removed with the onboarding module
+        // (it read the deleted OnboardingService); every existing database already ran it.
     }
 
     public function down(): void

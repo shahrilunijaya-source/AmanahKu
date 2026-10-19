@@ -772,6 +772,7 @@ trait BuildsWorkData
             'photo' => $e->photo && str_starts_with($e->photo, '/') ? $e->photo : null,
             'position' => $e->position,
             'staff_id' => $e->staff_id,
+            'payroll_only' => (bool) $e->payroll_only,
             'department' => $e->department?->name,
             'gender' => $e->gender,
             'marital_status' => $e->marital_status,

@@ -29,7 +29,7 @@ async function ensurePasswordConfirmed(csrf) {
     const { confirmed } = await getJson('/user/confirmed-password-status');
     if (confirmed) return;
 
-    const password = window.prompt('Confirm your password to manage passkeys:');
+    const password = await window.Alpine.store('ask').ask({ title: 'Confirm your password to manage passkeys', input: 'password', required: true });
     if (password === null || password === '') {
         throw new Error('Password confirmation is required to manage passkeys.');
     }

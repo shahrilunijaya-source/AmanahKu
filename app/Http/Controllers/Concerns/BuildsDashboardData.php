@@ -659,7 +659,7 @@ trait BuildsDashboardData
 
         // Eager-load ONLY today's attendance row per member so the Team-status "Today"
         // cell shows real clock in/out (not a leave-vs-not guess) without an N+1.
-        return Employee::active()
+        return Employee::active()->attendanceTracked()
             ->where('reports_to_id', $employee->id)
             ->with(['department', 'attendanceRecords' => fn ($q) => $q->onDate(now())])
             ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
@@ -681,7 +681,7 @@ trait BuildsDashboardData
             return ['direct_reports' => 0, 'on_leave' => 0, 'timesheets_outstanding' => 0];
         }
 
-        $reports = Employee::active()->where('reports_to_id', $employee->id)->get(['id', 'status']);
+        $reports = Employee::active()->attendanceTracked()->where('reports_to_id', $employee->id)->get(['id', 'status']);
         $pendingIds = app(WorkforceInsights::class)->pendingTimesheets()->pluck('id');
 
         return [
@@ -696,7 +696,7 @@ trait BuildsDashboardData
         return [
             // Bars ordered by real load (heaviest first); colour/label come from the live
             // workload accessors, fed by the eager open_items_count so there's no N+1.
-            'bars' => Employee::active()
+            'bars' => Employee::active()->attendanceTracked()
                 ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
                 ->orderByDesc('open_items_count')->get()->map(fn ($e) => [
                     'name' => $e->name, 'initials' => $e->initials, 'avatar' => $e->avatar_color,

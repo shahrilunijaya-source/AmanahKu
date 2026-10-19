@@ -14,7 +14,7 @@ class AttendanceLedgerTotalsTest extends TestCase
     private function rows(): Collection
     {
         return collect([
-            $this->row(1, 'ontime', hours: 8.5),
+            $this->row(1, 'ontime', hours: 8.5, noteIn: 'PNM'),
             $this->row(1, 'late', hours: 8.0),
             $this->row(1, 'miss', hours: null),
             $this->row(2, 'absent', hours: null),
@@ -28,10 +28,10 @@ class AttendanceLedgerTotalsTest extends TestCase
      * @param  list<string>  $flags
      * @return array<string, mixed>
      */
-    private function row(int $emp, string $status, ?float $hours, array $flags = [], ?string $leaveType = null): array
+    private function row(int $emp, string $status, ?float $hours, array $flags = [], ?string $leaveType = null, ?string $noteIn = null): array
     {
         return ['employeeId' => $emp, 'status' => $status, 'hours' => $hours,
-            'flags' => $flags, 'leaveType' => $leaveType];
+            'flags' => $flags, 'leaveType' => $leaveType, 'noteIn' => $noteIn, 'noteOut' => null];
     }
 
     public function test_totals_count_each_status_and_sum_the_hours(): void
@@ -58,7 +58,7 @@ class AttendanceLedgerTotalsTest extends TestCase
     public function test_lens_counts_describe_the_scope(): void
     {
         $this->assertSame(
-            ['all' => 7, 'miss' => 1, 'absent' => 1, 'short' => 1, 'late' => 1],
+            ['all' => 7, 'miss' => 1, 'absent' => 1, 'short' => 1, 'late' => 1, 'remark' => 1],
             LedgerTotals::counts($this->rows())
         );
     }
@@ -68,6 +68,7 @@ class AttendanceLedgerTotalsTest extends TestCase
         $rows = $this->rows();
 
         $this->assertCount(1, LedgerTotals::applyLens($rows, 'miss'));
+        $this->assertCount(1, LedgerTotals::applyLens($rows, 'remark'));
         $this->assertCount(1, LedgerTotals::applyLens($rows, 'late'));
         $this->assertCount(1, LedgerTotals::applyLens($rows, 'short'));
         $this->assertCount(7, LedgerTotals::applyLens($rows, null));

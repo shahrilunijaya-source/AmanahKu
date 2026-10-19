@@ -169,7 +169,7 @@
                                                 : 'Deletes the whole record for this day. '.$person['name'].' can clock in again from scratch.';
                                         @endphp
                                         <form method="post" action="{{ route('attendance.admin.records.reverse', $day['recordId']) }}"
-                                              onsubmit="return confirm(@js($confirm))">
+                                              onsubmit="return ujAsk(this, @js($confirm))">
                                             @csrf
                                             <button type="submit" class="uj-ar-btn danger"
                                                     x-text="$store.ui.lang==='en' ? @js($revEn) : @js($revMs)">{{ $revEn }}</button>

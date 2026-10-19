@@ -74,7 +74,7 @@ class AttendanceReportExportTest extends TestCase
 
         // PHP quotes any field carrying a space, so "Clock in" arrives quoted.
         $this->assertStringContainsString(
-            'Date,Staff,Department,"Clock in","Clock out",Hours,Status,Flags',
+            'Date,Staff,Department,"Clock in","Clock out",Hours,Status,Flags,"Remark in","Remark out"',
             $lines[0]
         );
         $this->assertStringContainsString('2026-08-18', $lines[1]);
@@ -83,6 +83,18 @@ class AttendanceReportExportTest extends TestCase
         $this->assertStringContainsString('17:35', $lines[1]);
         $this->assertStringContainsString('8.72', $lines[1]);
         $this->assertStringContainsString('On time', $lines[1]);
+    }
+
+    public function test_each_remark_lands_in_its_own_column(): void
+    {
+        AttendanceRecord::whereDate('date', '2026-08-18')->update([
+            'clock_in_justification' => 'late due to police roadblock',
+            'clock_out_justification' => 'from KDN',
+        ]);
+
+        $lines = array_values(array_filter(explode("\n", trim($this->download($this->oneDay())))));
+
+        $this->assertStringEndsWith('"late due to police roadblock","from KDN"', trim($lines[1]));
     }
 
     public function test_the_filename_names_the_period(): void

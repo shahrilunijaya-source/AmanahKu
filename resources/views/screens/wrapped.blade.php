@@ -137,7 +137,7 @@
                                 <form method="POST" action="{{ route('wrapped.arcs.retire', $arc->id) }}" class="uj-wr-arc-chip" data-wrapped-arc="{{ $arc->id }}">
                                     <input type="hidden" name="_token" value="{{ csrf_token() }}">
                                     <span>{{ $arc->title }}</span>
-                                    <button type="submit" aria-label="Retire {{ $arc->title }}" data-tip="Retire" onclick="return confirm('Retire this arc? It stops being drawn for new Wrapped stories.')">&times;</button>
+                                    <button type="submit" aria-label="Retire {{ $arc->title }}" data-tip="Retire" onclick="return ujAsk(this.form, 'Retire this arc? It stops being drawn for new Wrapped stories.', this)">&times;</button>
                                 </form>
                             @empty
                                 <span class="uj-wr-arc-empty">No live titles.</span>

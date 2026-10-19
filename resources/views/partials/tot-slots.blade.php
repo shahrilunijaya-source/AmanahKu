@@ -73,7 +73,7 @@
                         </div>
                     </form>
                     <form method="post" action="{{ route('tot.slots.delete', [$session, $slot]) }}" style="margin-top:8px;"
-                          onsubmit="return confirm('Remove this slot?');">
+                          onsubmit="return ujAsk(this, 'Remove this slot?')">
                         @csrf
                         <button type="submit" class="tot-pillbtn" style="color:#b42318;" x-text="$store.ui.lang==='en' ? 'Delete slot' : 'Padam slot'">Delete slot</button>
                     </form>

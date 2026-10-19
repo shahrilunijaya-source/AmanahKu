@@ -50,7 +50,7 @@
                             <button type="button" @click="editItem = null" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;" x-text="$store.ui.lang==='en' ? 'Cancel' : 'Batal'">Cancel</button>
                             @unless ($item->is_system)
                                 <span style="flex:1;"></span>
-                                <button type="submit" formaction="{{ route('payroll.items.delete', $item) }}" onclick="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam item ini?' : 'Delete this item?');" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
+                                <button type="submit" formaction="{{ route('payroll.items.delete', $item) }}" onclick="return ujAsk(this.form, window.Alpine && Alpine.store('ui').lang==='ms' ? 'Padam item ini?' : 'Delete this item?', this)" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:12.5px;color:var(--error);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
                             @endunless
                         </div>
                     </form>

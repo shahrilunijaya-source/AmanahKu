@@ -46,10 +46,10 @@ class ShippedScopeTest extends TestCase
         'payroll', 'payroll-my', 'payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form',
         'loans', 'pettycash', 'benefits', 'wellness',
         'kpi', 'achievements', 'reviews', 'goals', 'skills',
-        'onboarding', 'probation', 'resignation', 'offboarding', 'compliance',
+        'probation', 'resignation', 'offboarding', 'compliance',
         'recruitment', 'referrals', 'cases', 'training', 'learning', 'handbook',
         'expenses', 'travel', 'assets', 'surveys', 'ideas', 'workload',
-        'onboarding-content', 'shared-resources',
+        'shared-resources',
     ];
 
     private User $hr;
