@@ -108,6 +108,122 @@ class PayrollExportController extends Controller
         }, 'statutory-'.$run->period.'.csv', ['Content-Type' => 'text/csv']);
     }
 
+    /**
+     * Payroll register for one finalized run: every payslip line per employee (earnings,
+     * deductions, employer cost) with a TOTAL row, the sheet HR and finance check a run against.
+     * Lines the payslip doesn't store on their own (one-off earnings, loans and other
+     * deductions) are derived from gross and total deductions so every row adds up.
+     */
+    public function register(Request $request, PayrollRun $run): StreamedResponse
+    {
+        $this->authorize($request, $run);
+
+        $payslips = $run->payslips()->with('employee.department')->get()
+            ->sortBy(fn ($p) => $p->employee?->name)->values();
+
+        AuditLog::record('Exported payroll register', $run->label.' · '.$payslips->count().' employees');
+
+        $money = ['basic', 'allowances', 'overtime', 'bonus', 'other_earnings', 'unpaid', 'gross',
+            'epf', 'socso', 'eis', 'skbbk', 'pcb', 'zakat', 'cp38', 'advance', 'other_deductions', 'total_deductions',
+            'claims', 'net', 'epf_er', 'socso_er', 'eis_er', 'hrdf', 'cost'];
+        $rows = $payslips->map(fn (Payslip $p) => array_combine($money, self::registerLine($p)));
+
+        return response()->streamDownload(function () use ($payslips, $rows, $money) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Staff ID', 'Employee', 'Department',
+                'Basic', 'Fixed allowances', 'Overtime', 'Bonus', 'Other earnings', 'Unpaid leave', 'Gross pay',
+                'EPF', 'SOCSO', 'EIS', 'SKBBK', 'PCB', 'Zakat', 'CP38', 'Mid-month advance', 'Loans & other', 'Total deductions',
+                'Claims reimbursed', 'Net pay',
+                'EPF (Employer)', 'SOCSO (Employer)', 'EIS (Employer)', 'HRDF levy', 'Total employer cost',
+            ]);
+            $fmt = fn (float $v) => number_format($v, 2, '.', '');
+            foreach ($payslips as $i => $p) {
+                // Only the text columns are user-controlled; the figures are ours, and a
+                // negative one must stay a number for Excel, not be quoted as a formula.
+                fputcsv($out, [
+                    ...Csv::safeRow([$p->employee?->staff_id, $p->employee?->name, $p->employee?->department?->name]),
+                    ...array_map($fmt, array_values($rows[$i])),
+                ]);
+            }
+            fputcsv($out, ['TOTAL', '', '', ...array_map(fn ($k) => $fmt($rows->sum($k)), $money)]);
+            fclose($out);
+        }, 'payroll-register-'.$run->period.'-'.$run->kind.'-'.$run->id.'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Payroll summary for one year: a row per month over every finalized run in it. A
+     * mid-month run is an advance on that month's wages, so its gross is not counted twice:
+     * gross, deductions and employer cost come from the other runs, while net paid adds every
+     * run (the advance went out mid-month, the month-end run paid the rest).
+     */
+    public function summary(Request $request, int $year): StreamedResponse
+    {
+        $this->authorizeTenantRole($request, self::ADMIN_ROLES);
+
+        $runs = PayrollRun::where('tenant_id', app(CurrentTenant::class)->id())
+            ->where('status', 'finalized')->where('period', 'like', $year.'-%')
+            ->with('payslips')->orderBy('period')->get();
+
+        $months = $runs->groupBy('period')->map(function ($group, string $period) {
+            $all = $group->flatMap->payslips;
+            $pay = $group->reject->isMidMonth()->flatMap->payslips;
+            $statutory = $pay->sum('epf_employee') + $pay->sum('socso_employee') + $pay->sum('eis_employee') + $pay->sum('skbbk_employee');
+            $tax = $pay->sum(fn ($p) => (float) ($p->pcb_override ?? $p->pcb) + (float) $p->pcb_additional) + $pay->sum('zakat') + $pay->sum('cp38');
+
+            return [
+                'month' => $period,
+                'staff' => $all->pluck('employee_id')->unique()->count(),
+                'gross' => (float) $pay->sum('gross'),
+                'statutory' => (float) $statutory,
+                'tax' => (float) $tax,
+                'other' => (float) ($pay->sum('total_deductions') - $pay->sum('mid_month_advance') - $statutory - $tax),
+                'claims' => (float) $all->sum('claims_reimbursement'),
+                'net' => (float) $all->sum('net_pay'),
+                'employer' => (float) ($pay->sum('epf_employer') + $pay->sum('socso_employer') + $pay->sum('eis_employer') + $pay->sum('hrdf_levy')),
+                'cost' => (float) $pay->sum('employer_cost'),
+            ];
+        })->values();
+
+        AuditLog::record('Exported payroll summary', $year.' · '.$months->count().' months');
+
+        return response()->streamDownload(function () use ($months) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Month', 'Staff paid', 'Gross pay', 'EPF + SOCSO + EIS (Employee)', 'PCB + zakat + CP38',
+                'Loans & other', 'Claims reimbursed', 'Net paid', 'Employer contributions', 'Total employer cost']);
+            $fmt = fn (float $v) => number_format($v, 2, '.', '');
+            $keys = ['gross', 'statutory', 'tax', 'other', 'claims', 'net', 'employer', 'cost'];
+            foreach ($months as $m) {
+                fputcsv($out, [$m['month'], $m['staff'], ...array_map(fn ($k) => $fmt($m[$k]), $keys)]);
+            }
+            fputcsv($out, ['TOTAL', '', ...array_map(fn ($k) => $fmt((float) $months->sum($k)), $keys)]);
+            fclose($out);
+        }, 'payroll-summary-'.$year.'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * One register row's money columns, in header order.
+     *
+     * @return list<float>
+     */
+    private static function registerLine(Payslip $p): array
+    {
+        $f = fn (string $k) => (float) $p->{$k};
+        // Additions and one-off individual earnings have no column of their own, so they are what gross has left.
+        $otherEarnings = $f('gross') - $f('basic') - $f('allowances_total') - $f('overtime_amount') - $f('bonus') + $f('unpaid_deduction');
+        $pcb = (float) ($p->pcb_override ?? $p->pcb) + $f('pcb_additional');
+        $named = $f('epf_employee') + $f('socso_employee') + $f('eis_employee') + $f('skbbk_employee')
+            + $pcb + $f('zakat') + $f('cp38') + $f('mid_month_advance');
+
+        return [
+            $f('basic'), $f('allowances_total'), $f('overtime_amount'), $f('bonus'), round($otherEarnings, 2), -$f('unpaid_deduction'), $f('gross'),
+            $f('epf_employee'), $f('socso_employee'), $f('eis_employee'), $f('skbbk_employee'), $pcb, $f('zakat'), $f('cp38'),
+            $f('mid_month_advance'), round($f('total_deductions') - $named, 2), $f('total_deductions'),
+            $f('claims_reimbursement'), $f('net_pay'),
+            $f('epf_employer'), $f('socso_employer'), $f('eis_employer'), $f('hrdf_levy'), $f('employer_cost'),
+        ];
+    }
+
     /** management/hr only, own tenant, finalized runs only (drafts aren't submittable). */
     /**
      * Agency upload file (spec F6/F7) for a finalized run: KWSP Form A, PERKESO Borang 8A,

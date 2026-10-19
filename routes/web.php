@@ -824,6 +824,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/app/payroll/runs/{run}/bank-file', [PayrollExportController::class, 'bankFile'])->name('payroll.export.bank');
         Route::get('/app/payroll/runs/{run}/journal', [PayrollExportController::class, 'journal'])->name('payroll.export.journal');
         Route::get('/app/payroll/runs/{run}/statutory-report', [PayrollExportController::class, 'statutoryReport'])->name('payroll.export.statutory');
+        Route::get('/app/payroll/runs/{run}/register', [PayrollExportController::class, 'register'])->name('payroll.export.register');
+        Route::get('/app/payroll/summary/{year}', [PayrollExportController::class, 'summary'])->whereNumber('year')->name('payroll.export.summary');
         Route::get('/app/payroll/runs/{run}/statutory-file/{key}', [PayrollExportController::class, 'statutoryFile'])
             ->where('key', '[a-z0-9\-]+')->name('payroll.export.statutory-file');
         Route::get('/app/payroll/zakat/{period}', [PayrollExportController::class, 'zakat'])

@@ -64,8 +64,9 @@
     $tabs = array_merge(['apply', 'mine'], $isApprover ? ['approvals'] : [], $privileged ? ['all'] : []);
     $requested = request()->query('tab');
     $initialTab = in_array($requested, $tabs, true) ? $requested : 'apply';
-    // The claim-approvals slug opens straight on the queue when there is one.
-    if (($screen ?? null) === 'claim-approvals' && $reviewCount > 0) {
+    // The claim-approvals slug opens straight on the queue when there is one,
+    // unless the link names a tab (the ledger's month picker reloads onto ?tab=all).
+    if (($screen ?? null) === 'claim-approvals' && $reviewCount > 0 && ! in_array($requested, $tabs, true)) {
         $initialTab = 'approvals';
     }
     // A failed submit lands back on the form holding the rejected input.
@@ -87,6 +88,21 @@
     .uj-cl-km-in .u { font-family:var(--font-mono); font-size:13px; color:var(--muted-soft); }
     .uj-cl-km-rate { font-size:var(--t-sm); color:var(--muted); white-space:nowrap; }
     .uj-cl-amt { font-family:var(--font-mono); font-weight:600; color:var(--ink); text-align:right; flex-shrink:0; }
+    /* Company ledger totals: three figures, then the month split by type and by person. */
+    .uj-ct { padding:16px 20px; }
+    .uj-ct-chips { display:flex; flex-wrap:wrap; gap:10px; }
+    .uj-ct-chip { display:inline-flex; gap:8px; align-items:baseline; border:1px solid var(--hairline); border-radius:10px; padding:10px 14px; min-width:150px; }
+    .uj-ct-chip .l { font-size:12.5px; color:var(--muted); }
+    .uj-ct-chip .v { font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:16px; font-weight:600; color:var(--ink); }
+    .uj-ct-split { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:16px; }
+    .uj-ct-split h4 { font-size:11px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+    .uj-ct-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; align-items:center; font-size:12.5px; color:var(--ink); padding:6px 0; border-bottom:1px solid var(--hairline-soft); }
+    .uj-ct-bar:last-child { border-bottom:0; }
+    .uj-ct-bar .k { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .uj-ct-bar .v { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+    .uj-ct-bar .trk { grid-column:1 / -1; height:4px; border-radius:999px; background:var(--hairline-soft); overflow:hidden; }
+    .uj-ct-bar .trk i { display:block; height:100%; background:var(--ink); border-radius:999px; }
+    @media (max-width:640px) { .uj-ct-split { grid-template-columns:1fr; } .uj-ct-chips { flex-direction:column; } .uj-ct-chip { justify-content:space-between; } }
 </style>
 
 @include('partials.guide', [
@@ -341,7 +357,18 @@
                     'changed' => optional($c->updated_at)->toIso8601String(),
                     'form' => $c->employee ? route('claims.form', ['employee' => $c->employee, 'month' => $c->date?->format('Y-m')]) : null,
                 ])->values()),
-                q: '', fstatus: 'all', ftype: 'all',
+                q: '', fstatus: 'all', ftype: 'all', month: @js($claimsMonth),
+                {{-- The month is loaded server-side (one whole month), the other filters run here. --}}
+                goMonth() { const u = new URL(location.href); u.searchParams.set('tab', 'all'); u.searchParams.set('claims_month', this.month); location.assign(u); },
+                isCounted(r) { return !['rejected', 'cancelled'].includes(r.status); },
+                sum(rows) { return rows.reduce((t, r) => t + r.amount, 0); },
+                get total() { return this.sum(this.list.filter(r => this.isCounted(r))); },
+                get waitingTotal() { return this.sum(this.list.filter(r => ['submitted', 'verified'].includes(r.status))); },
+                byKey(k) {
+                    const m = {};
+                    this.list.filter(r => this.isCounted(r)).forEach(r => { m[r[k]] = (m[r[k]] || 0) + r.amount; });
+                    return Object.entries(m).map(([key, v]) => ({ key, v })).sort((a, b) => b.v - a.v);
+                },
                 daysAgo(iso) { return iso ? Math.floor((Date.now() - new Date(iso)) / 864e5) : null; },
                 isStuck(r) { return ['submitted', 'verified'].includes(r.status) && this.daysAgo(r.changed) >= 5; },
                 get list() {
@@ -363,10 +390,12 @@
                     const Q = String.fromCharCode(34);
                     const esc = v => Q + String(v).split(Q).join(Q + Q) + Q;
                     const body = this.list.map(r => [r.date, esc(r.name), r.type, r.amount.toFixed(2), r.status].join(','));
-                    const blob = new Blob([[head.join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
+                    {{-- Declined and cancelled claims are listed but not added in, same as the Total on screen. --}}
+                    const foot = ['TOTAL', '', '', this.total.toFixed(2), 'excludes rejected and cancelled'].join(',');
+                    const blob = new Blob([[head.join(','), ...body, foot].join('\n')], { type: 'text/csv;charset=utf-8' });
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
-                    a.download = 'company-claims-' + new Date().toISOString().slice(0, 10) + '.csv';
+                    a.download = 'company-claims-' + this.month + '.csv';
                     a.click(); URL.revokeObjectURL(a.href);
                 },
             }" class="uj-lv-panel">
@@ -376,6 +405,12 @@
                     <svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted-soft,#8b887e);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
                     <input type="text" x-model="q" :placeholder="$store.ui.lang==='en' ? 'Search employee or type…' : 'Cari pekerja atau jenis…'" style="width:100%;height:38px;padding:0 12px 0 34px;border:1px solid var(--hairline);border-radius:10px;font-size:13px;color:var(--ink);outline:none;background:#fff;" />
                 </label>
+                <select x-model="month" @change="goMonth()" class="uj-tr-sel" style="height:38px;" :aria-label="$store.ui.lang==='en' ? 'Month' : 'Bulan'">
+                    @foreach (collect(range(0, 11))->map(fn ($i) => now()->startOfMonth()->subMonths($i)->format('Y-m'))->push($claimsMonth)->unique()->sortDesc() as $ym)
+                        @php $d = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $ym.'-01'); @endphp
+                        <option value="{{ $ym }}" x-text="$store.ui.lang==='en' ? @js($d->format('F Y')) : @js($d->locale('ms')->translatedFormat('F Y'))">{{ $d->format('F Y') }}</option>
+                    @endforeach
+                </select>
                 <select x-model="fstatus" class="uj-tr-sel" style="height:38px;">
                     <option value="all" x-text="$store.ui.lang==='en' ? 'All status' : 'Semua status'">All status</option>
                     <option value="waiting" x-text="$store.ui.lang==='en' ? 'Waiting' : 'Menunggu'">Waiting</option>
@@ -398,9 +433,32 @@
 
             <p style="font-size:var(--t-sm);color:var(--muted);margin:0 0 -10px;">
                 <span x-text="$store.ui.lang==='en'
-                    ? 'Every claim across the company, newest first (latest 50). Rows waiting more than five days are flagged.'
-                    : 'Setiap tuntutan seluruh syarikat, terbaharu dahulu (50 terkini). Baris yang menunggu lebih lima hari ditandakan.'"></span>
+                    ? 'Every claim across the company for the month, newest first. Rows waiting more than five days are flagged.'
+                    : 'Setiap tuntutan seluruh syarikat untuk bulan ini, terbaharu dahulu. Baris yang menunggu lebih lima hari ditandakan.'"></span>
             </p>
+            {{-- Totals over whatever the filters show. Declined and cancelled claims are not added in. --}}
+            <div class="uj-card uj-ct" x-show="list.length > 0" x-cloak>
+                <div class="uj-ct-chips">
+                    <div class="uj-ct-chip"><span class="l" x-text="$store.ui.lang==='en' ? 'Total' : 'Jumlah'">Total</span><span class="v" x-text="money(total)"></span></div>
+                    <div class="uj-ct-chip"><span class="l" x-text="$store.ui.lang==='en' ? 'Claims' : 'Tuntutan'">Claims</span><span class="v" x-text="list.filter(r => isCounted(r)).length"></span></div>
+                    <div class="uj-ct-chip"><span class="l" x-text="$store.ui.lang==='en' ? 'Still waiting' : 'Masih menunggu'">Still waiting</span><span class="v" x-text="money(waitingTotal)"></span></div>
+                </div>
+                <div class="uj-ct-split">
+                    @foreach (['type' => ['By type', 'Mengikut jenis'], 'name' => ['By person', 'Mengikut orang']] as $key => [$en, $ms])
+                        <div>
+                            <h4 x-text="$store.ui.lang==='en' ? @js($en) : @js($ms)">{{ $en }}</h4>
+                            <template x-for="t in byKey(@js($key)).slice(0, 8)" :key="t.key">
+                                <div class="uj-ct-bar">
+                                    <span class="k" x-text="@js($key) === 'type' ? cap(t.key) : t.key"></span>
+                                    <span class="v" x-text="money(t.v)"></span>
+                                    <span class="trk"><i :style="'width:' + (t.v / byKey(@js($key))[0].v * 100) + '%'"></i></span>
+                                </div>
+                            </template>
+                            <div x-show="byKey(@js($key)).length > 8" style="font-size:12px;color:var(--muted);padding-top:6px;" x-text="($store.ui.lang==='en' ? 'and ' : 'dan ') + (byKey(@js($key)).length - 8) + ($store.ui.lang==='en' ? ' more in the CSV' : ' lagi dalam CSV')"></div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
             <div class="uj-card">
                 <div class="uj-card-head" style="justify-content:space-between;">
                     <h3 class="uj-card-title" x-text="$store.ui.lang==='en' ? 'Company claims' : 'Tuntutan syarikat'">Company claims</h3>
