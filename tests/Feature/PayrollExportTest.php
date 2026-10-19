@@ -105,6 +105,98 @@ class PayrollExportTest extends TestCase
         $this->actingEmployee()->get("/app/payroll/runs/{$run->id}/bank-file")->assertForbidden();
     }
 
+    // ── Payroll register ──────────────────────────────────────────
+
+    public function test_register_lists_every_line_and_derives_other_columns(): void
+    {
+        $run = $this->finalizedRun();
+        // An addition of 300 and a loan of 200 have no column of their own.
+        Payslip::where('payroll_run_id', $run->id)->update([
+            'additions' => json_encode([['name' => 'Award', 'amount' => 300]]),
+            'gross' => 5300, 'total_deductions' => 905, 'net_pay' => 4395, 'employer_cost' => 6047.5,
+        ]);
+        $second = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Zed', 'staff_id' => '=SUM(1)', 'status' => 'active', 'workload' => 'green']);
+        Payslip::forceCreate(['tenant_id' => $this->tenant->id, 'payroll_run_id' => $run->id, 'employee_id' => $second->id,
+            'basic' => 1000, 'unpaid_deduction' => 100, 'gross' => 900, 'net_pay' => 900, 'employer_cost' => 900]);
+
+        $response = $this->actingHr()->get("/app/payroll/runs/{$run->id}/register");
+        $response->assertOk();
+        $lines = array_map('str_getcsv', array_filter(explode("\n", $response->streamedContent())));
+
+        $this->assertSame('Staff ID', $lines[0][0]);
+        $row = array_combine($lines[0], $lines[1]);
+        $this->assertSame('AC-0007', $row['Staff ID']);
+        $this->assertSame('300.00', $row['Other earnings']);
+        $this->assertSame('5300.00', $row['Gross pay']);
+        $this->assertSame('200.00', $row['Loans & other']);
+        $this->assertSame('4395.00', $row['Net pay']);
+        $this->assertSame('0.00', $row['Unpaid leave']);
+        // A name that looks like a formula is neutralised; a negative figure stays a number.
+        $zed = array_combine($lines[0], $lines[2]);
+        $this->assertSame("'=SUM(1)", $zed['Staff ID']);
+        $this->assertSame('-100.00', $zed['Unpaid leave']);
+        $total = array_combine($lines[0], $lines[3]);
+        $this->assertSame('TOTAL', $total['Staff ID']);
+        $this->assertSame('6947.50', $total['Total employer cost']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Exported payroll register']);
+    }
+
+    public function test_register_refuses_employees_and_draft_runs(): void
+    {
+        $this->actingEmployee()->get('/app/payroll/runs/'.$this->finalizedRun()->id.'/register')->assertForbidden();
+
+        $draft = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-07', 'label' => 'July 2026', 'status' => 'draft']);
+        $this->actingHr()->get("/app/payroll/runs/{$draft->id}/register")->assertStatus(422);
+    }
+
+    // ── Payroll summary ───────────────────────────────────────────
+
+    public function test_summary_adds_months_without_counting_the_mid_month_advance_twice(): void
+    {
+        $this->finalizedRun();   // June: gross 5000, net 4295
+        $mid = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-07', 'kind' => 'mid_month', 'label' => 'July 2026 mid-month', 'status' => 'finalized', 'finalized_at' => now()]);
+        Payslip::forceCreate(['tenant_id' => $this->tenant->id, 'payroll_run_id' => $mid->id, 'employee_id' => $this->emp->id,
+            'basic' => 2000, 'gross' => 2000, 'net_pay' => 2000, 'employer_cost' => 2000]);
+        $july = PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-07', 'label' => 'July 2026', 'status' => 'finalized', 'finalized_at' => now()]);
+        Payslip::forceCreate(['tenant_id' => $this->tenant->id, 'payroll_run_id' => $july->id, 'employee_id' => $this->emp->id,
+            'basic' => 5000, 'gross' => 5000, 'epf_employee' => 550, 'epf_employer' => 650, 'pcb' => 120,
+            'mid_month_advance' => 2000, 'total_deductions' => 2670, 'net_pay' => 2330, 'employer_cost' => 5650]);
+        // A draft run and a run from 2025 stay out.
+        PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2026-08', 'label' => 'Aug 2026', 'status' => 'draft']);
+        PayrollRun::forceCreate(['tenant_id' => $this->tenant->id, 'period' => '2025-12', 'label' => 'Dec 2025', 'status' => 'finalized', 'finalized_at' => now()]);
+
+        $response = $this->actingHr()->get('/app/payroll/summary/2026');
+        $response->assertOk();
+        $lines = array_map('str_getcsv', array_filter(explode("\n", $response->streamedContent())));
+
+        $this->assertCount(4, $lines);   // header, June, July, TOTAL
+        $july = array_combine($lines[0], $lines[2]);
+        $this->assertSame('2026-07', $july['Month']);
+        $this->assertSame('1', $july['Staff paid']);
+        $this->assertSame('5000.00', $july['Gross pay']);
+        $this->assertSame('4330.00', $july['Net paid']);   // 2000 advance + 2330 month end
+        $this->assertSame('5650.00', $july['Total employer cost']);
+        $total = array_combine($lines[0], $lines[3]);
+        $this->assertSame('10000.00', $total['Gross pay']);
+        $this->assertSame('8625.00', $total['Net paid']);
+    }
+
+    public function test_submission_tab_links_the_register_and_the_summary(): void
+    {
+        $run = $this->finalizedRun();
+
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'submission', 'run' => $run->id]))
+            ->assertOk()
+            ->assertSee(route('payroll.export.register', $run), false)
+            ->assertSee(route('payroll.export.summary', 2026), false)
+            ->assertSee('<option value="2026">', false);
+    }
+
+    public function test_employee_cannot_download_summary(): void
+    {
+        $this->actingEmployee()->get('/app/payroll/summary/2026')->assertForbidden();
+    }
+
     // ── Statutory report ──────────────────────────────────────────
 
     public function test_privileged_user_downloads_statutory_report(): void

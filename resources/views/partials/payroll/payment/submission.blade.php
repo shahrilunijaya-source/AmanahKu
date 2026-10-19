@@ -24,6 +24,7 @@
                 <button type="submit" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;" x-text="$store.ui.lang==='en' ? 'Bank file' : 'Fail bank'">Bank file</button>
             </form>
             <a href="{{ route('payroll.export.statutory', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Statutory report' : 'Laporan berkanun'">Statutory report</a>
+            <a href="{{ route('payroll.export.register', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" title="Every earning, deduction and employer cost per person, with totals" x-text="$store.ui.lang==='en' ? 'Payroll register' : 'Daftar gaji'">Payroll register</a>
             <a href="{{ route('payroll.export.journal', $activeRun) }}" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Accounting journal' : 'Jurnal perakaunan'">Accounting journal</a>
         @endif
         @php
@@ -46,3 +47,18 @@
     @include('partials.hint', ['tone' => 'warn', 'en' => "All four are due by the 15th of next month. The PCB file follows LHDN's published layout. The SOCSO/EIS file follows PERKESO's ASSIST 2.0 layout and carries SOCSO, EIS and SKBBK together. A file marked 'check layout' has not been checked against the agency's current upload specification yet: try it on the portal's validator before relying on it. HRD Corp has no upload file; the worksheet is what to key into eTRiS.", 'ms' => "Keempat-empatnya perlu dihantar sebelum 15 haribulan bulan hadapan. Fail PCB mengikut susun atur rasmi LHDN. Fail PERKESO/SIP mengikut susun atur ASSIST 2.0 dan membawa PERKESO, SIP dan SKBBK bersama. Fail bertanda 'semak susun atur' belum disemak dengan spesifikasi muat naik terkini agensi: cuba pada penyemak portal sebelum bergantung padanya. HRD Corp tiada fail muat naik; lembaran ini untuk dimasukkan ke eTRiS."])
 </div>
 @endif
+@php
+    $summaryYears = \App\Models\PayrollRun::where('tenant_id', app(\App\Tenancy\CurrentTenant::class)->id())->where('status', 'finalized')
+        ->pluck('period')->map(fn ($p) => substr($p, 0, 4))->push((string) now()->year)->unique()->sortDesc()->values();
+@endphp
+<div class="uj-card" style="max-width:820px;padding:20px;margin-top:16px;" x-data="{ year: @js($summaryYears->first()) }">
+    <div style="font-size:14px;font-weight:600;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Payroll summary by month' : 'Ringkasan gaji mengikut bulan'">Payroll summary by month</div>
+    <div style="font-size:12.5px;color:var(--muted);margin:4px 0 12px;" x-text="$store.ui.lang==='en' ? 'One row per month: gross, deductions, net paid and employer cost. Finalized runs only, so the numbers stay put once sent.' : 'Satu baris sebulan: kasar, potongan, bersih dibayar dan kos majikan. Run yang dimuktamadkan sahaja, jadi angka tidak berubah selepas dihantar.'">One row per month: gross, deductions, net paid and employer cost. Finalized runs only, so the numbers stay put once sent.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label for="summary-year" style="font-size:12px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Year' : 'Tahun'">Year</label>
+        <select id="summary-year" x-model="year" style="height:36px;padding:0 8px;border:1px solid var(--hairline);border-radius:8px;font-size:12px;background:#fff;color:var(--ink);">
+            @foreach ($summaryYears as $y)<option value="{{ $y }}">{{ $y }}</option>@endforeach
+        </select>
+        <a href="{{ route('payroll.export.summary', $summaryYears->first()) }}" :href="@js(url('/app/payroll/summary')).concat('/', year)" class="uj-btn-ghost" style="height:36px;padding:0 12px;font-size:12px;display:inline-flex;align-items:center;text-decoration:none;" x-text="$store.ui.lang==='en' ? 'Download summary' : 'Muat turun ringkasan'">Download summary</a>
+    </div>
+</div>
