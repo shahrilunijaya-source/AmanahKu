@@ -19,8 +19,6 @@ use App\Models\KpiItem;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\OnboardingProfile;
-use App\Models\OnboardingTask;
 use App\Models\PayrollRun;
 use App\Models\Payslip;
 use App\Models\PerformanceReview;
@@ -345,29 +343,6 @@ class DatabaseSeeder extends Seeder
             ['HR Analytics certification', 'development', 'Certified', 'In progress', 55, '10%', 'amber'],
         ] as $k) {
             KpiItem::create(['tenant_id' => $tid, 'employee_id' => $aisyah, 'title' => $k[0], 'category' => $k[1], 'target' => $k[2], 'actual' => $k[3], 'progress' => $k[4], 'weight' => $k[5], 'status' => $k[6]]);
-        }
-
-        // Onboarding — Farah Aziz.
-        $onb = OnboardingProfile::create([
-            'tenant_id' => $tid, 'employee_id' => $emp['Farah Aziz']->id,
-            'mentor_id' => $emp['Siti Khadijah']->id, 'manager_id' => $aisyah,
-            'start_date' => Carbon::create(2026, 6, 11), 'day_number' => 12, 'total_days' => 90,
-        ]);
-        $general = [
-            ['Company introduction & history', true], ['Vision, mission & values', true],
-            ['Employee handbook acknowledgement', true], ['IT security & acceptable use policy', true],
-            ['Submit required documents', false], ['Digital acceptance of policies', false],
-        ];
-        $position = [
-            ['Review job description & standard tasks', true], ['Access to Marketing systems (Canva, CRM)', true],
-            ['Read brand SOPs', false], ['Meet assigned mentor — Siti Khadijah', true],
-            ['30-day plan agreed with manager', false], ['60-day plan', false], ['90-day plan & confirmation checklist', false],
-        ];
-        foreach ($general as $i => $g) {
-            OnboardingTask::create(['onboarding_profile_id' => $onb->id, 'track' => 'general', 'title' => $g[0], 'done' => $g[1], 'sort' => $i]);
-        }
-        foreach ($position as $i => $p) {
-            OnboardingTask::create(['onboarding_profile_id' => $onb->id, 'track' => 'position', 'title' => $p[0], 'done' => $p[1], 'sort' => $i]);
         }
 
         foreach ([

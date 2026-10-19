@@ -76,6 +76,7 @@
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <h3 style="font-size:19px;font-weight:600;color:var(--ink);margin:0;">{{ $p->display_name }}</h3>
                     <span style="display:inline-block;font-size:11px;font-weight:600;color:{{ $stColor }};background:var(--canvas);padding:3px 11px;border-radius:9999px;">{{ $stOpts[$p->status] ?? ucfirst($p->status) }}</span>
+                    @if ($p->payroll_only && ($canSetPayrollOnly ?? false))<span class="uj-stamp" data-tone="amber" :title="$store.ui.lang==='en'?'Paid every month, hidden from attendance, timesheets and reports':'Dibayar setiap bulan, disembunyikan daripada kehadiran, lembaran masa dan laporan'" x-text="$store.ui.lang==='en'?'Payroll only':'Gaji sahaja'">Payroll only</span>@endif
                 </div>
                 <p style="font-size:13.5px;color:var(--muted);margin:5px 0 0;">{{ $p->positionBand?->title ?? '—' }}</p>
                 <p style="font-size:12.5px;color:var(--muted);margin:3px 0 0;">{{ $p->department?->name }}@if ($p->branch) · {{ $p->branch->name }}@endif</p>
@@ -174,16 +175,35 @@
                         @endif
                         {{-- Reset password: mints a fresh one-time password shown to HR once (see MemberController::resetPassword). The employee must change it on next sign-in. --}}
                         <form method="post" action="{{ route('members.reset-password', $p) }}"
-                              @submit="if (! confirm($store.ui.lang==='en' ? @js('Reset the password for '.$p->name.'? A new one-time password will be shown to you and they must change it on next sign-in.') : @js('Set semula kata laluan '.$p->name.'? Kata laluan sekali guna baharu akan dipaparkan kepada anda dan mereka mesti menukarnya semasa log masuk seterusnya.'))) $event.preventDefault();"
+                              @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Reset the password for '.$p->name.'? A new one-time password will be shown to you and they must change it on next sign-in.') : @js('Set semula kata laluan '.$p->name.'? Kata laluan sekali guna baharu akan dipaparkan kepada anda dan mereka mesti menukarnya semasa log masuk seterusnya.') })"
                               style="margin-top:8px;">
                             @csrf
                             <button type="submit" class="uj-btn-ghost" style="height:38px;font-size:12.5px;width:100%;"><span x-text="$store.ui.lang==='en' ? 'Reset password' : 'Set semula kata laluan'">Reset password</span></button>
                             <p style="font-size:11px;color:var(--muted);margin:6px 0 0;"><span x-text="$store.ui.lang==='en' ? 'Generates a new one-time password shown to you once. The employee must set their own password on next sign-in.' : 'Menjana kata laluan sekali guna baharu yang dipaparkan kepada anda sekali sahaja. Pekerja mesti menetapkan kata laluan sendiri semasa log masuk seterusnya.'"></span></p>
                         </form>
                     @endif
+                    {{-- Payroll only (HR/director): still paid, hidden from attendance, timesheets and reports. See EmployeeController::payrollOnly. --}}
+                    @if ($canSetPayrollOnly ?? false)
+                        <form method="post" action="{{ route('employees.payroll-only', $p) }}" x-data="{ on: {{ $p->payroll_only ? 'true' : 'false' }} }" style="margin-top:8px;padding:12px;border:1px solid var(--hairline);border-radius:8px;">
+                            @csrf
+                            <input type="hidden" name="payroll_only" :value="on ? 1 : 0" />
+                            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                                <input type="checkbox" x-model="on" style="margin-top:3px;" />
+                                <span>
+                                    <b style="display:block;font-size:13px;color:var(--ink);" x-text="$store.ui.lang==='en' ? 'Payroll only' : 'Gaji sahaja'">Payroll only</b>
+                                    <small style="font-size:11.5px;color:var(--muted);" x-text="$store.ui.lang==='en' ? 'Still paid every month, but hidden from attendance, timesheets and reports. No clock-in reminders, never late or absent.' : 'Masih dibayar setiap bulan, tetapi disembunyikan daripada kehadiran, lembaran masa dan laporan. Tiada peringatan clock-in, tidak dikira lewat atau tidak hadir.'">Still paid every month, but hidden from attendance, timesheets and reports.</small>
+                                </span>
+                            </label>
+                            <div x-show="on && {{ $p->payroll_only ? 'false' : 'true' }}" x-cloak style="margin-top:8px;">
+                                <label style="display:block;font-size:11.5px;color:var(--muted);margin-bottom:4px;"><span x-text="$store.ui.lang==='en' ? 'Reason (goes into the audit log)' : 'Sebab (direkod dalam log audit)'">Reason (goes into the audit log)</span></label>
+                                <input name="reason" type="text" maxlength="255" :required="on && {{ $p->payroll_only ? 'false' : 'true' }}" style="{{ $fs }}" />
+                            </div>
+                            <button type="submit" x-show="on !== {{ $p->payroll_only ? 'true' : 'false' }}" x-cloak class="uj-btn-ghost" style="height:34px;font-size:12.5px;width:100%;margin-top:8px;"><span x-text="$store.ui.lang==='en' ? 'Save' : 'Simpan'">Save</span></button>
+                        </form>
+                    @endif
                     {{-- Archive (soft-delete): hides the person from the directory; history kept, restorable. Separate form so it never nests inside the edit form. --}}
                     <form method="post" action="{{ route('employees.destroy', $p) }}"
-                          @submit="if (! confirm($store.ui.lang==='en' ? @js('Archive '.$p->name.'? They will be removed from the directory. Their history is kept and they can be restored.') : @js('Arkib '.$p->name.'? Mereka akan dikeluarkan dari direktori. Sejarah dikekalkan dan boleh dipulihkan.'))) $event.preventDefault();"
+                          @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Archive '.$p->name.'?') : @js('Arkib '.$p->name.'?'), body: $store.ui.lang==='en' ? 'They will be removed from the directory. Their history is kept and they can be restored.' : 'Mereka akan dikeluarkan dari direktori. Sejarah dikekalkan dan boleh dipulihkan.', ok: $store.ui.lang==='en' ? 'Archive' : 'Arkib' })"
                           style="margin-top:8px;">
                         @csrf
                         <button type="submit" class="uj-btn-ghost" style="height:38px;font-size:12.5px;width:100%;color:var(--red);border-color:var(--red);"><span x-text="$store.ui.lang==='en' ? 'Archive staff' : 'Arkib staf'">Archive staff</span></button>

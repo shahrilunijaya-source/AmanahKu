@@ -39,7 +39,7 @@ class WorkforceInsights
      */
     private function withLiveWorkload(): Collection
     {
-        return $this->liveWorkload ??= Employee::active()
+        return $this->liveWorkload ??= Employee::active()->attendanceTracked()
             ->with('reportsTo')
             ->withCount(['workItems as open_items_count' => fn ($q) => $q->where('status', '!=', 'done')])
             ->get();

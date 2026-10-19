@@ -133,7 +133,7 @@
                     const text = btn.dataset.copy;
                     const done = () => { const was = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = was; }, 1500); };
                     if (navigator.clipboard && window.isSecureContext) {
-                        navigator.clipboard.writeText(text).then(done, () => window.prompt('Copy this link:', text));
+                        navigator.clipboard.writeText(text).then(done, () => window.Alpine.store('ask').ask({ title: 'Copy this link', input: true, value: text, ok: 'Close' }));
                         return;
                     }
                     const ta = document.createElement('textarea');
@@ -143,7 +143,7 @@
                     ta.select();
                     const ok = document.execCommand('copy');
                     ta.remove();
-                    ok ? done() : window.prompt('Copy this link:', text);
+                    ok ? done() : window.Alpine.store('ask').ask({ title: 'Copy this link', input: true, value: text, ok: 'Close' });
                 }
             </script>
             @if (session('inviteUrl'))
@@ -184,7 +184,7 @@
                             <td style="padding:12px;text-align:right;white-space:nowrap;">
                                 @if ($status === 'pending')
                                     <button type="button" data-copy="{{ $invite->url() }}" onclick="ujCopy(this)"  style="font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Copy</button>
-                                    <form method="POST" action="{{ route('superadmin.invites.destroy', $invite) }}" style="display:inline;" onsubmit="return confirm('Revoke this link? Anyone holding it will get a 404.')">
+                                    <form method="POST" action="{{ route('superadmin.invites.destroy', $invite) }}" style="display:inline;" onsubmit="return ujAsk(this, 'Revoke this link? Anyone holding it will get a 404.')">
                                         @csrf
                                         <button type="submit" style="font-size:12.5px;font-weight:600;color:var(--red);background:#fff;border:1px solid var(--hairline);cursor:pointer;padding:6px 10px;border-radius:8px;">Revoke</button>
                                     </form>
@@ -210,5 +210,6 @@
         </div>
     </div>
 </div>
+@include('partials.ask-host')
 </body>
 </html>

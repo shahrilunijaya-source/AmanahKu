@@ -547,7 +547,7 @@
                         <span class="uj-stamp" :data-tone="r.counts==='half' ? 'amber' : 'success'" x-text="r.counts==='half' ? L('HALF DAY','SEPARUH HARI') : L('FULL DAY','SEHARI PENUH')"></span>
                         <div class="uj-ww-acts">
                             <button type="button" class="uj-ww-ico" :aria-label="L('Edit special day','Sunting hari khas')" @click="startEdit(r)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg></button>
-                            <form method="post" :action="base + '/' + r.id" @submit="if (!confirm(L('Remove this special day?','Buang hari khas ini?'))) $event.preventDefault()" style="margin:0;">
+                            <form method="post" :action="base + '/' + r.id" @submit.prevent="$store.ask.form($el, { title: L('Remove this special day?','Buang hari khas ini?') })" style="margin:0;">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="uj-ww-ico" :aria-label="L('Remove special day','Buang hari khas')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
                             </form>
@@ -787,7 +787,7 @@
 
             @if ($canManageFeatures)
                 @foreach ($branches as $b)
-                    <form id="del-branch-{{ $b->id }}" method="post" action="{{ route('admin.branches.delete', $b) }}" onsubmit="return confirm('Delete {{ addslashes($b->name) }}?')">@csrf</form>
+                    <form id="del-branch-{{ $b->id }}" method="post" action="{{ route('admin.branches.delete', $b) }}" onsubmit="return ujAsk(this, 'Delete {{ addslashes($b->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
@@ -862,7 +862,7 @@
 
             @if ($canManageFeatures)
                 @foreach ($departments as $d)
-                    <form id="del-dept-{{ $d->id }}" method="post" action="{{ route('admin.departments.delete', $d) }}" onsubmit="return confirm('Delete {{ addslashes($d->name) }}?')">@csrf</form>
+                    <form id="del-dept-{{ $d->id }}" method="post" action="{{ route('admin.departments.delete', $d) }}" onsubmit="return ujAsk(this, 'Delete {{ addslashes($d->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
@@ -925,7 +925,7 @@
             </div>
             @if ($canManageFeatures)
                 @foreach ($staffLevels as $lv)
-                    <form id="del-lv-{{ $lv->id }}" method="post" action="{{ route('admin.staff-levels.delete', $lv) }}" onsubmit="return confirm('Delete {{ addslashes($lv->name) }}?')">@csrf</form>
+                    <form id="del-lv-{{ $lv->id }}" method="post" action="{{ route('admin.staff-levels.delete', $lv) }}" onsubmit="return ujAsk(this, 'Delete {{ addslashes($lv->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
@@ -988,7 +988,7 @@
             </div>
             @if ($canManageFeatures)
                 @foreach ($employmentTypes as $et)
-                    <form id="del-et-{{ $et->id }}" method="post" action="{{ route('admin.employment-types.delete', $et) }}" onsubmit="return confirm('Delete {{ addslashes($et->name) }}?')">@csrf</form>
+                    <form id="del-et-{{ $et->id }}" method="post" action="{{ route('admin.employment-types.delete', $et) }}" onsubmit="return ujAsk(this, 'Delete {{ addslashes($et->name) }}?')">@csrf</form>
                 @endforeach
             @endif
         </div>
@@ -1167,7 +1167,7 @@
                         @if ($r->retired_at)
                             <span class="uj-stamp" x-text="$store.ui.lang==='en' ? 'Retired' : 'Bersara'">Retired</span>
                         @else
-                            <form method="post" action="{{ route('admin.reactions.retire', $r->key) }}" onsubmit="return confirm('Retire {{ addslashes($r->label) }}? Old items keep showing it.')" style="margin:0;">@csrf<button type="submit" class="uj-ww-ico" :title="$store.ui.lang==='en' ? 'Retire' : 'Bersarakan'" :aria-label="($store.ui.lang==='en' ? 'Retire ' : 'Bersarakan ') + @js($r->label)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg></button></form>
+                            <form method="post" action="{{ route('admin.reactions.retire', $r->key) }}" onsubmit="return ujAsk(this, 'Retire {{ addslashes($r->label) }}? Old items keep showing it.')" style="margin:0;">@csrf<button type="submit" class="uj-ww-ico" :title="$store.ui.lang==='en' ? 'Retire' : 'Bersarakan'" :aria-label="($store.ui.lang==='en' ? 'Retire ' : 'Bersarakan ') + @js($r->label)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg></button></form>
                         @endif
                     </div>
                 @endforeach

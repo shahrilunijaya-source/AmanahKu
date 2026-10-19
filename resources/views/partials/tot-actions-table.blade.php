@@ -63,7 +63,7 @@
                 @endif
                 @if ($canManageSession)
                     <button type="button" class="tot-pillbtn" :data-on="editing ? '1' : null" @click="editing = !editing" x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
-                    <form method="post" action="{{ route('tot.actions.delete', [$session, $action]) }}" onsubmit="return confirm('Delete this tindakan?');">
+                    <form method="post" action="{{ route('tot.actions.delete', [$session, $action]) }}" onsubmit="return ujAsk(this, 'Delete this tindakan?')">
                         @csrf
                         <button type="submit" class="tot-pillbtn" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
                     </form>

@@ -88,7 +88,7 @@
                         </div>
                     </div>
                     <form method="POST" action="{{ route('superadmin.companies.api-keys.revoke', [$company, $token]) }}"
-                          onsubmit="return confirm('Revoke {{ $client->name }}\'s key? It stops working immediately.');">
+                          onsubmit="return ujAsk(this, 'Revoke {{ $client->name }}\'s key? It stops working immediately.')">
                         @csrf
                         <button class="ak-revoke">Revoke</button>
                     </form>
@@ -99,5 +99,6 @@
         @endforelse
     </div>
 </div>
+@include('partials.ask-host')
 </body>
 </html>

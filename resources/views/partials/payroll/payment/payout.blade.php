@@ -71,7 +71,7 @@
             @if ($open)
                 @php $payDefault = old('payment_date', $r->payment_date?->toDateString() ?? $payBy->subDays(7)->toDateString()); $blocked = $fourEyes && $r->status === 'draft'; @endphp
                 <div class="uj-payout-actions">
-                    <form method="post" action="{{ route('payroll.runs.delete', $r) }}" class="uj-payout-delete-form" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam draft run '.$r->label.'? Semua payslip draf dalamnya turut dipadam. Tindakan ini tidak boleh dibatalkan.') : @js('Delete draft run '.$r->label.'? Every draft payslip in it is deleted too. This cannot be undone.'));">@csrf
+                    <form method="post" action="{{ route('payroll.runs.delete', $r) }}" class="uj-payout-delete-form" onsubmit="return ujAsk(this, window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam draft run '.$r->label.'? Semua payslip draf dalamnya turut dipadam. Tindakan ini tidak boleh dibatalkan.') : @js('Delete draft run '.$r->label.'? Every draft payslip in it is deleted too. This cannot be undone.'))">@csrf
                         <button class="uj-payout-delete" data-tip-start data-tip-wrap :data-tip="{{ $tip('Removes this draft and its payslips. Nothing has been paid or issued yet.', 'Buang draf ini dan payslipnya. Belum ada apa-apa dibayar atau dikeluarkan.') }}" x-text="$store.ui.lang==='en' ? 'Delete run' : 'Padam run'">Delete run</button>
                     </form>
                     @if ($r->status === 'draft')
@@ -81,7 +81,7 @@
                                 : $tip('Optional sign-off that the figures were checked. You can also finalize straight from draft.', 'Pengesahan pilihan bahawa angka telah disemak. Boleh juga finalize terus dari draf.') }}" x-text="$store.ui.lang==='en' ? 'Approve' : 'Luluskan'">Approve</button>
                         </form>
                     @endif
-                    <form method="post" action="{{ route('payroll.runs.finalize', $r) }}" class="uj-payout-finalize" x-data="{ late: @js($payDefault > $payBy->toDateString()) }" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$r->label.'? Payslip dikunci dan tuntutan yang dibayar balik ditanda sebagai paid. Staf hanya nampak payslip selepas diterbitkan.') : @js('Finalize '.$r->label.'? Payslips lock and reimbursed claims are marked paid. Staff see nothing until the run is published.'));">@csrf
+                    <form method="post" action="{{ route('payroll.runs.finalize', $r) }}" class="uj-payout-finalize" x-data="{ late: @js($payDefault > $payBy->toDateString()) }" onsubmit="return ujAsk(this, window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Finalize '.$r->label.'? Payslip dikunci dan tuntutan yang dibayar balik ditanda sebagai paid. Staf hanya nampak payslip selepas diterbitkan.') : @js('Finalize '.$r->label.'? Payslips lock and reimbursed claims are marked paid. Staff see nothing until the run is published.'))">@csrf
                         <div class="uj-payout-field">
                             <label for="pay-date-{{ $r->id }}"><span x-text="$store.ui.lang==='en' ? 'Pay date' : 'Tarikh bayaran'">Pay date</span><span class="uj-tip-i" tabindex="0" data-tip-wrap :data-tip="{{ $tip('The day the money reaches staff. Employment Act s.19: within 7 days after the period ends, by '.$payBy->format('j M Y').'.', 'Hari wang sampai kepada staf. Akta Kerja s.19: dalam 7 hari selepas tempoh tamat, sebelum '.$payBy->format('j M Y').'.') }}" aria-hidden="true">i</span></label>
                             <input id="pay-date-{{ $r->id }}" name="payment_date" type="date" required value="{{ $payDefault }}" @change="late = $event.target.value > @js($payBy->toDateString())" />
@@ -103,7 +103,7 @@
             @elseif (! $r->isPublished() || ! $r->paid_at)
                 <div class="uj-payout-actions">
                     @unless ($r->isPublished())
-                        <form method="post" action="{{ route('payroll.runs.publish', $r) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Terbitkan payslip '.$r->label.' kepada staf? Setiap pekerja akan dimaklumkan melalui aplikasi dan e-mel.') : @js('Publish '.$r->label.' payslips to staff? Every employee is notified in the app and by email.'));">@csrf
+                        <form method="post" action="{{ route('payroll.runs.publish', $r) }}" onsubmit="return ujAsk(this, window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Terbitkan payslip '.$r->label.' kepada staf? Setiap pekerja akan dimaklumkan melalui aplikasi dan e-mel.') : @js('Publish '.$r->label.' payslips to staff? Every employee is notified in the app and by email.'))">@csrf
                             <button class="uj-btn-primary uj-payout-btn" data-tip-wrap :data-tip="{{ $tip('Staff can see their payslips and are notified in the app and by email.', 'Staf boleh lihat payslip dan dimaklumkan melalui aplikasi dan e-mel.') }}" x-text="$store.ui.lang==='en' ? 'Publish to staff' : 'Terbit kepada staf'">Publish to staff</button>
                         </form>
                     @endunless
@@ -146,10 +146,22 @@
                 </div>
             @endforeach
 
-            @if ($r->status === 'finalized' && $isManagementTier)
+            @if ($r->status === 'finalized' && $r->paid_at === null)
+                <div x-data="{ unlocking: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                    <button type="button" @click="unlocking = !unlocking" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;" x-text="$store.ui.lang==='en' ? (unlocking ? 'Cancel' : 'Unlock to edit…') : (unlocking ? 'Batal' : 'Buka kunci untuk sunting…')">Unlock to edit…</button>
+                    <div x-show="unlocking" x-cloak><form method="post" action="{{ route('payroll.runs.unlock', $r) }}" style="display:flex;align-items:center;gap:6px;">
+                        @csrf
+                        <input name="reason" required maxlength="240" :placeholder="$store.ui.lang==='en' ? 'Reason, e.g. fix EPF for Fatin' : 'Sebab, cth. betulkan EPF Fatin'" style="height:28px;width:240px;padding:0 8px;border:1px solid var(--hairline);border-radius:6px;font-size:11.5px;" />
+                        <button type="submit" class="uj-btn-primary" style="height:28px;padding:0 10px;font-size:11px;" x-text="$store.ui.lang==='en' ? 'Unlock' : 'Buka kunci'">Unlock</button>
+                    </form></div>
+                </div>
+                @include('partials.hint', ['tone' => 'warn', 'en' => 'Unlocking puts this run back to draft so you can edit the payslips. Staff stop seeing them, and claims/OT/unpaid leave go back to unpaid, until you finalize and publish again.', 'ms' => 'Buka kunci mengembalikan run ini ke draf supaya payslip boleh disunting. Staf tidak nampak payslip, dan tuntutan/OT/cuti tanpa gaji kembali belum dibayar, sehingga anda finalize dan terbitkan semula.'])
+            @endif
+
+            @if ($r->status === 'finalized')
                 <div x-data="{ deleting: false }" style="display:flex;align-items:center;gap:6px;margin-top:10px;">
                     <button type="button" @click="deleting = !deleting" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:11px;color:var(--error);" x-text="$store.ui.lang==='en' ? (deleting ? 'Cancel' : 'Delete finalized run…') : (deleting ? 'Batal' : 'Padam run difinalize…')">Delete finalized run…</button>
-                    <div x-show="deleting" x-cloak><form method="post" action="{{ route('payroll.runs.delete', $r) }}" onsubmit="return confirm(window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam run yang telah difinalize? Ini akan menyahtandakan tuntutan yang dibayar dan permintaan OT/cuti tanpa gaji sebagai belum dibayar, supaya ia boleh diambil semula oleh run akan datang. Tidak boleh dibatalkan.') : @js('Delete a FINALIZED run? This un-marks paid claims and OT/unpaid-leave requests as unpaid again so a future run can pick them up. Cannot be undone.'));" style="display:flex;align-items:center;gap:6px;">
+                    <div x-show="deleting" x-cloak><form method="post" action="{{ route('payroll.runs.delete', $r) }}" onsubmit="return ujAsk(this, window.Alpine && Alpine.store('ui').lang==='ms' ? @js('Padam run yang telah difinalize? Ini akan menyahtandakan tuntutan yang dibayar dan permintaan OT/cuti tanpa gaji sebagai belum dibayar, supaya ia boleh diambil semula oleh run akan datang. Tidak boleh dibatalkan.') : @js('Delete a FINALIZED run? This un-marks paid claims and OT/unpaid-leave requests as unpaid again so a future run can pick them up. Cannot be undone.'))" style="display:flex;align-items:center;gap:6px;">
                         @csrf
                         <input name="confirm_period" required placeholder="{{ $r->period }}" style="height:28px;width:110px;padding:0 8px;border:1px solid var(--error);border-radius:6px;font-size:11.5px;font-family:var(--font-mono);" />
                         <button type="submit" class="uj-btn-primary" style="height:28px;padding:0 10px;font-size:11px;background:var(--error);border-color:var(--error);" x-text="$store.ui.lang==='en' ? 'Confirm delete' : 'Sahkan padam'">Confirm delete</button>

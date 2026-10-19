@@ -33,7 +33,7 @@ class SearchController extends Controller
         // Escape LIKE wildcards so '%' / '_' in the query don't match everything.
         $term = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q).'%';
 
-        $employees = Employee::active()
+        $employees = Employee::active()->listedFor($this->hasTenantRole($request, ['director', 'hr']))
             ->with('department:id,name')
             ->where(fn ($w) => $w
                 ->where('name', 'like', $term)

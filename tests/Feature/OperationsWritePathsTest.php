@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Models\Asset;
 use App\Models\Employee;
 use App\Models\KpiItem;
-use App\Models\OnboardingProfile;
-use App\Models\OnboardingTask;
 use App\Models\Tenant;
 use App\Models\TrainingRecord;
 use App\Models\User;
@@ -63,27 +61,6 @@ class OperationsWritePathsTest extends TestCase
         $this->actingAs($this->hr())->withSession(['current_tenant' => $this->tenant->id]);
 
         return $this;
-    }
-
-    // ── Onboarding ────────────────────────────────────────────────
-
-    public function test_owner_toggles_an_onboarding_task(): void
-    {
-        $profile = OnboardingProfile::create(['tenant_id' => $this->tenant->id, 'employee_id' => $this->employee->id, 'start_date' => '2026-06-01', 'day_number' => 1, 'total_days' => 90]);
-        $task = OnboardingTask::create(['onboarding_profile_id' => $profile->id, 'track' => 'general', 'title' => 'Read handbook', 'done' => false, 'sort' => 0]);
-
-        $this->actingInTenant()->post("/app/onboarding/tasks/{$task->id}/toggle")->assertRedirect();
-        $this->assertTrue($task->fresh()->done);
-    }
-
-    public function test_outsider_employee_cannot_toggle_anothers_task(): void
-    {
-        $colleague = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Other', 'status' => 'active', 'workload' => 'green']);
-        $profile = OnboardingProfile::create(['tenant_id' => $this->tenant->id, 'employee_id' => $colleague->id, 'start_date' => '2026-06-01', 'day_number' => 1, 'total_days' => 90]);
-        $task = OnboardingTask::create(['onboarding_profile_id' => $profile->id, 'track' => 'general', 'title' => 'X', 'done' => false, 'sort' => 0]);
-
-        $this->actingInTenant()->post("/app/onboarding/tasks/{$task->id}/toggle")->assertForbidden();
-        $this->assertFalse($task->fresh()->done);
     }
 
     // ── KPI ───────────────────────────────────────────────────────

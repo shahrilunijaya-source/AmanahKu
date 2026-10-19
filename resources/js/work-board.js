@@ -1054,7 +1054,7 @@ export function registerWorkBoard(Alpine) {
         // server, so it runs even while drawer.locked (a participant may tick).
         async deleteChild(child) {
             if (this.drawer.locked) return;
-            if (!window.confirm(this.t('Delete this subtask? This cannot be undone.', 'Padam subtugas ini? Ini tidak boleh dibatalkan.'))) return;
+            if (!(await Alpine.store('ask').ask({ title: this.t('Delete this subtask? This cannot be undone.', 'Padam subtugas ini? Ini tidak boleh dibatalkan.'), ok: this.t('Delete', 'Padam') }))) return;
             try {
                 const { parent_html } = await this.api(`/app/board/${child.id}`, { method: 'DELETE' });
                 const { children, parent } = this.drawer.family;
@@ -1147,7 +1147,7 @@ export function registerWorkBoard(Alpine) {
             // A subtask's drawer.node is the PARENT's board card (openChild opens against
             // it), so the whole-card path below would pull the parent off the board.
             if (this.drawer.card.parent_id) return this.deleteChild(this.drawer.card);
-            if (!window.confirm(this.t('Delete this card? This cannot be undone.', 'Padam kad ini? Ini tidak boleh dibatalkan.'))) return;
+            if (!(await Alpine.store('ask').ask({ title: this.t('Delete this card? This cannot be undone.', 'Padam kad ini? Ini tidak boleh dibatalkan.'), ok: this.t('Delete', 'Padam') }))) return;
             const node = this.drawer.node;
             try {
                 await this.api(`/app/board/${this.drawer.id}`, { method: 'DELETE' });
@@ -1217,10 +1217,12 @@ export function registerWorkBoard(Alpine) {
         // board the way an archived one does.
         async cancelCard() {
             if (this.drawer.locked || this.drawer.card.cancelled_at) return;
-            const reason = (window.prompt(this.t(
-                'Why is this card being cancelled? The reason goes into the audit log.',
-                'Kenapa kad ini dibatalkan? Sebabnya direkod dalam log audit.',
-            )) || '').trim();
+            const reason = ((await Alpine.store('ask').ask({
+                title: this.t('Cancel this card?', 'Batalkan kad ini?'),
+                placeholder: this.t('Why? The reason goes into the audit log.', 'Kenapa? Sebabnya direkod dalam log audit.'),
+                input: true,
+                required: true,
+            })) || '').trim();
             if (!reason) return;
             const node = this.drawer.node;
             const id = this.drawer.id;
@@ -1428,7 +1430,7 @@ export function registerWorkBoard(Alpine) {
             // CR-08: a pushed comment is an official record in Track. It is withdrawn
             // with a reason, never removed.
             if (existing?.pushed) {
-                reason = window.prompt(this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'));
+                reason = await Alpine.store('ask').ask({ title: this.t('This comment is in Track. Reason for withdrawing it:', 'Komen ini ada dalam Track. Sebab tarik balik:'), input: true, required: true });
                 if (!reason || !reason.trim()) return;
             }
             const seq = this.nextSeq();
@@ -1523,7 +1525,7 @@ export function registerWorkBoard(Alpine) {
         // Untick after the fact: withdraw from Track with a reason. The comment stays
         // on the card, Track shows it as withdrawn.
         async withdrawComment(c) {
-            const reason = window.prompt(this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'));
+            const reason = await Alpine.store('ask').ask({ title: this.t('Reason for withdrawing this comment from Track:', 'Sebab tarik balik komen ini dari Track:'), input: true, required: true });
             if (!reason || !reason.trim()) return;
             try {
                 const { comment } = await this.api(`/app/board/comments/${c.id}`, {

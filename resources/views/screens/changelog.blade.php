@@ -52,7 +52,7 @@
                     :value="openVersion ?? ''"
                     @change="const v = $event.target.value;
                              if (! v) { openVersion = null; return; }
-                             if (confirm($store.ui.lang==='en' ? ('View changelog notes for ' + v + '?') : ('Lihat log perubahan untuk ' + v + '?'))) { openVersion = v; } else { $event.target.value = openVersion ?? ''; }">
+                             $store.ask.ask({ title: $store.ui.lang==='en' ? ('View changelog notes for ' + v + '?') : ('Lihat log perubahan untuk ' + v + '?') }).then(ok => { if (ok) { openVersion = v; } else { $event.target.value = openVersion ?? ''; } })">
                 <option value="" x-text="$store.ui.lang==='en' ? 'Select a version…' : 'Pilih versi…'">Select a version…</option>
                 @foreach ($older as $release)
                     <option value="{{ $release['version'] }}">{{ $release['version'] }} — {{ \Illuminate\Support\Carbon::parse($release['date'])->format('j M Y') }}</option>

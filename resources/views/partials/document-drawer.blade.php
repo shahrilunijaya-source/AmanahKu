@@ -35,7 +35,7 @@
 
                 <div style="display:flex;gap:10px;">
                     <a href="{{ route('documents.download', $doc) }}" class="uj-btn-primary" style="height:38px;padding:0 18px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;" x-text="$store.ui.lang==='en' ? 'Download' : 'Muat turun'">Download</a>
-                    <form method="post" action="{{ route('documents.destroy', $doc) }}" onsubmit="return confirm('Delete this document?');">
+                    <form method="post" action="{{ route('documents.destroy', $doc) }}" onsubmit="return ujAsk(this, 'Delete this document?')">
                         @csrf
                         <button type="submit" class="uj-btn-ghost" style="height:38px;padding:0 16px;font-size:13px;color:var(--red);" x-text="$store.ui.lang==='en' ? 'Delete' : 'Padam'">Delete</button>
                     </form>

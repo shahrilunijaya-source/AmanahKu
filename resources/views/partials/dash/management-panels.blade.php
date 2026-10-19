@@ -41,9 +41,9 @@
         },
         async reassign(url) {
             if (this.busy) { return; }
-            const employeeId = window.prompt(this.$store.ui.lang === 'en' ? 'Reassign to employee ID:' : 'Tugaskan kepada ID pekerja:');
+            const employeeId = await this.$store.ask.ask({ title: this.$store.ui.lang === 'en' ? 'Reassign to employee ID' : 'Tugaskan kepada ID pekerja', input: true, required: true });
             if (! employeeId) { return; }
-            const reason = window.prompt(this.$store.ui.lang === 'en' ? 'Reason:' : 'Sebab:');
+            const reason = await this.$store.ask.ask({ title: this.$store.ui.lang === 'en' ? 'Reason' : 'Sebab', input: true, required: true });
             if (! reason) { return; }
             this.busy = true;
             try {

@@ -181,10 +181,6 @@ class AppController extends Controller
         if ($screen === 'probation') {
             $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
         }
-        // Onboarding content library is authored by the same privileged roles that run onboarding.
-        if ($screen === 'onboarding-content') {
-            $this->authorizeTenantRole($request, ['manager', 'management', 'hr']);
-        }
         // Payroll working screens are HR and management only; My Payroll is for everyone.
         if (in_array($screen, ['payroll-transaction', 'payroll-process', 'payroll-review', 'payroll-payment', 'payroll-form'], true)) {
             $this->authorizeTenantRole($request, ['management', 'hr']);
@@ -602,8 +598,6 @@ class AppController extends Controller
             'kpi' => ['items' => $employee?->kpiItems()->get() ?? collect()],
             'achievements' => $this->achievementsData($request->attributes->get('tenantRole', 'employee')),
             'reviews' => $this->reviewsData($employee, $request->attributes->get('tenantRole', 'employee')),
-            'onboarding' => app(OnboardingController::class)->screenData($request, $employee),
-            'onboarding-content' => app(OnboardingContentController::class)->screenData($request),
             // Both slugs render the unified claims screen (claim-approvals just defaults to
             // the Approvals tab — see screens/claims.blade.php and the view resolve below).
             'claims', 'claim-approvals' => $this->claimsData($request, $employee),

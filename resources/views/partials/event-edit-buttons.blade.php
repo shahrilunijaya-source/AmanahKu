@@ -22,7 +22,7 @@
             x-text="$store.ui.lang==='en' ? 'Edit' : 'Sunting'">Edit</button>
 @endif
 @if ($privileged)
-    <form method="post" action="{{ route('events.destroy', $e) }}" onsubmit="return confirm('{{ $e->title }}?')">
+    <form method="post" action="{{ route('events.destroy', $e) }}" onsubmit="return ujAsk(this, '{{ $e->title }}?')">
         @csrf
         <button type="submit" class="ext-del" x-text="$store.ui.lang==='en' ? 'Remove' : 'Buang'">Remove</button>
     </form>

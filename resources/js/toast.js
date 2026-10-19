@@ -92,4 +92,81 @@ export function registerToast(Alpine) {
             this.open = false;
         },
     });
+
+    // In-page stand-in for the browser's confirm()/prompt(), which embedded browsers
+    // (VS Code's) refuse outright, leaving the button dead. Host: partials/ask-host.
+    //
+    //   await $store.ask.ask({ title, body, ok })          -> true | false
+    //   await $store.ask.ask({ title, input: true })        -> typed text | null (cancelled)
+    //   input: 'password' masks it; required: true blocks OK while empty; value prefills it;
+    //   match: 'Exact Name' blocks OK until that text is typed (permanent deletes).
+    //
+    // Forms use window.ujAsk(form, opts, submitter?) from an onsubmit/onclick handler (see
+    // registerToast below): it always returns false, then submits for real on OK.
+    Alpine.store('ask', {
+        open: false,
+        seq: 0,
+        title: '',
+        body: '',
+        ok: '',
+        match: null,
+        input: false,
+        required: false,
+        placeholder: '',
+        text: '',
+        _resolve: null,
+
+        ask({ title, body = '', ok = null, match = null, input = false, required = false, placeholder = '', value = '' }) {
+            this._resolve?.(input || match !== null ? null : false);
+            const en = Alpine.store('ui')?.lang !== 'ms';
+            Object.assign(this, {
+                title, body, match, input, required, placeholder,
+                ok: ok ?? (en ? 'Confirm' : 'Sahkan'),
+                text: value,
+                open: true,
+            });
+            this.seq++;
+            return new Promise((resolve) => { this._resolve = resolve; });
+        },
+        get showInput() {
+            return this.input !== false || this.match !== null;
+        },
+        get ready() {
+            if (this.match !== null) return this.text.trim() === this.match;
+            return !(this.required && this.text.trim() === '');
+        },
+        confirm() {
+            if (!this.ready) return;
+            this._finish(this.input !== false ? this.text.trim() : true);
+        },
+        close() {
+            this._finish(this.input !== false || this.match !== null ? null : false);
+        },
+        _finish(result) {
+            const resolve = this._resolve;
+            this._resolve = null;
+            this.open = false;
+            resolve?.(this.match !== null ? result !== null && result !== false : result);
+        },
+
+        // Confirm, then submit `form` for real. form.submit() skips onsubmit/@submit, so
+        // the handler cannot loop. A `submitter` button keeps its formaction/name/value.
+        async form(form, opts, submitter = null) {
+            if (!(await this.ask(opts))) return;
+            if (submitter?.hasAttribute('formaction')) form.action = submitter.formAction;
+            if (submitter?.name) {
+                const field = Object.assign(document.createElement('input'), { type: 'hidden', name: submitter.name, value: submitter.value });
+                form.appendChild(field);
+            }
+            form.submit();
+        },
+    });
+
+    // Plain-attribute entry point, usable outside any x-data scope:
+    //   <form onsubmit="return ujAsk(this, { title: 'Delete this?' })">
+    //   <button formaction="…" onclick="return ujAsk(this.form, { title: '…' }, this)">
+    window.ujAsk = (form, opts, submitter = null) => {
+        Alpine.store('ask').form(form, typeof opts === 'string' ? { title: opts } : opts, submitter);
+        return false;
+    };
 }

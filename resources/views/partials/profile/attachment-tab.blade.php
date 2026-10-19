@@ -41,7 +41,7 @@
                     <a href="{{ route('documents.download', $doc) }}" style="font-size:13px;color:var(--ink);font-weight:500;">{{ $doc->title }}</a>
                     <div style="font-size:11.5px;color:var(--muted);">{{ $doc->original_name }} · {{ number_format($doc->size / 1024) }} KB · {{ $doc->created_at?->format('d/m/Y') }}</div>
                 </div>
-                <form method="post" action="{{ route('documents.destroy', $doc) }}" onsubmit="return confirm('Delete this document?')">@csrf<button type="submit" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:12px;color:var(--red);">{!! $L('Delete', 'Padam') !!}</button></form>
+                <form method="post" action="{{ route('documents.destroy', $doc) }}" onsubmit="return ujAsk(this, 'Delete this document?')">@csrf<button type="submit" class="uj-btn-ghost" style="height:28px;padding:0 10px;font-size:12px;color:var(--red);">{!! $L('Delete', 'Padam') !!}</button></form>
             </div>
         @endforeach
     </div>
