@@ -33,7 +33,7 @@
      * document is required, and which balance the days actually come off (Emergency
      * spends Annual, so it must show Annual's numbers, not its own).
      *
-     * @var array<int, array{notice:int, unplanned:bool, doc:bool, name:string, balName:string, balLeft:float|null, balQuota:float|null, unpaidOnly:bool}>
+     * @var array<int, array{notice:int, unplanned:bool, doc:bool, name:string, balName:string, balLeft:float|null, balQuota:float|null, unpaidOnly:bool, calendar:bool}>
      */
     $applyMeta = $leaveTypes->mapWithKeys(function ($t) use ($balByType, $leaveTypes) {
         $balTypeId = $t->deducts_from_leave_type_id ?: $t->id;
@@ -56,6 +56,7 @@
             'balLeft' => $bal ? (float) $bal->balance : null,
             'balQuota' => ! $unpaidOnly && $balType && $balType->entitlement > 0 ? (float) $balType->entitlement : null,
             'unpaidOnly' => $unpaidOnly,
+            'calendar' => (bool) $t->counts_calendar_days,
         ]];
     })->toArray();
 
@@ -154,11 +155,13 @@
          * Working days inclusive, or 0.5 for a half day — the same arithmetic as
          * LeaveRequest::countDays(): Mon–Fri count 1, the TOT Saturday (first Saturday
          * of the month, Unijaya's half working day) counts 0.5, and Sundays, ordinary
-         * Saturdays and public holidays count nothing.
+         * Saturdays and public holidays count nothing. A calendar-day type (maternity)
+         * counts every day in the range.
          */
         days() {
             if (!this.dateFrom || !this.dateTo) return 0;
             if (this.half) return 0.5;
+            if (this.t()?.calendar) return Math.round((new Date(this.dateTo + 'T00:00') - new Date(this.dateFrom + 'T00:00')) / 86400000) + 1;
             let total = 0;
             for (let d = new Date(this.dateFrom + 'T00:00'); d <= new Date(this.dateTo + 'T00:00'); d.setDate(d.getDate() + 1)) {
                 const dow = d.getDay();

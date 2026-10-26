@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,5 +47,17 @@ class LeaveRequestCountDaysTest extends TestCase
     public function test_full_week_is_five_days(): void
     {
         $this->assertSame(5.0, LeaveRequest::countDays(Carbon::parse('2026-09-14'), Carbon::parse('2026-09-20')));
+    }
+
+    public function test_calendar_day_mode_counts_weekends_and_holidays(): void
+    {
+        PublicHoliday::create(['tenant_id' => app(CurrentTenant::class)->id(), 'name' => 'Malaysia Day', 'date' => '2026-09-16']);
+
+        // Fri 11 Sep – Mon 14 Sep with the weekend: 4 calendar days, not 2 working days.
+        $this->assertSame(4.0, LeaveRequest::countDays(Carbon::parse('2026-09-11'), Carbon::parse('2026-09-14'), true));
+        // A holiday inside the range still costs a day.
+        $this->assertSame(7.0, LeaveRequest::countDays(Carbon::parse('2026-09-14'), Carbon::parse('2026-09-20'), true));
+        // Maternity: 98 consecutive days from 1 Oct ends on 6 Jan.
+        $this->assertSame(98.0, LeaveRequest::countDays(Carbon::parse('2026-10-01'), Carbon::parse('2027-01-06'), true));
     }
 }
