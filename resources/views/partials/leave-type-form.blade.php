@@ -55,6 +55,10 @@
             <input type="checkbox" name="is_hr_granted_only" value="1" @checked(old('is_hr_granted_only', $lt->is_hr_granted_only ?? false)) />
             <span x-text="$store.ui.lang==='en' ? 'Quota granted by HR (no yearly entitlement)' : 'Kuota diberi HR (tiada kelayakan tahunan)'">Quota granted by HR</span>
         </label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--body);cursor:pointer;">
+            <input type="checkbox" name="counts_calendar_days" value="1" @checked(old('counts_calendar_days', $lt->counts_calendar_days ?? false)) />
+            <span x-text="$store.ui.lang==='en' ? 'Count every calendar day (weekends and holidays too)' : 'Kira setiap hari kalendar (termasuk hujung minggu dan cuti umum)'">Count every calendar day</span>
+        </label>
     </div>
     <div><button type="submit" class="uj-btn-primary" style="height:38px;padding:0 16px;font-size:13px;">{{ $submitLabel }}</button></div>
 </form>

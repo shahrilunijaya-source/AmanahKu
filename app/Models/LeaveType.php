@@ -21,6 +21,7 @@ class LeaveType extends Model
             'is_unplanned' => 'boolean',
             'is_unpaid' => 'boolean',
             'is_hr_granted_only' => 'boolean',
+            'counts_calendar_days' => 'boolean',
             'min_notice_days' => 'integer',
             'monthly_accrual_days' => 'float',
             'max_balance' => 'float',

@@ -54,7 +54,7 @@ class LeaveReportController extends Controller
         // silently misstated both. Overlap picks the request up in both periods; days_in_window
         // (below) then attributes only the part that actually falls inside.
         $taken = LeaveRequest::query()
-            ->with(['leaveType:id,name,is_unplanned', 'employee:id,name,nickname,initials,avatar_color,department_id', 'employee.department:id,name'])
+            ->with(['leaveType:id,name,is_unplanned,counts_calendar_days', 'employee:id,name,nickname,initials,avatar_color,department_id', 'employee.department:id,name'])
             ->where('status', 'approved')
             ->where('date_from', '<=', $end->toDateString())
             ->where('date_to', '>=', $start->toDateString())
@@ -127,7 +127,7 @@ class LeaveReportController extends Controller
         $from = $leave->date_from->greaterThan($start) ? $leave->date_from : $start;
         $to = $leave->date_to->lessThan($end) ? $leave->date_to : $end;
 
-        return $from->gt($to) ? 0.0 : LeaveRequest::countDays($from, $to);
+        return $from->gt($to) ? 0.0 : LeaveRequest::countDays($from, $to, (bool) $leave->leaveType?->counts_calendar_days);
     }
 
     /**
