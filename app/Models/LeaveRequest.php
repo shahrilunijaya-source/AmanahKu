@@ -69,10 +69,15 @@ class LeaveRequest extends Model
     /**
      * Working days between $from and $to inclusive, per the tenant's work week: a listed
      * work day costs 1, the TOT Saturday (Unijaya's first-Saturday half day) 0.5, and days
-     * off and the tenant's public holidays cost nothing.
+     * off and the tenant's public holidays cost nothing. With $calendarDays (maternity),
+     * every day in the range costs 1, weekends and public holidays included.
      */
-    public static function countDays(Carbon $from, Carbon $to): float
+    public static function countDays(Carbon $from, Carbon $to, bool $calendarDays = false): float
     {
+        if ($calendarDays) {
+            return (float) ($from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1);
+        }
+
         $holidays = PublicHoliday::whereDate('date', '>=', $from->toDateString())
             ->whereDate('date', '<=', $to->toDateString())
             ->pluck('date')

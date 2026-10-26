@@ -263,6 +263,8 @@ class LeaveSetupController extends Controller
                 // Replacement carries no yearly entitlement — HR grants its quota on the
                 // Replacement tab and staff apply against it.
                 'is_hr_granted_only' => $x[0] === 'Replacement',
+                // Maternity is 98 consecutive days, weekends and public holidays included.
+                'counts_calendar_days' => $x[0] === 'Maternity',
             ]);
             $added++;
         }
@@ -442,6 +444,7 @@ class LeaveSetupController extends Controller
             'requires_attachment' => ['nullable', 'boolean'],
             'is_unplanned' => ['nullable', 'boolean'],
             'is_hr_granted_only' => ['nullable', 'boolean'],
+            'counts_calendar_days' => ['nullable', 'boolean'],
         ]);
 
         $data['entitlement'] = $data['entitlement'] ?? 0;
@@ -450,6 +453,7 @@ class LeaveSetupController extends Controller
         $data['requires_attachment'] = $request->boolean('requires_attachment');
         $data['is_unplanned'] = $request->boolean('is_unplanned');
         $data['is_hr_granted_only'] = $request->boolean('is_hr_granted_only');
+        $data['counts_calendar_days'] = $request->boolean('counts_calendar_days');
         $data['deducts_from_leave_type_id'] = $data['deducts_from_leave_type_id'] ?? null;
 
         return $data;

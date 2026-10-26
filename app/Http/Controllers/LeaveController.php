@@ -116,7 +116,7 @@ class LeaveController extends Controller
         // TOT Saturday (first Saturday of the month) counted as 0.5 like everywhere else it
         // appears. `days` flows straight into the balance decrement at approval, so this is
         // the only place the 0.5 originates.
-        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']));
+        $days = $isHalfDay ? 0.5 : LeaveRequest::countDays(Carbon::parse($data['date_from']), Carbon::parse($data['date_to']), $type->counts_calendar_days);
 
         // A granted quota is a hard ceiling. Every other type may overrun its balance and
         // have the excess approved as unpaid (see applyApproval), but replacement days are
