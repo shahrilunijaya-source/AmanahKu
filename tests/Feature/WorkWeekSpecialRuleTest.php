@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\WorkDayRule;
 use App\Support\WorkWeek;
@@ -98,5 +99,53 @@ class WorkWeekSpecialRuleTest extends TestCase
     public function test_unsaved_tenant_has_no_rules(): void
     {
         $this->assertNull(WorkWeek::for(new Tenant(['work_days' => [1]]))->specialRule(CarbonImmutable::parse('2026-10-03')));
+    }
+
+    /** Shahril's November: the usual 1st Saturday moves to the 2nd, for that month only. */
+    public function test_a_one_month_rule_replaces_the_usual_rule_for_that_month_only(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [1]]);
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [2], 'month' => '2026-11', 'end_time' => '14:00']);
+        $week = WorkWeek::for($tenant);
+
+        // October keeps the usual 1st Saturday.
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-10-03')));
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-10-10')));
+        // November: 2nd Saturday works, the usual 1st Saturday does not.
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-11-07')));
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-14')));
+        $this->assertSame('14:00', $week->specialRule(CarbonImmutable::parse('2026-11-14'))?->endHhmm());
+        // December is back to normal.
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-12-05')));
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-12-12')));
+    }
+
+    public function test_a_one_month_rule_only_overrides_its_own_weekday(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [1]]);
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weekday' => 7, 'weeks' => [2], 'month' => '2026-11']);
+        $week = WorkWeek::for($tenant);
+
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-07')));
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-08')));
+    }
+
+    /** The leave form's day preview reads this map, so it must match countDays() day by day. */
+    public function test_day_fractions_lists_what_each_working_day_costs(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [2]]);
+        PublicHoliday::create(['tenant_id' => $tenant->id, 'name' => 'Deepavali', 'date' => '2026-11-09']);
+        app(CurrentTenant::class)->set($tenant);
+
+        // Fri 6 .. Mon 16 Nov 2026: Sat 7 off, Sun 8 off, Mon 9 holiday, Sat 14 is the ruled half day.
+        $this->assertSame(
+            ['2026-11-06' => 1.0, '2026-11-10' => 1.0, '2026-11-11' => 1.0, '2026-11-12' => 1.0,
+                '2026-11-13' => 1.0, '2026-11-14' => 0.5, '2026-11-16' => 1.0],
+            LeaveRequest::dayFractions(Carbon::parse('2026-11-06'), Carbon::parse('2026-11-16')),
+        );
+        $this->assertSame(6.5, LeaveRequest::countDays(Carbon::parse('2026-11-06'), Carbon::parse('2026-11-16')));
     }
 }

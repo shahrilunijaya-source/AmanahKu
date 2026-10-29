@@ -178,4 +178,40 @@ class WorkDayRuleAdminTest extends TestCase
             ->assertSee('Hari khas')
             ->assertSee('13:00');
     }
+
+    public function test_a_one_month_rule_may_share_a_weekday_with_the_usual_rule(): void
+    {
+        $this->rule(['weekday' => 6, 'weeks' => [1]]);
+
+        $this->actingAsRole('hr')
+            ->post(route('admin.workdayrules.store'), $this->payload(['weeks' => [2], 'month' => '2026-11']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('2026-11', WorkDayRule::where('month', '2026-11')->value('month'));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Added special work day', 'target' => 'Sat 2nd 09:00-13:00 (half), Nov 2026 only']);
+    }
+
+    public function test_one_rule_per_weekday_per_month(): void
+    {
+        $this->rule(['weekday' => 6, 'weeks' => [2], 'month' => '2026-11']);
+
+        $this->actingAsRole('hr')
+            ->post(route('admin.workdayrules.store'), $this->payload(['month' => '2026-11']))
+            ->assertSessionHasErrors('weekday');
+
+        $this->actingAsRole('hr')
+            ->post(route('admin.workdayrules.store'), $this->payload(['month' => 'November']))
+            ->assertSessionHasErrors('month');
+    }
+
+    public function test_clearing_the_month_makes_it_an_every_month_rule(): void
+    {
+        $rule = $this->rule(['weeks' => [2], 'month' => '2026-11']);
+
+        $this->actingAsRole('hr')
+            ->put(route('admin.workdayrules.update', $rule), $this->payload(['month' => null]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($rule->fresh()->month);
+    }
 }

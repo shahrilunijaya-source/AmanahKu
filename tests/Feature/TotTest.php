@@ -10,6 +10,7 @@ use App\Models\TotParticipation;
 use App\Models\TotReaction;
 use App\Models\TotSession;
 use App\Models\User;
+use App\Models\WorkDayRule;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -93,11 +94,23 @@ class TotTest extends TestCase
         $this->makeSession(['title' => 'Duplicate slot']);
     }
 
-    public function test_first_saturday_is_computed_per_month(): void
+    public function test_tot_saturday_defaults_to_the_first_saturday(): void
     {
-        $this->assertSame('2026-03-07', TotSession::firstSaturday(2026, 3)->toDateString());
-        $this->assertSame('2026-08-01', TotSession::firstSaturday(2026, 8)->toDateString());
-        $this->assertSame('2027-01-02', TotSession::firstSaturday(2027, 1)->toDateString());
+        $this->assertSame('2026-03-07', TotSession::totSaturday(2026, 3)->toDateString());
+        $this->assertSame('2026-08-01', TotSession::totSaturday(2026, 8)->toDateString());
+        $this->assertSame('2027-01-02', TotSession::totSaturday(2027, 1)->toDateString());
+    }
+
+    /** Shahril moved November 2026's TOT to the 2nd Saturday; other months stay on the 1st. */
+    public function test_tot_saturday_follows_a_one_month_special_day(): void
+    {
+        WorkDayRule::factory()->create(['tenant_id' => $this->tenant->id, 'weeks' => [1]]);
+        WorkDayRule::factory()->create(['tenant_id' => $this->tenant->id, 'weeks' => [2], 'month' => '2026-11']);
+        app(CurrentTenant::class)->set($this->tenant);
+
+        $this->assertSame('2026-10-03', TotSession::totSaturday(2026, 10)->toDateString());
+        $this->assertSame('2026-11-14', TotSession::totSaturday(2026, 11)->toDateString());
+        $this->assertSame('2026-12-05', TotSession::totSaturday(2026, 12)->toDateString());
     }
 
     // ── Contribution credit helper ────────────────────────────────

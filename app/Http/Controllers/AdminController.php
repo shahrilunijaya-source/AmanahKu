@@ -24,6 +24,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
@@ -180,15 +181,18 @@ class AdminController extends Controller
 
     /**
      * Rules for a special work day (one weekday that works only on some weeks, own hours).
-     * One rule per weekday per company.
+     * One every-month rule per weekday per company, and one per weekday per month on top.
      *
      * @return array<string, mixed>
      */
-    private function workDayRuleRules(?WorkDayRule $ignore = null): array
+    private function workDayRuleRules(?string $month, ?WorkDayRule $ignore = null): array
     {
+        $sameMonth = fn ($query) => $month === null ? $query->whereNull('month') : $query->where('month', $month);
+
         return [
             'weekday' => ['required', 'integer', 'between:1,7', Rule::unique('work_day_rules', 'weekday')
-                ->where('tenant_id', app(CurrentTenant::class)->id())->ignore($ignore?->id)],
+                ->where('tenant_id', app(CurrentTenant::class)->id())->where($sameMonth)->ignore($ignore?->id)],
+            'month' => ['nullable', 'date_format:Y-m'],
             'weeks' => ['required', 'array', 'min:1'],
             'weeks.*' => ['integer', 'in:1,2,3,4,-1', 'distinct'],
             'start_time' => ['required', 'date_format:H:i'],
@@ -200,7 +204,8 @@ class AdminController extends Controller
     /** Save a special work day from the validated form data and log it. */
     private function saveWorkDayRule(Request $request, ?WorkDayRule $rule): RedirectResponse
     {
-        $data = $request->validate($this->workDayRuleRules($rule));
+        $data = $request->validate($this->workDayRuleRules($request->input('month'), $rule));
+        $data['month'] ??= null;
         $weeks = array_map('intval', $data['weeks']);
         usort($weeks, fn (int $a, int $b) => ($a < 0 ? 9 : $a) <=> ($b < 0 ? 9 : $b));
         $data['weeks'] = $weeks;
@@ -209,7 +214,8 @@ class AdminController extends Controller
 
         AuditLog::record(
             $rule->wasRecentlyCreated ? 'Added special work day' : 'Updated special work day',
-            self::DAY_NAMES[$rule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $weeks)).' '.$rule->startHhmm().'-'.$rule->endHhmm().' ('.$rule->counts.')',
+            self::DAY_NAMES[$rule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $weeks)).' '.$rule->startHhmm().'-'.$rule->endHhmm().' ('.$rule->counts.')'
+                .($rule->month ? ', '.Carbon::createFromFormat('!Y-m', $rule->month)->format('M Y').' only' : ''),
         );
 
         return back()->with('ok', 'Special day saved.');
@@ -239,7 +245,8 @@ class AdminController extends Controller
         $this->assertTenant($workDayRule->tenant_id);
 
         $workDayRule->delete();
-        AuditLog::record('Removed special work day', self::DAY_NAMES[$workDayRule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $workDayRule->weeks)));
+        AuditLog::record('Removed special work day', self::DAY_NAMES[$workDayRule->weekday].' '.implode(', ', array_map(fn (int $w) => self::WEEK_WORDS[$w], $workDayRule->weeks))
+            .($workDayRule->month ? ', '.Carbon::createFromFormat('!Y-m', $workDayRule->month)->format('M Y').' only' : ''));
 
         return back()->with('ok', 'Special day removed.');
     }

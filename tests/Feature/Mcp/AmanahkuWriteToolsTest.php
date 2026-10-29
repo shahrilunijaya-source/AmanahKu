@@ -1656,15 +1656,15 @@ class AmanahkuWriteToolsTest extends TestCase
         // The first Saturday of the CURRENT month, falling back to last month's if
         // this month's has not happened yet — always in the past, always inside the
         // 6-week backfill window.
-        // TotSession::firstSaturday() is the app's own rule — "first saturday of" the
+        // TotSession::totSaturday() is the app's own rule — "first saturday of" the
         // month, which is the 1st itself when the 1st IS a Saturday. startOfMonth()
         // ->next(SATURDAY) is NOT the same thing: it skips a 1st that already is one,
         // landing on the 8th, an ordinary 100% day that would never trip the cap.
         $today = Carbon::now()->startOfDay();
-        $totSaturday = TotSession::firstSaturday((int) $today->year, (int) $today->month);
+        $totSaturday = TotSession::totSaturday((int) $today->year, (int) $today->month);
         if ($totSaturday->greaterThan($today)) {
             $prev = $today->copy()->subMonthNoOverflow();
-            $totSaturday = TotSession::firstSaturday((int) $prev->year, (int) $prev->month);
+            $totSaturday = TotSession::totSaturday((int) $prev->year, (int) $prev->month);
         }
         $weekStart = $totSaturday->copy()->subDays(5)->toDateString();
         $totSaturday = $totSaturday->toDateString();

@@ -8,6 +8,7 @@ use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Support\Geo;
+use App\Support\WorkWeek;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -83,6 +84,11 @@ final class LedgerBuilder
         $todayStr = $today->toDateString();
         $rows = [];
 
+        // $workingDays also holds days off on which somebody punched (ReportPeriod keeps them so
+        // that shift shows). Only those who punched get a row there, not a "no punch" for everyone.
+        $workWeek = WorkWeek::for();
+        $daysOff = array_flip(array_filter($workingDays, fn (string $d) => ! $workWeek->isWorkingDay(CarbonImmutable::parse($d))));
+
         foreach ($employees as $emp) {
             $lastDay = $emp->last_working_day?->toDateString();
             foreach ($workingDays as $date) {
@@ -90,9 +96,9 @@ final class LedgerBuilder
                 if ($lastDay !== null && $date > $lastDay) {
                     continue;
                 }
-                // Clock-exempt staff (Freelance) only show on days they chose to punch:
-                // a day without one is not an absence for them.
-                if (! $emp->mustClock() && ! isset($byEmployeeDate[$emp->id][$date])) {
+                // Clock-exempt staff (Freelance), and everyone on a day off, only show on days
+                // they chose to punch: a day without one is not an absence for them.
+                if ((! $emp->mustClock() || isset($daysOff[$date])) && ! isset($byEmployeeDate[$emp->id][$date])) {
                     continue;
                 }
                 $rows[] = $this->row(

@@ -113,7 +113,7 @@
         <form method="post" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data" @input="dirty = true" @change="dirty = true">
             @csrf
             <div class="uj-cs-cb">
-                @if ($errors->any() && ! $errors->hasAny(['work_days', 'work_days.*', 'approval_escalation_days', 'weekday', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']))<div class="uj-alert" data-tone="error"><span class="uj-alert-msg">{{ $errors->first() }}</span></div>@endif
+                @if ($errors->any() && ! $errors->hasAny(['work_days', 'work_days.*', 'approval_escalation_days', 'weekday', 'month', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']))<div class="uj-alert" data-tone="error"><span class="uj-alert-msg">{{ $errors->first() }}</span></div>@endif
 
                 <div class="uj-cs-grp">
                     <div class="uj-cs-grp-h"><h4 x-text="$store.ui.lang==='en' ? 'Company' : 'Syarikat'">Company</h4></div>
@@ -408,13 +408,13 @@
         @php
             $wwRules = $workDayRules->map(fn ($r) => [
                 'id' => $r->id, 'weekday' => (int) $r->weekday, 'ords' => array_map('intval', (array) $r->weeks),
-                'start' => $r->startHhmm(), 'end' => $r->endHhmm(), 'counts' => $r->counts,
+                'start' => $r->startHhmm(), 'end' => $r->endHhmm(), 'counts' => $r->counts, 'month' => $r->month,
             ])->values();
-            $wwErr = $errors->hasAny(['weekday', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']);
+            $wwErr = $errors->hasAny(['weekday', 'month', 'weeks', 'weeks.*', 'start_time', 'end_time', 'counts']);
             $wwOld = $wwErr ? [
                 'id' => old('_rule_id') ? (int) old('_rule_id') : null, 'weekday' => (int) old('weekday', 6),
                 'ords' => array_map('intval', (array) old('weeks', [])), 'start' => old('start_time', '09:00'),
-                'end' => old('end_time', '13:00'), 'counts' => old('counts', 'half'),
+                'end' => old('end_time', '13:00'), 'counts' => old('counts', 'half'), 'month' => old('month'),
             ] : null;
         @endphp
         <script>
@@ -435,10 +435,15 @@
                 toggle(n) { this.has(n) ? this.days = this.days.filter(d => d !== n) : this.days.push(n); },
                 ruleOn(n) { return this.rules.some(r => r.weekday === n); },
                 ordLabel(v) { return v === -1 ? this.L('Last', 'Terakhir') : this.L(v + ['st','nd','rd','th'][v - 1], 'Minggu ke-' + v); },
-                takenBy(n) { return this.rules.some(r => r.weekday === n && r.id !== this.draft.id); },
+                takenBy(n) { return this.rules.some(r => r.weekday === n && (r.month || null) === (this.draft.month || null) && r.id !== this.draft.id); },
+                ym(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); },
+                monthName(ymStr) { const [y, m] = ymStr.split('-').map(Number); return this.ms ? this.MS_MONTHS[m - 1] + ' ' + y : new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' }); },
+                setMonth(v) { this.draft.month = v || null; if (v) { const [y, m] = v.split('-').map(Number); this.view = { y, m: m - 1 }; } },
+                // A one-month rule owns its weekday for that month (same as App\Support\WorkWeek).
+                overridden(r, date, list) { return !r.month && list.some(x => x.month === this.ym(date) && x.weekday === r.weekday); },
                 startNew() {
                     const free = [6,7,5,4,3,2,1].find(n => !this.takenBy(n)) || 6;
-                    this.draft = { id: null, weekday: free, ords: [2, 4], start: '09:00', end: '13:00', counts: 'half' };
+                    this.draft = { id: null, weekday: free, ords: [2, 4], start: '09:00', end: '13:00', counts: 'half', month: null };
                     this.view = { y: this.today.getFullYear(), m: this.today.getMonth() }; this.editing = true;
                 },
                 startEdit(r) { this.draft = JSON.parse(JSON.stringify(r)); this.view = { y: this.today.getFullYear(), m: this.today.getMonth() }; this.editing = true; },
@@ -449,11 +454,11 @@
                     const w = this.sorted(r.ords), day = this.dl(r.weekday - 1);
                     if (this.ms) {
                         const m = { 1: 'pertama', 2: 'kedua', 3: 'ketiga', 4: 'keempat', '-1': 'terakhir' }, p = w.map(v => m[v]);
-                        return day + ' ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' dan ' + p.at(-1) : p[0]) + ' setiap bulan';
+                        return day + ' ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' dan ' + p.at(-1) : p[0]) + (r.month ? ', ' + this.monthName(r.month) + ' sahaja' : ' setiap bulan');
                     }
                     const m = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', '-1': 'last' }, p = w.map(v => m[v]);
                     const list = p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p.at(-1) : p[0];
-                    return list.charAt(0).toUpperCase() + list.slice(1) + ' ' + day + ' of the month';
+                    return list.charAt(0).toUpperCase() + list.slice(1) + ' ' + day + (r.month ? ', ' + this.monthName(r.month) + ' only' : ' of the month');
                 },
                 mins(r) { if (!r.start || !r.end) return 0; const [a, b] = r.start.split(':').map(Number), [c, d] = r.end.split(':').map(Number); return (c * 60 + d) - (a * 60 + b); },
                 fmtLen(r) { const m = this.mins(r); return m <= 0 ? '—' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; },
@@ -461,6 +466,7 @@
                 valid() { return this.draft.ords.length > 0 && this.mins(this.draft) > 0 && !this.takenBy(this.draft.weekday); },
                 matches(r, date) {
                     if ((date.getDay() + 6) % 7 + 1 !== r.weekday) return false;
+                    if (r.month && r.month !== this.ym(date)) return false;
                     const last = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 7).getMonth() !== date.getMonth();
                     return r.ords.includes(Math.ceil(date.getDate() / 7)) || (last && r.ords.includes(-1));
                 },
@@ -468,7 +474,7 @@
                 nextDates(r, n) {
                     const out = [], d = new Date(this.today.getFullYear(), this.today.getMonth(), this.today.getDate());
                     if (!r.ords || !r.ords.length) return [];
-                    for (let i = 0; i < 400 && out.length < n; i++) { if (this.matches(r, d)) out.push(this.fmtDate(d) + (i === 0 ? ' (' + this.L('today', 'hari ini') + ')' : '')); d.setDate(d.getDate() + 1); }
+                    for (let i = 0; i < 400 && out.length < n; i++) { if (this.matches(r, d) && !this.overridden(r, d, this.rules)) out.push(this.fmtDate(d) + (i === 0 ? ' (' + this.L('today', 'hari ini') + ')' : '')); d.setDate(d.getDate() + 1); }
                     return out;
                 },
                 shift(k) { let m = this.view.m + k, y = this.view.y; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } this.view = { y, m }; },
@@ -480,9 +486,10 @@
                     for (let d = 1; d <= len; d++) {
                         const dt = new Date(y, m, d), iso = (dt.getDay() + 6) % 7 + 1;
                         let cls = 'off', txt = '';
-                        if (this.editing && this.draft.ords.length && this.matches(this.draft, dt)) { cls = 'special'; txt = this.draft.start + '–' + this.draft.end; }
+                        const others = this.rules.filter(x => x.id !== this.draft.id), all = this.editing ? others.concat([this.draft]) : others;
+                        if (this.editing && this.draft.ords.length && this.matches(this.draft, dt) && !this.overridden(this.draft, dt, others)) { cls = 'special'; txt = this.draft.start + '–' + this.draft.end; }
                         else {
-                            const r = this.rules.find(x => x.id !== this.draft.id && this.matches(x, dt));
+                            const r = others.find(x => this.matches(x, dt) && !this.overridden(x, dt, all));
                             if (r) { cls = this.editing ? 'other' : 'special'; txt = r.start + '–' + r.end; } else if (this.days.includes(iso)) cls = 'work';
                         }
                         out.push({ k: 'd' + d, cls: cls + (dt.getTime() === t ? ' today' : ''), d, t: txt });
@@ -607,6 +614,19 @@
                                 </div>
                                 <input type="hidden" name="counts" :value="draft.counts">
                                 <p style="font-size:12.5px;color:var(--muted);margin:6px 0 0;" x-text="draft.counts==='half' ? L('Leave on this day costs 0.5. Timesheet capacity is 50%.','Cuti pada hari ini ditolak 0.5. Kapasiti timesheet 50%.') : L('Leave on this day costs 1. Timesheet capacity is 100%.','Cuti pada hari ini ditolak 1. Kapasiti timesheet 100%.')"></p>
+                            </div>
+                            <div class="uj-ww-full">
+                                <span class="uj-ww-lab" x-text="L('Applies','Berkuat kuasa')">Applies</span>
+                                <div class="uj-ww-segw" role="group" :aria-label="L('Applies','Berkuat kuasa')">
+                                    <button type="button" :aria-pressed="!draft.month" @click="setMonth(null)" x-text="L('Every month','Setiap bulan')">Every month</button>
+                                    <button type="button" :aria-pressed="!!draft.month" @click="setMonth(draft.month || ym(new Date(view.y, view.m, 1)))" x-text="L('One month only','Satu bulan sahaja')">One month only</button>
+                                </div>
+                                <template x-if="draft.month">
+                                    <div style="margin-top:8px;">
+                                        <input type="month" name="month" class="uj-ww-inp" :aria-label="L('Month','Bulan')" :value="draft.month" @change="setMonth($event.target.value)" required>
+                                        <p style="font-size:12.5px;color:var(--muted);margin:6px 0 0;" x-text="L('For that month this replaces the usual ' + dl(draft.weekday - 1) + ' rule. Other months are not touched.', 'Untuk bulan itu, ini menggantikan peraturan ' + dl(draft.weekday - 1) + ' biasa. Bulan lain tidak terjejas.')"></p>
+                                    </div>
+                                </template>
                             </div>
                         </div>
 

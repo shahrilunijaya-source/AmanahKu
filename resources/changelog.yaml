@@ -17,6 +17,28 @@
 # follow-on that finishes what the MINOR release started, rather than opening
 # a new line of work — e.g. 1.7.1 after 1.7, not a fresh 1.8.
 
+- version: "2.2"
+  date: "2026-10-29"
+  entries:
+    - tag: added
+      text: "A special work day can now apply to one month only. Moving one month's Saturday (for example November's TOT to the 2nd Saturday) no longer changes every other month, past ones included."
+      text_ms: "Hari kerja khas kini boleh ditetapkan untuk satu bulan sahaja. Memindahkan Sabtu satu bulan (contohnya TOT November ke Sabtu kedua) tidak lagi mengubah bulan-bulan lain, termasuk bulan yang sudah lepas."
+      link: "/app/settings#work-week"
+      link_text: "Open Work week"
+      link_text_ms: "Buka Minggu bekerja"
+    - tag: fixed
+      text: "The TOT date, its reminders and the default due date for TOT actions now follow the special work day, instead of always assuming the 1st Saturday."
+      text_ms: "Tarikh TOT, peringatannya dan tarikh akhir lalai untuk tindakan TOT kini mengikut hari kerja khas, bukan lagi sentiasa menganggap Sabtu pertama."
+    - tag: fixed
+      text: "Attendance report: when someone clocks in on a day off (for example just after midnight on Friday night), everyone else no longer shows No punch for that day."
+      text_ms: "Laporan kehadiran: apabila seseorang mendaftar masuk pada hari cuti (contohnya selepas tengah malam Jumaat), orang lain tidak lagi ditunjukkan Tiada clock in untuk hari itu."
+    - tag: fixed
+      text: "Leave on a Saturday: the form now counts days the same way approval does. On a half working day a whole day costs 0.5 and morning or afternoon is not offered, and on a day off the form says no leave is needed instead of failing on send."
+      text_ms: "Cuti pada hari Sabtu: borang kini mengira hari sama seperti kelulusan. Pada separuh hari bekerja, cuti sepanjang hari ditolak 0.5 dan pilihan pagi atau petang tidak ditawarkan, dan pada hari cuti borang menyatakan tiada cuti diperlukan, bukan gagal semasa menghantar."
+      link: "/app/leave"
+      link_text: "Open Leave"
+      link_text_ms: "Buka Cuti"
+
 - version: "2.1"
   date: "2026-09-17"
   entries:

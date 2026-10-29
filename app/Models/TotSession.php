@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\Permissions;
+use App\Support\WorkWeek;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -75,18 +76,29 @@ class TotSession extends Model
     }
 
     /**
-     * The session date: the first Saturday of the slot's month. It is computed rather than
-     * stored, so a slot can exist before anybody decides anything about it.
+     * The session date: the month's first Saturday that the company's special work day rules
+     * make a working day (a one-month rule can move it, e.g. Nov 2026 to the 2nd Saturday),
+     * or the first Saturday when no rule covers any. Computed rather than stored, so a slot
+     * can exist before anybody decides anything about it.
      */
-    public static function firstSaturday(int $year, int $month): Carbon
+    public static function totSaturday(int $year, int $month): Carbon
     {
-        return Carbon::parse(sprintf('first saturday of %04d-%02d', $year, $month));
+        $first = Carbon::parse(sprintf('first saturday of %04d-%02d', $year, $month));
+        $workWeek = WorkWeek::for();
+
+        for ($day = $first->copy(); $day->month === $month; $day->addWeek()) {
+            if ($workWeek->specialRule($day) !== null) {
+                return $day;
+            }
+        }
+
+        return $first;
     }
 
     /** Computed, never stored, so a slot can exist before anybody decides anything about it. */
     protected function sessionDate(): Attribute
     {
-        return Attribute::get(fn () => self::firstSaturday($this->year, $this->month));
+        return Attribute::get(fn () => self::totSaturday($this->year, $this->month));
     }
 
     /** Wall-clock start of this slot: the session date at starts_at, or at the usual hour. */

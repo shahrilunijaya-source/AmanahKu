@@ -11,10 +11,13 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * A special work day: one ISO weekday that works on certain weeks of the month, with its own
  * hours. `weeks` holds ordinals 1-4 and -1 for "the last one". `counts` is `half` (leave costs
- * 0.5, timesheet capacity 50%) or `full` (1.0 / 100%). One rule per weekday per company.
+ * 0.5, timesheet capacity 50%) or `full` (1.0 / 100%). `month` ('YYYY-MM') limits the rule to
+ * one month, where it replaces the every-month rule on the same weekday (see WorkWeek). One rule
+ * per weekday per company, plus at most one per weekday per month.
  *
  * @property int $tenant_id
  * @property int $weekday
+ * @property string|null $month
  * @property list<int> $weeks
  * @property string $start_time
  * @property string $end_time
@@ -43,6 +46,10 @@ class WorkDayRule extends Model
     public function matches(CarbonInterface $date): bool
     {
         if ((int) $date->dayOfWeekIso !== (int) $this->weekday) {
+            return false;
+        }
+
+        if ($this->month !== null && $this->month !== $date->format('Y-m')) {
             return false;
         }
 
