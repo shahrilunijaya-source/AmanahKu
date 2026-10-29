@@ -72,7 +72,13 @@ final class WorkWeek
             ? WorkDayRule::withoutGlobalScopes()->where('tenant_id', $this->tenant->getKey())->get()
             : new Collection;
 
-        return $this->rules->first(fn (WorkDayRule $rule) => $rule->matches($day));
+        // A one-month rule owns its weekday for that month: the every-month rule on the same
+        // weekday is skipped there, even on dates the one-month rule does not cover.
+        $monthRules = $this->rules->filter(fn (WorkDayRule $rule) => $rule->month === $day->format('Y-m')
+            && (int) $rule->weekday === (int) $day->dayOfWeekIso);
+
+        return ($monthRules->isNotEmpty() ? $monthRules : $this->rules->whereNull('month'))
+            ->first(fn (WorkDayRule $rule) => $rule->matches($day));
     }
 
     /** A rule day, a listed work day, or the legacy TOT half day. Holidays are the caller's job. */

@@ -46,7 +46,7 @@ trait BuildsSettingsData
             'hrdfOn' => (string) (app(FeatureManager::class)->value($tenant, 'payroll.hrdf') ?? 'off') !== 'off',
             'canManageFeatures' => $canManage,
             // Work week card: special-day rules + the grace minutes the editor's late hint quotes.
-            'workDayRules' => $canManage ? WorkDayRule::orderBy('weekday')->get() : collect(),
+            'workDayRules' => $canManage ? WorkDayRule::orderBy('weekday')->orderBy('month')->get() : collect(),
             'lateGraceMinutes' => (int) ($tenant->late_grace_minutes ?? 0),
             'featureRows' => $canManage ? $this->featureRows($tenant) : [],
             'greetingLines' => $canManage ? $this->greetingLinesOrdered() : collect(),

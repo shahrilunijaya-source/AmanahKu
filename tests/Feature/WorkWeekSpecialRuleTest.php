@@ -99,4 +99,35 @@ class WorkWeekSpecialRuleTest extends TestCase
     {
         $this->assertNull(WorkWeek::for(new Tenant(['work_days' => [1]]))->specialRule(CarbonImmutable::parse('2026-10-03')));
     }
+
+    /** Shahril's November: the usual 1st Saturday moves to the 2nd, for that month only. */
+    public function test_a_one_month_rule_replaces_the_usual_rule_for_that_month_only(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [1]]);
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [2], 'month' => '2026-11', 'end_time' => '14:00']);
+        $week = WorkWeek::for($tenant);
+
+        // October keeps the usual 1st Saturday.
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-10-03')));
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-10-10')));
+        // November: 2nd Saturday works, the usual 1st Saturday does not.
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-11-07')));
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-14')));
+        $this->assertSame('14:00', $week->specialRule(CarbonImmutable::parse('2026-11-14'))?->endHhmm());
+        // December is back to normal.
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-12-05')));
+        $this->assertFalse($week->isWorkingDay(CarbonImmutable::parse('2026-12-12')));
+    }
+
+    public function test_a_one_month_rule_only_overrides_its_own_weekday(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [1]]);
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weekday' => 7, 'weeks' => [2], 'month' => '2026-11']);
+        $week = WorkWeek::for($tenant);
+
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-07')));
+        $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-08')));
+    }
 }
