@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\LeaveRequest;
+use App\Models\PublicHoliday;
 use App\Models\Tenant;
 use App\Models\WorkDayRule;
 use App\Support\WorkWeek;
@@ -129,5 +130,22 @@ class WorkWeekSpecialRuleTest extends TestCase
 
         $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-07')));
         $this->assertTrue($week->isWorkingDay(CarbonImmutable::parse('2026-11-08')));
+    }
+
+    /** The leave form's day preview reads this map, so it must match countDays() day by day. */
+    public function test_day_fractions_lists_what_each_working_day_costs(): void
+    {
+        $tenant = $this->tenant();
+        WorkDayRule::factory()->create(['tenant_id' => $tenant->id, 'weeks' => [2]]);
+        PublicHoliday::create(['tenant_id' => $tenant->id, 'name' => 'Deepavali', 'date' => '2026-11-09']);
+        app(CurrentTenant::class)->set($tenant);
+
+        // Fri 6 .. Mon 16 Nov 2026: Sat 7 off, Sun 8 off, Mon 9 holiday, Sat 14 is the ruled half day.
+        $this->assertSame(
+            ['2026-11-06' => 1.0, '2026-11-10' => 1.0, '2026-11-11' => 1.0, '2026-11-12' => 1.0,
+                '2026-11-13' => 1.0, '2026-11-14' => 0.5, '2026-11-16' => 1.0],
+            LeaveRequest::dayFractions(Carbon::parse('2026-11-06'), Carbon::parse('2026-11-16')),
+        );
+        $this->assertSame(6.5, LeaveRequest::countDays(Carbon::parse('2026-11-06'), Carbon::parse('2026-11-16')));
     }
 }

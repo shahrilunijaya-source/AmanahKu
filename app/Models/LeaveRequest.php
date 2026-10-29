@@ -78,6 +78,19 @@ class LeaveRequest extends Model
             return (float) ($from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1);
         }
 
+        return (float) array_sum(self::dayFractions($from, $to));
+    }
+
+    /**
+     * What a whole-day leave costs on each date from $from to $to, listing only the dates
+     * that cost something: 1.0 on a work day, 0.5 on a half day. Days off and the tenant's
+     * public holidays are left out. The leave form previews from this map, so the browser
+     * and countDays() can never disagree.
+     *
+     * @return array<string, float> Y-m-d => fraction
+     */
+    public static function dayFractions(Carbon $from, Carbon $to): array
+    {
         $holidays = PublicHoliday::whereDate('date', '>=', $from->toDateString())
             ->whereDate('date', '<=', $to->toDateString())
             ->pluck('date')
@@ -86,14 +99,14 @@ class LeaveRequest extends Model
 
         $workWeek = WorkWeek::for();
 
-        $days = 0.0;
+        $fractions = [];
         for ($date = $from->copy(); $date->lte($to); $date->addDay()) {
-            if ($holidays->has($date->toDateString())) {
-                continue;
+            $fraction = $holidays->has($date->toDateString()) ? 0.0 : $workWeek->dayFraction($date);
+            if ($fraction > 0) {
+                $fractions[$date->toDateString()] = $fraction;
             }
-            $days += $workWeek->dayFraction($date);
         }
 
-        return $days;
+        return $fractions;
     }
 }
