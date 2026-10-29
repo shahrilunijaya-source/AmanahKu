@@ -68,9 +68,10 @@
         'to' => $l->date_to->toDateString(),
     ])->filter(fn ($r) => $r['name'])->values()->all();
 
-    // Public holidays cost no leave; the preview needs them to match countDays().
-    $holidayDates = \App\Models\PublicHoliday::whereDate('date', '>=', now()->subYear()->toDateString())
-        ->pluck('date')->map(fn ($d) => $d->toDateString())->values()->all();
+    // What a whole day of leave costs on each date (work days 1, special half days 0.5; days
+    // off and public holidays absent), from the same code as countDays(), so the preview can
+    // never disagree with the server.
+    $dayFractions = \App\Models\LeaveRequest::dayFractions(now()->subYear()->startOfDay(), now()->addYears(2)->startOfDay());
 
     // The four types an employee actually reaches for. The other six are a click away
     // rather than in a ten-row dropdown that buries the common case.
@@ -103,7 +104,7 @@
 <form id="apply-leave" method="post" action="{{ route('leave.store') }}" enctype="multipart/form-data" x-data="{
         meta: @js($applyMeta),
         team: @js($teamRanges),
-        holidays: @js($holidayDates),
+        frac: @js((object) $dayFractions),
         sel: @js($selInit ? (int) $selInit : null),
         step: @js($selInit ? 2 : 1),
         showAll: @js($rest->isNotEmpty() && $selInit && $rest->contains('id', (int) $selInit)),
@@ -147,16 +148,16 @@
             if (this.dateTo && this.dateFrom && this.dateTo < this.dateFrom) this.dateTo = this.dateFrom;
             // A half day cannot span a range; drop the marker so a multi-day request
             // always posts whole days, the same combination the server rejects.
-            if (!this.single()) this.half = '';
+            if (!this.single() || this.dayCost() !== 1) this.half = '';
         },
+        /** What a whole day of leave costs on the first picked date: 1, 0.5, or 0 for a day off. */
+        dayCost() { return this.frac[this.dateFrom] || 0; },
         single() { return !!this.dateFrom && this.dateFrom === this.dateTo; },
 
         /**
-         * Working days inclusive, or 0.5 for a half day — the same arithmetic as
-         * LeaveRequest::countDays(): Mon–Fri count 1, the TOT Saturday (first Saturday
-         * of the month, Unijaya's half working day) counts 0.5, and Sundays, ordinary
-         * Saturdays and public holidays count nothing. A calendar-day type (maternity)
-         * counts every day in the range.
+         * Working days inclusive, or 0.5 for a half day, summed from the server's per-date
+         * map (see LeaveRequest::dayFractions()). A calendar-day type (maternity) counts
+         * every day in the range.
          */
         days() {
             if (!this.dateFrom || !this.dateTo) return 0;
@@ -164,11 +165,7 @@
             if (this.t()?.calendar) return Math.round((new Date(this.dateTo + 'T00:00') - new Date(this.dateFrom + 'T00:00')) / 86400000) + 1;
             let total = 0;
             for (let d = new Date(this.dateFrom + 'T00:00'); d <= new Date(this.dateTo + 'T00:00'); d.setDate(d.getDate() + 1)) {
-                const dow = d.getDay();
-                const ymd = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                if (this.holidays.includes(ymd)) continue;
-                if (dow === 6 && d.getDate() <= 7) total += 0.5;
-                else if (dow >= 1 && dow <= 5) total += 1;
+                total += this.frac[this.ymd(d)] || 0;
             }
             return total;
         },
@@ -351,7 +348,9 @@
                     </div>
                 </div>
 
-                <div x-show="single()" x-cloak style="margin-top:14px;">
+                {{-- Morning/afternoon only on a full working day: the server refuses a half of a
+                     half day or of a day off, so the form does not offer it. --}}
+                <div x-show="single() && (dayCost() === 1 || half)" x-cloak style="margin-top:14px;">
                     <span class="uj-lv-field" x-text="$store.ui.lang==='en' ? 'How much of that day?' : 'Berapa banyak hari itu?'">How much of that day?</span>
                     <div class="uj-lv-half">
                         <button type="button" :data-on="half === '' ? '' : null" @click="half = ''"
@@ -366,6 +365,15 @@
                     </div>
                     <input type="hidden" name="half_day_period" :value="half">
                 </div>
+
+                <div class="uj-lv-note" data-tone="info" x-show="single() && dayCost() === 0.5 && !(t() && t().calendar)" x-cloak style="margin-top:14px;"
+                     x-text="$store.ui.lang==='en'
+                        ? 'This is a half working day already, so a whole day of leave here costs 0.5.'
+                        : 'Hari ini sudah separuh hari bekerja, jadi cuti sepanjang hari di sini ditolak 0.5.'"></div>
+                <div class="uj-lv-note" data-tone="warn" x-show="dateFrom && dateTo && !days() && !(t() && t().calendar)" x-cloak style="margin-top:14px;"
+                     x-text="$store.ui.lang==='en'
+                        ? (single() ? 'That is not a working day (a day off or public holiday), so no leave is needed.' : 'None of these days are working days, so no leave is needed.')
+                        : (single() ? 'Itu bukan hari bekerja (hari cuti atau cuti umum), jadi tiada cuti diperlukan.' : 'Tiada satu pun hari ini hari bekerja, jadi tiada cuti diperlukan.')"></div>
 
                 {{-- What it costs, against what is left. --}}
                 <div class="uj-lv-reckon" x-show="days() > 0" x-cloak>

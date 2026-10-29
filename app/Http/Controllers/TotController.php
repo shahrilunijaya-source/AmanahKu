@@ -303,7 +303,7 @@ class TotController extends Controller
         // imported rows, so a session marked done through the UI carries a date too. Only
         // fills a still-blank value: HR can override it afterwards and that override sticks.
         if (! $wasDone && $session->status === 'done' && $session->held_on === null) {
-            $session->held_on = TotSession::firstSaturday((int) $session->year, (int) $session->month)->toDateString();
+            $session->held_on = TotSession::totSaturday((int) $session->year, (int) $session->month)->toDateString();
         }
 
         $session->save();
@@ -1413,7 +1413,7 @@ class TotController extends Controller
             ->all();
     }
 
-    /** The first Saturday of the month after the session's own month/year. */
+    /** The TOT Saturday of the month after the session's own month/year. */
     private function nextTotSaturdayAfter(TotSession $session): Carbon
     {
         $month = (int) $session->month + 1;
@@ -1423,7 +1423,7 @@ class TotController extends Controller
             $year++;
         }
 
-        return TotSession::firstSaturday($year, $month);
+        return TotSession::totSaturday($year, $month);
     }
 
     /**

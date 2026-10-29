@@ -267,4 +267,28 @@ class AttendanceLedgerRowsTest extends TestCase
         $this->assertNull($rows->firstWhere('date', '2026-08-17')['recordId'],
             'a synthesized no-punch row has nothing to reverse');
     }
+
+    /**
+     * Diba, 10 Oct: three people punched just after midnight on Friday night, which put the
+     * Saturday in the report's day list. Nobody else was meant to work it, so nobody else
+     * gets a "no punch" row for it.
+     */
+    public function test_someone_elses_punch_on_a_day_off_does_not_mark_everyone_absent(): void
+    {
+        $bob = Employee::create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Bob Lim',
+            'status' => 'active', 'workload' => 'green',
+        ]);
+        AttendanceRecord::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $bob->id,
+            'date' => '2026-08-15', 'clock_in' => '00:29:00', 'clock_out' => '00:30:00',
+            'status' => 'on_time', 'worked_minutes' => 1, 'flags' => [],
+        ]);
+        $this->days = ['2026-08-14', '2026-08-15'];
+
+        $rows = $this->build();
+
+        $this->assertSame(['2026-08-14'], $rows->where('employeeId', $this->alice->id)->pluck('date')->values()->all());
+        $this->assertSame(['2026-08-14', '2026-08-15'], $rows->where('employeeId', $bob->id)->pluck('date')->values()->all());
+    }
 }
