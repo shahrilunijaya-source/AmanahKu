@@ -149,8 +149,11 @@ away.** The merge is done and does not need repeating.
    store separate from the database.
 2. **Never run `git clean` on the server.** An untracked `.htaccess` lives there and must
    survive. `git pull` leaves it alone; `git clean` deletes it.
-3. **Take a `mysqldump` before any deploy that migrates.** Migrations are forward-only and
-   run automatically under `--force`.
+3. **Every deploy that migrates is dumped first.** Migrations are forward-only and run
+   automatically under `--force`, so `deploy.sh` dumps the database to
+   `storage/app/backups/pre-migrate-<timestamp>.sql` before migrating (last five kept) and
+   refuses to migrate if the dump fails. Both the staging pipeline and the prod deploy job run
+   `deploy.sh`. Anything that migrates outside `deploy.sh` needs its own `mysqldump` first.
 4. **`public/build` is committed on purpose.** Do not "clean up" that gitignore exception.
    The host builds nothing.
 5. **Run `php artisan view:cache` before `bun run build`.** Tailwind scans the compiled Blade
