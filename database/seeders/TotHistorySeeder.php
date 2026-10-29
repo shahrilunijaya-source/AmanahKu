@@ -145,7 +145,7 @@ class TotHistorySeeder extends Seeder
                         'title' => $title,
                         'status' => $status,
                         'held_on' => $status === 'done'
-                            ? TotSession::firstSaturday($year, $month)->toDateString()
+                            ? TotSession::totSaturday($year, $month)->toDateString()
                             : null,
                         'links' => $links === []
                             ? null

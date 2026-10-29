@@ -247,7 +247,7 @@ trait BuildsNav
             if (! $s->isPresentedBy($employee)) {
                 return false;
             }
-            $date = TotSession::firstSaturday($s->year, $s->month);
+            $date = TotSession::totSaturday($s->year, $s->month);
 
             // The session date is midnight, so a plain isFuture() would go quiet on the
             // morning of the session itself — compare against the end of that day.

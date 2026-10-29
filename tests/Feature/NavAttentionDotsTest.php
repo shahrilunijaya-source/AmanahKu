@@ -217,7 +217,7 @@ class NavAttentionDotsTest extends TestCase
         $this->settleKnowledge($me);
 
         // Pretend today IS the first Saturday of this month.
-        $this->travelTo(TotSession::firstSaturday((int) now()->year, (int) now()->month)->setTime(9, 0));
+        $this->travelTo(TotSession::totSaturday((int) now()->year, (int) now()->month)->setTime(9, 0));
 
         TotSession::create([
             'tenant_id' => $this->tenant->id, 'year' => (int) now()->year, 'month' => (int) now()->month,
@@ -254,7 +254,7 @@ class NavAttentionDotsTest extends TestCase
     {
         $cursor = now()->startOfMonth();
         for ($i = 0; $i < 24; $i++) {
-            $date = TotSession::firstSaturday((int) $cursor->year, (int) $cursor->month);
+            $date = TotSession::totSaturday((int) $cursor->year, (int) $cursor->month);
             if ($date->isFuture()) {
                 $this->travelTo($date->copy()->subWeek()->setTime(9, 0));
 

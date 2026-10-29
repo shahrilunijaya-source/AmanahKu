@@ -70,7 +70,7 @@ class TotReminder extends Command
             ->get();
 
         foreach ($slots as $slot) {
-            $date = TotSession::firstSaturday((int) $slot->year, (int) $slot->month);
+            $date = TotSession::totSaturday((int) $slot->year, (int) $slot->month);
             $url = route('app.screen', 'tot').'?year='.$slot->year;
 
             // Compare whole days by walking back from the session date rather than by
