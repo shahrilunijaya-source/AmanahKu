@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 /**
- * approvals:verify-digest sends each manager ONE email listing every leave and claim
- * still waiting for their verification, instead of one email per request.
+ * approvals:verify-digest sends each manager and final approver ONE email listing every
+ * leave and claim waiting on them, instead of one email per request.
  */
 class VerifyDigestTest extends TestCase
 {
@@ -79,9 +79,9 @@ class VerifyDigestTest extends TestCase
 
         Notification::assertSentToTimes($this->managerUser, VerifyDigest::class, 1);
         Notification::assertSentTo($this->managerUser, VerifyDigest::class, function (VerifyDigest $n, array $channels) {
-            $kinds = array_column($n->items(), 'kind');
+            $kinds = array_column($n->items()['verify'], 'kind');
 
-            return $channels === ['mail'] && $kinds === ['Leave', 'Leave', 'Claim'];
+            return $channels === ['mail'] && $kinds === ['Leave', 'Leave', 'Claim'] && $n->items()['approve'] === [];
         });
     }
 
@@ -91,7 +91,7 @@ class VerifyDigestTest extends TestCase
 
         $this->artisan('approvals:verify-digest')->assertSuccessful();
 
-        Notification::assertSentTo($this->dottedUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()) === 3);
+        Notification::assertSentTo($this->dottedUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()['verify']) === 3);
     }
 
     public function test_nobody_without_pending_items_is_emailed(): void
@@ -126,8 +126,54 @@ class VerifyDigestTest extends TestCase
 
         $this->artisan('approvals:verify-digest')->assertSuccessful();
 
-        Notification::assertSentTo($this->managerUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()) === 3);
-        Notification::assertSentTo($otherManagerUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()) === 1);
+        Notification::assertSentTo($this->managerUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()['verify']) === 3);
+        Notification::assertSentTo($otherManagerUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()['verify']) === 1);
+    }
+
+    public function test_final_approvers_get_verified_items_only(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+        [$hrUser] = $this->person('Hr', role: 'hr');
+        app(CurrentTenant::class)->set(null);
+        Notification::fake();
+
+        $this->artisan('approvals:verify-digest')->assertSuccessful();
+
+        Notification::assertSentTo($hrUser, VerifyDigest::class, function (VerifyDigest $n) {
+            return $n->items()['verify'] === []
+                && array_column($n->items()['approve'], 'kind') === ['Leave', 'Claim'];
+        });
+    }
+
+    public function test_approver_does_not_get_their_own_request_or_one_they_verified(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+        [$directorUser, $director] = $this->person('Director', role: 'director');
+        [, $other] = $this->person('Other', role: 'hr');
+        LeaveRequest::query()->where('status', 'verified')->update(['verified_by_id' => $director->id]);
+        $this->claim($director, 'verified');
+        app(CurrentTenant::class)->set(null);
+        Notification::fake();
+
+        $this->artisan('approvals:verify-digest')->assertSuccessful();
+
+        // Only the worker's verified claim is left: the leave they verified and their own claim drop out.
+        Notification::assertSentTo($directorUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()['approve']) === 1
+            && $n->items()['approve'][0]['who'] === 'Worker');
+    }
+
+    public function test_someone_who_verifies_and_approves_gets_one_email_with_both(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->tenant->users()->updateExistingPivot($this->managerUser->id, ['role' => 'director']);
+        app(CurrentTenant::class)->set(null);
+        Notification::fake();
+
+        $this->artisan('approvals:verify-digest')->assertSuccessful();
+
+        Notification::assertSentToTimes($this->managerUser, VerifyDigest::class, 1);
+        Notification::assertSentTo($this->managerUser, VerifyDigest::class, fn (VerifyDigest $n) => count($n->items()['verify']) === 3
+            && count($n->items()['approve']) === 2);
     }
 
     public function test_email_lists_the_items(): void
@@ -138,8 +184,20 @@ class VerifyDigestTest extends TestCase
         ]))->toMail($this->managerUser);
 
         $this->assertSame('2 requests awaiting your verification', $mail->subject);
+        $this->assertSame(
+            '1 request awaiting your approval',
+            (new VerifyDigest([], [['kind' => 'Claim', 'who' => 'W', 'what' => 'Taxi', 'since' => now()]]))->toMail($this->managerUser)->subject,
+        );
         $this->assertStringContainsString('Taxi · RM 100.00', implode("\n", $mail->introLines));
-        $this->assertSame(route('app.screen', 'leave'), $mail->actionUrl);
+        // Both kinds: two matching buttons instead of one button plus a text link.
+        $html = (string) $mail->render();
+        $this->assertNull($mail->actionUrl);
+        $this->assertStringContainsString('href="'.route('app.screen', 'leave').'"', $html);
+        $this->assertStringContainsString('href="'.route('app.screen', 'claims').'"', $html);
+
+        // One kind only: the normal single button.
+        $single = (new VerifyDigest([['kind' => 'Claim', 'who' => 'W', 'what' => 'Taxi', 'since' => now()]]))->toMail($this->managerUser);
+        $this->assertSame(route('app.screen', 'claims'), $single->actionUrl);
     }
 
     private function makeTenant(string $slug): Tenant
@@ -148,11 +206,11 @@ class VerifyDigestTest extends TestCase
     }
 
     /** @return array{User, Employee} */
-    private function person(string $name, ?Employee $reportsTo = null, ?Tenant $tenant = null): array
+    private function person(string $name, ?Employee $reportsTo = null, ?Tenant $tenant = null, ?string $role = null): array
     {
         $tenant ??= $this->tenant;
         $user = User::create(['name' => $name, 'email' => str($name)->slug().'@'.$tenant->slug.'.test', 'password' => Hash::make('password')]);
-        $user->tenants()->attach($tenant->id, ['role' => $reportsTo ? 'employee' : 'manager']);
+        $user->tenants()->attach($tenant->id, ['role' => $role ?? ($reportsTo ? 'employee' : 'manager')]);
 
         $employee = Employee::create([
             'tenant_id' => $tenant->id, 'user_id' => $user->id, 'name' => $name,
