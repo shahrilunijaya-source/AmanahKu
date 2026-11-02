@@ -98,7 +98,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // MailPort intent per tenant. Idempotent per tenant per day, so a retry is safe.
         $schedule->command('management:digest')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('management:digest'));
-        // One email per manager listing the leave + claims still awaiting their verification
+        // One email per manager / final approver listing the leave + claims waiting on them
         // (HR asked for email, grouped, instead of one mail per request).
         $schedule->command('approvals:verify-digest')->dailyAt('08:00')
             ->withoutOverlapping()->onFailure($onFailure('approvals:verify-digest'));
