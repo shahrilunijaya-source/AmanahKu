@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\HtmlString;
 
 /**
  * One email listing every leave and claim waiting on this person: the ones they must
@@ -54,16 +55,18 @@ class VerifyDigest extends Notification implements ShouldQueue
         }
 
         $kinds = array_values(array_unique(array_column([...$this->toVerify, ...$this->toApprove], 'kind')));
-        $first = in_array('Leave', $kinds, true) ? 'leave' : 'claims';
+        $screens = array_map(fn (string $kind): string => $kind === 'Leave' ? 'leave' : 'claims', $kinds);
 
-        $mail->action('Open '.$first, route('app.screen', $first));
-
-        // Both kinds pending: the button opens leave and a plain link covers claims.
-        if (count($kinds) > 1) {
-            $mail->line('Claims: '.route('app.screen', 'claims'));
+        if (count($screens) === 1) {
+            return $mail->action('Open '.$screens[0], route('app.screen', $screens[0]));
         }
 
-        return $mail;
+        // MailMessage allows one action, so with both kinds pending the two buttons are drawn
+        // with the mail theme's own button classes and look the same as the action button.
+        $buttons = collect($screens)->map(fn (string $screen): string => '<a href="'.e(route('app.screen', $screen))
+            .'" class="button button-primary" target="_blank" rel="noopener" style="margin: 0 6px;">Open '.$screen.'</a>')->implode('');
+
+        return $mail->line(new HtmlString('<div style="text-align: center; margin: 24px 0;">'.$buttons.'</div>'));
     }
 
     /**

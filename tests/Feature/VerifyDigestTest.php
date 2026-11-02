@@ -189,7 +189,15 @@ class VerifyDigestTest extends TestCase
             (new VerifyDigest([], [['kind' => 'Claim', 'who' => 'W', 'what' => 'Taxi', 'since' => now()]]))->toMail($this->managerUser)->subject,
         );
         $this->assertStringContainsString('Taxi · RM 100.00', implode("\n", $mail->introLines));
-        $this->assertSame(route('app.screen', 'leave'), $mail->actionUrl);
+        // Both kinds: two matching buttons instead of one button plus a text link.
+        $html = (string) $mail->render();
+        $this->assertNull($mail->actionUrl);
+        $this->assertStringContainsString('href="'.route('app.screen', 'leave').'"', $html);
+        $this->assertStringContainsString('href="'.route('app.screen', 'claims').'"', $html);
+
+        // One kind only: the normal single button.
+        $single = (new VerifyDigest([['kind' => 'Claim', 'who' => 'W', 'what' => 'Taxi', 'since' => now()]]))->toMail($this->managerUser);
+        $this->assertSame(route('app.screen', 'claims'), $single->actionUrl);
     }
 
     private function makeTenant(string $slug): Tenant
