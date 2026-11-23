@@ -81,7 +81,15 @@
             <span style="font-size:13px;color:var(--body);">{{ $e->branch?->name }}</span>
             @if ($canSeeSalary ?? false)<span style="font-size:12.5px;color:var(--body);font-family:var(--font-mono);">{{ $e->salary ? 'RM '.number_format((float) $e->salary, 0) : '—' }}</span>@endif
             <span style="font-size:12px;font-weight:600;color:{{ $stColor }};">{{ $stLabel }}</span>
-            @if ($isArchived)
+            @if ($isArchived && ! $e->archived_at)
+            {{-- Resigned but never archived (no offboarding case closed them out): offer the archive step itself, which also detaches their login and reporting lines. --}}
+            <div style="display:flex;gap:8px;align-items:center;">
+                <form method="post" action="{{ route('employees.destroy', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Archive '.$e->name.'?') : @js('Arkibkan '.$e->name.'?'), body: $store.ui.lang==='en' ? 'They have resigned. Archiving closes their login and hands any open work to their manager.' : 'Mereka telah berhenti. Mengarkib menutup log masuk mereka dan menyerahkan kerja terbuka kepada pengurus.', ok: $store.ui.lang==='en' ? 'Archive' : 'Arkibkan' })">
+                    @csrf
+                    <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Archive' : 'Arkibkan'">Archive</span></button>
+                </form>
+            </div>
+            @elseif ($isArchived)
             <div style="display:flex;gap:8px;align-items:center;">
                 <form method="post" action="{{ route('employees.restore', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Restore '.$e->name.'?') : @js('Pulihkan '.$e->name.'?'), body: $store.ui.lang==='en' ? 'They go back into the directory and every staff picker.' : 'Mereka kembali ke direktori dan setiap pemilih staf.', ok: $store.ui.lang==='en' ? 'Restore' : 'Pulihkan' })">
                     @csrf

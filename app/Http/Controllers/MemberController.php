@@ -57,8 +57,8 @@ class MemberController extends Controller
         // directory or CSV import, which create login-less records). Inviting them must
         // attach a login to that EXISTING row, not mint a second Employee for the same
         // person — the AK-DB-03 duplicate that stranded a directory record on 2026-07-23.
-        // Active-only + tenant-scoped, mirroring EmployeeController's uniqueness rule.
-        $existing = Employee::active()->where('email', $data['email'])->first();
+        // Not-archived (resigned included) + tenant-scoped, mirroring EmployeeController's uniqueness rule.
+        $existing = Employee::query()->whereNull('archived_at')->where('email', $data['email'])->first();
         if ($existing) {
             $result = $this->provisionFor($existing, $tenant, $data['role']);
 
