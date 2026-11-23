@@ -86,6 +86,113 @@ final class ProjectMaster
         };
     }
 
+    /** Filler words a project name often carries that say nothing about which job it is. */
+    private const NAME_NOISE_WORDS = ['poc', 'tu'];
+
+    /**
+     * Stops a new project that is already on the register under a slightly different name.
+     * Names are typed by hand ("JKDM : MyCustoms", "JKDM: MyCustoms"), so the unique rule on
+     * the exact name misses most real duplicates.
+     *
+     * Same name once case, spaces and punctuation are ignored: blocked outright. A close
+     * match (a couple of letters off, or one name inside the other, judged on the whole
+     * name and on the part after the agency colon, filler words dropped): blocked until
+     * the caller sends $confirmed, which the add form does after the person says yes.
+     * Names carrying different numbers ("KPT: RMS" and "KPT: RMS 2", "DevStage01" and
+     * "DevStage02") are numbered follow-on jobs, not near misses, and pass without asking.
+     * Inactive and closed projects count, so an old job is not added a second time.
+     *
+     * @throws ValidationException
+     */
+    public function guardAgainstDuplicate(int $tenantId, string $name, bool $confirmed): void
+    {
+        $plain = self::plainName($name);
+        $keys = self::nameKeys($name);
+        $digits = self::digitsOf($name);
+        $similar = [];
+
+        // ponytail: compares against every project in PHP, fine for a register of hundreds;
+        // move the cheap exact half into a stored normalised column if it reaches thousands.
+        foreach (Project::withoutGlobalScopes()->where('tenant_id', $tenantId)->pluck('name') as $existing) {
+            if ($plain !== '' && self::plainName($existing) === $plain) {
+                throw ValidationException::withMessages([
+                    'name' => '"'.$existing.'" is already on the register. Use that project instead of adding it again.',
+                ]);
+            }
+
+            if (! $confirmed && self::digitsOf($existing) === $digits
+                && self::namesAreClose($keys, self::nameKeys($existing))) {
+                $similar[] = $existing;
+            }
+        }
+
+        if ($similar !== []) {
+            throw ValidationException::withMessages([
+                'confirm_duplicate' => 'Similar projects are already on the register: '.implode(', ', $similar).'. Add "'.$name.'" anyway?',
+            ]);
+        }
+    }
+
+    /** Every digit in a name, in order: "Phase 02" gives "02". */
+    private static function digitsOf(string $name): string
+    {
+        return (string) preg_replace('/\D/', '', $name);
+    }
+
+    /** Lowercase letters and digits only: "JKDM : MyCustoms" and "jkdm:mycustoms" agree. */
+    private static function plainName(string $name): string
+    {
+        return (string) preg_replace('/[^a-z0-9]/', '', mb_strtolower($name));
+    }
+
+    /**
+     * The forms of a name worth comparing: the whole name and the part after the agency
+     * colon ("KDN : TU Gitlab" gives "kdngitlab" and "gitlab"), filler words dropped.
+     *
+     * @return list<string>
+     */
+    private static function nameKeys(string $name): array
+    {
+        $colon = mb_strpos($name, ':');
+        $parts = $colon === false ? [$name] : [$name, mb_substr($name, $colon + 1)];
+
+        $keys = [];
+        foreach ($parts as $part) {
+            $words = preg_split('/[^a-z0-9]+/', mb_strtolower($part), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $key = implode('', array_diff($words, self::NAME_NOISE_WORDS));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * Close enough to ask about: equal, at most one letter in five different (names of
+     * five letters or more), or one inside the other (four letters or more).
+     *
+     * @param  list<string>  $left
+     * @param  list<string>  $right
+     */
+    private static function namesAreClose(array $left, array $right): bool
+    {
+        foreach ($left as $a) {
+            foreach ($right as $b) {
+                $longest = max(strlen($a), strlen($b));
+                $shortest = min(strlen($a), strlen($b));
+
+                if ($a === $b
+                    || ($longest >= 5 && levenshtein($a, $b) <= max(1, intdiv($longest, 5)))
+                    || ($shortest >= 4 && (str_contains($a, $b) || str_contains($b, $a)))) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function create(int $tenantId, array $data, ?Employee $by, ?int $userId): Project
     {
         $data['tenant_id'] = $tenantId;
