@@ -27,9 +27,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The Projects register: every project in the tenant plus the shared sub-pillar
- * list they all draw on. Readable by anyone signed in; written by manager,
- * management and HR (director folds into management) — the master fields added
- * by CR-06a narrow that further per field, see App\Projects\ProjectMaster.
+ * list they all draw on. Readable by anyone signed in; written by whoever holds
+ * `project.manage`: manager, management and HR by default (director folds into
+ * management), plus anyone HR grants it to one person at a time on the permission
+ * override screen, which is how a Project Exec on the employee role gets in. The
+ * master fields added by CR-06a narrow that further per field, see
+ * App\Projects\ProjectMaster.
  *
  * Split out of TimesheetAdminController because the edit roles diverged —
  * categories stay management/HR, projects admit managers. Records in use are
@@ -39,6 +42,9 @@ class ProjectController extends Controller
 {
     private const EDITOR_ROLES = ['manager', 'management', 'hr'];
 
+    /** Request attribute caching the project.manage answer, so one request asks the DB once. */
+    private const CAN_MANAGE_ATTR = 'canManageProjects';
+
     public function __construct(
         private readonly ProjectMaster $projectMaster,
         private readonly ProjectVariations $projectVariations,
@@ -47,7 +53,8 @@ class ProjectController extends Controller
     /** Data for the Projects screen. */
     public function screenData(Request $request): array
     {
-        $role = $this->tenantRole($request);
+        $canManage = $this->canManage($request);
+        $role = $canManage ? $this->projectRole($request) : $this->tenantRole($request);
 
         return [
             'projects' => Project::with(['categories', 'versions.createdBy', 'variations.decidedBy'])
@@ -60,7 +67,7 @@ class ProjectController extends Controller
             // to, or saving an unrelated field would silently drop that link.
             'addCategories' => $this->projectCategories()->where('is_active', true)->values(),
             'projectCategories' => $this->projectCategories(),
-            'canEdit' => $this->hasTenantRole($request, self::EDITOR_ROLES),
+            'canEdit' => $canManage,
             'employees' => $this->employeePickerList(),
             'editableFields' => $role ? $this->projectMaster->editableFields($role) : [],
             'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
@@ -84,6 +91,13 @@ class ProjectController extends Controller
         $categories = $data['categories'] ?? [];
         unset($data['categories'], $data['effective_date'], $data['reason']);
 
+        // A per-person grant (a Project Exec on the employee role) lets someone in as a
+        // project manager would be, never as finance: the money fields wait for HR or a
+        // director. Editor roles keep creating exactly as before.
+        if (! $this->hasTenantRole($request, self::EDITOR_ROLES)) {
+            $data = array_diff_key($data, array_flip(ProjectMaster::FINANCE_FIELDS));
+        }
+
         $project = $this->projectMaster->create(
             app(CurrentTenant::class)->id(),
             $data,
@@ -103,9 +117,9 @@ class ProjectController extends Controller
                     // Same list as the initial render: without it the appended row's edit
                     // form offers only "— none —" and the first save wipes PM and PE.
                     'employees' => $this->employeePickerList(),
-                    'editableFields' => $this->projectMaster->editableFields((string) $this->tenantRole($request)),
+                    'editableFields' => $this->projectMaster->editableFields($this->projectRole($request)),
                     'canReopen' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
-                    'canRaiseVariation' => ProjectMaster::financeAuthorized((string) $this->tenantRole($request)),
+                    'canRaiseVariation' => ProjectMaster::financeAuthorized($this->projectRole($request)),
                     'canDecideVariation' => $this->hasTenantRole($request, Permissions::MANAGEMENT_TIER),
                     'canRaiseBigDeal' => $this->hasTenantRole($request, ['manager', 'hr', 'management', 'director']),
                 ])->render(),
@@ -136,7 +150,7 @@ class ProjectController extends Controller
         $version = $this->projectMaster->update(
             $project,
             $data,
-            (string) $this->tenantRole($request),
+            $this->projectRole($request),
             Auth::id(),
             $effectiveDate,
             $reason,
@@ -488,7 +502,38 @@ class ProjectController extends Controller
 
     private function authorizeEditor(Request $request): void
     {
-        $this->authorizeTenantRole($request, self::EDITOR_ROLES);
+        abort_unless($this->canManage($request), 403);
+    }
+
+    /**
+     * Whether the acting user may add, edit, archive and delete projects and sub-pillars:
+     * `project.manage` after role and per-user overrides, so a grant lets a Project Exec
+     * in and a deny can shut a manager out. A super admin looking around a tenant
+     * resolves to management (User::roleIn), which holds it.
+     */
+    private function canManage(Request $request): bool
+    {
+        if (! $request->attributes->has(self::CAN_MANAGE_ATTR)) {
+            $tenant = app(CurrentTenant::class)->get();
+            $request->attributes->set(
+                self::CAN_MANAGE_ATTR,
+                $tenant !== null && $request->user()?->canInTenant($tenant, 'project.manage') === true,
+            );
+        }
+
+        return (bool) $request->attributes->get(self::CAN_MANAGE_ATTR);
+    }
+
+    /**
+     * The role the project-master field rules should see. An editor role is used as it
+     * is; someone let in by a per-user `project.manage` grant (a Project Exec on the
+     * employee role) is treated as a manager: PM fields yes, finance fields no.
+     */
+    private function projectRole(Request $request): string
+    {
+        return $this->hasTenantRole($request, self::EDITOR_ROLES)
+            ? (string) $this->tenantRole($request)
+            : 'manager';
     }
 
     /**

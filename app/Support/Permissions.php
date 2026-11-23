@@ -91,6 +91,7 @@ class Permissions
             'attendance.view', 'attendance.manage',
             'report.view',
             'event.create',
+            'project.manage',
         ],
         'management' => [
             'company.view', 'company.update',
@@ -103,6 +104,7 @@ class Permissions
             'role.view', 'role.manage',
             'tot.assign',
             'event.create',
+            'project.manage',
             'report.view', 'report.export',
         ],
         'hr' => [
@@ -116,6 +118,7 @@ class Permissions
             'role.view', 'role.manage',
             'tot.assign',
             'event.create',
+            'project.manage',
             'report.view', 'report.export',
         ],
     ];
@@ -217,8 +220,9 @@ class Permissions
     /**
      * Permissions that a per-user override can actually change. An override only bites where
      * a controller gates on canInTenant(): the staff domain (EmployeeController
-     * create/update/import), the TOT presenter field (TotController) and event creation
-     * (EventController::store). The override UI and
+     * create/update/import), the TOT presenter field (TotController), event creation
+     * (EventController::store) and the Projects register (ProjectController, so a Project
+     * Exec on the employee role can be let in one person at a time). The override UI and
      * writer are scoped to this set so admins are never shown, or able to save, a toggle that
      * does nothing (AK-AUTHZ-04). Widen this list only in lockstep with new canInTenant()
      * enforcement.
@@ -227,7 +231,7 @@ class Permissions
      */
     public static function overridable(): array
     {
-        return ['staff.create', 'staff.update', 'staff.import', 'tot.assign', 'event.create'];
+        return ['staff.create', 'staff.update', 'staff.import', 'tot.assign', 'event.create', 'project.manage'];
     }
 
     /** overridable() grouped by domain (the part before the dot), for the override UI. */
