@@ -6481,3 +6481,71 @@ input[type="time"].uj-ww-inp { font-family: var(--font-mono); font-variant-numer
     .uj-main:has(.uj-cs) { scroll-behavior: auto; }
     .uj-cs-disc-p, .uj-cs-disc-btn .chev, .uj-switch i, .uj-switch i::after, .uj-cs-ready, .uj-cs-pv-band, .uj-cs-pv-b { transition: none; }
 }
+
+/* ── Custom pickers (resources/js/pickers.js) ──
+   One popup, appended to <body> and shown in the top layer, for every <select> and
+   date/time/month input on desktop. Touch screens keep the phone's own pickers. */
+.uj-pk {
+    position: fixed; inset: auto; margin: 0; z-index: 1000;
+    width: max-content; max-width: min(480px, calc(100vw - 16px));
+    padding: 6px; border: 1px solid var(--hairline); border-radius: 10px;
+    background: var(--card); color: var(--ink); box-shadow: var(--shadow-menu);
+    font-family: var(--font-sans); font-size: 13px; line-height: 1.35; overflow: visible;
+}
+.uj-pk:focus { outline: none; }
+.uj-pk button { border: 0; background: none; color: inherit; cursor: pointer; font: inherit; }
+.uj-pk button:disabled { color: var(--muted-soft); opacity: .45; cursor: default; }
+.uj-pk button:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+    :is(select, input)[data-pk-open] { border-color: var(--red) !important; box-shadow: 0 0 0 3px var(--red-tint); }
+    /* The native calendar/clock icon stays as the visual cue, but a click on it falls
+       through to the input so ours opens instead of the browser's. */
+    input:not([data-native] input, [data-native])::-webkit-calendar-picker-indicator { pointer-events: none; }
+}
+
+/* select */
+.uj-pk-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 9px; margin-bottom: 4px; border: 1px solid var(--hairline); border-radius: 7px; background: var(--canvas); }
+.uj-pk-search::before { content: ''; width: 14px; height: 14px; flex-shrink: 0; background: var(--muted); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") center / contain no-repeat; }
+.uj-pk-search:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.uj-pk-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: none; background: none; color: var(--ink); font-size: 13px; }
+.uj-pk-list { max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
+.uj-pk-opt { position: relative; padding: 7px 30px 7px 9px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uj-pk-opt[data-active] { background: var(--canvas); }
+.uj-pk-opt[aria-selected="true"] { color: var(--red); font-weight: 500; }
+.uj-pk-opt[aria-selected="true"]::after { content: ''; position: absolute; right: 9px; top: 50%; width: 14px; height: 14px; margin-top: -7px; background: currentColor; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center / contain no-repeat; }
+.uj-pk-opt[aria-disabled="true"] { color: var(--muted-soft); cursor: default; }
+.uj-pk-opt mark { background: var(--red-tint); color: inherit; border-radius: 2px; }
+.uj-pk-group { padding: 8px 9px 3px; font-size: var(--t-micro); font-weight: 600; color: var(--muted); }
+.uj-pk-none { padding: 9px; color: var(--muted); }
+
+/* calendar */
+.uj-pk-nav { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 2px 2px 6px; }
+.uj-pk .uj-pk-title { flex: 1; padding: 5px 8px; border-radius: 6px; font-weight: 600; text-align: center; }
+.uj-pk button.uj-pk-title:hover, .uj-pk-arrow:hover { background: var(--canvas); }
+.uj-pk .uj-pk-arrow { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; }
+.uj-pk-arrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.uj-pk-grid { display: grid; gap: 2px; }
+.uj-pk-grid--7 { grid-template-columns: repeat(7, 34px); }
+.uj-pk-grid--4 { grid-template-columns: repeat(4, 58px); }
+.uj-pk-wd { padding: 4px 0; text-align: center; font-size: var(--t-micro); color: var(--muted); }
+.uj-pk-grid button { height: 34px; border-radius: 7px; font-variant-numeric: tabular-nums; }
+.uj-pk-grid--4 button { height: 40px; }
+.uj-pk-grid button:not(:disabled):hover { background: var(--canvas); }
+.uj-pk-grid button[data-out] { color: var(--muted-soft); }
+.uj-pk-grid button[data-today] { box-shadow: inset 0 0 0 1px var(--hairline); font-weight: 600; }
+.uj-pk .uj-pk-grid button[aria-selected="true"] { background: var(--red); color: #fff; font-weight: 600; box-shadow: none; }
+
+/* time */
+.uj-pk-split { display: flex; gap: 8px; }
+.uj-pk-split > :first-child { padding-right: 8px; border-right: 1px solid var(--hairline-soft); }
+.uj-pk-time { display: flex; gap: 4px; }
+.uj-pk-split .uj-pk-time { max-height: 268px; }
+.uj-pk-col { position: relative; display: flex; flex-direction: column; gap: 2px; width: 52px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.uj-pk-split .uj-pk-col { max-height: 268px; }
+.uj-pk-col button { flex-shrink: 0; height: 32px; border-radius: 7px; font-variant-numeric: tabular-nums; }
+.uj-pk-col button:hover { background: var(--canvas); }
+.uj-pk .uj-pk-col button[aria-selected="true"] { background: var(--red); color: #fff; font-weight: 600; }
+
+.uj-pk-foot { display: flex; justify-content: space-between; margin-top: 6px; padding: 6px 2px 0; border-top: 1px solid var(--hairline-soft); }
+.uj-pk .uj-pk-foot button { padding: 4px 8px; border-radius: 6px; color: var(--red); font-size: var(--t-sm); font-weight: 500; }
+.uj-pk .uj-pk-foot button:hover { background: var(--red-tint); }
