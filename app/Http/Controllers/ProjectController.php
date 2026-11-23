@@ -98,6 +98,12 @@ class ProjectController extends Controller
             $data = array_diff_key($data, array_flip(ProjectMaster::FINANCE_FIELDS));
         }
 
+        $this->projectMaster->guardAgainstDuplicate(
+            app(CurrentTenant::class)->id(),
+            (string) $data['name'],
+            $request->boolean('confirm_duplicate'),
+        );
+
         $project = $this->projectMaster->create(
             app(CurrentTenant::class)->id(),
             $data,

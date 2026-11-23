@@ -16,7 +16,8 @@ use Tests\TestCase;
 /**
  * `project.manage` opens the Projects register for writing. Editor roles hold it by
  * default; HR grants it one person at a time (a Project Exec on the employee role) on
- * the permission override screen.
+ * the permission override screen. Adding a project also refuses names already on the
+ * register in a slightly different spelling.
  */
 class ProjectManagePermissionTest extends TestCase
 {
@@ -100,6 +101,59 @@ class ProjectManagePermissionTest extends TestCase
             ->assertSuccessful();
 
         $this->assertEquals(5000, Project::where('name', 'KPT: RMS')->sole()->bond_value);
+    }
+
+    public function test_the_same_name_in_a_different_spelling_is_blocked(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'JKDM : MyCustoms', 'is_active' => false]);
+
+        $this->as($this->person('manager'))
+            ->postJson(route('projects.store'), $this->payload(['name' => 'jkdm:mycustoms', 'confirm_duplicate' => 1]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('name');
+
+        $this->assertSame(1, Project::count());
+    }
+
+    public function test_a_close_name_asks_first_then_saves_once_confirmed(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KDN : POC iLPF', 'is_active' => true]);
+        $manager = $this->person('manager');
+
+        $this->as($manager)->postJson(route('projects.store'), $this->payload(['name' => 'KDN: iLPF']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('confirm_duplicate')
+            ->assertJsonFragment(['message' => 'Similar projects are already on the register: KDN : POC iLPF. Add "KDN: iLPF" anyway?']);
+        $this->assertSame(1, Project::count());
+
+        $this->as($manager)->postJson(route('projects.store'), $this->payload(['name' => 'KDN: iLPF', 'confirm_duplicate' => 1]))
+            ->assertSuccessful();
+        $this->assertSame(2, Project::count());
+    }
+
+    public function test_an_unrelated_name_from_the_same_agency_goes_straight_through(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KDN : TU Cloudflare', 'is_active' => true]);
+
+        $this->as($this->person('manager'))->postJson(route('projects.store'), $this->payload(['name' => 'KDN : TU Gitlab']))
+            ->assertSuccessful();
+    }
+
+    /** A different number marks a follow-on job (phase 2, batch 02), not a near miss. */
+    public function test_a_numbered_follow_on_project_goes_straight_through(): void
+    {
+        Project::create(['tenant_id' => $this->tenant->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+
+        $this->as($this->person('manager'))->postJson(route('projects.store'), $this->payload(['name' => 'KPT: RMS 2']))
+            ->assertSuccessful();
+    }
+
+    public function test_projects_in_another_tenant_do_not_count_as_duplicates(): void
+    {
+        $other = Tenant::create(['slug' => 'other', 'name' => 'Other', 'initials' => 'OT']);
+        Project::withoutGlobalScopes()->create(['tenant_id' => $other->id, 'name' => 'KPT: RMS', 'is_active' => true]);
+
+        $this->as($this->person('manager'))->postJson(route('projects.store'), $this->payload())->assertSuccessful();
     }
 
     /** @param  array<string, mixed>  $overrides */

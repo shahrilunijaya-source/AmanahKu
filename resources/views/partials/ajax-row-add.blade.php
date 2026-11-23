@@ -15,18 +15,31 @@
             var form = e.target;
             if (! form || ! form.matches || ! form.matches('form[data-ajax]')) { return; }
             e.preventDefault();
+            send(form, false);
+        });
+
+        // confirmed: the person already said yes to the "similar projects exist" question,
+        // so the server lets a close-but-not-identical name through.
+        function send(form, confirmed) {
             var target = document.querySelector(form.dataset.target);
             var btn = form.querySelector('[type=submit]');
             if (btn) { btn.disabled = true; }
+            var body = new FormData(form);
+            if (confirmed) { body.append('confirm_duplicate', '1'); }
 
             fetch(form.action, {
                 method: 'POST',
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                body: new FormData(form),
+                body: body,
             }).then(function (r) {
                 return r.json().then(function (d) { return { ok: r.ok, d: d }; }, function () { return { ok: r.ok, d: {} }; });
             }).then(function (res) {
                 if (btn) { btn.disabled = false; }
+                var dupe = res.d && res.d.errors && res.d.errors.confirm_duplicate;
+                if (! res.ok && dupe && ! confirmed) {
+                    if (window.confirm(dupe[0])) { send(form, true); }
+                    return;
+                }
                 if (! res.ok) {
                     alert(res.d && res.d.message ? res.d.message : 'Could not save — check the fields.');
                     return;
@@ -48,6 +61,6 @@
                 if (btn) { btn.disabled = false; }
                 alert('Network error — not saved.');
             });
-        });
+        }
     })();
 </script>
