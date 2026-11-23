@@ -62,7 +62,7 @@ class LeaverBackfillScreenTest extends TestCase
             ->assertOk()
             ->assertSee('Upload leaver dates')
             ->assertSee('Record resignation, archive')
-            ->assertSee('Skipped: No staff record with this exact name')
+            ->assertSee('No staff record with this exact name')
             ->assertSee('Apply to 1 person');
 
         $this->assertNull($leaver->fresh()->archived_at);
@@ -84,6 +84,24 @@ class LeaverBackfillScreenTest extends TestCase
         $this->assertSame('2026-01-05', $leaver->resigned_at->toDateString());
         $this->assertSame(1, EmployeeProgression::where('employee_id', $leaver->id)->where('type', 'resigned')->count());
         $this->assertNull($current->fresh()->archived_at);
+    }
+
+    /**
+     * A super admin sits in the company as an observer (not a member). They can run the
+     * upload, by choice even though AuditLog writes no row for observers; the timeline
+     * entry still says the dates were backfilled.
+     */
+    public function test_a_super_admin_observer_can_apply(): void
+    {
+        $leaver = $this->emp('Alya Leaver');
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => Hash::make('password')]);
+        $admin->forceFill(['is_super_admin' => true])->save();
+
+        $this->actingAs($admin)->withSession(['current_tenant' => $this->tenant->id])
+            ->post('/app/leavers/apply', ['rows' => [['name' => 'Alya Leaver', 'last_working_day' => '2026-02-06']]])
+            ->assertRedirect('/app/directory?view=archived');
+
+        $this->assertSame('2026-02-06', $leaver->fresh()->archived_at->toDateString());
     }
 
     public function test_staff_who_cannot_archive_are_refused(): void
