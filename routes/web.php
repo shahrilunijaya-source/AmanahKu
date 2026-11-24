@@ -48,6 +48,7 @@ use App\Http\Controllers\KnowledgeController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\LearningController;
 use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\LeaverBackfillController;
 use App\Http\Controllers\LeaveSetupController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\ManagementExceptionsController;
@@ -376,6 +377,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/app/employees/assets/{asset}/details', [AssetController::class, 'updateDetails'])->name('assets.details');
         Route::post('/app/employees/{employee}/delete', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/app/employees/{employee}/restore', [EmployeeController::class, 'restore'])->name('employees.restore');
+        Route::post('/app/leavers/preview', [LeaverBackfillController::class, 'preview'])->name('leavers.preview');
+        Route::post('/app/leavers/apply', [LeaverBackfillController::class, 'apply'])->name('leavers.apply');
         Route::post('/app/employees/{employee}/payroll-only', [EmployeeController::class, 'payrollOnly'])->name('employees.payroll-only');
         // Profile cover photo. Owner uploads; owner or HR/management removes. See EmployeeCoverController.
         Route::post('/app/employees/{employee}/cover', [EmployeeCoverController::class, 'update'])->name('employees.cover.update');

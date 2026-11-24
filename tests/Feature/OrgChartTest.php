@@ -128,4 +128,32 @@ class OrgChartTest extends TestCase
         // ...but only one of them actually has nobody to verify their requests.
         $this->assertSame([$orphan->id], $chart['unmanaged']);
     }
+
+    public function test_resigned_staff_drop_off_the_chart_but_staff_serving_notice_stay(): void
+    {
+        // Arrange: Farah has left (status flipped to resigned, never archived, e.g. a leaver
+        // entered without an offboarding case). Nurul handed in notice but is still working.
+        Employee::where('name', 'Farah Aziz')->update(['status' => 'resigned']);
+        Employee::where('name', 'Nurul Iman Binti Hassan')->update([
+            'resigned_at' => now()->subWeek(), 'last_working_day' => now()->addWeek(),
+        ]);
+
+        // Act
+        $response = $this->actingInTenant()->get('/app/orgchart');
+
+        // Assert
+        $response->assertOk();
+        $response->assertDontSee('Farah Aziz');
+        $response->assertSee('Nurul Iman Binti Hassan');
+    }
+
+    public function test_resigned_staff_move_from_the_directory_to_its_archived_view(): void
+    {
+        // Arrange
+        Employee::where('name', 'Farah Aziz')->update(['status' => 'resigned']);
+
+        // Act + Assert: gone from the current directory, still findable by HR under Archived.
+        $this->actingInTenant()->get('/app/directory?q=Farah')->assertOk()->assertDontSee('Farah Aziz');
+        $this->actingInTenant()->get('/app/directory?view=archived&q=Farah')->assertOk()->assertSee('Farah Aziz');
+    }
 }

@@ -217,19 +217,25 @@ class Employee extends Model
      * the user is choosing or counting CURRENT staff. Historical references (a
      * payslip's, claim's or attendance record's owner) deliberately do NOT use this,
      * so archived people still resolve their name everywhere they are referenced.
+     *
+     * Status 'resigned' counts as gone too: it is only set once the last working day has
+     * passed, but a leaver without an offboarding case (bulk import, a backdated resignation)
+     * is never archived, and used to linger in the org chart, directory and pickers.
+     * Staff still serving notice keep their old status, so they stay listed.
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->whereNull('archived_at');
+        return $query->whereNull('archived_at')->where('status', '!=', 'resigned');
     }
 
     /**
-     * Archived staff only — the inverse of scopeActive(). Backs the directory's
-     * HR/management "Archived" recovery view, where they can be restored.
+     * Departed staff only, the exact inverse of scopeActive(): archived, or resigned but not
+     * yet archived. Backs the directory's HR/management "Archived" view, where archived
+     * people can be restored and resigned-but-unarchived ones can be archived.
      */
     public function scopeArchived(Builder $query): Builder
     {
-        return $query->whereNotNull('archived_at');
+        return $query->where(fn (Builder $q) => $q->whereNotNull('archived_at')->orWhere('status', 'resigned'));
     }
 
     /**
