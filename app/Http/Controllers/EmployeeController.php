@@ -412,7 +412,9 @@ class EmployeeController extends Controller
         // non-empty fields — so a second file that just fills in emails enriches the
         // directory instead of being skipped as a duplicate. Existing staff are indexed by
         // all three natural keys; rows created this run are added so a later row updates them.
-        $existing = Employee::active()->get();
+        // Not archived, rather than active(): a resigned-but-unarchived leaver must still match,
+        // or re-uploading the full staff list would add them a second time.
+        $existing = Employee::query()->whereNull('archived_at')->get();
         $byStaffId = $existing->filter(fn ($e) => $e->staff_id)->keyBy(fn ($e) => $key($e->staff_id));
         $byEmail = $existing->filter(fn ($e) => $e->email)->keyBy(fn ($e) => $key($e->email));
         $byName = $existing->keyBy(fn ($e) => $key($e->name));

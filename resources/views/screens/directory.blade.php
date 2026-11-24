@@ -17,7 +17,8 @@
 ])
 <div>
 
-<div class="uj-card">
+@php $leaverPlan = session('leaverPlan'); @endphp
+<div class="uj-card" x-data="{ leaverOpen: {{ $leaverPlan ? 'true' : 'false' }} }">
     <form method="get" action="{{ route('app.screen', 'directory') }}" style="padding:16px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--hairline);">
         @if ($archived ?? false)<input type="hidden" name="view" value="archived" />@endif
         <div style="position:relative;flex:1;min-width:220px;">
@@ -36,11 +37,69 @@
         @if ($canArchive ?? false)
             @if ($archived ?? false)
                 <a href="{{ route('app.screen', 'directory') }}" class="uj-btn-ghost" style="display:inline-flex;align-items:center;height:36px;padding:0 14px;font-size:13px;text-decoration:none;margin-left:auto;"><span x-text="$store.ui.lang==='en' ? 'Back to active' : 'Kembali ke aktif'">Back to active</span></a>
+                <button type="button" @click="leaverOpen = ! leaverOpen" class="uj-btn-ghost" style="height:36px;padding:0 14px;font-size:13px;"><span x-text="$store.ui.lang==='en' ? 'Upload leaver dates' : 'Muat naik tarikh berhenti'">Upload leaver dates</span></button>
             @else
                 <a href="{{ route('app.screen', ['screen' => 'directory', 'view' => 'archived']) }}" class="uj-btn-ghost" style="display:inline-flex;align-items:center;height:36px;padding:0 14px;font-size:13px;text-decoration:none;margin-left:auto;"><span x-text="$store.ui.lang==='en' ? 'Archived' : 'Diarkib'">Archived</span>@if (($archivedCount ?? 0) > 0)<span style="margin-left:7px;background:var(--hairline);color:var(--muted);border-radius:9px;padding:1px 7px;font-size:11px;font-weight:600;">{{ $archivedCount }}</span>@endif</a>
             @endif
         @endif
     </form>
+
+    @if (($archived ?? false) && ($canArchive ?? false))
+    {{-- Upload leaver dates. Picking a file submits it straight to LeaverBackfillController::preview (writes nothing); Apply posts the ready rows back and the server checks them again. --}}
+    <div x-show="leaverOpen" x-cloak
+         x-transition:enter="uj-leaver-enter" x-transition:enter-start="uj-leaver-from" x-transition:leave="uj-leaver-leave" x-transition:leave-end="uj-leaver-from"
+         style="padding:16px 20px;border-bottom:1px solid var(--hairline);display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <p style="flex:1;font-size:12.5px;color:var(--muted);margin:0;">
+                <span x-text="$store.ui.lang==='en' ? 'Records leaving dates for resigned staff and archives them on their last day. CSV columns:' : 'Rekod tarikh berhenti staf yang telah berhenti dan arkibkan mereka pada hari terakhir. Lajur CSV:'"></span>
+                <span style="font-family:var(--font-mono);font-size:11.5px;">name, last_working_day, resigned_on, joined_on</span>
+            </p>
+            <form method="post" action="{{ route('leavers.preview') }}" enctype="multipart/form-data">
+                @csrf
+                <label class="uj-btn-ghost" style="display:inline-flex;align-items:center;height:32px;padding:0 12px;font-size:12.5px;cursor:pointer;">
+                    <input type="file" name="file" accept=".csv,text/csv" required style="display:none;" @change="$el.form.requestSubmit()" />
+                    <span x-text="$store.ui.lang==='en' ? @js($leaverPlan ? 'Choose another file' : 'Choose CSV') : @js($leaverPlan ? 'Pilih fail lain' : 'Pilih CSV')"></span>
+                </label>
+            </form>
+        </div>
+
+        @if ($leaverPlan)
+            @php
+                // Ready rows first, then already done, then skipped.
+                $leaverRows = collect($leaverPlan)->sortBy(fn ($r) => ['ready' => 0, 'done' => 1, 'skipped' => 2][$r['outcome']] ?? 3)->values();
+                $leaverReady = $leaverRows->where('outcome', 'ready')->values();
+                $leaverDate = fn (string $d) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? \Carbon\Carbon::parse($d)->format('j M Y') : $d;
+            @endphp
+            <div>
+                @foreach ($leaverRows as $r)
+                    <div style="display:flex;align-items:baseline;gap:12px;padding:9px 0;{{ $loop->first ? '' : 'border-top:1px solid var(--hairline-soft);' }}">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;color:{{ $r['outcome'] === 'ready' ? 'var(--ink)' : 'var(--muted)' }};">{{ $r['name'] }}</div>
+                            @if ($r['outcome'] !== 'skipped')
+                                <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
+                                    <span x-text="$store.ui.lang==='en' ? 'Last day' : 'Hari terakhir'">Last day</span> {{ $leaverDate($r['last_working_day']) }}@if ($r['resigned_on'] !== '') · <span x-text="$store.ui.lang==='en' ? 'notice' : 'notis'">notice</span> {{ $leaverDate($r['resigned_on']) }}@endif @if ($r['joined_on'] !== '') · <span x-text="$store.ui.lang==='en' ? 'joined' : 'mula'">joined</span> {{ $leaverDate($r['joined_on']) }}@endif
+                                </div>
+                            @endif
+                        </div>
+                        <span style="font-size:12px;text-align:right;max-width:55%;color:{{ $r['outcome'] === 'skipped' ? 'var(--amber-ink)' : 'var(--muted)' }};">{{ ucfirst($r['detail']) }}</span>
+                    </div>
+                @endforeach
+            </div>
+            @if ($leaverReady->isNotEmpty())
+                <form method="post" action="{{ route('leavers.apply') }}" style="display:flex;justify-content:flex-end;"
+                      @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Apply to '.$leaverReady->count().' '.($leaverReady->count() === 1 ? 'person' : 'people').'?') : @js('Guna untuk '.$leaverReady->count().' orang?'), body: $store.ui.lang==='en' ? 'Their leaving dates are recorded and they are archived on their last working day. Their logins close and open work goes to their manager.' : 'Tarikh berhenti mereka direkod dan mereka diarkibkan pada hari bekerja terakhir. Log masuk mereka ditutup dan kerja terbuka diserahkan kepada pengurus.', ok: $store.ui.lang==='en' ? 'Apply' : 'Guna' })">
+                    @csrf
+                    @foreach ($leaverReady as $i => $r)
+                        @foreach (['name', 'last_working_day', 'resigned_on', 'joined_on'] as $field)
+                            <input type="hidden" name="rows[{{ $i }}][{{ $field }}]" value="{{ $r[$field] }}" />
+                        @endforeach
+                    @endforeach
+                    <button type="submit" class="uj-btn-primary" style="height:34px;padding:0 14px;font-size:12.5px;"><span x-text="$store.ui.lang==='en' ? @js('Apply to '.$leaverReady->count().' '.($leaverReady->count() === 1 ? 'person' : 'people')) : @js('Guna untuk '.$leaverReady->count().' orang')"></span></button>
+                </form>
+            @endif
+        @endif
+    </div>
+    @endif
 
     @php
         $dirGrid = ($canSeeSalary ?? false)
@@ -81,7 +140,15 @@
             <span style="font-size:13px;color:var(--body);">{{ $e->branch?->name }}</span>
             @if ($canSeeSalary ?? false)<span style="font-size:12.5px;color:var(--body);font-family:var(--font-mono);">{{ $e->salary ? 'RM '.number_format((float) $e->salary, 0) : '—' }}</span>@endif
             <span style="font-size:12px;font-weight:600;color:{{ $stColor }};">{{ $stLabel }}</span>
-            @if ($isArchived)
+            @if ($isArchived && ! $e->archived_at)
+            {{-- Resigned but never archived (no offboarding case closed them out): offer the archive step itself, which also detaches their login and reporting lines. --}}
+            <div style="display:flex;gap:8px;align-items:center;">
+                <form method="post" action="{{ route('employees.destroy', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Archive '.$e->name.'?') : @js('Arkibkan '.$e->name.'?'), body: $store.ui.lang==='en' ? 'They have resigned. Archiving closes their login and hands any open work to their manager.' : 'Mereka telah berhenti. Mengarkib menutup log masuk mereka dan menyerahkan kerja terbuka kepada pengurus.', ok: $store.ui.lang==='en' ? 'Archive' : 'Arkibkan' })">
+                    @csrf
+                    <button type="submit" class="uj-btn-ghost" style="height:30px;padding:0 14px;font-size:12px;"><span x-text="$store.ui.lang==='en' ? 'Archive' : 'Arkibkan'">Archive</span></button>
+                </form>
+            </div>
+            @elseif ($isArchived)
             <div style="display:flex;gap:8px;align-items:center;">
                 <form method="post" action="{{ route('employees.restore', $e) }}" @submit.prevent="$store.ask.form($el, { title: $store.ui.lang==='en' ? @js('Restore '.$e->name.'?') : @js('Pulihkan '.$e->name.'?'), body: $store.ui.lang==='en' ? 'They go back into the directory and every staff picker.' : 'Mereka kembali ke direktori dan setiap pemilih staf.', ok: $store.ui.lang==='en' ? 'Restore' : 'Pulihkan' })">
                     @csrf
