@@ -17,8 +17,11 @@ use Illuminate\Support\Collection;
  *
  * A week is "complete" when the sheet is finalised (submitted or approved — D6) AND
  * every weekday Mon–Fri of that week has timesheet entries summing to 100% (±0.01) —
- * the same per-day rule the capture screen enforces on submit. Weekend days are
- * ignored. Read-only: never writes.
+ * the same per-day rule the capture screen enforces on submit. A weekday fully covered
+ * by a public holiday or whole-day leave is not expected at all: it is read from
+ * LockedDays, never from a stored generated row, which only exists when the tenant has
+ * the matching "Public Holiday" / "On Leave" category. Weekend days are ignored.
+ * Read-only: never writes.
  */
 final class TimesheetCompliance
 {
@@ -57,7 +60,7 @@ final class TimesheetCompliance
 
         return $sheet !== null
             && $this->isFinalised($sheet)
-            && $this->weekdaysComplete($sheet->entries, $start);
+            && $this->weekdaysComplete($sheet->entries, $start, $this->lockedDays->forWeek($employee, $start));
     }
 
     /**
@@ -83,7 +86,9 @@ final class TimesheetCompliance
 
         // Same eligibility gate the roster/bell apply: an inactive staffer, or one
         // who joined after the week started, is never "overdue" for that week.
-        if (! $this->isEligible($employee, $start)) {
+        $locked = $this->lockedDays->forWeek($employee, $start);
+
+        if (! $this->isEligible($employee, $start, $locked)) {
             return false;
         }
 
@@ -92,7 +97,7 @@ final class TimesheetCompliance
         }
 
         $complete = $sheetLoaded
-            ? $sheet !== null && $this->isFinalised($sheet) && $this->weekdaysComplete($sheet->entries, $start)
+            ? $sheet !== null && $this->isFinalised($sheet) && $this->weekdaysComplete($sheet->entries, $start, $locked)
             : $this->isComplete($employee, $start);
 
         return ! $complete;
@@ -102,8 +107,10 @@ final class TimesheetCompliance
      * Whether $employee is expected to have filled the $weekStart week: active,
      * already employed when the week began, and not on leave/holiday for the whole
      * week. Mirrors the SQL filter plus locked-week exclusion in roster().
+     *
+     * @param  array<string, array{percentage: float}>  $locked  LockedDays::forWeek() for this employee and week
      */
-    private function isEligible(Employee $employee, CarbonImmutable $weekStart): bool
+    private function isEligible(Employee $employee, CarbonImmutable $weekStart, array $locked): bool
     {
         if ($employee->status !== 'active') {
             return false;
@@ -116,7 +123,7 @@ final class TimesheetCompliance
         // Nobody is expected to file a timesheet for a week they were never at work for.
         // Only fully locked days (holiday / whole-day leave) count: a half-day leave still
         // expects the staffer to fill the other half, so it does not excuse the week.
-        return $this->fullyLockedCount($this->lockedDays->forWeek($employee, $weekStart)) < count(WorkWeek::for()->workingDays());
+        return $this->fullyLockedCount($locked) < count(WorkWeek::for()->workingDays());
     }
 
     /**
@@ -170,13 +177,13 @@ final class TimesheetCompliance
         return $employees
             ->map(function (Employee $e) use ($sheets, $start, $pastDeadline, $lockedByEmployee) {
                 $sheet = $sheets->get($e->id);
+                $lockedMap = $lockedByEmployee[$e->id] ?? [];
                 $complete = $sheet !== null
                     && $this->isFinalised($sheet)
-                    && $this->weekdaysComplete($sheet->entries, $start);
+                    && $this->weekdaysComplete($sheet->entries, $start, $lockedMap);
                 $status = $complete ? 'done' : ($pastDeadline ? 'late' : 'pending');
 
-                $filledDays = $sheet !== null ? $this->countFilledDays($sheet->entries, $start) : 0;
-                $lockedMap = $lockedByEmployee[$e->id] ?? [];
+                $filledDays = $sheet !== null ? $this->countFilledDays($sheet->entries, $start, $lockedMap) : 0;
                 $expectedDays = $this->countExpectedDays($lockedMap, $start);
                 $lastTouched = $sheet?->updated_at ? CarbonImmutable::parse($sheet->updated_at) : null;
 
@@ -205,8 +212,13 @@ final class TimesheetCompliance
             ->values();
     }
 
-    /** Count how many weekdays Mon–Fri have entries summing to 100% (±0.01). */
-    private function countFilledDays(Collection $entries, CarbonImmutable $weekStart): int
+    /**
+     * Count how many expected weekdays Mon–Fri (not fully locked by holiday or whole-day
+     * leave) have entries summing to 100% (±0.01).
+     *
+     * @param  array<string, array{percentage: float}>  $locked
+     */
+    private function countFilledDays(Collection $entries, CarbonImmutable $weekStart, array $locked): int
     {
         $byDay = [];
         foreach ($entries as $e) {
@@ -217,6 +229,9 @@ final class TimesheetCompliance
         $filled = 0;
         for ($i = 0; $i < 5; $i++) {
             $day = $weekStart->addDays($i)->toDateString();
+            if (($locked[$day]['percentage'] ?? 0) >= 100) {
+                continue;
+            }
             if (isset($byDay[$day]) && abs($byDay[$day] - 100) < self::EPSILON) {
                 $filled++;
             }
@@ -244,9 +259,13 @@ final class TimesheetCompliance
         return $expected;
     }
 
-    /** All five weekdays Mon–Fri present and each summing to 100% (±0.01). */
-    private function weekdaysComplete(Collection $entries, CarbonImmutable $weekStart): bool
+    /**
+     * Every expected weekday Mon–Fri present and summing to 100% (±0.01).
+     *
+     * @param  array<string, array{percentage: float}>  $locked
+     */
+    private function weekdaysComplete(Collection $entries, CarbonImmutable $weekStart, array $locked): bool
     {
-        return $this->countFilledDays($entries, $weekStart) === 5;
+        return $this->countFilledDays($entries, $weekStart, $locked) === $this->countExpectedDays($locked, $weekStart);
     }
 }
