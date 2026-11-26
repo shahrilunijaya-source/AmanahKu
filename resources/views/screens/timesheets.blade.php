@@ -60,15 +60,23 @@
 @endif
 
 @php $tab = request()->query('tab') === 'review' ? 'review' : 'record'; @endphp
+{{-- Review is drawn by the server at page load. After a save or Submit day (which post in
+     the background, firing ts-saved) it is out of date, so opening it reloads on that tab. --}}
 <div x-data="{
     tab: @js($tab),
+    stale: false,
     setTab(t) {
-        this.tab = t
         const url = new URL(location)
         url.searchParams.set('tab', t)
+        if (t === 'review' && this.stale) {
+            location.assign(url)
+
+            return
+        }
+        this.tab = t
         history.replaceState(null, '', url)
     },
-}">
+}" @ts-saved.window="stale = true">
     {{-- Two tabs: Record writes the week, Review reads it back. An underline bar mirroring
          the all-staff report screen. Record opens by default — the nav names this screen
          "Timesheet" and the daily job is filling it in. --}}

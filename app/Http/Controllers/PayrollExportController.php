@@ -25,6 +25,11 @@ class PayrollExportController extends Controller
 {
     private const ADMIN_ROLES = ['management', 'hr'];
 
+    /** Keys for registerLine(), in the order it returns them. */
+    public const REGISTER_KEYS = ['basic', 'allowances', 'overtime', 'bonus', 'other_earnings', 'unpaid', 'gross',
+        'epf', 'socso', 'eis', 'skbbk', 'pcb', 'zakat', 'cp38', 'advance', 'other_deductions', 'total_deductions',
+        'claims', 'net', 'epf_er', 'socso_er', 'eis_er', 'hrdf', 'cost'];
+
     /**
      * Bank payment file for a finalized run: one row per employee with net pay. The
      * layout is selectable via ?format= (generic CSV by default; bank-specific formats
@@ -123,9 +128,7 @@ class PayrollExportController extends Controller
 
         AuditLog::record('Exported payroll register', $run->label.' · '.$payslips->count().' employees');
 
-        $money = ['basic', 'allowances', 'overtime', 'bonus', 'other_earnings', 'unpaid', 'gross',
-            'epf', 'socso', 'eis', 'skbbk', 'pcb', 'zakat', 'cp38', 'advance', 'other_deductions', 'total_deductions',
-            'claims', 'net', 'epf_er', 'socso_er', 'eis_er', 'hrdf', 'cost'];
+        $money = self::REGISTER_KEYS;
         $rows = $payslips->map(fn (Payslip $p) => array_combine($money, self::registerLine($p)));
 
         return response()->streamDownload(function () use ($payslips, $rows, $money) {
@@ -206,7 +209,7 @@ class PayrollExportController extends Controller
      *
      * @return list<float>
      */
-    private static function registerLine(Payslip $p): array
+    public static function registerLine(Payslip $p): array
     {
         $f = fn (string $k) => (float) $p->{$k};
         // Additions and one-off individual earnings have no column of their own, so they are what gross has left.

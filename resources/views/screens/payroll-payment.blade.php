@@ -3,6 +3,7 @@
 @php
     $tabs = [
         'payout' => ['Payout Management', 'Pengurusan Bayaran'],
+        'listing' => ['Salary Listing', 'Senarai Gaji'],
         'submission' => ['Bank/Statutory Submission', 'Penyerahan Bank/Berkanun'],
         'payslip' => ['Individual Pay Slip', 'Slip Gaji Individu'],
         'bulk-payslip' => ['Bulk Pay Slip', 'Slip Gaji Pukal'],
@@ -19,6 +20,9 @@
 
     <div x-show="tab === 'payout'" x-cloak>
         @include('partials.payroll.payment.payout')
+    </div>
+    <div x-show="tab === 'listing'" x-cloak>
+        @include('partials.payroll.payment.listing')
     </div>
     <div x-show="tab === 'submission'" x-cloak>
         @include('partials.payroll.payment.submission')
