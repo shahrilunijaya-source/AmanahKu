@@ -149,6 +149,47 @@ class PayrollExportTest extends TestCase
         $this->actingHr()->get("/app/payroll/runs/{$draft->id}/register")->assertStatus(422);
     }
 
+    // ── Salary listing tab ────────────────────────────────────────
+
+    public function test_salary_listing_shows_each_person_and_the_totals_like_the_sheet(): void
+    {
+        $run = $this->finalizedRun();
+        Payslip::where('payroll_run_id', $run->id)->update(['notes' => 'zakat via employer']);
+        $second = Employee::create(['tenant_id' => $this->tenant->id, 'name' => 'Zed', 'staff_id' => 'AC-0008', 'status' => 'active', 'workload' => 'green']);
+        Payslip::forceCreate(['tenant_id' => $this->tenant->id, 'payroll_run_id' => $run->id, 'employee_id' => $second->id,
+            'basic' => 1000, 'unpaid_deduction' => 100, 'gross' => 900, 'net_pay' => 900, 'employer_cost' => 900]);
+
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'listing', 'run' => $run->id]))
+            ->assertOk()
+            ->assertSee('data-testid="salary-listing"', false)
+            // Sorted by name, Worker's EPF and net, Zed's unpaid leave with its minus sign.
+            ->assertSeeInOrder(['Worker', '5,000.00', '550.00', '4,295.00', 'zakat via employer', 'Zed', '1,000.00', '−100.00', '900.00'])
+            // Totals: basic 6,000 and net 5,195.
+            ->assertSeeInOrder(['Total', '6,000.00', '5,195.00'])
+            ->assertSee(route('payroll.export.register', $run), false);
+    }
+
+    public function test_salary_listing_shows_a_draft_run_without_the_csv_link(): void
+    {
+        $draft = $this->finalizedRun('draft');
+
+        $this->actingHr()->get(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'listing', 'run' => $draft->id]))
+            ->assertOk()
+            ->assertSee('data-testid="salary-listing"', false)
+            ->assertSee('4,295.00')
+            ->assertSee('can still change')
+            ->assertDontSee(route('payroll.export.register', $draft), false);
+    }
+
+    public function test_salary_listing_is_hidden_from_employees(): void
+    {
+        $run = $this->finalizedRun();
+
+        $response = $this->actingEmployee()->get(route('app.screen', ['screen' => 'payroll-payment', 'tab' => 'listing', 'run' => $run->id]));
+        $this->assertNotSame(500, $response->status());
+        $response->assertDontSee('data-testid="salary-listing"', false)->assertDontSee('4,295.00');
+    }
+
     // ── Payroll summary ───────────────────────────────────────────
 
     public function test_summary_adds_months_without_counting_the_mid_month_advance_twice(): void
