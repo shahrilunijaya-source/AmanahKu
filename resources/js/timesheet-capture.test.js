@@ -860,3 +860,31 @@ test('a Saturday-working company shows six days and ends the week on Saturday', 
     expect(c.capacityFor(SATURDAY)).toBe(100);
     expect(c.weekEndsOn()).toBe(SATURDAY);
 });
+
+// ---- Helpdesk bug (18/19 Sep 2026): a holiday week must not offer Submit week with nothing left ----
+
+test('unsubmittedDays() and canSubmitDay() skip a whole public holiday, typed rows or not', () => {
+    const holiday = { [THURSDAY]: { label: 'Malaysia Day', source: 'holiday', percentage: 100 } };
+    const others = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-07'];
+    const c = makeComponent({
+        days: 5,
+        locked: holiday,
+        dayStatuses: Object.fromEntries(others.map((d) => [d, { status: 'submitted' }])),
+    });
+
+    // Every other day submitted: nothing is left, so Submit week stays off.
+    expect(c.unsubmittedDays()).toEqual([]);
+    expect(c.weekComplete()).toBe(false);
+    expect(c.canSubmitDay(THURSDAY)).toBe(false);
+
+    // Work logged on the holiday is saved, but the server still never submits that day.
+    c.rows[THURSDAY] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 60 }];
+    expect(c.unsubmittedDays()).toEqual([]);
+    expect(c.isEditable(THURSDAY)).toBe(true);
+});
+
+test('a half-day leave is not mistaken for a whole holiday', () => {
+    const c = makeComponent({ days: 5, locked: { [THURSDAY]: { label: 'Annual Leave', source: 'leave', percentage: 50, period: 'am' } } });
+    expect(c.isWholeHoliday(THURSDAY)).toBe(false);
+    expect(c.unsubmittedDays()).toContain(THURSDAY);
+});

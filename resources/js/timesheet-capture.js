@@ -937,9 +937,19 @@ export function registerTimesheetCapture(Alpine) {
         },
         // Editable working days that still need submitting — Submit week is disabled and
         // has nothing to do once this is empty (every day is submitted, approved, or
-        // frozen without an unlock).
+        // frozen without an unlock). A whole public holiday is left out: the server never
+        // submits one (WeekWriter skips it), so counting it made Submit week light up on a
+        // week with nothing left and fail with "Nothing left to submit this week."
         unsubmittedDays() {
-            return this.dayDates().filter((d) => this.isEditable(d) && !this.isOffDay(d));
+            return this.dayDates().filter((d) => this.isEditable(d) && !this.isOffDay(d) && !this.isWholeHoliday(d));
+        },
+        // A public holiday covering the day's full capacity. Still editable (staff may log
+        // work on it), but the server treats it as accounted for and never submits it.
+        // Reads the holiday's own percentage, not lockedPct(): that one shrinks as rows are
+        // typed, while the server's check (LockedDays::forWeek) never does.
+        isWholeHoliday(iso) {
+            const day = this.locked[iso];
+            return day?.source === 'holiday' && (parseFloat(day.percentage) || 0) >= this.capacityFor(iso);
         },
         // The one sentence under the week strip: over-allocation first (it is an error the
         // staffer must undo), then uncosted lines, then an empty day (submit it on its own),
@@ -1180,7 +1190,7 @@ export function registerTimesheetCapture(Alpine) {
         // Gate for the Submit day button: an editable, non-future working day, not
         // already over 100%, with no uncosted line left on it.
         canSubmitDay(iso) {
-            return this.isEditable(iso) && !this.isFuture(iso) && !this.isOffDay(iso)
+            return this.isEditable(iso) && !this.isFuture(iso) && !this.isOffDay(iso) && !this.isWholeHoliday(iso)
                 && this.dayState(iso) !== 'over' && !this.hasBlankRows(iso);
         },
         /**
