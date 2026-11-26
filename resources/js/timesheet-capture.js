@@ -1104,6 +1104,7 @@ export function registerTimesheetCapture(Alpine) {
                     this.locked = body.locked || {};
                     this.dayStatuses = body.days || this.dayStatuses;
                     this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    window.dispatchEvent(new CustomEvent('ts-saved'));
                     // Submit reloads the page (the server re-renders the locked/submitted view),
                     // so only the manual draft save needs an in-place toast.
                     if (announce && !submitNow) this.$store.toast.success(this.$store.ui.lang === 'en' ? 'Draft saved.' : 'Draf disimpan.');
@@ -1166,6 +1167,8 @@ export function registerTimesheetCapture(Alpine) {
                 }
                 this.dayStatuses = body.days || this.dayStatuses;
                 this.locked = body.locked || this.locked;
+                // The Review tab is drawn by the server at page load; tell it it is now out of date.
+                window.dispatchEvent(new CustomEvent('ts-saved'));
                 this.dayReasonOpen = false;
                 this.dayReason = '';
                 this.savedAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });

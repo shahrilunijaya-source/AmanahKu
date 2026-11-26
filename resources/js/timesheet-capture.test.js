@@ -888,3 +888,25 @@ test('a half-day leave is not mistaken for a whole holiday', () => {
     expect(c.isWholeHoliday(THURSDAY)).toBe(false);
     expect(c.unsubmittedDays()).toContain(THURSDAY);
 });
+
+// ---- Helpdesk bug (14 Sep 2026): Submit day left the server-drawn Review tab out of date ----
+
+test('a successful Submit day or save fires ts-saved, so the Review tab knows to reload', async () => {
+    const saved = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch };
+    const events = [];
+    globalThis.window = { dispatchEvent: (e) => events.push(e.type), location: { reload: () => {} } };
+    globalThis.document = { querySelector: () => null };
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ days: {}, locked: {} }) });
+    try {
+        const c = makeComponent({ days: 5 });
+        c.rows['2026-08-03'] = [{ category_id: 2, project_id: '', sub_pillar_id: '', description: '', percentage: 100 }];
+
+        await c.submitDay('2026-08-03');
+        expect(events).toEqual(['ts-saved']);
+
+        await c.save();
+        expect(events).toEqual(['ts-saved', 'ts-saved']);
+    } finally {
+        Object.assign(globalThis, saved);
+    }
+});
